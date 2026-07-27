@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { vouchers, unitBisnis } from '$lib/server/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { getCurrentUserId } from '$lib/server/getUser';
 
@@ -41,8 +41,9 @@ export async function POST({ request, cookies, params, locals }) {
             return json({ error: 'Voucher sudah melebihi batas penggunaan' }, { status: 400 });
         }
 
+        // Tanda backslash (\) sudah dihilangkan dari template literal di bawah ini
         if (subtotal < Number(voucher.minPurchase)) {
-            return json({ error: \`Minimal transaksi untuk voucher ini adalah Rp \${Number(voucher.minPurchase).toLocaleString('id-ID')}\` }, { status: 400 });
+            return json({ error: `Minimal transaksi untuk voucher ini adalah Rp ${Number(voucher.minPurchase).toLocaleString('id-ID')}` }, { status: 400 });
         }
 
         return json({
