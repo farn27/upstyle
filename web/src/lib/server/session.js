@@ -2,27 +2,55 @@ import { redis } from '$lib/server/redis';
 import crypto from 'crypto';
 
 const SESSION_TTL = 60 * 60 * 24; // 24 jam
+const memorySessions = new Map();
 
 /**
- * Buat session baru, simpan mapping token -> userId di Redis
+ * Buat session baru, simpan mapping token -> userId di Redis (dengan fallback memory)
  * @param {number} userId
- * @returns {string} session token
+ * @returns {Promise<string>} session token
  */
 export async function createSession(userId) {
 	const token = crypto.randomUUID();
-	await redis.set(`session:${token}`, userId.toString(), { ex: SESSION_TTL });
+	const numericUserId = Number(userId);
+	memorySessions.set(token, { userId: numericUserId, expiresAt: Date.now() + SESSION_TTL * 1000 });
+
+	if (redis) {
+		try {
+			await redis.set(`session:${token}`, numericUserId.toString(), { ex: SESSION_TTL });
+		} catch (e) {
+			console.warn('⚠️ Redis session set failed, using memory fallback:', e?.message || e);
+		}
+	}
 	return token;
 }
 
 /**
  * Ambil userId dari session token
  * @param {string | undefined} token
- * @returns {number | null}
+ * @returns {Promise<number | null>}
  */
 export async function getUserIdFromSession(token) {
 	if (!token) return null;
-	const userId = await redis.get(`session:${token}`);
-	return userId ? Number(userId) : null;
+	
+	if (redis) {
+		try {
+			const userId = await redis.get(`session:${token}`);
+			if (userId) return Number(userId);
+		} catch (e) {
+			console.warn('⚠️ Redis session get failed, checking memory fallback:', e?.message || e);
+		}
+	}
+
+	const mem = memorySessions.get(token);
+	if (mem) {
+		if (Date.now() > mem.expiresAt) {
+			memorySessions.delete(token);
+			return null;
+		}
+		return mem.userId;
+	}
+
+	return null;
 }
 
 /**
@@ -31,5 +59,10 @@ export async function getUserIdFromSession(token) {
  */
 export async function deleteSession(token) {
 	if (!token) return;
-	await redis.del(`session:${token}`);
+	memorySessions.delete(token);
+	if (redis) {
+		try {
+			await redis.del(`session:${token}`);
+		} catch (e) {}
+	}
 }
