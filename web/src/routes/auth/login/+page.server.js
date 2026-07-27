@@ -98,7 +98,7 @@ export const actions = {
 	// 2. LOGIN GOOGLE
 	google: async ({ url }) => {
 		const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-		const origin = (env.ORIGIN || url.origin).replace(/\/$/, '');
+		const origin = (url.origin && !url.origin.includes('localhost') ? url.origin : (env.ORIGIN || url.origin)).replace(/\/$/, '');
 		const options = {
 			redirect_uri: `${origin}/auth/callback/google`,
 			client_id: GOOGLE_CLIENT_ID,
