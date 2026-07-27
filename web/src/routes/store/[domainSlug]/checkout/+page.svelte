@@ -1,5 +1,5 @@
 <script>
-    import { cart } from '../../../cartStore';
+    import { cart } from '../../cartStore';
     import { enhance } from '$app/forms';
 
     export let data;
