@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui;
+  --font-manrope: "Manrope", sans-serif;
+}
+
+:root {
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body,
+input,
+button,
+textarea,
+select {
+  font-family: "Manrope", sans-serif;
+}
+
+button,
+.btn,
+select,
+input[type="submit"],
+a {
+  cursor: pointer !important;
+}
+
+/* Minimum readable text — avoid sub-12px UI copy */
+.text-micro {
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+/* Card & surface utilities */
+.surface-card {
+  @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm;
+}
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

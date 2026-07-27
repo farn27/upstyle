@@ -1,0 +1,6 @@
+{
+  "name": "SaaS UMKM",
+  "description": "Platform ERP/SaaS manajemen bisnis UMKM — keuangan, inventori, POS, HR, CRM, dan portal karyawan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

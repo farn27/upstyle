@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1770290971825,
+      "tag": "0000_volatile_amazoness",
+      "breakpoints": true
+    }
+  ]
+}

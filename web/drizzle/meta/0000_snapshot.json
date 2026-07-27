@@ -1,0 +1,2494 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "5",
+  "dialect": "mysql",
+  "tables": {
+    "abc_categories": {
+      "name": "abc_categories",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_kategori": {
+          "autoincrement": false,
+          "name": "nama_kategori",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abc_level": {
+          "default": "'C'",
+          "autoincrement": false,
+          "name": "abc_level",
+          "type": "enum('A','B','C')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deskripsi": {
+          "autoincrement": false,
+          "name": "deskripsi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "abc_categories_id": {
+          "name": "abc_categories_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "approval_logs": {
+      "name": "approval_logs",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "autoincrement": false,
+          "name": "request_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approver_id": {
+          "autoincrement": false,
+          "name": "approver_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "autoincrement": false,
+          "name": "action",
+          "type": "enum('APPROVE','REJECT')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "autoincrement": false,
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "approval_logs_id": {
+          "name": "approval_logs_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "request_id": {
+          "name": "request_id",
+          "columns": [
+            "request_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "approval_logs_ibfk_1": {
+          "name": "approval_logs_ibfk_1",
+          "tableFrom": "approval_logs",
+          "tableTo": "approval_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "approval_requests": {
+      "name": "approval_requests",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "module": {
+          "autoincrement": false,
+          "name": "module",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference_id": {
+          "autoincrement": false,
+          "name": "reference_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requester_id": {
+          "autoincrement": false,
+          "name": "requester_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_type": {
+          "autoincrement": false,
+          "name": "action_type",
+          "type": "enum('CREATE','UPDATE','DELETE')",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_before": {
+          "autoincrement": false,
+          "name": "data_before",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_after": {
+          "autoincrement": false,
+          "name": "data_after",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_level": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "current_level",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_level": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "max_level",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "default": "'PENDING'",
+          "autoincrement": false,
+          "name": "status",
+          "type": "enum('PENDING','APPROVED','REJECTED')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "autoincrement": false,
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "onUpdate": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "approval_requests_id": {
+          "name": "approval_requests_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "attendance": {
+      "name": "attendance",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "check_in": {
+          "autoincrement": false,
+          "name": "check_in",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "check_out": {
+          "autoincrement": false,
+          "name": "check_out",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "autoincrement": false,
+          "name": "status",
+          "type": "enum('present','late','absent','on_leave')",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "attendance_id": {
+          "name": "attendance_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "attendance_ibfk_1": {
+          "name": "attendance_ibfk_1",
+          "tableFrom": "attendance",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "companies": {
+      "name": "companies",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "autoincrement": false,
+          "name": "owner_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "companies_id": {
+          "name": "companies_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "departments": {
+      "name": "departments",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "departments_id": {
+          "name": "departments_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "unit_id": {
+          "name": "unit_id",
+          "columns": [
+            "unit_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "departments_ibfk_1": {
+          "name": "departments_ibfk_1",
+          "tableFrom": "departments",
+          "tableTo": "unit_bisnis",
+          "columnsFrom": [
+            "unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "employee_documents": {
+      "name": "employee_documents",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_type": {
+          "autoincrement": false,
+          "name": "document_type",
+          "type": "enum('KTP','NPWP','Contract','CV','Sertifikat','Lainnya')",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_path": {
+          "autoincrement": false,
+          "name": "file_path",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "autoincrement": false,
+          "name": "file_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "uploaded_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_documents_id": {
+          "name": "employee_documents_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "fk_docs_employee": {
+          "name": "fk_docs_employee",
+          "tableFrom": "employee_documents",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "employee_history": {
+      "name": "employee_history",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "old_position": {
+          "autoincrement": false,
+          "name": "old_position",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_position": {
+          "autoincrement": false,
+          "name": "new_position",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "change_date": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "change_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "autoincrement": false,
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_history_id": {
+          "name": "employee_history_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "employee_kpi": {
+      "name": "employee_kpi",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "period_month": {
+          "autoincrement": false,
+          "name": "period_month",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "period_year": {
+          "autoincrement": false,
+          "name": "period_year",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score": {
+          "autoincrement": false,
+          "name": "score",
+          "type": "decimal(5,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "autoincrement": false,
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_kpi_id": {
+          "name": "employee_kpi_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "employees": {
+      "name": "employees",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "autoincrement": false,
+          "name": "company_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "manager_id": {
+          "autoincrement": false,
+          "name": "manager_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "full_name": {
+          "autoincrement": false,
+          "name": "full_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slug": {
+          "autoincrement": false,
+          "name": "slug",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "autoincrement": false,
+          "name": "position",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_grade": {
+          "autoincrement": false,
+          "name": "job_grade",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salary": {
+          "autoincrement": false,
+          "name": "salary",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "joined_at": {
+          "autoincrement": false,
+          "name": "joined_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "join_date": {
+          "autoincrement": false,
+          "name": "join_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "default": "'active'",
+          "autoincrement": false,
+          "name": "status",
+          "type": "enum('active','inactive')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "autoincrement": false,
+          "name": "email",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "autoincrement": false,
+          "name": "phone",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_number": {
+          "autoincrement": false,
+          "name": "id_number",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "division": {
+          "autoincrement": false,
+          "name": "division",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "placement_location": {
+          "autoincrement": false,
+          "name": "placement_location",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "employment_status": {
+          "autoincrement": false,
+          "name": "employment_status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_name": {
+          "autoincrement": false,
+          "name": "bank_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_account_number": {
+          "autoincrement": false,
+          "name": "bank_account_number",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_id": {
+          "autoincrement": false,
+          "name": "tax_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "autoincrement": false,
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_start": {
+          "autoincrement": false,
+          "name": "contract_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_end": {
+          "autoincrement": false,
+          "name": "contract_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "employee_id_card": {
+          "autoincrement": false,
+          "name": "employee_id_card",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emergency_contact": {
+          "autoincrement": false,
+          "name": "emergency_contact",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "emergency_relation": {
+          "autoincrement": false,
+          "name": "emergency_relation",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blood_type": {
+          "autoincrement": false,
+          "name": "blood_type",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "default": "'employee'",
+          "autoincrement": false,
+          "name": "role",
+          "type": "enum('admin','hr','manager','employee')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "autoincrement": false,
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pin": {
+          "autoincrement": false,
+          "name": "pin",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "employees_id": {
+          "name": "employees_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "idx_manager": {
+          "name": "idx_manager",
+          "columns": [
+            "manager_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "employees_ibfk_2": {
+          "name": "employees_ibfk_2",
+          "tableFrom": "employees",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fk_unit_payroll": {
+          "name": "fk_unit_payroll",
+          "tableFrom": "employees",
+          "tableTo": "unit_bisnis",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {
+        "slug": {
+          "name": "slug",
+          "columns": [
+            "slug"
+          ]
+        },
+        "user_id": {
+          "name": "user_id",
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "kategori_produk": {
+      "name": "kategori_produk",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_kategori": {
+          "autoincrement": false,
+          "name": "nama_kategori",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "kategori_produk_id": {
+          "name": "kategori_produk_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "idx_kategori_global": {
+          "name": "idx_kategori_global",
+          "columns": [
+            "nama_kategori"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "uniqueConstraints": {
+        "nama_kategori": {
+          "name": "nama_kategori",
+          "columns": [
+            "nama_kategori"
+          ]
+        },
+        "nama_kategori_2": {
+          "name": "nama_kategori_2",
+          "columns": [
+            "nama_kategori"
+          ]
+        },
+        "nama_kategori_3": {
+          "name": "nama_kategori_3",
+          "columns": [
+            "nama_kategori"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "leave_requests": {
+      "name": "leave_requests",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "autoincrement": false,
+          "name": "type",
+          "type": "enum('leave','overtime')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "autoincrement": false,
+          "name": "start_date",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_date": {
+          "autoincrement": false,
+          "name": "end_date",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "autoincrement": false,
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "default": "'pending'",
+          "autoincrement": false,
+          "name": "status",
+          "type": "enum('pending','approved','rejected')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by": {
+          "autoincrement": false,
+          "name": "approved_by",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "leave_requests_id": {
+          "name": "leave_requests_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "leave_requests_ibfk_1": {
+          "name": "leave_requests_ibfk_1",
+          "tableFrom": "leave_requests",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "payrolls": {
+      "name": "payrolls",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "period_month": {
+          "autoincrement": false,
+          "name": "period_month",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "period_year": {
+          "autoincrement": false,
+          "name": "period_year",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "basic_salary": {
+          "autoincrement": false,
+          "name": "basic_salary",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allowances": {
+          "default": "'0.00'",
+          "autoincrement": false,
+          "name": "allowances",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deductions": {
+          "default": "'0.00'",
+          "autoincrement": false,
+          "name": "deductions",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "net_salary": {
+          "autoincrement": false,
+          "name": "net_salary",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_status": {
+          "default": "'unpaid'",
+          "autoincrement": false,
+          "name": "payment_status",
+          "type": "enum('unpaid','paid')",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "payrolls_id": {
+          "name": "payrolls_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "payrolls_ibfk_1": {
+          "name": "payrolls_ibfk_1",
+          "tableFrom": "payrolls",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "product_variants": {
+      "name": "product_variants",
+      "columns": {
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "autoincrement": false,
+          "name": "product_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_variasi": {
+          "autoincrement": false,
+          "name": "nama_variasi",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sku": {
+          "autoincrement": false,
+          "name": "sku",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "harga_beli": {
+          "default": "'0.00'",
+          "autoincrement": false,
+          "name": "harga_beli",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "harga_jual": {
+          "default": "'0.00'",
+          "autoincrement": false,
+          "name": "harga_jual",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stok": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "stok",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "min_stok": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "min_stok",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "onUpdate": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "product_variants_id": {
+          "name": "product_variants_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fk_product_variant": {
+          "name": "fk_product_variant",
+          "tableFrom": "product_variants",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "products": {
+      "name": "products",
+      "columns": {
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sku": {
+          "autoincrement": false,
+          "name": "sku",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kategori_id": {
+          "autoincrement": false,
+          "name": "kategori_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "autoincrement": false,
+          "name": "metadata",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supplier_id": {
+          "autoincrement": false,
+          "name": "supplier_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nama": {
+          "autoincrement": false,
+          "name": "nama",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "foto": {
+          "autoincrement": false,
+          "name": "foto",
+          "type": "longtext",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "harga_beli": {
+          "autoincrement": false,
+          "name": "harga_beli",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "harga_jual": {
+          "autoincrement": false,
+          "name": "harga_jual",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stok": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "stok",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "min_stok": {
+          "default": 5,
+          "autoincrement": false,
+          "name": "min_stok",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_variant": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "has_variant",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "products_id": {
+          "name": "products_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fk_prod_kat": {
+          "name": "fk_prod_kat",
+          "tableFrom": "products",
+          "tableTo": "kategori_produk",
+          "columnsFrom": [
+            "kategori_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fk_prod_sup": {
+          "name": "fk_prod_sup",
+          "tableFrom": "products",
+          "tableTo": "suppliers",
+          "columnsFrom": [
+            "supplier_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fk_prod_unit": {
+          "name": "fk_prod_unit",
+          "tableFrom": "products",
+          "tableTo": "unit_bisnis",
+          "columnsFrom": [
+            "unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fk_prod_user": {
+          "name": "fk_prod_user",
+          "tableFrom": "products",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {
+        "sku": {
+          "name": "sku",
+          "columns": [
+            "sku"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "riwayat_aksi": {
+      "name": "riwayat_aksi",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pesan": {
+          "autoincrement": false,
+          "name": "pesan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipe": {
+          "default": "'success'",
+          "autoincrement": false,
+          "name": "tipe",
+          "type": "enum('success','error','info')",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "waktu": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "waktu",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_read": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "is_read",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link": {
+          "autoincrement": false,
+          "name": "link",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kategori": {
+          "autoincrement": false,
+          "name": "kategori",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "riwayat_aksi_id": {
+          "name": "riwayat_aksi_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "fk_unit_log": {
+          "name": "fk_unit_log",
+          "columns": [
+            "unit_id"
+          ],
+          "isUnique": false
+        },
+        "idx_user_waktu": {
+          "name": "idx_user_waktu",
+          "columns": [
+            "user_id",
+            "waktu"
+          ],
+          "isUnique": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "user_id_2": {
+          "name": "user_id_2",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "user_id_3": {
+          "name": "user_id_3",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "user_id_4": {
+          "name": "user_id_4",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "roles": {
+      "name": "roles",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_name": {
+          "autoincrement": false,
+          "name": "role_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "roles_id": {
+          "name": "roles_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "salary_components": {
+      "name": "salary_components",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "autoincrement": false,
+          "name": "employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "autoincrement": false,
+          "name": "amount",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "autoincrement": false,
+          "name": "type",
+          "type": "enum('addition','deduction')",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "salary_components_id": {
+          "name": "salary_components_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "salary_components_ibfk_1": {
+          "name": "salary_components_ibfk_1",
+          "tableFrom": "salary_components",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "shifts": {
+      "name": "shifts",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "autoincrement": false,
+          "name": "company_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "shift_name": {
+          "autoincrement": false,
+          "name": "shift_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_time": {
+          "autoincrement": false,
+          "name": "start_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_time": {
+          "autoincrement": false,
+          "name": "end_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "shifts_id": {
+          "name": "shifts_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "company_id": {
+          "name": "company_id",
+          "columns": [
+            "company_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "shifts_ibfk_1": {
+          "name": "shifts_ibfk_1",
+          "tableFrom": "shifts",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "stock_logs": {
+      "name": "stock_logs",
+      "columns": {
+        "id": {
+          "autoincrement": false,
+          "name": "id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "autoincrement": false,
+          "name": "product_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stok_awal": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "stok_awal",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "perubahan": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "perubahan",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stok_akhir": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "stok_akhir",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alasan": {
+          "autoincrement": false,
+          "name": "alasan",
+          "type": "enum('MASUK','KELUAR','PENJUALAN','OPNAME','RUSAK','RETUR','ADJUSTMENT')",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "keterangan": {
+          "autoincrement": false,
+          "name": "keterangan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "stock_logs_id": {
+          "name": "stock_logs_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {
+        "idx_product": {
+          "name": "idx_product",
+          "columns": [
+            "product_id"
+          ],
+          "isUnique": false
+        },
+        "idx_unit": {
+          "name": "idx_unit",
+          "columns": [
+            "unit_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "fk_stock_product_relasi": {
+          "name": "fk_stock_product_relasi",
+          "tableFrom": "stock_logs",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "suppliers": {
+      "name": "suppliers",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_supplier": {
+          "autoincrement": false,
+          "name": "nama_supplier",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kontak": {
+          "autoincrement": false,
+          "name": "kontak",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "suppliers_id": {
+          "name": "suppliers_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fk_sup_unit": {
+          "name": "fk_sup_unit",
+          "tableFrom": "suppliers",
+          "tableTo": "unit_bisnis",
+          "columnsFrom": [
+            "unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "transaksi": {
+      "name": "transaksi",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_id": {
+          "autoincrement": false,
+          "name": "unit_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kategori_trx": {
+          "autoincrement": false,
+          "name": "kategori_trx",
+          "type": "enum('MASUK','KELUAR')",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nominal": {
+          "autoincrement": false,
+          "name": "nominal",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "keterangan": {
+          "autoincrement": false,
+          "name": "keterangan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tanggal": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "tanggal",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "product_id": {
+          "autoincrement": false,
+          "name": "product_id",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qty": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "qty",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hpp_total": {
+          "default": "'0.00'",
+          "autoincrement": false,
+          "name": "hpp_total",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metode_bayar": {
+          "default": "'KAS'",
+          "autoincrement": false,
+          "name": "metode_bayar",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "abc_category_id": {
+          "autoincrement": false,
+          "name": "abc_category_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_harga": {
+          "autoincrement": false,
+          "name": "total_harga",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "transaksi_id": {
+          "name": "transaksi_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fk_trans_abc": {
+          "name": "fk_trans_abc",
+          "tableFrom": "transaksi",
+          "tableTo": "abc_categories",
+          "columnsFrom": [
+            "abc_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fk_trans_prod": {
+          "name": "fk_trans_prod",
+          "tableFrom": "transaksi",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fk_trans_unit": {
+          "name": "fk_trans_unit",
+          "tableFrom": "transaksi",
+          "tableTo": "unit_bisnis",
+          "columnsFrom": [
+            "unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "unit_bisnis": {
+      "name": "unit_bisnis",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "autoincrement": false,
+          "name": "user_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_unit": {
+          "autoincrement": false,
+          "name": "nama_unit",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "autoincrement": false,
+          "name": "slug",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alamat": {
+          "autoincrement": false,
+          "name": "alamat",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modal_awal": {
+          "default": "'0.00'",
+          "autoincrement": false,
+          "name": "modal_awal",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kategori": {
+          "autoincrement": false,
+          "name": "kategori",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_cabang": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "is_cabang",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cabang_dari": {
+          "autoincrement": false,
+          "name": "cabang_dari",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telepon": {
+          "autoincrement": false,
+          "name": "telepon",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "autoincrement": false,
+          "name": "email",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "login_slug": {
+          "autoincrement": false,
+          "name": "login_slug",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_portal_active": {
+          "default": 1,
+          "autoincrement": false,
+          "name": "is_portal_active",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "unit_bisnis_id": {
+          "name": "unit_bisnis_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fk_cabang_dari": {
+          "name": "fk_cabang_dari",
+          "tableFrom": "unit_bisnis",
+          "tableTo": "unit_bisnis",
+          "columnsFrom": [
+            "cabang_dari"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fk_unit_user": {
+          "name": "fk_unit_user",
+          "tableFrom": "unit_bisnis",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {
+        "login_slug": {
+          "name": "login_slug",
+          "columns": [
+            "login_slug"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "autoincrement": true,
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "autoincrement": false,
+          "name": "username",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "autoincrement": false,
+          "name": "email",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "autoincrement": false,
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "google_id": {
+          "autoincrement": false,
+          "name": "google_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "autoincrement": false,
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "default": "'admin'",
+          "autoincrement": false,
+          "name": "role",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_id": {
+          "autoincrement": false,
+          "name": "company_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {
+        "email": {
+          "name": "email",
+          "columns": [
+            "email"
+          ]
+        },
+        "google_id": {
+          "name": "google_id",
+          "columns": [
+            "google_id"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    }
+  },
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {
+      "abc_categories": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "approval_logs": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "approval_requests": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          },
+          "updated_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "companies": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "employee_documents": {
+        "columns": {
+          "uploaded_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "employee_history": {
+        "columns": {
+          "change_date": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "employee_kpi": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "product_variants": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          },
+          "updated_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "products": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "riwayat_aksi": {
+        "columns": {
+          "waktu": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "stock_logs": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "transaksi": {
+        "columns": {
+          "tanggal": {
+            "isDefaultAnExpression": true
+          },
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "users": {
+        "columns": {
+          "created_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      }
+    },
+    "indexes": {}
+  }
+}

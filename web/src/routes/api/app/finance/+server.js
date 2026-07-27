@@ -1,0 +1,228 @@
+import { json } from '@sveltejs/kit';
+import { db } from '$lib/server/drizzle';
+import { transaksi, riwayatAksi, unitBisnis } from '$lib/server/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import { getCurrentUserId } from '$lib/server/getUser';
+import { pusherServer } from '$lib/server/pusher';
+import { redis } from '$lib/server/redis';
+import { nowWIB } from '$lib/server/dateUtils';
+
+// 1. GET: Ambil transaksi, audit trail logs, dan kalkulasi BI metrics untuk unitId
+export async function GET({ url, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+    const unitId = url.searchParams.get('unitId');
+    if (!unitId) return json({ success: false, message: "unitId wajib diisi" }, { status: 400 });
+
+    try {
+        // Fetch unit info for modalAwal
+        const unit = await db.query.unitBisnis.findFirst({
+            where: eq(unitBisnis.id, Number(unitId))
+        });
+        const modalAwal = Number(unit?.modalAwal || 10000000.0);
+
+        // Fetch transactions
+        const txList = await db.query.transaksi.findMany({
+            where: eq(transaksi.unitId, Number(unitId)),
+            orderBy: [desc(transaksi.id)]
+        });
+
+        // Fetch audit logs
+        const logsList = await db.query.riwayatAksi.findMany({
+            where: eq(riwayatAksi.unitId, Number(unitId)),
+            orderBy: [desc(riwayatAksi.id)],
+            limit: 50
+        });
+
+        // Map transactions to mobile DTO
+        const mappedTransactions = txList.map(t => ({
+            id: t.id,
+            unitId: t.unitId,
+            kategoriTrx: t.kategoriTrx,
+            nominal: Number(t.nominal || 0),
+            tanggal: t.tanggal ? new Date(t.tanggal).getTime() : Date.now(),
+            keterangan: t.keterangan || ''
+        }));
+
+        // Map audit logs to mobile DTO
+        const mappedLogs = logsList.map(l => ({
+            id: l.id,
+            unitId: l.unitId,
+            pesan: l.pesan,
+            tipe: (l.tipe || 'INFO').toUpperCase(),
+            waktu: l.waktu ? new Date(l.waktu).getTime() : Date.now(),
+            kategori: l.kategori || 'SYSTEM'
+        }));
+
+        // Calculate BI metrics matching mobile logic
+        const totalMasuk = mappedTransactions.filter(t => t.kategoriTrx === 'MASUK').reduce((sum, t) => sum + t.nominal, 0);
+        const totalKeluar = mappedTransactions.filter(t => t.kategoriTrx === 'KELUAR').reduce((sum, t) => sum + t.nominal, 0);
+        const netProfit = totalMasuk - totalKeluar;
+        const margin = totalMasuk > 0 ? (netProfit / totalMasuk * 100) : 0.0;
+        const efficiency = totalMasuk > 0 ? (totalKeluar / totalMasuk * 100) : 0.0;
+        const runwayMonths = totalKeluar > 0 ? (modalAwal / (totalKeluar / 3.0)) : 99.0;
+
+        let integrityScore = 5;
+        if (margin > 30.0) integrityScore = 9;
+        else if (margin > 15.0) integrityScore = 7;
+        else if (margin > 0.0) integrityScore = 5;
+        else integrityScore = 3;
+
+        if (efficiency < 40.0) integrityScore += 1;
+        if (efficiency > 80.0) integrityScore -= 1;
+        integrityScore = Math.max(1, Math.min(10, integrityScore));
+
+        const outlook = netProfit > 5000000.0 ? "STABLE" : (netProfit > 0.0 ? "MODERATE" : "CRITICAL WATCH");
+        const riskAssessment = runwayMonths < 3.0 ? "HIGH" : (runwayMonths < 6.0 ? "MEDIUM" : "LOW");
+        const aiConfidence = Math.min(95, 45 + (mappedTransactions.length * 3));
+
+        const biMetrics = {
+            totalMasuk,
+            totalKeluar,
+            netProfit,
+            margin,
+            efficiency,
+            cashRunway: runwayMonths,
+            integrityScore,
+            outlook,
+            riskAssessment,
+            aiConfidence
+        };
+
+        return json({
+            success: true,
+            data: {
+                transactions: mappedTransactions,
+                riwayatAksi: mappedLogs,
+                biMetrics
+            }
+        });
+
+    } catch (err) {
+        console.error("API GET FINANCE ERROR:", err);
+        return json({ success: false, message: "Gagal mengambil data keuangan: " + err.message }, { status: 500 });
+    }
+}
+
+// 2. POST: Tambah transaksi manual
+export async function POST({ request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+    try {
+        const body = await request.json();
+        const { unitId, kategoriTrx, nominal, keterangan } = body.transaction;
+
+        if (!kategoriTrx || !nominal || !unitId) {
+            return json({ success: false, message: "kategoriTrx, nominal, unitId wajib diisi" }, { status: 400 });
+        }
+
+        await db.transaction(async (tx) => {
+            // Insert transaction
+            await tx.insert(transaksi).values({
+                userId: userId,
+                unitId: Number(unitId),
+                kategoriTrx: kategoriTrx,
+                nominal: String(nominal),
+                totalHarga: String(nominal),
+                keterangan: keterangan || '',
+                tanggal: nowWIB()
+            });
+
+            await tx.insert(riwayatAksi).values({
+                userId,
+                unitId: Number(unitId),
+                pesan: `Transaksi baru ditambahkan: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
+                kategori: 'FINANCE',
+                tipe: 'success',
+                waktu: nowWIB()
+            });
+        });
+
+        const unit = await db.query.unitBisnis.findFirst({
+            where: eq(unitBisnis.id, Number(unitId))
+        });
+        const slug = unit?.slug || '';
+
+        if (slug) {
+            pusherServer.trigger(`finance-${slug}`, 'stats-updated', { message: 'Update dari HP' });
+            pusherServer.trigger('finance-channel', 'new-transaction', { message: 'Update dari HP' });
+            pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+                id: Date.now(),
+                unitId: Number(unitId),
+                pesan: `Transaksi baru ditambahkan dari HP: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
+                kategori: 'FINANCE',
+                tipe: 'success',
+                waktu: new Date()
+            });
+
+            // Hapus cache redis agar web langsung menampilkan data terbaru
+            try {
+                const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
+                if (keys.length > 0) await redis.del(...keys);
+                const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
+                if (historyKeys.length > 0) await redis.del(...historyKeys);
+            } catch (err) {
+                console.error("Gagal menghapus cache Redis:", err);
+            }
+        }
+
+        return json({ success: true, message: "Transaksi berhasil disimpan" });
+    } catch (err) {
+        console.error("API POST FINANCE ERROR:", err);
+        return json({ success: false, message: "Gagal menyimpan transaksi: " + err.message }, { status: 500 });
+    }
+}
+
+// 3. DELETE: Hapus transaksi
+export async function DELETE({ url, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+    const transactionId = url.searchParams.get('transactionId');
+    const unitId = url.searchParams.get('unitId');
+    if (!transactionId || !unitId) return json({ success: false, message: "transactionId dan unitId wajib diisi" }, { status: 400 });
+
+    try {
+        await db.delete(transaksi).where(and(eq(transaksi.id, Number(transactionId)), eq(transaksi.unitId, Number(unitId))));
+
+        // Save log
+        await db.insert(riwayatAksi).values({
+            userId, unitId: Number(unitId), pesan: 'Transaksi dihapus', kategori: 'FINANCE', tipe: 'warning'
+        });
+
+        const unit = await db.query.unitBisnis.findFirst({
+            where: eq(unitBisnis.id, Number(unitId))
+        });
+        const slug = unit?.slug || '';
+
+        if (slug) {
+            pusherServer.trigger(`finance-${slug}`, 'stats-updated', { message: 'Hapus dari HP' });
+            pusherServer.trigger('finance-channel', 'new-transaction', { message: 'Hapus dari HP' });
+            pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+                id: Date.now(),
+                unitId: Number(unitId),
+                pesan: `Transaksi dihapus dari HP`,
+                kategori: 'FINANCE',
+                tipe: 'warning',
+                waktu: new Date()
+            });
+
+            // Hapus cache redis agar web langsung menampilkan data terbaru
+            try {
+                const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
+                if (keys.length > 0) await redis.del(...keys);
+                const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
+                if (historyKeys.length > 0) await redis.del(...historyKeys);
+            } catch (err) {
+                console.error("Gagal menghapus cache Redis:", err);
+            }
+        }
+
+        return json({ success: true, message: "Transaksi berhasil dihapus" });
+    } catch (err) {
+        console.error("API DELETE FINANCE ERROR:", err);
+        return json({ success: false, message: "Gagal menghapus transaksi" }, { status: 500 });
+    }
+}
