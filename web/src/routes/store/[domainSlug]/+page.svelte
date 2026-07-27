@@ -1,5 +1,5 @@
 <script>
-    import { cart } from '../../cartStore';
+    import { cart } from '../cartStore';
     
     export let data;
     const { productsList, store, categories } = data;

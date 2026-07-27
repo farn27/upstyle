@@ -48,22 +48,22 @@
                     <input type="hidden" name="unitId" value={store.unitId} />
 
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
-                        <input type="text" name="customerName" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Budi Santoso">
+                        <label for="customerName" class="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
+                        <input id="customerName" type="text" name="customerName" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Budi Santoso">
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                            <input type="email" name="customerEmail" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="budi@email.com">
+                            <label for="customerEmail" class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                            <input id="customerEmail" type="email" name="customerEmail" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="budi@email.com">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">No. WhatsApp</label>
-                            <input type="text" name="customerPhone" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="08123456789">
+                            <label for="customerPhone" class="block text-sm font-medium text-slate-700 mb-1">No. WhatsApp</label>
+                            <input id="customerPhone" type="text" name="customerPhone" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="08123456789">
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Alamat Lengkap Pengiriman</label>
-                        <textarea name="shippingAddress" rows="3" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Jl. Sudirman No. 123..."></textarea>
+                        <label for="shippingAddress" class="block text-sm font-medium text-slate-700 mb-1">Alamat Lengkap Pengiriman</label>
+                        <textarea id="shippingAddress" name="shippingAddress" rows="3" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Jl. Sudirman No. 123..."></textarea>
                     </div>
 
                     <div class="pt-6 mt-6 border-t border-slate-100">

@@ -159,29 +159,29 @@
                       class="bg-slate-50 rounded-2xl p-6 shadow-sm border border-slate-100 space-y-4">
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">Nama Depan *</label>
-                            <input type="text" name="first_name" required placeholder="Budi"
+                            <label for="lp_first_name" class="block text-xs font-bold text-slate-600 mb-1.5">Nama Depan *</label>
+                            <input id="lp_first_name" type="text" name="first_name" required placeholder="Budi"
                                 class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none transition" />
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">Nama Belakang</label>
-                            <input type="text" name="last_name" placeholder="Santoso"
+                            <label for="lp_last_name" class="block text-xs font-bold text-slate-600 mb-1.5">Nama Belakang</label>
+                            <input id="lp_last_name" type="text" name="last_name" placeholder="Santoso"
                                 class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none transition" />
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Email</label>
-                        <input type="email" name="email" placeholder="budi@contoh.com"
+                        <label for="lp_email" class="block text-xs font-bold text-slate-600 mb-1.5">Email</label>
+                        <input id="lp_email" type="email" name="email" placeholder="budi@contoh.com"
                             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none transition" />
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Nomor WhatsApp</label>
-                        <input type="tel" name="phone" placeholder="08xxxxxxxxxx"
+                        <label for="lp_phone" class="block text-xs font-bold text-slate-600 mb-1.5">Nomor WhatsApp</label>
+                        <input id="lp_phone" type="tel" name="phone" placeholder="08xxxxxxxxxx"
                             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none transition" />
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Pesan / Pertanyaan</label>
-                        <textarea name="notes" rows="3" placeholder="Ceritakan kebutuhan kamu..."
+                        <label for="lp_notes" class="block text-xs font-bold text-slate-600 mb-1.5">Pesan / Pertanyaan</label>
+                        <textarea id="lp_notes" name="notes" rows="3" placeholder="Ceritakan kebutuhan kamu..."
                             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none transition resize-none"></textarea>
                     </div>
                     {#if form?.error}

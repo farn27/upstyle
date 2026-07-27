@@ -6,7 +6,7 @@ export const abcCategories = mysqlTable("abc_categories", {
 	namaKategori: varchar("nama_kategori", { length: 100 }).notNull(),
 	abcLevel: mysqlEnum("abc_level", ['A','B','C']).default('C'),
 	deskripsi: text(),
-	jenis: text('jenis').default('keluar'),
+	jenis: varchar('jenis', { length: 50 }).default('keluar'),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 },
 (table) => [
