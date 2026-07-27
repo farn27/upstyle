@@ -1140,3 +1140,18 @@ export const ecommerceOrderItems = mysqlTable("ecommerce_order_items", {
   total: decimal("total", { precision: 15, scale: 2 }).notNull()
 });
 
+export const marketplaceIntegrations = mysqlTable("marketplace_integrations", {
+  id: int("id").primaryKey().autoincrement(),
+  unitId: int("unit_id").references(() => unitBisnis.id, { onDelete: "cascade" }),
+  platform: varchar("platform", { length: 50 }).notNull(),
+  partnerId: varchar("partner_id", { length: 100 }),
+  partnerKey: text("partner_key"),
+  shopId: varchar("shop_id", { length: 100 }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { mode: 'string' }),
+  isActive: tinyint("is_active").default(0),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'string' })
+});
+
