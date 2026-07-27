@@ -10,7 +10,7 @@ import { createSession } from '$lib/server/session';
 /**
  * Log failed login attempt for audit purposes
  */
-async function logFailedLogin(email: string, ip: string, reason: string) {
+async function logFailedLogin(email, ip, reason) {
 	try {
 		await db.insert(riwayatAksi).values({
 			userId: 0, // Use 0 for unknown user (failed login)
