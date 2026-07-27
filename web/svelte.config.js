@@ -1,13 +1,25 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-auto'; // Atau adapter lain (vercel/node) yang kamu pakai
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	kit: {
-		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter()
-	}
+  preprocess: vitePreprocess(),
+
+  kit: {
+    adapter: adapter()
+  },
+
+  // Tambahkan blok onwarn ini
+  onwarn: (warning, handler) => {
+    // Abaikan semua warning accessibility (a11y)
+    if (warning.code.startsWith('a11y_')) return;
+    
+    // Abaikan warning variabel export yang tidak terpakai
+    if (warning.code === 'export_let_unused') return;
+
+    // Tetap loloskan warning lain yang krusial
+    handler(warning);
+  }
 };
 
 export default config;
