@@ -14,6 +14,7 @@ export async function POST({ request, cookies, params, locals }) {
         const { slug } = params;
         const rawSession = cookies.get('staff_session');
         let loginSlugFromCookie = null;
+        
         if (rawSession) {
             try {
                 loginSlugFromCookie = JSON.parse(rawSession)?.login_slug || null;
@@ -36,10 +37,12 @@ export async function POST({ request, cookies, params, locals }) {
 
         const customerNameSafe = String(customer_name || '').trim();
 
-        // abcCategoryId removed in favor of COA/Journal system
-
+        // Siapkan variabel di luar transaksi agar bisa dibaca oleh notifikasi Pusher nanti
         let orderNumber;
         let finalOrderId = null;
+        let finalUnitId = null;
+        let finalOrderTotal = 0;
+
         await db.transaction(async (tx) => {
             let unit = null;
 
@@ -61,14 +64,6 @@ export async function POST({ request, cookies, params, locals }) {
                 }
 
                 if (routeUnit) {
-                    console.log('POS POST: staff session unit slug mismatch, falling back to route unit', {
-                        routeSlug: slug,
-                        staffUnitSlug: unit.slug,
-                        staffLoginSlug: unit.loginSlug,
-                        routeUnitId: routeUnit.id,
-                        routeUnitSlug: routeUnit.slug,
-                        routeLoginSlug: routeUnit.loginSlug
-                    });
                     unit = routeUnit;
                 }
             }
@@ -106,6 +101,9 @@ export async function POST({ request, cookies, params, locals }) {
             }
 
             if (!unit) throw new Error('Unit tidak ditemukan');
+            
+            // Simpan unitId ke variabel luar
+            finalUnitId = unit.id;
 
             const isOwner = ownerUserId && Number(unit.userId) === Number(ownerUserId);
             const isStaff = staffSession && Number(unit.id) === Number(staffSession.unit_id);
@@ -160,14 +158,13 @@ export async function POST({ request, cookies, params, locals }) {
                     }
                 }
             } else if (discount_value) {
-                // If there's no voucher but there is a manual discount (maybe from a manager override feature in the future)
-                // We'll trust it for now as per current implementation, but usually, it should be validated.
                 finalDiscountValue = Number(discount_value);
             } else if (keterangan?.discount) {
                 finalDiscountValue = Number(keterangan.discount);
             }
 
             const orderTotal = Math.max(0, orderSubtotal - finalDiscountValue);
+            finalOrderTotal = orderTotal; // Simpan total ke variabel luar untuk Pusher
 
             const [orderInsertResult] = await tx.insert(posOrders).values({
                 orderNumber,
@@ -191,7 +188,6 @@ export async function POST({ request, cookies, params, locals }) {
             });
             
             if (voucher_id) {
-                // Update voucher usage
                 await tx.update(vouchers)
                     .set({ currentUsage: sql`current_usage + 1` })
                     .where(eq(vouchers.id, Number(voucher_id)));
@@ -286,7 +282,6 @@ export async function POST({ request, cookies, params, locals }) {
             const akunPendapatan = akunPendapatanArr[0];
 
             if (akunKas && akunPendapatan && orderTotal > 0) {
-                // Header Jurnal
                 const [jurnalResult] = await tx.insert(journalEntries).values({
                     unitId: unit.id,
                     userId: String(actorId),
@@ -304,7 +299,6 @@ export async function POST({ request, cookies, params, locals }) {
                 
                 const journalId = jurnalResult.insertId;
 
-                // Line 1: Debit Kas
                 await tx.insert(journalEntryLines).values({
                     journalId: journalId,
                     coaId: akunKas.id,
@@ -313,7 +307,6 @@ export async function POST({ request, cookies, params, locals }) {
                     kredit: '0'
                 });
 
-                // Line 2: Kredit Pendapatan
                 await tx.insert(journalEntryLines).values({
                     journalId: journalId,
                     coaId: akunPendapatan.id,
@@ -324,7 +317,7 @@ export async function POST({ request, cookies, params, locals }) {
             }
         });
 
-        // Hapus cache dashboard — biar data langsung muncul
+        // Hapus cache dashboard
         try {
             const dashboardKeys = await redis.keys(`finance_dash_v4:*:${slug}:*`);
             if (dashboardKeys.length > 0) {
@@ -334,21 +327,19 @@ export async function POST({ request, cookies, params, locals }) {
             const historyKeys = await redis.keys(`history_v3:*:${slug}:*`);
             if (historyKeys.length > 0) await redis.del(...historyKeys);
             
-            // Invalidate Product cache so stock updates are visible immediately
             const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
             if (productKeys.length > 0) await redis.del(...productKeys);
         } catch (cacheErr) {
             console.warn("⚠️ Gagal invalidasi cache:", cacheErr.message);
         }
 
-        // Kirim sinyal Pusher (real-time reload & notifikasi)
+        // Kirim sinyal Pusher
         try {
+            if (pusherServer) {
                 pusherServer.trigger(`finance-${slug}`, 'stats-updated', {
                     triggerRefresh: true
                 });
-            }
 
-            if (pusherServer) {
                 pusherServer.trigger(`finance-${slug}`, 'pos-transaction-new', {
                     orderNumber: orderNumber,
                     customerName: customerNameSafe || 'Walk-in Customer'
@@ -358,10 +349,11 @@ export async function POST({ request, cookies, params, locals }) {
                     triggerRefresh: true
                 });
 
+                // Memakai finalUnitId dan finalOrderTotal yang sudah diselamatkan dari dalam transaksi
                 pusherServer.trigger('channel-bizgrow', 'notif-baru', {
                     id: Date.now(),
-                    unitId: Number(unitId),
-                    pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(orderTotal)}`,
+                    unitId: Number(finalUnitId), 
+                    pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(finalOrderTotal)}`,
                     kategori: 'POS',
                     tipe: 'success',
                     waktu: new Date()
@@ -375,9 +367,6 @@ export async function POST({ request, cookies, params, locals }) {
 
     } catch (err) {
         console.error("POS Error:", err);
-        return json({ error: err.message }, { status: 500 });
-    }
-}
         return json({ error: err.message }, { status: 500 });
     }
 }
