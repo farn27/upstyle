@@ -10,11 +10,11 @@ if (!connectionString) {
     throw new Error("DATABASE_URL is not defined in the environment variables. Please check your .env file.");
 }
 
-// Parse connection string dan tambah timezone WIB
-// Ini memastikan semua query DATE/DATETIME menggunakan Asia/Jakarta (UTC+7)
-// Tanpa ini, NOW(), CURDATE(), dsb pakai timezone MySQL server (default UTC)
+const isTiDB = connectionString.includes('tidbcloud') || connectionString.includes('ssl=');
+
 export const pool = mysql.createPool({
     uri: connectionString,
+    ...(isTiDB ? { ssl: { rejectUnauthorized: true } } : {}),
     timezone: '+07:00',          // WIB — semua datetime otomatis WIB
     dateStrings: true,           // Biar return raw string dari MySQL, menghindari masalah JS Date parsing
     connectionLimit: 10,         // Maximum connections in pool
