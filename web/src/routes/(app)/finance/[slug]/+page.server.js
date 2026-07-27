@@ -71,15 +71,12 @@ export const load = async ({ params, url, depends, cookies }) => {
             .limit(15); // Diperbanyak untuk panel Audit Log
 
         // AR/AP — gunakan todayStrWIB() dari dateUtils (WIB-aware, bukan UTC)
+        // Catatan: TiDB tidak support LATERAL JOIN, jadi tidak pakai `with:` relational query
         const todayStr = todayStrWIB();
-        const overdueReceivables = await db.query.receivables.findMany({
-            where: and(eq(receivables.unitId, unitData.id), inArray(receivables.status, ['BELUM_BAYAR', 'SEBAGIAN']), lte(receivables.jatuhTempo, todayStr)),
-            with: { contact: true }
-        });
-        const overduePayables = await db.query.payables.findMany({
-            where: and(eq(payables.unitId, unitData.id), inArray(payables.status, ['BELUM_BAYAR', 'SEBAGIAN']), lte(payables.jatuhTempo, todayStr)),
-            with: { contact: true }
-        });
+        const overdueReceivables = await db.select().from(receivables)
+            .where(and(eq(receivables.unitId, unitData.id), inArray(receivables.status, ['BELUM_BAYAR', 'SEBAGIAN']), lte(receivables.jatuhTempo, todayStr)));
+        const overduePayables = await db.select().from(payables)
+            .where(and(eq(payables.unitId, unitData.id), inArray(payables.status, ['BELUM_BAYAR', 'SEBAGIAN']), lte(payables.jatuhTempo, todayStr)));
 
         // Rincian Saldo Bank & Kas (Dari Double Entry)
         const bankBalancesRaw = await db.select({
