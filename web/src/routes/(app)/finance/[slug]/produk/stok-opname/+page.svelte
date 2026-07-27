@@ -29,9 +29,17 @@
 				</a>
 			</EmptyState>
 		{:else}
+			<div class="hidden">
+				{#each products as p}
+					<form id="opname-{p.id}" method="POST" action="?/adjust" use:enhance>
+						<input type="hidden" name="product_id" value={p.id} />
+					</form>
+				{/each}
+			</div>
+
 			<div class="overflow-x-auto">
 				<table class="w-full text-left text-sm">
-					<thead class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-xs uppercase font-semibold text-slate-500">
+					<thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
 						<tr>
 							<th class="px-4 py-3">Produk</th>
 							<th class="px-4 py-3">SKU</th>
@@ -43,9 +51,6 @@
 					</thead>
 					<tbody class="divide-y divide-slate-100 dark:divide-slate-700">
 						{#each products as p}
-							<form id="opname-{p.id}" method="POST" action="?/adjust" use:enhance class="hidden">
-								<input type="hidden" name="product_id" value={p.id} />
-							</form>
 							<tr class="hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
 								<td class="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100">{p.nama}</td>
 								<td class="px-4 py-3 text-slate-500 font-mono text-xs">{p.sku || '-'}</td>

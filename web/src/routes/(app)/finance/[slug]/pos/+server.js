@@ -375,6 +375,3 @@ export async function POST({ request, cookies, params, locals }) {
         return json({ error: err.message }, { status: 500 });
     }
 }
-        return json({ error: err.message }, { status: 500 });
-    }
-}
