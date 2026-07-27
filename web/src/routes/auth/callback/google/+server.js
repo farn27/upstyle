@@ -12,7 +12,7 @@ export async function GET({ url, cookies }) {
 
     if (!code) throw redirect(303, '/auth/login?error=auth_failed');
 
-    const origin = (env.ORIGIN || 'http://localhost:5173').replace(/\/$/, '');
+    const origin = (env.ORIGIN || url.origin).replace(/\/$/, '');
     const redirectUri = `${origin}/auth/callback/google`;
 
     // 1. Tukar 'code' dengan Access Token
