@@ -1,0 +1,65 @@
+package com.upstyle.bizgrow.data
+
+import com.russhwolf.settings.Settings
+
+/**
+ * Multiplatform session storage.
+ * Android: SharedPreferences
+ * iOS: NSUserDefaults
+ */
+class SessionRepository(private val settings: Settings) {
+
+    companion object {
+        private const val KEY_TOKEN = "token"
+        private const val KEY_ROLE = "role"
+        private const val KEY_EMAIL = "email"
+        private const val KEY_USERNAME = "username"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_UNIT_ID = "active_unit_id"
+        private const val KEY_UNIT_NAME = "active_unit_name"
+        private const val KEY_UNIT_SLUG = "active_unit_slug"
+        private const val KEY_SERVER_URL = "server_url"
+        // Default: 192.168.1.25 is local IP for real device testing via USB
+        // 10.0.2.2 was for Android Emulator
+        private const val DEFAULT_SERVER = "http://192.168.1.25:5173"
+    }
+
+    fun saveSession(token: String, role: String, email: String, username: String = "", userId: Int = 0) {
+        settings.putString(KEY_TOKEN, token)
+        settings.putString(KEY_ROLE, role)
+        settings.putString(KEY_EMAIL, email)
+        settings.putString(KEY_USERNAME, username)
+        settings.putInt(KEY_USER_ID, userId)
+    }
+
+    fun clearSession() {
+        settings.remove(KEY_TOKEN)
+        settings.remove(KEY_ROLE)
+        settings.remove(KEY_EMAIL)
+        settings.remove(KEY_USERNAME)
+        settings.remove(KEY_USER_ID)
+        settings.remove(KEY_UNIT_ID)
+        settings.remove(KEY_UNIT_NAME)
+        settings.remove(KEY_UNIT_SLUG)
+    }
+
+    fun getToken(): String? = settings.getStringOrNull(KEY_TOKEN)
+    fun getRole(): String = settings.getString(KEY_ROLE, "user")
+    fun getEmail(): String = settings.getString(KEY_EMAIL, "")
+    fun getUsername(): String = settings.getString(KEY_USERNAME, "")
+    fun getUserId(): Int = settings.getInt(KEY_USER_ID, 0)
+    fun isLoggedIn(): Boolean = !getToken().isNullOrEmpty()
+
+    fun setActiveUnit(id: Int, name: String, slug: String) {
+        settings.putInt(KEY_UNIT_ID, id)
+        settings.putString(KEY_UNIT_NAME, name)
+        settings.putString(KEY_UNIT_SLUG, slug)
+    }
+
+    fun getActiveUnitId(): Int = settings.getInt(KEY_UNIT_ID, 0)
+    fun getActiveUnitName(): String = settings.getString(KEY_UNIT_NAME, "")
+    fun getActiveUnitSlug(): String = settings.getString(KEY_UNIT_SLUG, "")
+
+    fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
+    fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
+}
