@@ -757,7 +757,8 @@ data class BukuBesarEntry(
 
 @Serializable
 data class BukuBesarData(
-    val account: ChartOfAccount,
+    val account: ChartOfAccount? = null,
+    val coa: ChartOfAccount? = null,
     val entries: List<BukuBesarEntry> = emptyList(),
     val saldoAkhir: Double = 0.0
 )

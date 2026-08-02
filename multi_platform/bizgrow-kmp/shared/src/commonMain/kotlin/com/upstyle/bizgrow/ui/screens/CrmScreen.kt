@@ -48,7 +48,12 @@ fun CrmScreen(viewModel: AppViewModel) {
             TopAppBar(
                 title = { Text("CRM", fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = { viewModel.navigateBack() }) { Icon(Icons.Default.ArrowBack, null) } },
-                actions = { IconButton(onClick = { viewModel.navigate(Screen.CrmPipeline) }) { Icon(Icons.Default.ViewKanban, null) } }
+                actions = {
+                    IconButton(onClick = { viewModel.navigate(Screen.Quotations) }) { Icon(Icons.Default.Description, contentDescription = "Penawaran") }
+                    IconButton(onClick = { viewModel.navigate(Screen.SalesOrders) }) { Icon(Icons.Default.ShoppingCart, contentDescription = "Sales Orders") }
+                    IconButton(onClick = { viewModel.navigate(Screen.CrmTasks) }) { Icon(Icons.Default.Assignment, contentDescription = "Tugas CRM") }
+                    IconButton(onClick = { viewModel.navigate(Screen.CrmPipeline) }) { Icon(Icons.Default.ViewKanban, contentDescription = "Pipeline") }
+                }
             )
         },
         floatingActionButton = {

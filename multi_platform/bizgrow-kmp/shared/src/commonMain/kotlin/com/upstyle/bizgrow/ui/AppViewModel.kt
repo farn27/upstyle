@@ -81,6 +81,11 @@ sealed class Screen {
     object FixedAssets : Screen()
     object StockOpname : Screen()
     object TrashProducts : Screen()
+    object Quotations : Screen()
+    object SalesOrders : Screen()
+    object LeaveRequests : Screen()
+    object PosVouchers : Screen()
+    object CrmTasks : Screen()
 }
 
 // ─── UI State ─────────────────────────────────────────────────────────────────

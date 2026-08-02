@@ -52,8 +52,9 @@ fun HrScreen(viewModel: AppViewModel) {
                 }},
                 navigationIcon = { IconButton(onClick = { viewModel.navigateBack() }) { Icon(Icons.Default.ArrowBack, null) } },
                 actions = {
-                    IconButton(onClick = { viewModel.navigate(Screen.Payroll) }) { Icon(Icons.Default.Receipt, null) }
-                    IconButton(onClick = { viewModel.navigate(Screen.Absensi) }) { Icon(Icons.Default.AccessTime, null) }
+                    IconButton(onClick = { viewModel.navigate(Screen.LeaveRequests) }) { Icon(Icons.Default.DateRange, contentDescription = "Cuti & Izin") }
+                    IconButton(onClick = { viewModel.navigate(Screen.Payroll) }) { Icon(Icons.Default.Receipt, contentDescription = "Payroll") }
+                    IconButton(onClick = { viewModel.navigate(Screen.Absensi) }) { Icon(Icons.Default.AccessTime, contentDescription = "Absensi") }
                 }
             )
         },

@@ -84,6 +84,9 @@ fun PosScreen(viewModel: AppViewModel) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.navigate(Screen.PosVouchers) }) {
+                        Icon(Icons.Default.ConfirmationNumber, contentDescription = "Voucher POS")
+                    }
                     IconButton(onClick = { viewModel.navigate(Screen.PosShift) }) {
                         Icon(Icons.Default.Schedule, contentDescription = "Manajemen Shift")
                     }

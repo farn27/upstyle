@@ -97,6 +97,11 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.FixedAssets   -> FixedAssetsScreen(viewModel)
                     is Screen.StockOpname   -> StockOpnameScreen(viewModel)
                     is Screen.TrashProducts -> TrashProductsScreen(viewModel)
+                    is Screen.Quotations    -> QuotationsScreen(viewModel)
+                    is Screen.SalesOrders   -> SalesOrdersScreen(viewModel)
+                    is Screen.LeaveRequests -> LeaveRequestsScreen(viewModel)
+                    is Screen.PosVouchers   -> PosVouchersScreen(viewModel)
+                    is Screen.CrmTasks      -> CrmTasksScreen(viewModel)
                 }
             }
 
