@@ -3,6 +3,7 @@ import { unitBisnis, kategoriProduk, riwayatAksi } from '$lib/server/schema';
 import { eq, and, or, isNull, asc, sql } from 'drizzle-orm';
 import { redirect, error } from '@sveltejs/kit';
 import { pusherServer } from '$lib/server/pusher';
+import { log } from '$lib/server/logger';
 import { redis } from '$lib/server/redis';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { nowWIB } from '$lib/server/dateUtils';
@@ -160,14 +161,14 @@ throw redirect(303, `/finance?sorot=${unitId}&pesan=${encodeURIComponent(pesanTo
         } catch (err) {
             if (err.status === 303 || err.status === 302) throw err;
             
-            console.error("❌ ERROR OBJECT:", err);
+            log.api.error({ err: "❌ ERROR OBJECT:", err);
             // Error Handling untuk Data Truncated
             if (err.code === 'WARN_DATA_TRUNCATED' || err.errno === 1265) {
-                console.error("❌ DB ERROR: Data truncated.", err);
+                log.api.error({ err: "❌ DB ERROR: Data truncated.", err);
                 throw error(500, `Database error: Data truncated/kurang lebar. Detail: ${err.message || err}`);
             }
 
-            console.error("❌ GAGAL SIMPAN:", err);
+            log.api.error({ err: "❌ GAGAL SIMPAN:", err);
             throw error(500, err.code === 'ER_DUP_ENTRY' ? `Nama unit "${nama_unit}" sudah ada.` : `Gagal menyimpan unit: ${err.message}`);
         }
     }

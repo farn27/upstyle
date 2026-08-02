@@ -8,6 +8,7 @@ import { createSnapTransaction, PLAN_PRICES } from '$lib/server/payment';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { db } from '$lib/server/drizzle';
 import { users } from '$lib/server/schema';
+import { log } from '$lib/server/logger';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -65,7 +66,7 @@ export async function POST({ request, cookies }) {
 			'Snap transaction dibuat'
 		);
 	} catch (err) {
-		console.error('[Payment Snap] Error:', err);
+		log.api.error({ err }, '[Payment Snap] Error');
 		return apiError('Gagal membuat transaksi pembayaran', 500, 'PAYMENT_ERROR');
 	}
 }

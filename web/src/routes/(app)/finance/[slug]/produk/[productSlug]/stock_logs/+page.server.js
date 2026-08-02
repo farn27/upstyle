@@ -4,6 +4,7 @@ import { products, stockLogs, productVariants, unitBisnis } from '$lib/server/sc
 import { eq, and } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
 import { pusherServer } from '$lib/server/pusher';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ params, locals }) => {
     if (!locals.user) throw redirect(302, '/auth/login');
@@ -103,13 +104,13 @@ export const actions = {
                     user: locals.user.username
                 });
             } catch (e) {
-                console.error("⚠️ Integrasi/Cache Error:", e.message);
+                log.api.warn({ err: e.message }, '[stock_logs] Integrasi/Cache Error');
             }
 
             return { success: true, selisih };
 
         } catch (err) {
-            console.error("🔥 Error Stock Update:", err);
+            log.api.error({ err }, '[stock_logs] Error Stock Update');
             return fail(500, { message: err.message });
         }
     }

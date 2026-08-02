@@ -7,6 +7,7 @@ import { getUserIdFromSession } from '$lib/server/session';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { redis } from '$lib/server/redis';
 import { generateCsrfToken, validateCsrfToken } from '$lib/server/csrf';
+import { log } from '$lib/server/logger';
 
 const PROTECTED_PATHS = [
 	'/finance',
@@ -152,7 +153,7 @@ export async function handle({ event, resolve }) {
 				}
 			}
 		} catch (err) {
-			console.error('[Hooks] Gagal load user:', err);
+			log.auth.error({ err }, '[Hooks] Gagal load user');
 		}
 	}
 
@@ -168,7 +169,7 @@ export async function handle({ event, resolve }) {
 		// Only validate if we have a CSRF token from header (to avoid consuming body)
 		// Body-based CSRF validation is handled by the action itself if needed
 		if (csrfTokenFromHeader && !validateCsrfToken(csrfTokenFromHeader, sessionToken)) {
-			console.error('[CSRF] Invalid token for request:', pathname);
+			log.auth.warn({ pathname }, '[CSRF] Invalid token for request');
 			return new Response(JSON.stringify({ success: false, message: 'CSRF validation failed', code: 'CSRF_INVALID' }), { 
 				status: 403, 
 				headers: { 'Content-Type': 'application/json', ...SECURITY_HEADERS } 
@@ -201,7 +202,7 @@ export async function handle({ event, resolve }) {
 			if (pathname !== redirectPath) {
 				throw redirect(303, redirectPath);
 			} else {
-				console.error('[RBAC] Blocked access:', { pathname, userRole, redirectPath, isAllowed });
+				log.auth.error({ pathname, userRole, redirectPath, isAllowed }, '[RBAC] Blocked access');
 				return new Response('Forbidden: Insufficient Privileges', { status: 403 });
 			}
 		}

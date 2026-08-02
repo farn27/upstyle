@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { groqChatCompletion } from '$lib/server/groq';
 import { eq, and, sql, desc, or, inArray, asc } from 'drizzle-orm';
+import { log } from '$lib/server/logger';
 import {
 	receivables,
 	payables,
@@ -557,7 +558,7 @@ async function loadDynamicContext(intent, userId, targetUnitId) {
 			suggestions = ['Ringkasan keuangan hari ini', 'Stok produk menipis', 'Analisis laba rugi'];
 		}
 	} catch (e) {
-		console.error('[Chat] Dynamic context error:', intent, e.message);
+		log.ai.error({ err: e.message, intent }, '[Chat] Dynamic context error');
 	}
 
 	return { ctx, suggestions };
@@ -833,7 +834,7 @@ Aksi hapus/bulk/tutup buku: wajib konfirmasi dulu.`;
 		});
 
 	} catch (err) {
-		console.error('[Chat API]', err);
+		log.ai.error({ err }, '[Chat API]');
 		return json({ reply: 'Terjadi kesalahan server. Silakan coba lagi ya kak.' }, { status: 500 });
 	}
 }

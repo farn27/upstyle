@@ -1,12 +1,13 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle'; 
 import { products, kategoriProduk, unitBisnis, stockLogs, productVariants } from '$lib/server/schema'; 
-import { eq, and, desc, isNull } from 'drizzle-orm';
+import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
 import { pusherServer } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis'; 
 import { uploadFromFormFile, isStorageConfigured } from '$lib/server/storage';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { log } from '$lib/server/logger';
 
 // --- LOAD FUNCTION ---
 export async function load({ params, url, locals }) {
@@ -27,7 +28,7 @@ export async function load({ params, url, locals }) {
             try {
                 cachedPageData = await redis.get(cacheKey);
             } catch (redisErr) {
-                console.error('[Redis] Gagal get cache products:', redisErr.message);
+                log.api.warn({ err: redisErr.message }, '[Redis] Gagal get cache products');
             }
         }
         if (cachedPageData) {
@@ -42,28 +43,45 @@ export async function load({ params, url, locals }) {
         });
 
         if (!unit) {
-            console.error("UNIT NOT FOUND:", unitSlug);
+            log.api.warn({ unitSlug }, 'UNIT NOT FOUND');
             return { unitInfo: null, products: [], categories: [], stockHistory: [] };
         }
 
         // 5. Ambil Produk & Kategori secara Paralel
-        const [categoryRows, allProducts, stockHistory] = await Promise.all([
+        const [categoryRows, allProductsRaw, stockHistory] = await Promise.all([
             db.query.kategoriProduk.findMany({
                 where: eq(kategoriProduk.unitId, unit.id),
                 orderBy: (cat, { asc }) => [asc(cat.namaKategori)]
             }),
             
-            db.query.products.findMany({
-                where: and(eq(products.unitId, unit.id), isNull(products.deletedAt)),
-                with: {
-                    productVariants: true, 
-                    kategoriProduk: true  
-                },
-                orderBy: [desc(products.createdAt)]
-            }),
+            // 2-step: TiDB tidak support LATERAL JOIN dari Drizzle `with:`
+            db.select().from(products)
+                .where(and(eq(products.unitId, unit.id), isNull(products.deletedAt)))
+                .orderBy(desc(products.createdAt)),
 
             historyId ? fetchStockLogs(historyId, unit.id) : []
         ]);
+
+        // Fetch variants & kategori secara terpisah (2-step pattern)
+        const productIds = allProductsRaw.map(p => p.id);
+        let variantsMap = {}, kategoriMap = {};
+        if (productIds.length > 0) {
+            const [variantsList, kategoriList] = await Promise.all([
+                db.select().from(productVariants).where(inArray(productVariants.productId, productIds)),
+                db.select().from(kategoriProduk).where(eq(kategoriProduk.unitId, unit.id))
+            ]);
+            variantsList.forEach(v => {
+                if (!variantsMap[v.productId]) variantsMap[v.productId] = [];
+                variantsMap[v.productId].push(v);
+            });
+            kategoriList.forEach(k => { kategoriMap[k.id] = k; });
+        }
+        const allProducts = allProductsRaw.map(p => ({
+            ...p,
+            productVariants: variantsMap[p.id] || [],
+            kategoriProduk: kategoriMap[p.kategoriId] || null
+        }));
+
 
         // 6. FILTER SERIALIZATION (Anti Lemot)
         const finalPageData = JSON.parse(JSON.stringify({
@@ -80,14 +98,14 @@ export async function load({ params, url, locals }) {
             try {
                 await redis.set(cacheKey, JSON.stringify(finalPageData), { ex: 300 });
             } catch (redisErr) {
-                console.error('[Redis] Gagal set cache products:', redisErr.message);
+                log.api.warn({ err: redisErr.message }, '[Redis] Gagal set cache products');
             }
         }
 
         return finalPageData;
 
     } catch (err) {
-        console.error("SERVER ERROR LOAD PRODUCT:", err);
+        log.api.error({ err }, 'SERVER ERROR LOAD PRODUCT');
         return { unitInfo: null, products: [], categories: [], stockHistory: [] };
     }
 }
@@ -221,12 +239,12 @@ export const actions = {
                         user: locals.user.username
                     });
                 }
-            } catch (e) { console.error("⚠️ Integrasi Error:", e.message); }
+            } catch (e) { log.api.warn({ err: e.message }, 'Produk createProduct: integrasi error'); }
 
             return { type: 'success', message: 'Produk berhasil disimpan!' };
 
         } catch (err) {
-            console.error("🔥 Pesan Error:", err.message);
+            log.api.error({ err: err.message }, 'Produk createProduct: DB error');
             return fail(500, { message: "Gagal menyimpan data ke Database", error: err.message });
         }
     }
@@ -254,7 +272,7 @@ async function fetchStockLogs(hid, uid) {
         }
         return await baseQuery.orderBy(desc(stockLogs.createdAt)).limit(50);
     } catch (e) {
-        console.error("Gagal load logs:", e);
+        log.api.error({ err: e }, 'Gagal load stock logs');
         return [];
     }
 }

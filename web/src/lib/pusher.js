@@ -1,15 +1,6 @@
-import Pusher from 'pusher-js';
-import { PUBLIC_PUSHER_KEY, PUBLIC_PUSHER_CLUSTER } from '$env/static/public';
-
-let pusherInstance;
-
-// Ini fungsi yang dicari oleh halaman +page.svelte kamu
+// DEPRECATED: This file is replaced by socket.js
+// Kept for backward compatibility during migration
 export const getPusherClient = () => {
-    if (!pusherInstance) {
-        pusherInstance = new Pusher(PUBLIC_PUSHER_KEY, {
-            cluster: PUBLIC_PUSHER_CLUSTER,
-            authEndpoint: '/pusher/auth',
-        });
-    }
-    return pusherInstance;
+    console.warn('[DEPRECATED] getPusherClient is deprecated, use getSocketClient from socket.js instead');
+    return null;
 };

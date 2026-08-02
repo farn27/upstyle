@@ -73,7 +73,7 @@
         {#if system === 'finance'}
             <div class="sticky top-[64px] z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-5 shadow-sm rounded-xl p-2 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <!-- Left: SubNav container with min-w-0 to allow proper flex shrinking for child scrolling -->
-                <div class="flex-1 min-w-0 w-full">
+                <div class="flex-1 min-w-0 w-full overflow-x-auto">
                     <SubNav {slug} />
                 </div>
                 
@@ -90,7 +90,7 @@
                     {#each navItems as item}
                         <a
                             href={item.path}
-                            class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all whitespace-nowrap shrink-0
+                            class="flex items-center gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-[10px] sm:text-xs font-semibold uppercase tracking-wide transition-all whitespace-nowrap shrink-0
                                 {currentPath === item.path || currentPath.startsWith(item.path + '/')
                                     ? 'bg-indigo-50 text-indigo-755 dark:bg-indigo-900/40 dark:text-indigo-300'
                                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}"

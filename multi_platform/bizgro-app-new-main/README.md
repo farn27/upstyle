@@ -1,21 +1,94 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Bizgrow Android App
 
-# Run and deploy your AI Studio app
+Mobile client untuk platform Upstyle — terhubung ke SvelteKit backend via REST API + Socket.io realtime.
 
-This contains everything you need to run your app locally.
+## Tech Stack
 
-View your app in AI Studio: https://ai.studio/apps/8ddb10a4-93eb-4a50-95d4-f4778230f856
+- Kotlin + Jetpack Compose
+- Retrofit + OkHttp + Moshi (networking)
+- Socket.io client (realtime events)
+- Room (local cache)
+- Coroutines + StateFlow
 
-## Run Locally
+## Cara Run
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+### 1. Pastikan backend web sudah jalan
 
+```bash
+cd e:\upstyle\web
+npm run dev          # SvelteKit di port 5173
+npm run socket-server # Socket.io di port 13337
+```
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+### 2. Konfigurasi URL server
+
+**Emulator Android:**
+- URL default sudah benar: `http://10.0.2.2:5173`
+- `10.0.2.2` = localhost komputer dari dalam emulator
+
+**Physical device (HP nyata):**
+- HP dan komputer harus di WiFi yang sama
+- Cari IP komputer: `ipconfig` → ambil IPv4 (misal `192.168.1.10`)
+- Buka app → Settings → ubah Server URL ke `http://192.168.1.10:5173`
+
+### 3. Buka di Android Studio
+
+1. File → Open → pilih folder `bizgro-app-new-main`
+2. Tunggu Gradle sync selesai
+3. Run di emulator atau device
+
+## Struktur Project
+
+```
+app/src/main/java/com/upstyle/
+├── api/
+│   ├── UpstyleApi.kt        ← Semua endpoint REST API
+│   └── ApiClient.kt         ← Retrofit setup
+├── data/
+│   ├── Models.kt            ← Semua DTOs (request/response)
+│   └── SessionManager.kt    ← Token + session management
+├── socket/
+│   └── SocketManager.kt     ← Socket.io realtime connection
+└── ui/
+    ├── MainActivity.kt      ← Entry point + navigation
+    ├── MainViewModel.kt     ← Business logic + state
+    ├── screens/
+    │   ├── AuthScreen.kt    ← Login & Register
+    │   ├── UnitsScreen.kt   ← Pilih unit bisnis
+    │   ├── DashboardScreen.kt ← Home + BI metrics
+    │   ├── FinanceScreen.kt ← Transaksi keuangan
+    │   ├── PosScreen.kt     ← Kasir POS
+    │   └── SimpleScreens.kt ← HR, CRM, SCM, AI Chat, dll
+    └── theme/
+        └── Theme.kt         ← Material 3 theme
+```
+
+## Fitur
+
+| Fitur | Status |
+|---|---|
+| Login / Register | ✅ |
+| Pilih unit bisnis | ✅ |
+| Dashboard + BI metrics | ✅ |
+| Transaksi keuangan (CRUD) | ✅ |
+| Kasir POS + cart + checkout | ✅ |
+| Daftar produk + stok | ✅ |
+| HR & karyawan | ✅ |
+| CRM pipeline deals | ✅ |
+| SCM supplier & PO | ✅ |
+| AI Chat (Groq/Bizgrow AI) | ✅ |
+| Laporan WA | ✅ |
+| Notifikasi realtime (Socket.io) | ✅ |
+| Polling fallback (30 detik) | ✅ |
+| Settings (server URL, logout) | ✅ |
+
+## Realtime Events dari Socket.io
+
+| Event | Aksi di Android |
+|---|---|
+| `pos-transaction` | Refresh finance + POS + notif |
+| `stock-updated` | Refresh products + notif |
+| `stock-alert` | Notif warning stok menipis |
+| `notification` | Notif umum |
+| `order-status-changed` | Notif status order |
+| `pos-cash-alert` | Notif selisih kas |

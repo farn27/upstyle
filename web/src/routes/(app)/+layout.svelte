@@ -10,7 +10,7 @@
   import { replaceState , goto } from '$app/navigation';
   import { invalidate } from '$app/navigation';
   import { initGlobalRealtime, cleanupRealtime } from '$lib/realtimeStore';
-import { navigating } from '$app/stores';
+  import { navigating } from '$app/stores';
   export let data;
 
   
@@ -50,7 +50,11 @@ import { navigating } from '$app/stores';
   // UnitId is often in layout data or page data. If not, we still initialize with slug.
   $: unitId = $page.data?.unit?.id || $page.data?.unitInfo?.id;
   $: if (typeof window !== 'undefined' && (unitId || activeSlug)) {
-    initGlobalRealtime(unitId, activeSlug, username);
+    // Only init Socket.io if we have a valid unitId for authentication
+    if (unitId) {
+      initGlobalRealtime(unitId, activeSlug, username, userId, 'session-token-placeholder');
+    }
+    // No fallback needed — polling is handled internally by initGlobalRealtime
   }
 
   // --- LOGIC NOTIFIKASI REAKTIF ---
@@ -133,7 +137,7 @@ import { navigating } from '$app/stores';
 <div class="relative min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-700 dark:text-slate-200 selection:bg-indigo-500/30">
   {#if !isPosSide}
   <nav class="sticky top-0 z-[100] bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 print:hidden">
-    <div class="max-w-[1600px] mx-auto px-6 h-16 flex justify-between items-center">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
       
       <div class="flex items-center gap-6">
         <button on:click={() => isSidebarOpen = true} aria-label="Buka navigasi sidebar" class="p-2 -ml-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
@@ -151,8 +155,8 @@ import { navigating } from '$app/stores';
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
-          <span class="hidden sm:inline">Cari modul...</span>
-          <span class="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded text-xs font-mono leading-none">Ctrl+K</span>
+          <span class="hidden sm:inline">Cari...</span>
+          <span class="hidden sm:inline bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded text-xs font-mono leading-none">Ctrl+K</span>
         </button>
 
         <div class="hidden md:flex items-center gap-1">
@@ -167,7 +171,7 @@ import { navigating } from '$app/stores';
 
           <button 
             on:click={() => isChatOpen = !isChatOpen}
-            class="px-4 py-2 rounded-lg text-sm font-bold text-indigo-600 hover:bg-indigo-50 dark:bg-indigo-900/30 transition-all flex items-center gap-2"
+            class="hidden sm:flex px-4 py-2 rounded-lg text-sm font-bold text-indigo-600 hover:bg-indigo-50 dark:bg-indigo-900/30 transition-all items-center gap-2"
           >
             <div class="relative flex h-2 w-2">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -203,9 +207,8 @@ import { navigating } from '$app/stores';
         on:keydown={(e) => e.key === 'Escape' && (showNotif = false)}>
     </div>
         <div
-       
-        class=" sm:right-0 right-0 sm:absolute bg-white dark:bg-slate-800    w-80 z-50 shadow-2xl transition-all"
-         transition:fade={{duration: 100}}>
+        class="absolute right-0 sm:right-0 bg-white dark:bg-slate-800 w-80 sm:w-80 z-50 shadow-2xl transition-all"
+        transition:fade={{duration: 100}}>
             <div class="bg-white dark:bg-slate-800  border border-slate-100 dark:border-slate-800 flex flex-col ">
                 <div class="p-y-1 px-3 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between bg-slate-50/30 dark:bg-slate-900/30">
                     <div class="flex items-center p-2 gap-2">
@@ -304,7 +307,7 @@ import { navigating } from '$app/stores';
   </nav>
   {/if}
 
-<main class="max-w-[1600px] mx-auto px-6">
+<main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
     <slot />
   </main>
 </div>

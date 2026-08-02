@@ -82,6 +82,21 @@
         </a>
     </div>
 
+    <!-- Planning Banner -->
+    <a href="/finance/planning/wizard"
+      class="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl hover:shadow-md hover:border-emerald-300 transition-all group mb-6">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-lg shadow">🗺️</div>
+        <div>
+          <div class="text-xs font-black text-emerald-800 uppercase tracking-wide">Belum punya rencana bisnis?</div>
+          <div class="text-[10px] text-emerald-600 font-semibold mt-0.5">Pakai Business Planning Wizard dulu — AI akan bantu setup semua modul otomatis</div>
+        </div>
+      </div>
+      <span class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 group-hover:bg-emerald-700 transition-colors">
+        Mulai Wizard →
+      </span>
+    </a>
+
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         <div class="lg:col-span-4 space-y-6 lg:sticky lg:top-24">

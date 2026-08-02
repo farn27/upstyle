@@ -8,6 +8,7 @@ import { unitBisnis, posOrders, posCustomers, posOrderItems, transaksi } from '$
 import { eq, and, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { generateInvoiceHTML, generateInvoiceNumber } from '$lib/server/invoiceGenerator';
+import { log } from '$lib/server/logger';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 
 export async function GET({ params, url, cookies }) {
@@ -24,7 +25,7 @@ export async function GET({ params, url, cookies }) {
 			return await generateManualInvoice(orderId, userId);
 		}
 	} catch (err) {
-		console.error('[Invoice] Error:', err);
+		log.api.error({ err }, '[Invoice] Error');
 		return apiError('Gagal generate invoice: ' + err.message, 500);
 	}
 }

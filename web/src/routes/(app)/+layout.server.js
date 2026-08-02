@@ -3,6 +3,7 @@ import { users, employees, riwayatAksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { error, redirect } from '@sveltejs/kit';
 import { redis } from '$lib/server/redis';
+import { log } from '$lib/server/logger';
 import { getUserIdFromSession } from '$lib/server/session';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { env } from '$env/dynamic/private';
@@ -42,7 +43,7 @@ export async function load({ cookies, depends, url, locals }) {
             try {
                 cachedLayout = await redis.get(cacheKey);
             } catch (redisErr) {
-                console.error('[Redis] Gagal get cache layout:', redisErr.message);
+                log.api.warn({ err: redisErr.message }, '[Redis] Gagal get cache layout');
             }
         }
 
@@ -122,7 +123,7 @@ export async function load({ cookies, depends, url, locals }) {
             try {
                 await redis.set(cacheKey, finalData, { ex: 600 });
             } catch (redisErr) {
-                console.error('[Redis] Gagal set cache layout:', redisErr.message);
+                log.api.warn({ err: redisErr.message }, '[Redis] Gagal set cache layout');
             }
         }
 
@@ -130,7 +131,7 @@ export async function load({ cookies, depends, url, locals }) {
 
     } catch (err) {
         if (err.status === 303) throw err;
-        console.error('[Layout Server Error]', err);
+        log.api.error({ err }, '[Layout Server Error]');
         throw error(500, "Gagal memuat layout");
     }
 }

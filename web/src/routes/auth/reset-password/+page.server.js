@@ -6,6 +6,7 @@ import { peekResetToken, consumeResetToken } from '$lib/server/emailToken';
 import { checkRateLimit, getClientIP } from '$lib/server/rateLimit';
 import { z } from 'zod';
 import argon2 from 'argon2';
+import { log } from '$lib/server/logger';
 
 const resetSchema = z.object({
 	password: z
@@ -74,7 +75,7 @@ export const actions = {
 			const hashedPassword = await argon2.hash(parsed.data.password);
 			await db.update(users).set({ password: hashedPassword }).where(eq(users.id, userId));
 		} catch (err) {
-			console.error('[ResetPassword] Error:', err);
+			log.auth.error({ err }, '[ResetPassword] Error');
 			return fail(500, { message: 'Terjadi kesalahan. Coba lagi nanti.', token });
 		}
 

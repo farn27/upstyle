@@ -12,6 +12,15 @@ export default defineConfig({
         visualizer({ emitFile: true, filename: 'stats.html' })
     ],
     ssr: {
-        noExternal: ['lucide-svelte']
+        // Jangan force bundle lucide-svelte — biarkan sebagai external di SSR
+        // agar Vite tidak timeout saat load ratusan icon sekaligus
+        noExternal: []
+    },
+    // Tauri API hanya tersedia di runtime Tauri, bukan di browser biasa.
+    // Tandai sebagai external agar Vite tidak mencoba bundle/resolve package ini.
+    build: {
+        rollupOptions: {
+            external: (id) => id.startsWith('@tauri-apps/')
+        }
     }
 });

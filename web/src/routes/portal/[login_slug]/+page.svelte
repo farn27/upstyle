@@ -7,17 +7,17 @@
     // (no client enhancement) using native form submit for reliable cookie handling
 </script>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6 font-manrope">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 sm:p-6 font-manrope">
     <div class="w-full max-w-sm">
         
-        <div class="text-center mb-8">
-            <h1 class="text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter italic">
+        <div class="text-center mb-6 sm:mb-8">
+            <h1 class="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter italic">
                 {unit.nama_unit}
             </h1>
             <p class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.2em] mt-2">Staff Login Portal</p>
         </div>
 
-        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-8 shadow-sm">
+        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-6 sm:p-8 shadow-sm">
             <form method="POST" action="?/login" class="space-y-5">
                 <div class="space-y-1">
                     <label for="portal-email" class="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Email Kerja</label>
@@ -41,7 +41,7 @@
             </form>
         </div>
         
-        <p class="text-center mt-8 text-[9px] text-slate-300 font-bold uppercase tracking-widest">
+        <p class="text-center mt-6 sm:mt-8 text-[9px] text-slate-300 font-bold uppercase tracking-widest">
             Bizgrow Human Resource System
         </p>
     </div>

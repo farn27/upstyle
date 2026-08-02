@@ -1,12 +1,15 @@
 version: '3.9'
 
 services:
-  # ─── Upstyle Web App ──────────────────────────────────────────────────────────
+
+  # ─── SvelteKit Web Application ───────────────────────────────────────────────
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: upstyle_app
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    container_name: bizgrow_app
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -14,63 +17,121 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
-      # Semua env var di-inject dari .env atau CI/CD secrets
-      - DATABASE_URL=${DATABASE_URL}
+      # App
       - ORIGIN=${ORIGIN}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - AUTH_SECRET=${AUTH_SECRET}
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      # Redis (Upstash)
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
+      # AI
       - GROQ_API_KEY=${GROQ_API_KEY}
+      # Auth providers
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # Socket.io
+      - PUBLIC_SOCKET_URL=${PUBLIC_SOCKET_URL}
+      - SOCKET_SERVER_URL=http://socket:13337
+      - SOCKET_API_KEY=${SOCKET_API_KEY}
+      # Email
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM}
+      # Security
+      - CSRF_SECRET=${CSRF_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - WA_WEBHOOK_SECRET=${WA_WEBHOOK_SECRET}
+      # Payment
+      - MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
+      - MIDTRANS_CLIENT_KEY=${MIDTRANS_CLIENT_KEY}
+      # Pusher (legacy)
       - PUBLIC_PUSHER_KEY=${PUBLIC_PUSHER_KEY}
       - PUBLIC_PUSHER_CLUSTER=${PUBLIC_PUSHER_CLUSTER}
       - PUSHER_APP_ID=${PUSHER_APP_ID}
       - PUSHER_SECRET=${PUSHER_SECRET}
-      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
-      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - WA_WEBHOOK_SECRET=${WA_WEBHOOK_SECRET}
-      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
-      - MIDTRANS_SERVER_KEY=${MIDTRANS_SERVER_KEY}
-      - PUBLIC_MIDTRANS_CLIENT_KEY=${PUBLIC_MIDTRANS_CLIENT_KEY}
-      - PUBLIC_MIDTRANS_SANDBOX=${PUBLIC_MIDTRANS_SANDBOX:-false}
-      - SENTRY_DSN=${SENTRY_DSN}
+      # Storage
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      # Inngest
+      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
+      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     depends_on:
       mysql:
         condition: service_healthy
+      socket:
+        condition: service_healthy
     networks:
-      - upstyle_network
+      - bizgrow_network
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    volumes:
+      - app_uploads:/app/build/uploads
 
-  # ─── MySQL Database (untuk development/self-hosted) ──────────────────────────
+  # ─── Socket.io Realtime Server ────────────────────────────────────────────────
+  socket:
+    build:
+      context: .
+      dockerfile: Dockerfile.socket
+    container_name: bizgrow_socket
+    restart: unless-stopped
+    ports:
+      - "13337:13337"   # Socket.io WebSocket
+      - "13338:13338"   # HTTP API (emit events)
+    environment:
+      - NODE_ENV=production
+      - SOCKET_PORT=13337
+      - SOCKET_API_PORT=13338
+      - ORIGIN=${ORIGIN}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - SOCKET_API_KEY=${SOCKET_API_KEY}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
+    networks:
+      - bizgrow_network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:13338/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ─── MySQL Database (self-hosted / VPS) ──────────────────────────────────────
   mysql:
     image: mysql:8.0
-    container_name: upstyle_mysql
+    container_name: bizgrow_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme_in_production}
       MYSQL_DATABASE: finance_engine_db
-      MYSQL_USER: upstyle
+      MYSQL_USER: ${MYSQL_USER:-bizgrow}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme_in_production}
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./docker/mysql/conf:/etc/mysql/conf.d:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --default-authentication-plugin=mysql_native_password
+      --innodb-buffer-pool-size=256M
+      --max-connections=200
+      --slow-query-log=1
+      --slow-query-log-file=/var/log/mysql/slow.log
+      --long-query-time=2
     networks:
-      - upstyle_network
+      - bizgrow_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-changeme_in_production}"]
       interval: 10s
@@ -81,7 +142,7 @@ services:
   # ─── Nginx Reverse Proxy ──────────────────────────────────────────────────────
   nginx:
     image: nginx:1.25-alpine
-    container_name: upstyle_nginx
+    container_name: bizgrow_nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -92,15 +153,26 @@ services:
       - nginx_logs:/var/log/nginx
     depends_on:
       - app
+      - socket
     networks:
-      - upstyle_network
+      - bizgrow_network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   mysql_data:
     driver: local
   nginx_logs:
     driver: local
+  app_uploads:
+    driver: local
 
 networks:
-  upstyle_network:
+  bizgrow_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

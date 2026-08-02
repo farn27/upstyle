@@ -3,6 +3,7 @@ import * as schema from '$lib/server/schema';
 import { eq, and, sql, asc } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export async function load({ params, cookies }) {
     const slug = params.slug?.trim();
@@ -85,7 +86,7 @@ export async function load({ params, cookies }) {
                 }
             }
         } catch (e) {
-            console.warn('Tidak dapat memuat custom roles:', e?.message || e);
+            log.hr.warn({ err: e?.message }, 'Tidak dapat memuat custom roles');
         }
 
         const availableRoles = Array.from(new Set([...defaultRoles, ...customRoles]));
@@ -96,7 +97,7 @@ export async function load({ params, cookies }) {
             availableRoles
         };
     } catch (e) {
-        console.error("Error di HR Add Load:", e);
+        log.hr.error({ err: e }, 'Error di HR Add Load');
         throw error(500, 'Gagal memuat form');
     }
 }

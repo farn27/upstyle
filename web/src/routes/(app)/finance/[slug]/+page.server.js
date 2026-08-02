@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { transaksi, unitBisnis, products, abcCategories, riwayatAksi, receivables, payables, chartOfAccounts, journalEntryLines, journalEntries } from '$lib/server/schema';
 import { eq, and, desc, sql, lte, inArray } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
+import { log } from '$lib/server/logger';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { buildStrategicBI } from '$lib/server/strategicBI';
 import { todayStrWIB } from '$lib/server/dateUtils';
@@ -26,7 +27,7 @@ export const load = async ({ params, url, depends, cookies }) => {
             try {
                 cachedData = await redis.get(cacheKey);
             } catch (redisErr) {
-                console.error('[Redis] Gagal get cache dashboard:', redisErr.message);
+                log.api.warn({ err: redisErr.message }, '[Redis] Gagal get cache dashboard');
             }
         }
         if (cachedData) return cachedData;
@@ -132,14 +133,14 @@ export const load = async ({ params, url, depends, cookies }) => {
             try {
                 await redis.set(cacheKey, finalData, { ex: 300 });
             } catch (redisErr) {
-                console.error('[Redis] Gagal set cache dashboard:', redisErr.message);
+                log.api.warn({ err: redisErr.message }, '[Redis] Gagal set cache dashboard');
             }
         }
 
         return finalData;
 
     } catch (err) { 
-        console.error('[Dashboard Error]', err);
+        log.finance.error({ err }, '[Dashboard Error]');
         throw error(500, "Gagal memuat data"); 
     }
 };
@@ -177,7 +178,7 @@ export const actions = {
                     const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
                     if (historyKeys.length > 0) await redis.del(...historyKeys);
                 } catch (redisErr) {
-                    console.error('[Redis] Gagal invalidate cache:', redisErr.message);
+                    log.finance.warn({ err: redisErr.message }, '[Redis] Gagal invalidate cache dashboard action');
                 }
             }
 

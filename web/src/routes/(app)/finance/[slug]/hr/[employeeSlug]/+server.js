@@ -4,6 +4,7 @@ import * as schema from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
+import { log } from '$lib/server/logger';
 
 export async function POST({ request, params, cookies }) {
     const ownerUserId = await getCurrentUserId(cookies);
@@ -103,7 +104,7 @@ export async function POST({ request, params, cookies }) {
 
         return json({ success: false, message: 'Aksi tidak dikenali.' }, { status: 400 });
     } catch (err) {
-        console.error('Error POST HR detail:', err);
+        log.hr.error({ err }, 'Error POST HR detail');
         return json({ success: false, message: 'Terjadi kesalahan server.' }, { status: 500 });
     }
 }

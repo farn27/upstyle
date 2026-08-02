@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { posCustomers } from '$lib/server/schema';
 import { resolvePosUnitAccess } from '$lib/server/posAuth';
 import { eq, asc, and } from 'drizzle-orm';
+import { log } from '$lib/server/logger';
 
 export async function load({ params, cookies, locals }) {
     const { unit } = await resolvePosUnitAccess(cookies, params, locals);
@@ -14,7 +15,7 @@ export async function load({ params, cookies, locals }) {
 
         return { customers, unit };
     } catch (err) {
-        console.error('POS customers load error:', err);
+        log.pos.error({ err }, 'POS customers load error');
         return { customers: [], unit };
     }
 }
@@ -51,7 +52,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            console.error('POS Customers create error:', err);
+            log.pos.error({ err }, 'POS Customers create error');
             throw error(500, 'Gagal menambahkan pelanggan');
         }
     }

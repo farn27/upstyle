@@ -3,6 +3,7 @@ import { unitBisnis } from '$lib/server/schema';
 import { resolvePosUnitAccess } from '$lib/server/posAuth';
 import { eq } from 'drizzle-orm';
 import { getActivePosFeatures, POS_FEATURE_DEFAULTS } from '$lib/posFeatures';
+import { log } from '$lib/server/logger';
 
 export async function load({ params, cookies, locals }) {
     const { unit } = await resolvePosUnitAccess(cookies, params, locals);
@@ -41,7 +42,7 @@ export const actions = {
             
             return { success: true };
         } catch (err) {
-            console.error('POS Feature override error:', err);
+            log.pos.error({ err }, 'POS Feature override error');
             return { success: false, error: 'Gagal menyimpan pengaturan fitur' };
         }
     },
@@ -54,7 +55,7 @@ export const actions = {
             
             return { success: true };
         } catch (err) {
-            console.error('POS Feature reset error:', err);
+            log.pos.error({ err }, 'POS Feature reset error');
             return { success: false, error: 'Gagal me-reset pengaturan fitur' };
         }
     }

@@ -29,7 +29,7 @@ export async function load({ cookies }) {
         };
 
     } catch (err) {
-        console.error("LOAD ERROR:", err);
+        log.api.error({ err: "LOAD ERROR:", err);
         return { units: [], user: { username: 'Error Database' } };
     }
 }

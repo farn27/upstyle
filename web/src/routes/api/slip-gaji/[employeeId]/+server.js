@@ -8,6 +8,7 @@ import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { generateSlipGajiHTML } from '$lib/server/payrollCalculator';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
+import { log } from '$lib/server/logger';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
 export async function GET({ params, url, cookies }) {
@@ -80,7 +81,7 @@ export async function GET({ params, url, cookies }) {
 			headers: { 'Content-Type': 'text/html; charset=utf-8' }
 		});
 	} catch (err) {
-		console.error('[SlipGaji] Error:', err);
+		log.api.error({ err }, '[SlipGaji] Error');
 		return apiError('Gagal generate slip gaji: ' + err.message, 500);
 	}
 }

@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { payables } from '$lib/server/schema';
+import { payables, accountingContacts } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 
@@ -16,18 +16,24 @@ export const load = async ({ params, cookies }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
 
-    // Get payable with contact
-    const invoice = await db.query.payables.findFirst({
+    // 2-step query karena TiDB tidak support LATERAL JOIN dari Drizzle `with:`
+    const invoiceRaw = await db.query.payables.findFirst({
         where: and(
             eq(payables.id, Number(id)),
             eq(payables.unitId, unit.id)
-        ),
-        with: {
-            contact: true
-        }
+        )
     });
 
-    if (!invoice) throw error(404, 'Faktur Hutang tidak ditemukan');
+    if (!invoiceRaw) throw error(404, 'Faktur Hutang tidak ditemukan');
+
+    let contact = null;
+    if (invoiceRaw.contactId) {
+        contact = await db.query.accountingContacts.findFirst({
+            where: eq(accountingContacts.id, invoiceRaw.contactId)
+        });
+    }
+
+    const invoice = { ...invoiceRaw, contact: contact || null };
 
     return {
         unit,

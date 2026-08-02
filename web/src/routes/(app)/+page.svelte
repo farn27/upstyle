@@ -63,7 +63,15 @@
             icon: ShoppingBag,
             iconClass: 'from-amber-500 to-orange-600 text-white shadow-orange-500/20',
             bgClass: 'bg-white dark:bg-slate-900 border-slate-100 hover:border-amber-200'
-        }
+        },
+        { 
+            name: '🗺️ Business Planning',
+            desc: 'Wizard AI untuk rencana bisnis baru — seed semua modul otomatis.',
+            path: '/finance/planning',
+            icon: Sparkles,
+            iconClass: 'from-emerald-500 to-teal-600 text-white shadow-emerald-500/20',
+            bgClass: 'bg-white dark:bg-slate-900 border-emerald-200 hover:border-emerald-400 ring-1 ring-emerald-100'
+        },
     ];
 </script>
 
@@ -137,7 +145,7 @@
         </div>
 
         <!-- 4 Division Micro-Cards (Right - 40% Width) -->
-        <div class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
             {#each otherDivisions as item, idx}
                 <a 
                     href={item.path}

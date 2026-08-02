@@ -232,7 +232,7 @@
                                         </div>
                                         <div style="padding: 15px;">
                                             <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${p.nama}</h3>
-                                            <p style="color: #667eea; font-weight: bold; font-size: 18px;">Rp ${parseInt(p.hargaJual).toLocaleString()}</p>
+                                            <p style="color: #667eea; font-weight: bold; font-size: 18px;">Rp ${Number(p.hargaJual).toLocaleString('id-ID')}</p>
                                         </div>
                                     </div>
                                 `).join('')}

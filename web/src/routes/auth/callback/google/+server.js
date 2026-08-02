@@ -6,6 +6,7 @@ import { users } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { secureCookieOptions } from '$lib/server/cookieOptions';
 import { createSession } from '$lib/server/session';
+import { log } from '$lib/server/logger';
 
 export async function GET({ url, cookies }) {
     try {
@@ -31,7 +32,7 @@ export async function GET({ url, cookies }) {
         const tokens = await res.json();
 
         if (tokens.error) {
-            console.error('Google OAuth Token Error:', tokens);
+            log.auth.error({ tokens }, 'Google OAuth Token Error');
             throw redirect(303, '/auth/login?error=oauth_token_failed');
         }
 
@@ -42,7 +43,7 @@ export async function GET({ url, cookies }) {
         const profile = await userRes.json();
 
         if (profile.error || !profile.email) {
-            console.error('Google OAuth Profile Error:', profile);
+            log.auth.error({ profile }, 'Google OAuth Profile Error');
             throw redirect(303, '/auth/login?error=oauth_profile_failed');
         }
 
@@ -57,7 +58,7 @@ export async function GET({ url, cookies }) {
                 password: null,
                 googleId: profile.id,
                 avatarUrl: profile.picture || null,
-                role: 'admin',
+                role: 'free',
                 companyId: null,
                 emailVerifiedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
                 createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
@@ -84,7 +85,7 @@ export async function GET({ url, cookies }) {
         if (err && typeof err === 'object' && 'status' in err && 'location' in err) {
             throw err;
         }
-        console.error('[Google OAuth Exception]:', err);
+        log.auth.error({ err }, '[Google OAuth Exception]');
         const errMsg = encodeURIComponent(err.message || 'unknown_error');
         throw redirect(303, `/auth/login?error=oauth_server_error&details=${errMsg}`);
     }

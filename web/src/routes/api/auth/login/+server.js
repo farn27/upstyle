@@ -6,21 +6,20 @@ import { apiSuccess, apiError, apiRateLimit, apiValidationError } from '$lib/ser
 import { checkRateLimit, getClientIP, API_LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { apiLoginSchema } from '$lib/server/validation';
 import { createSession } from '$lib/server/session';
+import { log } from '$lib/server/logger';
 
 /**
  * Log failed login attempt for audit purposes
  */
 async function logFailedLogin(email, ip, reason) {
 	try {
-		await db.insert(riwayatAksi).values({
-			userId: 0, // Use 0 for unknown user (failed login)
-			unitId: 0, // Use 0 for unknown unit
-			pesan: `Gagal login: ${email} - ${reason} (IP: ${ip})`,
-			kategori: 'SECURITY',
-			tipe: 'error'
-		});
+		// Gunakan raw insert tanpa FK check untuk security audit log
+		await db.execute(
+			`INSERT INTO riwayat_aksi (user_id, unit_id, pesan, kategori, tipe) VALUES (0, 0, ?, 'SECURITY', 'error')`,
+			[`Gagal login: ${email} - ${reason} (IP: ${ip})`]
+		);
 	} catch (err) {
-		console.error('[Audit Log] Failed to log login attempt:', err);
+		log.auth.warn({ err }, '[Audit Log] Failed to log login attempt');
 	}
 }
 
@@ -33,7 +32,7 @@ export async function POST({ request }) {
 		...API_LOGIN_LIMIT
 	});
 	if (!rlIP.allowed) {
-		await logFailedLogin(email, ip, 'Rate limit exceeded');
+		await logFailedLogin('unknown', ip, 'Rate limit exceeded');
 		return apiRateLimit(rlIP.retryAfter);
 	}
 
@@ -109,7 +108,7 @@ export async function POST({ request }) {
 			'Login berhasil'
 		);
 	} catch (err) {
-		console.error('[API Login] Error:', err);
+		log.auth.error({ err }, '[API Login] Error');
 		return apiError('Terjadi kesalahan server', 500, 'SERVER_ERROR');
 	}
 }

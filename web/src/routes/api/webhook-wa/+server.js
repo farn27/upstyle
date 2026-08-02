@@ -7,6 +7,7 @@ import { normalizeKategoriTrx, isKategoriMasuk } from '$lib/server/kategoriTrx';
 import { apiError, apiSuccess, apiRateLimit } from '$lib/server/apiResponse';
 import { checkRateLimit, getClientIP, WA_WEBHOOK_LIMIT } from '$lib/server/rateLimit';
 import { waWebhookSchema } from '$lib/server/validation';
+import { log } from '$lib/server/logger';
 
 /**
  * @param {string} teksInput
@@ -83,7 +84,7 @@ export const POST = async ({ request }) => {
 	// ─── 1. Autentikasi Webhook (WAJIB) ──────────────────────────────────────
 	const webhookSecret = env.WA_WEBHOOK_SECRET;
 	if (!webhookSecret) {
-		console.error('[WA Webhook] WA_WEBHOOK_SECRET tidak dikonfigurasi di .env!');
+		log.api.error({}, '[WA Webhook] WA_WEBHOOK_SECRET tidak dikonfigurasi di .env!');
 		return apiError(
 			'Webhook belum dikonfigurasi dengan benar di server',
 			503,
@@ -133,7 +134,7 @@ export const POST = async ({ request }) => {
 			return apiError('unitId atau userId tidak valid', 403, 'FORBIDDEN');
 		}
 	} catch (err) {
-		console.error('[WA Webhook] DB verify error:', err);
+		log.api.error({ err }, '[WA Webhook] DB verify error');
 		return apiError('Terjadi kesalahan server', 500, 'SERVER_ERROR');
 	}
 
@@ -180,7 +181,7 @@ export const POST = async ({ request }) => {
 
 		return apiSuccess({ catatan, nominal, kategori: kategoriNormalized }, 'Tercatat Otomatis!');
 	} catch (err) {
-		console.error('[WA Webhook] Processing error:', err);
+		log.api.error({ err }, '[WA Webhook] Processing error');
 		return apiError('Terjadi kesalahan saat memproses pesan', 500, 'SERVER_ERROR');
 	}
 };

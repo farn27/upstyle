@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { kategoriProduk, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export async function POST({ request, cookies, params }) {
     try {
@@ -52,7 +53,7 @@ export async function POST({ request, cookies, params }) {
         });
 
     } catch (error) {
-        console.error("Gagal simpan kategori:", error);
+        log.api.error({ err: error.message }, '[kategori] Gagal simpan kategori');
         return json({ error: error.message }, { status: 500 });
     }
 }

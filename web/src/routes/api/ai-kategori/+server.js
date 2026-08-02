@@ -9,6 +9,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis, abcCategories } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { log } from '$lib/server/logger';
 
 const schema = z.object({
 	teks: z.string().min(2).max(300),
@@ -42,7 +43,7 @@ export async function POST({ request, cookies }) {
 		const suggestion = await suggestKategoriABC(teks, abcRows);
 		return apiSuccess(suggestion, 'Saran kategori');
 	} catch (err) {
-		console.error('[AI Kategori]', err);
+		log.ai.error({ err }, '[AI Kategori]');
 		return apiError('Gagal menyarankan kategori', 500);
 	}
 }

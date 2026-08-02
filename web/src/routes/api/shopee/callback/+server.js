@@ -4,6 +4,7 @@ import { unitBisnis, marketplaceIntegrations, riwayatAksi } from '$lib/server/sc
 import { getAccessToken } from '$lib/server/shopeeApi.js';
 import { eq } from 'drizzle-orm';
 import { verifyState, decrypt, encrypt } from '$lib/server/crypto.js';
+import { log } from '$lib/server/logger';
 
 export async function GET({ url }) {
     const code = url.searchParams.get('code');
@@ -77,7 +78,7 @@ export async function GET({ url }) {
         throw redirect(302, `/ecommerce/${slug}/integrasi/shopee?success=true`);
     } catch (err) {
         if (err.status === 302) throw err; // rethrow redirect
-        console.error('Shopee Callback Error:', err);
+        log.api.error({ err }, 'Shopee Callback Error');
         return new Response('Internal Server Error', { status: 500 });
     }
 }

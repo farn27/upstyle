@@ -7,6 +7,7 @@ import { sendPasswordResetEmail } from '$lib/server/email';
 import { checkRateLimit, getClientIP } from '$lib/server/rateLimit';
 import { env } from '$env/dynamic/private';
 import { z } from 'zod';
+import { log } from '$lib/server/logger';
 
 const emailSchema = z.object({
 	email: z.string().email('Format email tidak valid').max(100).toLowerCase().trim()
@@ -65,7 +66,7 @@ export const actions = {
 				resetUrl
 			});
 		} catch (err) {
-			console.error('[ForgotPassword] Error:', err);
+			log.auth.warn({ err }, '[ForgotPassword] Error (silent)');
 			// Jangan expose detail error ke user
 		}
 

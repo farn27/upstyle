@@ -3,6 +3,7 @@
  * Dipakai untuk semua endpoint login & register
  */
 import { redis } from '$lib/server/redis';
+import { log } from '$lib/server/logger';
 
 /**
  * @param {object} options
@@ -50,7 +51,7 @@ export async function checkRateLimit({ key, prefix, limit, windowSec }) {
 		return { allowed, remaining, retryAfter };
 	} catch (err) {
 		// Jika Redis error, izinkan request (fail open) agar tidak block semua user
-		console.error('[RateLimit] Redis error, fail open:', err.message);
+		log.api.error({ err: err.message }, '[RateLimit] Redis error, fail open');
 		return { allowed: true, remaining: limit, retryAfter: 0 };
 	}
 }

@@ -6,6 +6,18 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { pusherServer } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
 import { nowWIB } from '$lib/server/dateUtils';
+import { z } from 'zod';
+import { log } from '$lib/server/logger.js';
+
+const createTransactionSchema = z.object({
+    transaction: z.object({
+        unitId: z.coerce.number().int().positive(),
+        kategoriTrx: z.enum(['MASUK', 'KELUAR']),
+        nominal: z.coerce.number().positive('Nominal harus lebih dari 0'),
+        keterangan: z.string().min(1).max(500),
+        metodeBayar: z.string().optional().default('KAS'),
+    })
+});
 
 // 1. GET: Ambil transaksi, audit trail logs, dan kalkulasi BI metrics untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -100,7 +112,7 @@ export async function GET({ url, cookies, request }) {
         });
 
     } catch (err) {
-        console.error("API GET FINANCE ERROR:", err);
+        log.finance.error({ err }, 'API GET FINANCE ERROR');
         return json({ success: false, message: "Gagal mengambil data keuangan: " + err.message }, { status: 500 });
     }
 }
@@ -112,11 +124,15 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const { unitId, kategoriTrx, nominal, keterangan } = body.transaction;
 
-        if (!kategoriTrx || !nominal || !unitId) {
-            return json({ success: false, message: "kategoriTrx, nominal, unitId wajib diisi" }, { status: 400 });
+        // Zod validation
+        const parsed = createTransactionSchema.safeParse(body);
+        if (!parsed.success) {
+            const msg = parsed.error.errors[0]?.message || 'Input tidak valid';
+            return json({ success: false, message: msg }, { status: 422 });
         }
+
+        const { unitId, kategoriTrx, nominal, keterangan, metodeBayar } = parsed.data.transaction;
 
         await db.transaction(async (tx) => {
             // Insert transaction
@@ -164,13 +180,13 @@ export async function POST({ request, cookies }) {
                 const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
                 if (historyKeys.length > 0) await redis.del(...historyKeys);
             } catch (err) {
-                console.error("Gagal menghapus cache Redis:", err);
+                log.finance.warn({ err }, 'Gagal menghapus cache Redis (POST)');
             }
         }
 
         return json({ success: true, message: "Transaksi berhasil disimpan" });
     } catch (err) {
-        console.error("API POST FINANCE ERROR:", err);
+        log.finance.error({ err }, 'API POST FINANCE ERROR');
         return json({ success: false, message: "Gagal menyimpan transaksi: " + err.message }, { status: 500 });
     }
 }
@@ -216,13 +232,13 @@ export async function DELETE({ url, cookies, request }) {
                 const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
                 if (historyKeys.length > 0) await redis.del(...historyKeys);
             } catch (err) {
-                console.error("Gagal menghapus cache Redis:", err);
+                log.finance.warn({ err }, 'Gagal menghapus cache Redis (DELETE)');
             }
         }
 
         return json({ success: true, message: "Transaksi berhasil dihapus" });
     } catch (err) {
-        console.error("API DELETE FINANCE ERROR:", err);
+        log.finance.error({ err }, 'API DELETE FINANCE ERROR');
         return json({ success: false, message: "Gagal menghapus transaksi" }, { status: 500 });
     }
 }

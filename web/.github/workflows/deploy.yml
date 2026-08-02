@@ -1,4 +1,4 @@
-name: Build, Test & Deploy
+name: CI/CD — Bizgrow
 
 on:
   push:
@@ -9,12 +9,14 @@ on:
 env:
   NODE_VERSION: '20'
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_APP: ${{ github.repository }}/app
+  IMAGE_SOCKET: ${{ github.repository }}/socket
 
 jobs:
+
   # ─── Lint & Type Check ──────────────────────────────────────────────────────
   check:
-    name: Lint & Type Check
+    name: ✅ Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,11 +33,10 @@ jobs:
       - name: Run svelte-check
         run: npm run check
         env:
-          # Dummy env untuk type-check (tidak menyentuh production)
           DATABASE_URL: "mysql://root:pass@localhost:3306/test"
           UPSTASH_REDIS_REST_URL: "https://dummy.upstash.io"
-          UPSTASH_REDIS_REST_TOKEN: "dummy_token"
-          AUTH_SECRET: "dummy_secret_for_ci_only_32chars"
+          UPSTASH_REDIS_REST_TOKEN: "dummy_token_for_ci"
+          AUTH_SECRET: "dummy_secret_for_ci_only_min32chars_here"
           ORIGIN: "http://localhost:5173"
           GOOGLE_CLIENT_ID: "dummy"
           GOOGLE_CLIENT_SECRET: "dummy"
@@ -44,18 +45,25 @@ jobs:
           PUSHER_APP_ID: "dummy"
           PUSHER_SECRET: "dummy"
           GROQ_API_KEY: "dummy"
-          WA_WEBHOOK_SECRET: "dummy_webhook_secret_32chars"
+          WA_WEBHOOK_SECRET: "dummy_webhook_secret_min32chars_here"
           RESEND_API_KEY: "re_dummy"
+          CSRF_SECRET: "dummy_csrf_secret_min32chars_here_ok"
+          ENCRYPTION_KEY: "dummy_encryption_key_exactly_64chars_here_padded_ok"
+          SOCKET_API_KEY: "dummy_socket_api_key"
+          PUBLIC_SOCKET_URL: "http://localhost:13337"
 
-  # ─── Build Docker Image ──────────────────────────────────────────────────────
+  # ─── Build Docker Images ─────────────────────────────────────────────────────
   build:
-    name: Build Docker Image
+    name: 🐳 Build Docker Images
     runs-on: ubuntu-latest
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
+    outputs:
+      app_tag: ${{ steps.meta_app.outputs.tags }}
+      socket_tag: ${{ steps.meta_socket.outputs.tags }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,33 +75,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── App Image ──────────────────────────────────────────────────────────
+      - name: Extract metadata (app)
+        id: meta_app
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_APP }}
           tags: |
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Docker image
+      - name: Build & push App image
         uses: docker/build-push-action@v5
         with:
           context: .
+          dockerfile: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            NODE_ENV=production
+          tags: ${{ steps.meta_app.outputs.tags }}
+          labels: ${{ steps.meta_app.outputs.labels }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      # ── Socket Image ───────────────────────────────────────────────────────
+      - name: Extract metadata (socket)
+        id: meta_socket
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_SOCKET }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & push Socket image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          dockerfile: Dockerfile.socket
+          push: true
+          tags: ${{ steps.meta_socket.outputs.tags }}
+          labels: ${{ steps.meta_socket.outputs.labels }}
+          cache-from: type=gha,scope=socket
+          cache-to: type=gha,mode=max,scope=socket
 
   # ─── Deploy to Production ────────────────────────────────────────────────────
   deploy:
-    name: Deploy to Production
+    name: 🚀 Deploy to Production
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -110,16 +139,47 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            cd /opt/upstyle
+            set -e
+            cd /opt/bizgrow
 
-            # Pull latest image
+            echo "📦 Pulling latest images..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker pull ghcr.io/${{ github.repository }}:latest
+            docker pull ghcr.io/${{ env.IMAGE_APP }}:latest
+            docker pull ghcr.io/${{ env.IMAGE_SOCKET }}:latest
 
-            # Rolling update — zero downtime
+            echo "🔄 Rolling update — zero downtime..."
+            # Update socket server dulu
+            docker compose up -d --no-deps --pull always socket
+            sleep 5
+
+            # Update app (SvelteKit)
             docker compose up -d --no-deps --pull always app
+            sleep 10
 
-            # Cleanup old images
+            echo "🏥 Health check..."
+            HEALTH=$(curl -sf http://localhost:3000/health | jq -r '.status' 2>/dev/null || echo "error")
+            if [ "$HEALTH" != "ok" ]; then
+              echo "❌ Health check failed! Rolling back..."
+              docker compose rollback app
+              exit 1
+            fi
+
+            echo "🧹 Cleanup old images..."
             docker image prune -f
 
             echo "✅ Deploy berhasil: $(date)"
+            echo "📊 Container status:"
+            docker compose ps
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Deploy berhasil ke production"
+          echo "Commit: ${{ github.sha }}"
+          echo "By: ${{ github.actor }}"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Deploy GAGAL!"
+          echo "Commit: ${{ github.sha }}"

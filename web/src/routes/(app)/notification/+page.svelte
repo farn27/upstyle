@@ -1,7 +1,7 @@
 <script>
     import { goto } from '$app/navigation';
     import { onMount } from 'svelte';
-    import { getPusherClient } from '$lib/pusher';
+    import { notifUpdate } from '$lib/realtimeStore';
     export let data;
 
     let filterAktif = 'Semua';
@@ -18,16 +18,11 @@
             console.warn("Aksi ini tidak memiliki link tujuan lurd!");
         }
     }
-   onMount(() => {
-        const pusher = getPusherClient(); 
-        const channel = pusher.subscribe('channel-bizgrow');
 
-        channel.bind('notif-baru', (/** @type {any} */ newLog) => {
-            data.riwayatGlobal = [newLog, ...(data.riwayatGlobal || [])].slice(0, 15);
-        });
-
-        return () => pusher.unsubscribe('channel-bizgrow');
-    });
+   // Listen for realtime notifications via Socket.io
+   $: if ($notifUpdate) {
+        data.riwayatGlobal = [$notifUpdate, ...(data.riwayatGlobal || [])].slice(0, 15);
+    }
 </script>
 
 <div class="max-w-4xl mx-auto px-6 py-8">

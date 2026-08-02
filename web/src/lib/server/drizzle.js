@@ -3,6 +3,7 @@ import mysql from "mysql2/promise";
 import { env } from '$env/dynamic/private';
 import * as schema from './schema.js';
 import * as relations from './relations.ts';
+import { businessPlans, businessPlanSeedLogs } from './businessPlanSchema.js';
 
 const connectionString = env.DATABASE_URL;
 
@@ -25,7 +26,7 @@ export const pool = mysql.createPool({
 });
 
 export const db = drizzle(pool, { 
-    schema: { ...schema, ...relations },
+    schema: { ...schema, ...relations, businessPlans, businessPlanSeedLogs },
     mode: "default",
-    logger: false
+    logger: env.NODE_ENV !== 'production' && env.DB_LOGGER === 'true'
 });

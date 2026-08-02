@@ -6,6 +6,7 @@ import { apiSuccess, apiError, apiRateLimit, apiValidationError } from '$lib/ser
 import { checkRateLimit, getClientIP, API_LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { googleTokenSchema } from '$lib/server/validation';
 import { createSession } from '$lib/server/session';
+import { log } from '$lib/server/logger';
 
 /**
  * POST /api/auth/google
@@ -125,7 +126,7 @@ export async function POST({ request }) {
 			'Login Google berhasil'
 		);
 	} catch (err) {
-		console.error('[API Google Auth] Error:', err);
+		log.auth.error({ err }, '[API Google Auth] Error');
 		return apiError('Terjadi kesalahan server', 500, 'SERVER_ERROR');
 	}
 }

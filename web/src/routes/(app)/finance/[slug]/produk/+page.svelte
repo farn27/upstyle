@@ -6,7 +6,7 @@
     import { browser } from '$app/environment';
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { contextMap } from '$lib/bussinesConfig';
-    import { getPusherClient } from '$lib/pusher';
+    import { stockUpdate } from '$lib/realtimeStore';
 
     export let data; 
     
@@ -207,29 +207,12 @@
         }
     }
 
-    let pusherClient;
-    onMount(() => {
-        pusherClient = getPusherClient();
-        const channelName = `finance-${slug}`;
-        const channel = pusherClient.subscribe(channelName);
-
-        channel.bind('stats-updated', async (payload) => {
-            if (payload.triggerRefresh || payload.newTransaction || payload.message) {
-                await invalidateAll();
-            }
-        });
-
-        return () => { 
-            if (pusherClient) { 
-                pusherClient.unsubscribe(channelName); 
-                pusherClient.disconnect(); 
-            } 
-        };
-    });
-
-    onDestroy(() => {
-        // Cleanup if needed
-    });
+    // Listen for stock updates via Socket.io
+    $: if ($stockUpdate) {
+        if ($stockUpdate.action === 'stock-updated' || $stockUpdate.action === 'product-added') {
+            invalidateAll();
+        }
+    }
 </script>
 
 <PageLayout title="Katalog Produk" subtitle="Kelola persediaan dan informasi produk" badge={data.unitInfo?.tipe || 'General'} slug={slug} unit={unitAktif}>

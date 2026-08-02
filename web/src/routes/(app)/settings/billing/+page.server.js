@@ -3,6 +3,7 @@ import { unitBisnis, users, products, employees, transaksi } from '$lib/server/s
 import { eq, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getPlanLimits, estimateStorageGB } from '$lib/server/planLimits';
+import { log } from '$lib/server/logger';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -98,7 +99,7 @@ export async function load({ cookies }) {
 			invoices: []
 		};
 	} catch (err) {
-		console.error('Billing load error:', err);
+		log.api.error({ err }, 'Billing load error');
 		return { user: null };
 	}
 }

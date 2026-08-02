@@ -3,6 +3,7 @@
  * Generates and validates CSRF tokens for form submissions
  */
 import crypto from 'crypto';
+import { log } from '$lib/server/logger';
 
 const CSRF_SECRET = process.env.CSRF_SECRET || crypto.randomBytes(32).toString('hex');
 const CSRF_TOKEN_LENGTH = 32;
@@ -55,7 +56,7 @@ export function validateCsrfToken(token, sessionId) {
 		
 		return signature === expectedSignature;
 	} catch (err) {
-		console.error('[CSRF] Validation error:', err);
+		log.auth.error({ err }, '[CSRF] Validation error');
 		return false;
 	}
 }

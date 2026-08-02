@@ -7,6 +7,7 @@ import { verifyEmployeePassword, hashEmployeePassword } from '$lib/server/employ
 import { secureCookieOptions } from '$lib/server/cookieOptions';
 import { checkRateLimit, getClientIP, PORTAL_LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { staffLoginSchema, formDataToObject } from '$lib/server/validation';
+import { log } from '$lib/server/logger';
 
 export async function load({ params }) {
 	const { login_slug } = params;
@@ -27,7 +28,7 @@ export async function load({ params }) {
 
 		return { unit: rows[0] };
 	} catch (err) {
-		console.error('[Portal] Load error:', err);
+		log.auth.error({ err }, '[Portal] Load error');
 		if (err.status) throw err;
 		throw error(500, 'Gagal memuat portal');
 	}
@@ -141,7 +142,7 @@ export const actions = {
 			isSuccess = true;
 			redirectTarget = `/portal/${params.login_slug}/dashboard`;
 		} catch (err) {
-			console.error('[Portal Login] Error:', err);
+			log.auth.error({ err }, '[Portal Login] Error');
 			return fail(500, { message: 'Terjadi kesalahan sistem' });
 		}
 

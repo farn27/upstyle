@@ -1,4 +1,5 @@
 import { redis } from '$lib/server/redis';
+import { log } from '$lib/server/logger';
 import crypto from 'crypto';
 
 const SESSION_TTL = 60 * 60 * 24; // 24 jam
@@ -18,7 +19,7 @@ export async function createSession(userId) {
 		try {
 			await redis.set(`session:${token}`, numericUserId.toString(), { ex: SESSION_TTL });
 		} catch (e) {
-			console.warn('⚠️ Redis session set failed, using memory fallback:', e?.message || e);
+			log.auth.warn({ err: e?.message }, '⚠️ Redis session set failed, using memory fallback');
 		}
 	}
 	return token;
@@ -37,7 +38,7 @@ export async function getUserIdFromSession(token) {
 			const userId = await redis.get(`session:${token}`);
 			if (userId) return Number(userId);
 		} catch (e) {
-			console.warn('⚠️ Redis session get failed, checking memory fallback:', e?.message || e);
+			log.auth.warn({ err: e?.message }, '⚠️ Redis session get failed, checking memory fallback');
 		}
 	}
 

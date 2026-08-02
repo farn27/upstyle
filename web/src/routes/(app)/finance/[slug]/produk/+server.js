@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { nowWIB } from '$lib/server/dateUtils';
+import { log } from '$lib/server/logger';
 
 /**
  * @param {unknown} error
@@ -36,7 +37,7 @@ async function simpanRiwayat(userId, unitId, pesan, kategori, link, tipe = 'info
             tipe
         });
     } catch (e) {
-        console.error("Gagal simpan riwayat:", e);
+        log.api.error({ err: e?.message }, '[riwayat] Gagal simpan riwayat');
     }
 }
 
@@ -157,7 +158,7 @@ export async function POST({ request, cookies }) {
         return json({ success: true, message: "Produk berhasil dibuat", id: newProductId });
 
     } catch (error) {
-        console.error("Gagal POST Produk:", error);
+        log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal POST Produk');
         return json({ error: getErrorMessage(error) }, { status: 500 });
     }
 }
@@ -229,7 +230,7 @@ export async function PUT({ request, cookies }) {
         simpanRiwayat(actorIdPut, realUnitId, `Update produk: ${nama}`, 'Produk', `/finance/${unitSlug}/produk`, 'info');
         return json({ success: true, message: "Produk diperbarui" });
     } catch (error) {
-        console.error("Gagal PUT Produk:", error);
+        log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal PUT Produk');
         return json({ error: getErrorMessage(error) }, { status: 500 });
     }
 }
@@ -290,7 +291,7 @@ export async function PATCH({ request, cookies }) {
             }
         }
     } catch (error) {
-        console.error("Gagal PATCH Produk:", error);
+        log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal PATCH Produk');
         return json({ error: "Gagal memproses aksi produk" }, { status: 500 });
     }
 
@@ -343,7 +344,7 @@ export async function DELETE({ url, locals, cookies }) {
 
         return json({ success: true, message: `Produk berhasil dipindahkan ke Sampah` });
     } catch (error) {
-        console.error("Gagal DELETE Produk:", error);
+        log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal DELETE Produk');
         return json({ error: getErrorMessage(error) }, { status: 500 });
     }
 }

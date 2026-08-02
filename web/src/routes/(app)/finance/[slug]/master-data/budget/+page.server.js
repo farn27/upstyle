@@ -9,6 +9,7 @@ import { error, fail } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { z } from 'zod';
 import { thisMonthWIB } from '$lib/server/dateUtils';
+import { log } from '$lib/server/logger';
 
 const budgetSchema = z.object({
 	coaLabel: z.string().min(1).max(100),
@@ -172,7 +173,7 @@ export const actions = {
 			}
 			return { success: true, message: 'Budget berhasil disimpan' };
 		} catch (err) {
-			console.error('[Budget] Error:', err);
+			log.finance.error({ err }, '[Budget] Error');
 			return fail(500, { message: 'Gagal menyimpan budget' });
 		}
 	},

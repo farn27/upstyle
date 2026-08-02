@@ -17,7 +17,12 @@ const RESET_TTL  = 60 * 60;          // 1 jam
  */
 export async function createVerifyToken(userId) {
 	const token = crypto.randomBytes(32).toString('hex');
-	await redis.set(`verify_email:${token}`, String(userId), { ex: VERIFY_TTL });
+	try {
+		await redis.set(`verify_email:${token}`, String(userId), { ex: VERIFY_TTL });
+	} catch (e) {
+		// Redis down — token akan gagal saat verify, tapi jangan crash register
+		console.warn('[EmailToken] Redis error saat simpan verify token:', e?.message);
+	}
 	return token;
 }
 
@@ -43,14 +48,18 @@ export async function consumeVerifyToken(token) {
  */
 export async function createResetToken(userId) {
 	const token = crypto.randomBytes(32).toString('hex');
-	// Hapus token lama jika ada (1 token aktif per user)
-	const oldKey = `reset_pw_user:${userId}`;
-	const oldToken = await redis.get(oldKey);
-	if (oldToken) {
-		await redis.del(`reset_pw:${oldToken}`);
+	try {
+		// Hapus token lama jika ada (1 token aktif per user)
+		const oldKey = `reset_pw_user:${userId}`;
+		const oldToken = await redis.get(oldKey);
+		if (oldToken) {
+			await redis.del(`reset_pw:${oldToken}`);
+		}
+		await redis.set(`reset_pw:${token}`, String(userId), { ex: RESET_TTL });
+		await redis.set(oldKey, token, { ex: RESET_TTL }); // index user → token
+	} catch (e) {
+		console.warn('[EmailToken] Redis error saat simpan reset token:', e?.message);
 	}
-	await redis.set(`reset_pw:${token}`, String(userId), { ex: RESET_TTL });
-	await redis.set(oldKey, token, { ex: RESET_TTL }); // index user → token
 	return token;
 }
 

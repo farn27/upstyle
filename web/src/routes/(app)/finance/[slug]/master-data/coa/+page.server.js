@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { DEFAULT_COAS } from '$lib/server/defaultCoa';
 import { Groq } from 'groq-sdk';
 import { GROQ_API_KEY } from '$env/static/private';
+import { log } from '$lib/server/logger';
 
 const groq = new Groq({ apiKey: GROQ_API_KEY });
 
@@ -78,7 +79,7 @@ export const actions = {
 
             return { success: true, message: `Akun "${namaAkun}" berhasil ditambahkan!` };
         } catch (err) {
-            console.error(err);
+            log.finance.error({ err }, 'Add COA Error');
             return fail(500, { message: err.message });
         }
     },
@@ -246,7 +247,7 @@ Hasilkan sekitar 10-15 akun esensial yang sangat spesifik dan relevan dengan mod
 
             return { success: true, message: 'COA Custom dari AI berhasil dibuat!' };
         } catch (err) {
-            console.error('AI Error:', err);
+            log.ai.error({ err }, 'AI Error generate COA');
             return fail(500, { message: 'Gagal generate AI: ' + err.message });
         }
     }

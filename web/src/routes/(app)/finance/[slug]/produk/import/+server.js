@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import crypto from 'crypto';
 import * as XLSX from 'xlsx';
 import { redis } from '$lib/server/redis';
+import { log } from '$lib/server/logger';
 
 function createSlug(text) {
     return text
@@ -48,7 +49,7 @@ export async function POST({ request, params, locals }) {
     try {
         workbook = XLSX.read(buffer, { type: 'buffer' });
     } catch (error) {
-        console.error('Gagal membaca file import:', error);
+        log.api.error({ err: error.message }, '[import] Gagal membaca file import');
         return json({ error: 'Gagal membaca file import. Pastikan file .xlsx atau .csv valid.' }, { status: 400 });
     }
 
@@ -135,7 +136,7 @@ export async function POST({ request, params, locals }) {
         await redis.del(`cache:products_page_v4:${params.slug.toLowerCase()}:none:${user.id}`);
         await redis.del(`cache:products_page_v4:${params.slug.toLowerCase()}:all:${user.id}`);
     } catch (error) {
-        console.error('Gagal import produk:', error);
+        log.api.error({ err: error.message }, '[import] Gagal import produk');
         return json({ error: 'Gagal melakukan import produk. Periksa kembali format file.' }, { status: 500 });
     }
 

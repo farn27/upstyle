@@ -3,28 +3,22 @@
     import { enhance } from '$app/forms';
     import { goto, invalidateAll } from '$app/navigation'; 
     import { onMount } from 'svelte'; 
-    import { getPusherClient } from '$lib/pusher'; 
+    import { financeUpdate } from '$lib/realtimeStore';
     import jsPDF from 'jspdf';
     import autoTable from 'jspdf-autotable'; 
     import { toastPesan, showRedDot } from '$lib/notifStore';
-    import * as XLSX from 'xlsx'; // 👈 IMPORT WAJIB UNTUK EXCEL
+    import * as XLSX from 'xlsx';
+    import { formatRupiah } from '$lib/rupiah.js';
 
     export let data;
 
     // --- 1. LOGIKA REALTIME ---
-    onMount(() => {
-        const pusher = getPusherClient();
-        const channel = pusher.subscribe('finance-channel');
-
-        channel.bind('new-transaction', () => {
+    // Listen for finance updates via Socket.io
+    $: if ($financeUpdate) {
+        if ($financeUpdate.action === 'stats-updated' || $financeUpdate.action === 'pos-transaction') {
             invalidateAll(); 
-        });
-
-        return () => {
-            channel.unbind_all();
-            channel.unsubscribe();
-        };
-    });
+        }
+    }
     
     // --- 2. FILTER & FORMATTING ---
     let startDate = $page.url.searchParams.get('start') || "";
@@ -144,9 +138,9 @@
                     isMasuk ? 'PEMASUKAN' : (isKeluar ? 'PENGELUARAN' : 'LAINNYA'),
                     `#${trx.id.toString().slice(-5)}`,
                     trx.metode_bayar || 'KAS',
-                    isMasuk ? trx.nominal.toLocaleString('id-ID') : '-',
-                    isKeluar ? trx.nominal.toLocaleString('id-ID') : '-',
-                    (balanceMap[trx.id] ?? 0).toLocaleString('id-ID'), // 👈 BARU kolom saldo
+                    isMasuk ? formatRupiah(trx.nominal) : '-',
+                    isKeluar ? formatRupiah(trx.nominal) : '-',
+                    formatRupiah(balanceMap[trx.id] ?? 0), // saldo
                     trx.keterangan.toUpperCase()
                 ];
             });
@@ -155,8 +149,7 @@
             tableBody.push([
                 '', '', '', 'TOTAL',
                 liveTotalMasuk.toLocaleString('id-ID'),
-                liveTotalKeluar.toLocaleString('id-ID'),
-                '',
+                liveTotalKeluar.toLocaleString('id-ID'),                '',
                 ''
             ]);
 
@@ -401,15 +394,15 @@
                                 <td class="p-3 align-top text-slate-400 dark:text-slate-500 font-mono">#{trx.id.toString().slice(-5)}</td>
                                 
                                 <td class="p-3 align-top text-right font-bold text-emerald-600">
-                                    {info.isMasuk ? Number(trx.nominal).toLocaleString('id-ID') : '-'}
+                                    {info.isMasuk ? formatRupiah(trx.nominal) : '-'}
                                 </td>
                                 
                                 <td class="p-3 align-top text-right font-bold text-rose-600">
-                                    {info.isKeluar ? Number(trx.nominal).toLocaleString('id-ID') : '-'}
+                                    {info.isKeluar ? formatRupiah(trx.nominal) : '-'}
                                 </td>
 
                                 <td class="p-3 align-top text-right font-bold text-indigo-700 dark:text-indigo-300">
-                                    {(balanceMap[trx.id] ?? 0).toLocaleString('id-ID')}
+                                    {formatRupiah(balanceMap[trx.id] ?? 0)}
                                 </td>
                                 
                                 <td class="p-3 align-top">
@@ -497,7 +490,7 @@
                                             </div>
                                             <div>
                                                 <span class="block text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-0.5">Saldo Setelah Transaksi</span>
-                                                <span class="text-indigo-700 dark:text-indigo-300 font-bold">{(balanceMap[trx.id] ?? 0).toLocaleString('id-ID')}</span>
+                                                <span class="text-indigo-700 dark:text-indigo-300 font-bold">{formatRupiah(balanceMap[trx.id] ?? 0)}</span>
                                             </div>
                                             <div>
                                                 <span class="block text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-0.5">ID Transaksi</span>
@@ -514,14 +507,14 @@
                         <tr>
                             <td colspan="4" class="p-3 text-right uppercase tracking-wider">Total (Filtered):</td>
                             <td class="p-3 text-right text-emerald-700 bg-emerald-50/50">
-                                {liveTotalMasuk.toLocaleString('id-ID')}
+                                {formatRupiah(liveTotalMasuk)}
                             </td>
                             <td class="p-3 text-right text-rose-700 bg-rose-50/50">
-                                {liveTotalKeluar.toLocaleString('id-ID')}
+                                {formatRupiah(liveTotalKeluar)}
                             </td>
                             <td class="p-3"></td>
                             <td colspan="2" class="p-3 text-center text-slate-400 dark:text-slate-500">
-                                Net: <span class="{liveSaldo >= 0 ? 'text-emerald-600' : 'text-rose-600'}">{liveSaldo.toLocaleString('id-ID')}</span>
+                                Net: <span class="{liveSaldo >= 0 ? 'text-emerald-600' : 'text-rose-600'}">{formatRupiah(liveSaldo)}</span>
                             </td>
                         </tr>
                     </tfoot>

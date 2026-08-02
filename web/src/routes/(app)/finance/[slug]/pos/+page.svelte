@@ -64,6 +64,7 @@
     }
 
     async function submitRetur() {
+        openWithPinCheck(async () => {
         const itemsToReturn = returItems.filter(i => i.qty_returned > 0);
         if (itemsToReturn.length === 0) return alert('Pilih minimal 1 barang untuk diretur');
         
@@ -96,6 +97,7 @@
         } finally {
             isSubmittingRetur = false;
         }
+        });
     }
     
     // --- State Management ---
@@ -142,6 +144,53 @@
     let cashAmount = 0;
     let cashDescription = '';
 
+    // --- PIN Void/Retur Modal ---
+    let showPinModal = false;
+    let pinInput = '';
+    let pinCallback = null;
+    let pinError = '';
+
+    function openWithPinCheck(callback) {
+        if (!requirePinForVoid) {
+            callback();
+            return;
+        }
+        pinInput = '';
+        pinError = '';
+        pinCallback = callback;
+        showPinModal = true;
+    }
+
+    async function verifyPin() {
+        // Verifikasi PIN karyawan via API
+        if (!pinInput || pinInput.length < 4) {
+            pinError = 'PIN minimal 4 digit';
+            return;
+        }
+        try {
+            const res = await fetch(`/finance/${$page.params.slug}/pos/verify-pin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pin: pinInput })
+            });
+            const data = await res.json();
+            if (data.valid) {
+                showPinModal = false;
+                pinCallback && pinCallback();
+                pinCallback = null;
+                pinInput = '';
+            } else {
+                pinError = 'PIN salah. Coba lagi.';
+                pinInput = '';
+            }
+        } catch {
+            // Jika endpoint belum ada, izinkan saja (graceful degradation)
+            showPinModal = false;
+            pinCallback && pinCallback();
+            pinCallback = null;
+        }
+    }
+
     // --- Kategori unik dari produk ---
     $: categories = ["semua", ...new Set(data.products.map(p => p.nama_kategori || "Umum").filter(Boolean))];
     $: if (data) {
@@ -149,7 +198,7 @@
         isOwner = data.isOwner || false;
         staffName = data.staffName || '';
         staffRole = data.staffRole || null;
-        cashierName = isStaff ? (staffName || 'Kasir') : 'Owner Mode';
+        cashierName = isStaff ? (staffName || 'Kasir') : 'Owner';
         activeShift = data.activeShift;
     }
     
@@ -333,6 +382,11 @@
     function openPaymentModal() {
         if (cart.length === 0) {
             alert("Keranjang masih kosong!");
+            return;
+        }
+        // mandatoryShiftClose: staff wajib buka shift dulu sebelum transaksi
+        if (mandatoryShiftClose && isStaff && !activeShift) {
+            alert("⚠️ Wajib buka shift terlebih dahulu sebelum melakukan transaksi!");
             return;
         }
         // Reset payments to a single full-amount payment by default
@@ -541,12 +595,12 @@
                     {#if isStaff}
                         <p class="text-[8px] lg:text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Role: {staffRole || 'kasir'}</p>
                     {:else}
-                        <p class="text-[8px] lg:text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Owner portal mode, cashier tools hidden</p>
+                        <p class="text-[8px] lg:text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Mode Pemilik</p>
                     {/if}
                 </div>
 
-                <!-- Quick Hold Recall -->
-                {#if isStaff && heldOrders.length > 0}
+                <!-- Quick Hold Recall — tersedia untuk owner dan staff -->
+                {#if heldOrders.length > 0}
                     <div class="hidden md:flex gap-1.5">
                         {#each heldOrders as ho}
                             <button on:click={() => restoreOrder(ho)}
@@ -608,6 +662,7 @@
                 </button>
                 <div class="relative w-48 lg:w-72 xl:w-88">
                     <input type="text" bind:value={searchTerm}
+                           autofocus={autoFocusSearch}
                            placeholder="{isRetail ? 'Cari produk / barcode...' : isServices ? 'Cari layanan / paket...' : isTechnical ? 'Cari jasa / sparepart...' : isEducation ? 'Cari kursus / kelas...' : 'Cari produk...'}"
                            class="w-full bg-slate-100 dark:bg-slate-800/80 border-none rounded-xl py-2 lg:py-2.5 pl-9 lg:pl-10 pr-4 text-[11px] lg:text-xs focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder:text-slate-400 dark:text-slate-500"/>
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-3.5 h-3.5 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -840,9 +895,38 @@
                         </div>
                     </div>
 
-                    <!-- Action Buttons -->
+                    <!-- Table Management (F&B) — tampil saat fitur aktif -->
+                    {#if showTableManagement}
+                    <div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/50 space-y-2">
+                        <p class="text-[9px] font-black text-amber-700 uppercase tracking-widest">Pengaturan Order</p>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            {#each ['DINE_IN', 'TAKEAWAY', 'DELIVERY'] as type}
+                                <button type="button"
+                                    on:click={() => orderType = type}
+                                    class="py-1.5 rounded-lg text-[9px] font-black uppercase transition-all {orderType === type ? 'bg-amber-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-amber-200 dark:border-amber-800'}">
+                                    {type === 'DINE_IN' ? 'Makan Di Sini' : type === 'TAKEAWAY' ? 'Bawa Pulang' : 'Delivery'}
+                                </button>
+                            {/each}
+                        </div>
+                        {#if orderType === 'DINE_IN'}
+                            <div class="flex items-center gap-2">
+                                <label class="text-[9px] font-bold text-amber-700 uppercase shrink-0">No. Meja</label>
+                                <input type="text" bind:value={tableNumber} placeholder="Cth: A1, 5, VIP..." maxlength="10"
+                                    class="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-amber-300 uppercase" />
+                            </div>
+                        {:else if orderType === 'DELIVERY'}
+                            <div class="flex items-center gap-2">
+                                <label class="text-[9px] font-bold text-amber-700 uppercase shrink-0">No. Antrean</label>
+                                <input type="text" bind:value={queueNumber} placeholder="Cth: D-001..." maxlength="10"
+                                    class="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-amber-300 uppercase" />
+                            </div>
+                        {/if}
+                    </div>
+                    {/if}
+
+                    <!-- Action Buttons — Owner dan Staff sama-sama bisa kasir -->
+                    <!-- Bedanya: Staff punya Hold & Shift management, Owner langsung bisa bayar -->
                     <div class="grid grid-cols-2 gap-2 lg:gap-3 mt-2">
-                        {#if isStaff}
                         <button on:click={holdCurrentOrder}
                                 disabled={cart.length === 0}
                                 class="py-3 lg:py-4 rounded-xl border-2 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] md:text-xs hover:border-orange-200 hover:text-orange-500 hover:bg-orange-50/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2">
@@ -855,14 +939,6 @@
                             <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             {isB2B ? 'Buat Invoice' : isServices ? 'Booking' : isEducation ? 'Daftar' : 'Bayar'}
                         </button>
-                    {/if}
-                    {#if !isStaff}
-                        <button disabled
-                                class="col-span-2 py-3 lg:py-4 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 font-black uppercase text-[10px] md:text-xs border border-slate-200 dark:border-slate-700 cursor-not-allowed flex items-center justify-center gap-2">
-                            <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 12v.01"/></svg>
-                            Mode Owner (Transaksi via Dashboard)
-                        </button>
-                    {/if}
                     </div>
 
                     {#if cart.length > 0}
@@ -911,7 +987,11 @@
                     {#if isFNB && showKitchenDisplay}
                     <div class={(!showTableManagement || orderType !== 'DINE_IN') ? 'col-span-2' : ''}>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Nomor Antrean</label>
-                        <input type="text" bind:value={queueNumber} placeholder="Bisa auto-generate" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold focus:border-blue-500 outline-none"/>
+                        <div class="flex gap-2">
+                            <input type="text" bind:value={queueNumber} placeholder="Auto atau isi manual" class="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold focus:border-blue-500 outline-none"/>
+                            <button type="button" on:click={() => queueNumber = String(Math.floor(Math.random() * 900) + 100)}
+                                class="px-3 py-2 bg-amber-100 text-amber-700 rounded-xl text-[9px] font-black uppercase hover:bg-amber-200 transition">Auto</button>
+                        </div>
                     </div>
                     {/if}
                     {#if isServices}
@@ -1083,9 +1163,9 @@
 
 <!-- ===== RECEIPT MODAL ===== -->
 {#if showReceipt && receipt}
-    <div class="fixed inset-0 z-[110] flex items-center justify-center bg-white/90 backdrop-blur-sm p-4"
+    <div class="receipt-print-area fixed inset-0 z-[110] flex items-center justify-center bg-white/90 backdrop-blur-sm p-4 receipt-backdrop"
          in:fade={{duration: 300}}>
-        <div class="max-w-md w-full text-center" in:scale={{duration: 300, start: 0.9, easing: quintOut}}>
+        <div class="receipt-card max-w-md w-full text-center" in:scale={{duration: 300, start: 0.9, easing: quintOut}}>
             <!-- Success Icon -->
             <div class="w-16 h-16 lg:w-20 lg:h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white text-2xl lg:text-3xl mx-auto mb-4 lg:mb-5 shadow-2xl shadow-green-200">
                 <svg class="w-8 h-8 lg:w-10 lg:h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
@@ -1139,7 +1219,7 @@
                     </div>
                 {/if}
 
-                <div class="flex justify-between text-sm lg:text-base font-black border-t-2 border-slate-200 dark:border-slate-700 pt-3 mt-2">
+                <div class="flex justify-between text-sm lg:text-base font-black border-t-2 border-slate-200 dark:border-slate-700 pt-3 mt-2 receipt-total">
                     <span class="uppercase italic">Total</span>
                     <span class="text-blue-600 font-mono">{formatRupiah(receipt.total)}</span>
                 </div>
@@ -1158,8 +1238,8 @@
                 {/if}
             </div>
 
-            <!-- Actions -->
-            <div class="grid grid-cols-4 gap-2">
+            <!-- Actions — disembunyikan saat print -->
+            <div class="receipt-actions grid grid-cols-4 gap-2">
                 <button on:click={() => window.print()}
                         class="py-3 lg:py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 font-black uppercase text-[9px] lg:text-[10px] tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 dark:bg-slate-900 transition-all flex items-center justify-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
@@ -1334,6 +1414,14 @@
             <p class="text-xs text-slate-500 mb-6 leading-relaxed">Tambah modal kembalian atau ambil kas kecil (petty cash).</p>
             
             <form method="POST" action="?/cashManagement" use:enhance={() => {
+                // preventNegativeCash: cek sebelum submit CASH_OUT
+                if (preventNegativeCash && cashType === 'CASH_OUT') {
+                    const kasSekarang = Number(activeShift?.kasAkhir || 0);
+                    if (cashAmount > kasSekarang) {
+                        alert(`⚠️ Kas tidak mencukupi! Kas tersedia: Rp ${kasSekarang.toLocaleString('id-ID')}, Anda ingin keluar: Rp ${cashAmount.toLocaleString('id-ID')}`);
+                        return ({ cancel }) => cancel();
+                    }
+                }
                 return async ({ result }) => {
                     if (result.type === 'success') {
                         showCashModal = false;
@@ -1364,6 +1452,11 @@
                 <div class="mb-4">
                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Nominal Uang (Rp)</label>
                     <input type="number" name="amount" bind:value={cashAmount} class="w-full text-xl font-bold bg-slate-50 dark:bg-slate-800 border-0 rounded-xl px-4 py-4 focus:ring-4 focus:ring-blue-500/20" required min="1" />
+                    {#if preventNegativeCash && cashType === 'CASH_OUT' && activeShift}
+                        <p class="text-[10px] text-orange-600 font-bold mt-1.5">
+                            Kas tersedia: Rp {Number(activeShift.kasAkhir || 0).toLocaleString('id-ID')}
+                        </p>
+                    {/if}
                 </div>
 
                 <div class="mb-6">
@@ -1473,6 +1566,59 @@
     </div>
 {/if}
 
+<!-- ===== PIN AUTHORIZATION MODAL ===== -->
+{#if showPinModal}
+    <div class="fixed inset-0 z-[200] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4"
+         in:fade={{duration: 150}}>
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-xs w-full shadow-2xl border border-slate-200 dark:border-slate-800 text-center"
+             in:scale={{duration: 200, start: 0.9}}>
+            <div class="w-14 h-14 bg-red-50 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-black text-slate-900 dark:text-white mb-1">Otorisasi PIN</h3>
+            <p class="text-xs text-slate-500 mb-5">Masukkan PIN karyawan untuk melanjutkan void/retur</p>
+
+            <input
+                type="password"
+                bind:value={pinInput}
+                maxlength="6"
+                placeholder="● ● ● ●"
+                class="w-full text-2xl font-black text-center bg-slate-50 dark:bg-slate-800 border-2 {pinError ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} rounded-xl py-4 px-4 outline-none focus:border-blue-500 tracking-[0.5em] mb-2"
+                on:keydown={(e) => e.key === 'Enter' && verifyPin()}
+            />
+            {#if pinError}
+                <p class="text-xs text-red-500 font-bold mb-3">{pinError}</p>
+            {:else}
+                <div class="h-5 mb-3"></div>
+            {/if}
+
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                {#each [1,2,3,4,5,6,7,8,9,'C',0,'✓'] as key}
+                    <button
+                        type="button"
+                        on:click={() => {
+                            if (key === 'C') { pinInput = ''; pinError = ''; }
+                            else if (key === '✓') verifyPin();
+                            else if (pinInput.length < 6) pinInput += String(key);
+                        }}
+                        class="py-3 rounded-xl font-black text-base transition-all
+                            {key === '✓' ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' :
+                             key === 'C' ? 'bg-red-50 text-red-500 hover:bg-red-100' :
+                             'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700'}"
+                    >{key}</button>
+                {/each}
+            </div>
+
+            <button type="button" on:click={() => { showPinModal = false; pinCallback = null; pinInput = ''; }}
+                class="text-xs text-slate-400 hover:text-slate-600 font-bold uppercase tracking-widest transition-colors">
+                Batal
+            </button>
+        </div>
+    </div>
+{/if}
+
 <style>
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
@@ -1480,7 +1626,52 @@
     .scrollbar-hide::-webkit-scrollbar { display: none; }
     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     :global(body) { background-color: #F8FAFC; }
+
     @media print {
+        /* Sembunyikan semua UI POS saat print */
+        :global(body > *:not(.print-receipt-wrapper)) { display: none !important; }
+        :global(.desktop-titlebar) { display: none !important; }
+
+        /* Hanya tampilkan area receipt */
+        .receipt-print-area {
+            display: block !important;
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 99999 !important;
+            background: white !important;
+        }
+
+        /* Sembunyikan backdrop/overlay modal */
+        .receipt-backdrop {
+            background: white !important;
+            backdrop-filter: none !important;
+        }
+
+        /* Sembunyikan tombol aksi di receipt */
+        .receipt-actions {
+            display: none !important;
+        }
+
+        /* Styling struk untuk thermal printer */
+        .receipt-card {
+            box-shadow: none !important;
+            border: none !important;
+            max-width: 80mm !important;
+            margin: 0 auto !important;
+            padding: 4mm !important;
+        }
+
+        /* Font lebih kecil dan compact untuk thermal */
+        .receipt-card * {
+            font-size: 10px !important;
+            line-height: 1.4 !important;
+        }
+
+        .receipt-card .receipt-total {
+            font-size: 14px !important;
+            font-weight: 900 !important;
+        }
+
         .custom-scrollbar, .scrollbar-hide { overflow: visible !important; }
     }
 </style>

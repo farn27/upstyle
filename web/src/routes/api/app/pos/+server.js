@@ -1,8 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines } from '$lib/server/schema';
+import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
+import { z } from 'zod';
 import crypto from 'crypto';
 import { pusherServer } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
@@ -17,6 +19,19 @@ export async function GET({ url, cookies, request }) {
     if (!unitId) return json({ success: false, message: "unitId wajib diisi" }, { status: 400 });
 
     try {
+        const action = url.searchParams.get('action');
+
+        if (action === 'shifts') {
+            const shiftsList = await db.query.posShifts.findMany({
+                where: and(
+                    eq(posShifts.unitId, Number(unitId)),
+                    eq(posShifts.status, 'OPEN')
+                ),
+                orderBy: [desc(posShifts.id)]
+            });
+            return json({ success: true, data: { shifts: shiftsList } });
+        }
+
         // Fetch POS orders
         const ordersList = await db.query.posOrders.findMany({
             where: eq(posOrders.unitId, Number(unitId)),
@@ -59,7 +74,7 @@ export async function GET({ url, cookies, request }) {
         });
 
     } catch (err) {
-        console.error("API GET POS ERROR:", err);
+        log.pos.error({ err }, 'API GET POS ERROR');
         return json({ success: false, message: "Gagal mengambil data POS" }, { status: 500 });
     }
 }
@@ -71,7 +86,88 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const action = body.action; // 'checkout' or 'create-customer'
+        const action = body.action;
+
+        // ─── Zod validation per action ──────────────────────────────────────────
+        if (action === 'create-customer') {
+            const schema = z.object({
+                action: z.literal('create-customer'),
+                customer: z.object({
+                    namaCustomer: z.string().min(1, 'Nama customer wajib diisi').max(150),
+                    email: z.string().email().optional().or(z.literal('')),
+                    telepon: z.string().optional(),
+                    unitId: z.coerce.number().int().positive(),
+                })
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+
+        if (action === 'checkout') {
+            const schema = z.object({
+                action: z.literal('checkout'),
+                order: z.object({
+                    orderNumber: z.string().optional(),
+                    unitId: z.coerce.number().int().positive(),
+                    customerId: z.number().nullable().optional(),
+                    subtotal: z.coerce.number().min(0),
+                    total: z.coerce.number().min(0),
+                    paymentMethod: z.string().default('CASH'),
+                    orderType: z.string().default('TAKEAWAY'),
+                    tableNumber: z.string().optional(),
+                    notes: z.string().optional(),
+                    amountPaid: z.coerce.number().optional(),
+                    changeAmount: z.coerce.number().optional(),
+                    voucherCode: z.string().optional(),
+                    payments: z.array(z.object({
+                        method: z.string(),
+                        amount: z.coerce.number()
+                    })).optional(),
+                    items: z.array(z.object({
+                        productId: z.string().min(1),
+                        productName: z.string().min(1),
+                        qty: z.coerce.number().int().positive(),
+                        price: z.coerce.number().min(0),
+                        variantId: z.string().nullable().optional(),
+                    })).min(1, 'Minimal 1 item'),
+                })
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+        if (action === 'open-shift') {
+            const schema = z.object({
+                action: z.literal('open-shift'),
+                shift: z.object({
+                    unitId: z.coerce.number().int().positive(),
+                    modalAwal: z.coerce.number().min(0)
+                })
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+
+        if (action === 'close-shift') {
+            const schema = z.object({
+                action: z.literal('close-shift'),
+                shift: z.object({
+                    unitId: z.coerce.number().int().positive(),
+                    shiftId: z.coerce.number().int().positive(),
+                    kasAkhirAktual: z.coerce.number().min(0)
+                })
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────────
 
         if (action === 'create-customer') {
             const { namaCustomer, email, telepon, unitId } = body.customer;
@@ -89,16 +185,41 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, subtotal, total, paymentMethod, items } = body.order;
+            const { orderNumber, unitId, customerId, subtotal, total, paymentMethod, items, orderType, tableNumber, notes, amountPaid, changeAmount, voucherCode, payments } = body.order;
 
             let finalOrderId = null;
             await db.transaction(async (tx) => {
                 // 1. Insert order
                 const [orderInsertResult] = await tx.insert(posOrders).values({
-                    orderNumber: orderNumber || `POS-${unitId}-${Date.now()}`, unitId: Number(unitId), customerId: customerId || null, createdBy: userId, subtotal: String(subtotal || 0), discount: '0', total: String(total || 0), paymentMethod: paymentMethod || 'CASH', status: 'PAID'
+                    orderNumber: orderNumber || `POS-${unitId}-${Date.now()}`, 
+                    unitId: Number(unitId), 
+                    customerId: customerId || null, 
+                    createdBy: userId, 
+                    subtotal: String(subtotal || 0), 
+                    discount: '0', 
+                    total: String(total || 0), 
+                    paymentMethod: paymentMethod || 'CASH', 
+                    status: 'PAID',
+                    orderType: orderType || 'TAKEAWAY',
+                    tableNumber: tableNumber || null,
+                    notes: notes || null,
+                    amountPaid: String(amountPaid !== undefined ? amountPaid : (total || 0)),
+                    changeAmount: String(changeAmount || 0),
+                    voucherCode: voucherCode || null
                 });
 
                 finalOrderId = orderInsertResult.insertId;
+
+                // Insert payments if split payment
+                if (payments && Array.isArray(payments) && payments.length > 0) {
+                    for (const p of payments) {
+                        await tx.insert(posPayments).values({
+                            orderId: finalOrderId,
+                            method: p.method,
+                            amount: String(p.amount)
+                        });
+                    }
+                }
 
                 // 2. Insert items and reduce stock
                 for (const item of items) {
@@ -194,10 +315,55 @@ export async function POST({ request, cookies }) {
             return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId) });
         }
 
+        if (action === 'open-shift') {
+            const { unitId, modalAwal } = body.shift;
+            
+            const [result] = await db.insert(posShifts).values({
+                unitId: Number(unitId),
+                userId: userId,
+                waktuBuka: new Date(),
+                modalAwal: String(modalAwal),
+                status: 'OPEN'
+            });
+            
+            await db.insert(riwayatAksi).values({
+                userId, unitId: Number(unitId), pesan: `POS Shift dibuka. Modal: Rp ${String(modalAwal)}`, kategori: 'POS', tipe: 'success'
+            });
+            
+            return json({ success: true, message: "Shift berhasil dibuka", data: { id: result.insertId } });
+        }
+
+        if (action === 'close-shift') {
+            const { shiftId, unitId, kasAkhirAktual } = body.shift;
+            
+            const shift = await db.query.posShifts.findFirst({
+                where: eq(posShifts.id, Number(shiftId))
+            });
+            
+            if (!shift) {
+                return json({ success: false, message: "Shift tidak ditemukan" }, { status: 404 });
+            }
+            
+            // Optional: kalkulasi selisih di sini, atau berasumsi client/sistem telah hitung.
+            // Di sini kita update saja dulu
+            
+            await db.update(posShifts).set({
+                waktuTutup: new Date(),
+                kasAkhirAktual: String(kasAkhirAktual),
+                status: 'CLOSED'
+            }).where(eq(posShifts.id, Number(shiftId)));
+            
+            await db.insert(riwayatAksi).values({
+                userId, unitId: Number(unitId), pesan: `POS Shift ditutup`, kategori: 'POS', tipe: 'success'
+            });
+            
+            return json({ success: true, message: "Shift berhasil ditutup" });
+        }
+
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });
 
     } catch (err) {
-        console.error("API POST POS ERROR:", err);
+        log.pos.error({ err }, 'API POST POS ERROR');
         return json({ success: false, message: "Gagal memproses POS: " + err.message }, { status: 500 });
     }
 }

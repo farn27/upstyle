@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireVerifiedStaffSession, requireCategory } from '$lib/server/portalAuth';
+import { log } from '$lib/server/logger';
 
 export async function load({ cookies, params }) {
     const staffSession = await requireVerifiedStaffSession(cookies, params.login_slug);
@@ -35,7 +36,7 @@ export async function load({ cookies, params }) {
             unit
         };
     } catch (err) {
-        console.error("Service Portal Load Error:", err);
+        log.api.error({ err }, 'Service Portal Load Error');
         throw error(500, "Internal Server Error");
     }
 }

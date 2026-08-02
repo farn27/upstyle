@@ -5,6 +5,7 @@ import argon2 from 'argon2';
 import { apiSuccess, apiError, apiRateLimit, apiValidationError } from '$lib/server/apiResponse';
 import { checkRateLimit, getClientIP, REGISTER_LIMIT } from '$lib/server/rateLimit';
 import { apiRegisterSchema } from '$lib/server/validation';
+import { log } from '$lib/server/logger';
 
 export async function POST({ request }) {
 	// Rate limit: 5x per IP per jam
@@ -61,7 +62,7 @@ export async function POST({ request }) {
 
 		return apiSuccess(null, 'Registrasi berhasil! Silakan login.', 201);
 	} catch (err) {
-		console.error('[API Register] Error:', err);
+		log.auth.error({ err }, '[API Register] Error');
 		return apiError('Terjadi kesalahan server', 500, 'SERVER_ERROR');
 	}
 }

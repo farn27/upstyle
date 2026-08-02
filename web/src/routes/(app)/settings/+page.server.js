@@ -5,6 +5,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import argon2 from 'argon2';
 import { z } from 'zod';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ cookies }) => {
 	const userId = await getCurrentUserId(cookies);
@@ -41,7 +42,7 @@ export const load = async ({ cookies }) => {
 
 		return { profile: userData, units };
 	} catch (err) {
-		console.error('[Settings] Load error:', err);
+		log.api.error({ err }, '[Settings] Load error');
 		throw error(500, 'Gagal memuat pengaturan');
 	}
 };
@@ -115,7 +116,7 @@ export const actions = {
 
 			return { success: true, message: 'Profil berhasil diperbarui' };
 		} catch (err) {
-			console.error('[Settings] updateProfile error:', err);
+			log.api.error({ err }, '[Settings] updateProfile error');
 			return fail(500, { message: 'Gagal memperbarui profil' });
 		}
 	},
@@ -158,7 +159,7 @@ export const actions = {
 
 			return { passwordSuccess: true, message: 'Password berhasil diubah' };
 		} catch (err) {
-			console.error('[Settings] changePassword error:', err);
+			log.api.error({ err }, '[Settings] changePassword error');
 			return fail(500, { passwordError: 'Terjadi kesalahan server' });
 		}
 	},
@@ -205,7 +206,7 @@ export const actions = {
 
 			return { success: true, message: `Unit bisnis "${namaUnit}" berhasil dibuat` };
 		} catch (err) {
-			console.error('[Settings] createUnit error:', err);
+			log.api.error({ err }, '[Settings] createUnit error');
 			return fail(500, { message: 'Gagal membuat unit bisnis' });
 		}
 	},
@@ -252,7 +253,7 @@ export const actions = {
 
 			return { success: true, message: 'Unit bisnis berhasil diperbarui' };
 		} catch (err) {
-			console.error('[Settings] updateUnit error:', err);
+			log.api.error({ err }, '[Settings] updateUnit error');
 			return fail(500, { message: 'Gagal memperbarui unit bisnis' });
 		}
 	}

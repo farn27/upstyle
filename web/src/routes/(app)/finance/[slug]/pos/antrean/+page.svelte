@@ -3,9 +3,7 @@
     import { enhance } from '$app/forms';
     export let data;
 
-    function formatRupiah(num) {
-        return 'Rp' + (num || 0).toLocaleString('id-ID');
-    }
+    import { formatRupiah } from '$lib/rupiah.js';
 
     const statusColors = {
         'PENDING': 'bg-slate-100 text-slate-600 border-slate-200',

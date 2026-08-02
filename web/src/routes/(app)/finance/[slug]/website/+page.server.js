@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { websiteSettings, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
     const { slug } = params;
@@ -100,7 +101,7 @@ export const actions = {
 
             return { success: true, message: 'Setelan website berhasil diperbarui' };
         } catch (err) {
-            console.error('Update Website Settings Error:', err);
+            log.api.error({ err }, 'Update Website Settings Error');
             return fail(500, { message: 'Gagal memperbarui setelan' });
         }
     }

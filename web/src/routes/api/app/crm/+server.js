@@ -1,9 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { crmDeals, crmContacts, riwayatAksi } from '$lib/server/schema';
-import { eq, and, desc, count } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
+import { log } from '$lib/server/logger';
+import { z } from 'zod';
 
 // 1. GET: Ambil semua deals (dengan kontak info) untuk unitId (with pagination)
 export async function GET({ url, cookies, request }) {
@@ -17,8 +19,8 @@ export async function GET({ url, cookies, request }) {
         const pagination = parsePagination(url);
 
         // Get total count
-        const [totalResult] = await db.select({ count: count() }).from(crmDeals).where(eq(crmDeals.unitId, Number(unitId)));
-        const total = totalResult.count;
+        const [totalResult] = await db.select({ count: sql`count(*)` }).from(crmDeals).where(eq(crmDeals.unitId, Number(unitId)));
+        const total = Number(totalResult.count) || 0;
 
         // Get paginated deals
         const dealsQuery = db.query.crmDeals.findMany({
@@ -44,7 +46,7 @@ export async function GET({ url, cookies, request }) {
 
         return json(paginatedResponse(data, total, pagination));
     } catch (err) {
-        console.error("API GET CRM ERROR:", err);
+        log.crm.error({ err }, 'API GET CRM ERROR');
         return json({ success: false, message: "Gagal mengambil data CRM" }, { status: 500 });
     }
 }
@@ -56,11 +58,25 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const { contactName, companyName, dealValue, stage, phone, unitId } = body.deal;
 
-        if (!contactName || !unitId) {
-            return json({ success: false, message: "Nama kontak dan unitId wajib diisi" }, { status: 400 });
+        // ─── Zod validation ────────────────────────────────────────────────────
+        const crmPostSchema = z.object({
+            deal: z.object({
+                contactName: z.string().min(1, 'Nama kontak wajib diisi').max(150),
+                companyName: z.string().optional(),
+                dealValue: z.coerce.number().min(0).default(0),
+                stage: z.string().default('lead'),
+                phone: z.string().optional(),
+                unitId: z.coerce.number().int().positive('unitId wajib diisi'),
+            })
+        });
+        const parsed = crmPostSchema.safeParse(body);
+        if (!parsed.success) {
+            return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
         }
+        // ──────────────────────────────────────────────────────────────────────
+
+        const { contactName, companyName, dealValue, stage, phone, unitId } = body.deal;
 
         let dealId = null;
 
@@ -113,7 +129,7 @@ export async function POST({ request, cookies }) {
 
         return json({ success: true, message: "Deal berhasil ditambahkan", id: dealId });
     } catch (err) {
-        console.error("API POST CRM ERROR:", err);
+        log.crm.error({ err }, 'API POST CRM ERROR');
         return json({ success: false, message: "Gagal menambahkan deal: " + err.message }, { status: 500 });
     }
 }
@@ -162,7 +178,7 @@ export async function PUT({ request, cookies }) {
 
         return json({ success: true, message: "Stage deal berhasil diperbarui" });
     } catch (err) {
-        console.error("API PUT CRM ERROR:", err);
+        log.crm.error({ err }, 'API PUT CRM ERROR');
         return json({ success: false, message: "Gagal memperbarui deal: " + err.message }, { status: 500 });
     }
 }
@@ -186,7 +202,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: "Deal berhasil dihapus" });
     } catch (err) {
-        console.error("API DELETE CRM ERROR:", err);
+        log.crm.error({ err }, 'API DELETE CRM ERROR');
         return json({ success: false, message: "Gagal menghapus deal" }, { status: 500 });
     }
 }

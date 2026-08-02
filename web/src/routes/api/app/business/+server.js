@@ -1,9 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, kategoriProduk, riwayatAksi } from '$lib/server/schema';
-import { eq, desc, and, count } from 'drizzle-orm';
+import { eq, desc, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
+import { log } from '$lib/server/logger';
+import { z } from 'zod';
 
 // 1. GET: Ambil List Bisnis
 export async function GET({ cookies, request }) {
@@ -18,8 +20,8 @@ export async function GET({ cookies, request }) {
         const pagination = parsePagination(url);
 
         // Get total count
-        const [totalResult] = await db.select({ count: count() }).from(unitBisnis).where(eq(unitBisnis.userId, userId));
-        const total = totalResult.count;
+        const [totalResult] = await db.select({ count: sql`count(*)` }).from(unitBisnis).where(eq(unitBisnis.userId, userId));
+        const total = Number(totalResult.count) || 0;
 
         // Get paginated data
         const unitsQuery = db.query.unitBisnis.findMany({
@@ -39,7 +41,7 @@ export async function GET({ cookies, request }) {
         return json(paginatedResponse(data, total, pagination));
 
     } catch (err) {
-        console.error("API GET ERROR:", err);
+        log.api.error({ err }, 'API GET BUSINESS ERROR');
         return json({ success: false, message: "Server Error", data: [] }, { status: 500 });
     }
 }
@@ -53,18 +55,29 @@ export async function POST({ request, cookies }) {
     }
 
     const body = await request.json();
-    
+
+    // ─── Zod validation ────────────────────────────────────────────────────
+    const businessPostSchema = z.object({
+        name: z.string().min(2, 'Nama bisnis minimal 2 karakter').max(255),
+        type: z.string().min(1, 'Tipe bisnis wajib diisi').optional(),
+        is_cabang: z.boolean().optional().default(false),
+        cabang_dari: z.number().nullable().optional(),
+    });
+    const parsed = businessPostSchema.safeParse(body);
+    if (!parsed.success) {
+        return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     const nama_unit = body.name;
     const kategori = body.type;
     const is_cabang = body.is_cabang || false;
     const cabang_dari = body.cabang_dari || null;
-    
+
     const modal_awal = 0;
     const alamat = "Alamat default dari App";
     const telepon = null;
     const email = null;
-
-    if (!nama_unit) return json({ success: false, message: "Nama unit wajib diisi" }, { status: 400 });
 
     try {
         const slug = nama_unit.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
@@ -108,7 +121,7 @@ export async function POST({ request, cookies }) {
         return json({ success: true, message: "Berhasil disimpan" });
 
     } catch (err) {
-        console.error("API POST ERROR:", err);
+        log.api.error({ err }, 'API POST BUSINESS ERROR');
         return json({ 
             success: false, 
             message: err.code === 'ER_DUP_ENTRY' ? "Nama unit sudah ada" : "Gagal menyimpan data" 
@@ -133,7 +146,7 @@ export async function DELETE({ url, cookies, request }) {
         await db.delete(unitBisnis).where(and(eq(unitBisnis.id, Number(unitId)), eq(unitBisnis.userId, userId)));
         return json({ success: true, message: "Unit bisnis berhasil dihapus" });
     } catch (err) {
-        console.error("API DELETE UNIT ERROR:", err);
+        log.api.error({ err }, 'API DELETE UNIT ERROR');
         return json({ success: false, message: "Gagal menghapus unit bisnis" }, { status: 500 });
     }
 }

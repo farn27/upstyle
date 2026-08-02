@@ -9,6 +9,7 @@ import { users, riwayatAksi, unitBisnis } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { verifyWebhookSignature, parseTransactionStatus } from '$lib/server/payment';
 import { checkRateLimit, getClientIP } from '$lib/server/rateLimit';
+import { log } from '$lib/server/logger.js';
 
 export async function POST({ request }) {
 	// Rate limit webhook
@@ -32,7 +33,7 @@ export async function POST({ request }) {
 
 	// Verifikasi signature Midtrans
 	if (!verifyWebhookSignature(notification)) {
-		console.warn('[PaymentWebhook] Invalid signature:', notification?.order_id);
+		log.api.warn({ orderId: notification?.order_id }, 'PaymentWebhook: Invalid signature');
 		return json({ error: 'Invalid signature' }, { status: 401 });
 	}
 
@@ -43,8 +44,8 @@ export async function POST({ request }) {
 	const parts = String(orderId).split('-');
 	// parts[0] = UPSTYLE, parts[1] = PLAN, parts[2] = USER_ID
 	if (parts.length < 3 || parts[0] !== 'UPSTYLE') {
-		console.warn('[PaymentWebhook] Unknown order format:', orderId);
-		return json({ ok: true }); // Acknowledge tapi tidak proses
+		log.api.warn({ orderId }, 'PaymentWebhook: Unknown order format');
+		return json({ ok: true });
 	}
 
 	const planId = parts[1]?.toLowerCase();
@@ -59,7 +60,7 @@ export async function POST({ request }) {
 			// Upgrade plan user
 			const validPlans = ['pro', 'enterprise'];
 			if (!validPlans.includes(planId)) {
-				console.error('[PaymentWebhook] Invalid planId in order:', planId);
+				log.api.error({ planId, orderId }, 'PaymentWebhook: Invalid planId in order');
 				return json({ ok: true });
 			}
 
@@ -81,12 +82,12 @@ export async function POST({ request }) {
 				kategori: 'billing'
 			}).catch(() => {}); // Non-blocking
 
-			console.log(`[PaymentWebhook] User ${userId} upgraded to ${planId} (order: ${orderId})`);
+			log.api.info({ userId, planId, orderId }, 'PaymentWebhook: User upgraded');
 		} else if (status === 'failed' || status === 'expired') {
-			console.log(`[PaymentWebhook] Payment ${status} for order: ${orderId}`);
+			log.api.info({ status, orderId }, 'PaymentWebhook: Payment not completed');
 		}
 	} catch (err) {
-		console.error('[PaymentWebhook] DB error:', err);
+		log.api.error({ err: err.message, orderId }, 'PaymentWebhook: DB error');
 		// Return 200 agar Midtrans tidak retry terus
 	}
 

@@ -64,22 +64,15 @@ import RoleLogistics from '../components/RoleLogistics.svelte';
     let selectedKategori = '';
     let modeGrafik = 'arusKas';
     onMount(() => {
-    // Debug: log financeSlug and unit data
-    console.log('[Dashboard] Unit data:', unit);
-    console.log('[Dashboard] Finance slug:', financeSlug);
-    console.log('[Dashboard] Role:', role);
-
     // Auto-redirect cashiers to the POS interface for quick access
     try {
         if (role === 'cashier' && financeSlug) {
             const target = financeLink('pos');
-            console.log('[Dashboard] Redirecting cashier to:', target);
-            // use goto to preserve client-side navigation
             goto(target);
             return;
         }
     } catch (e) {
-        console.error('[Dashboard] Redirect error:', e);
+        // silent
     }
     browserCookies = document.cookie;
     if (chartCanvas) {

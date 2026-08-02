@@ -3,6 +3,7 @@ import { transaksi, unitBisnis, products, chartOfAccounts, journalEntries, journ
 import { eq, and, or } from 'drizzle-orm';
 import { pusherServer } from '$lib/server/pusher';
 import { inngest } from '$lib/server/inngest';
+import { log } from '$lib/server/logger';
 import { redis } from '$lib/server/redis';
 import { error, fail } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';

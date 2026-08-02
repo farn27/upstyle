@@ -612,7 +612,7 @@ export const users = mysqlTable("users", {
 	password: varchar({ length: 255 }),
 	googleId: varchar("google_id", { length: 255 }),
 	avatarUrl: text("avatar_url"),
-	role: varchar({ length: 20 }).default('admin'),
+	role: varchar({ length: 20 }).default('free'),
 	companyId: int("company_id").references(() => unitBisnis.id, { onDelete: "set null" }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 	emailVerifiedAt: timestamp("email_verified_at", { mode: 'string' }),

@@ -3,6 +3,7 @@
  * Uses AES-256-GCM for encryption/decryption
  */
 import crypto from 'crypto';
+import { log } from '$lib/server/logger';
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 const ALGORITHM = 'aes-256-gcm';
@@ -46,7 +47,7 @@ export function encrypt(text) {
 		
 		return buffer.toString('base64');
 	} catch (err) {
-		console.error('[Encryption] Error encrypting data:', err);
+		log.api.error({ err }, '[Encryption] Error encrypting data');
 		throw new Error('Encryption failed');
 	}
 }
@@ -75,7 +76,7 @@ export function decrypt(encryptedData) {
 		
 		return decrypted.toString('utf8');
 	} catch (err) {
-		console.error('[Encryption] Error decrypting data:', err);
+		log.api.error({ err }, '[Encryption] Error decrypting data');
 		throw new Error('Decryption failed');
 	}
 }

@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { suppliers, purchaseOrders, purchaseOrderItems, products, transaksi, riwayatAksi, stockLogs } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 import crypto from 'crypto';
 
 // 1. GET: Ambil suppliers dan purchase orders untuk unitId
@@ -82,7 +83,7 @@ export async function GET({ url, cookies, request }) {
         });
 
     } catch (err) {
-        console.error("API GET SCM ERROR:", err);
+        log.scm.error({ err }, 'API GET SCM ERROR');
         return json({ success: false, message: "Gagal mengambil data SCM: " + err.message }, { status: 500 });
     }
 }
@@ -165,7 +166,7 @@ export async function POST({ request, cookies }) {
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });
 
     } catch (err) {
-        console.error("API POST SCM ERROR:", err);
+        log.scm.error({ err }, 'API POST SCM ERROR');
         return json({ success: false, message: "Gagal membuat SCM: " + err.message }, { status: 500 });
     }
 }
@@ -254,7 +255,7 @@ export async function PUT({ request, cookies }) {
 
         return json({ success: true, message: `Status PO berhasil diubah menjadi ${status}` });
     } catch (err) {
-        console.error("API PUT SCM ERROR:", err);
+        log.scm.error({ err }, 'API PUT SCM ERROR');
         return json({ success: false, message: "Gagal memperbarui PO: " + err.message }, { status: 500 });
     }
 }
@@ -283,7 +284,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: "Supplier berhasil dihapus" });
     } catch (err) {
-        console.error("API DELETE SCM ERROR:", err);
+        log.scm.error({ err }, 'API DELETE SCM ERROR');
         return json({ success: false, message: "Gagal menghapus supplier" }, { status: 500 });
     }
 }

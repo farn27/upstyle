@@ -1,10 +1,10 @@
-// src/routes/p/[slug]/dashboard/+page.server.js
 import { error, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, employees, transaksi } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { detectRoleCategory, requireVerifiedStaffSession } from '$lib/server/portalAuth';
 import { buildStrategicBI } from '$lib/server/strategicBI';
+import { log } from '$lib/server/logger';
 
 export async function load({ cookies, params }) {
     const staffSession = await requireVerifiedStaffSession(cookies, params.login_slug);
@@ -104,7 +104,7 @@ export async function load({ cookies, params }) {
         };
 
     } catch (err) {
-        console.error("Dashboard Load Error:", err);
+        log.api.error({ err }, 'Dashboard Load Error');
         throw error(500, "Internal Server Error");
     }
 }

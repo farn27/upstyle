@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { taxRates, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -61,7 +62,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            console.error('Add Tax Error:', err);
+            log.finance.error({ err }, 'Add Tax Error');
             return fail(500, { error: 'Gagal menambah pajak' });
         }
     },
@@ -89,7 +90,7 @@ export const actions = {
             }).where(eq(taxRates.id, Number(id)));
             return { success: true };
         } catch (err) {
-            console.error('Edit Tax Error:', err);
+            log.finance.error({ err }, 'Edit Tax Error');
             return fail(500, { error: 'Gagal merubah pajak' });
         }
     },
@@ -104,7 +105,7 @@ export const actions = {
             await db.delete(taxRates).where(eq(taxRates.id, Number(id)));
             return { success: true };
         } catch (err) {
-            console.error('Delete Tax Error:', err);
+            log.finance.error({ err }, 'Delete Tax Error');
             return fail(500, { error: 'Gagal menghapus pajak' });
         }
     }

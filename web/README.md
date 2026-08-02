@@ -8,7 +8,7 @@ Platform manajemen bisnis all-in-one untuk UMKM Indonesia. Menggabungkan keuanga
 - **Backend:** SvelteKit server routes (monolith SSR)
 - **Database:** MySQL 8+ dengan Drizzle ORM
 - **Session & Cache:** Upstash Redis
-- **Realtime:** Pusher
+- **Realtime:** Socket.io (self-hosted) + Polling for non-critical events
 - **AI:** Groq (llama-3.1-8b-instant)
 - **Background Jobs:** Inngest
 
@@ -19,7 +19,6 @@ Platform manajemen bisnis all-in-one untuk UMKM Indonesia. Menggabungkan keuanga
 - Node.js >= 18
 - MySQL 8+
 - Akun [Upstash Redis](https://upstash.com) (free tier cukup untuk dev)
-- Akun [Pusher](https://pusher.com) (free tier cukup untuk dev)
 - Akun [Groq](https://console.groq.com) untuk AI features
 
 ---
@@ -77,7 +76,17 @@ Atau gunakan file migrasi yang sudah ada:
 npx drizzle-kit migrate
 ```
 
-### 4. Jalankan Development Server
+### 4. Jalankan Socket.io Server
+
+Socket.io server berjalan terpisah untuk menangani critical realtime events.
+
+```bash
+npm run socket-server
+```
+
+Socket.io server akan berjalan di `http://localhost:3001` dan HTTP API di `http://localhost:3002`
+
+### 5. Jalankan Development Server
 
 ```bash
 npm run dev
@@ -194,6 +203,31 @@ Semua endpoint login/register dilindungi rate limiter berbasis Redis (sliding wi
 
 ---
 
+## Realtime Architecture
+
+**Hybrid Approach: Socket.io + Polling**
+
+### Critical Events (Socket.io - True Realtime)
+- POS transactions
+- Stock alerts
+- CS ticket messages
+- POS cash alerts
+- Order status changes
+
+### Non-Critical Events (Polling - 60s intervals)
+- Finance stats updates
+- Marketing campaigns
+- Sales pipeline updates
+- Report notifications
+
+**Benefits:**
+- Cost-effective (self-hosted, no per-message fees)
+- Scalable (Redis adapter for horizontal scaling)
+- Lower server load (polling only for non-critical)
+- Better performance (direct WebSocket connection)
+
+---
+
 ## Security
 
 - Semua password di-hash dengan **Argon2id**
@@ -230,3 +264,6 @@ npm run storybook
 3. Setup `ALLOWED_ORIGINS` untuk CORS jika mobile app mengakses dari domain berbeda
 4. `argon2` membutuhkan build tools (node-gyp) — pastikan C++ compiler tersedia di server
 5. Upstash Redis free tier: 10,000 requests/hari — upgrade jika traffic tinggi
+6. **Socket.io server** perlu di-deploy terpisah (bisa di VPS yang sama atau berbeda)
+7. Set `SOCKET_API_KEY` yang kuat di production environment
+8. Untuk production, gunakan process manager seperti PM2 untuk Socket.io server

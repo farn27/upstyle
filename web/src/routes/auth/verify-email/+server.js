@@ -4,6 +4,7 @@ import { users } from '$lib/server/schema';
 import { eq, sql } from 'drizzle-orm';
 import { consumeVerifyToken } from '$lib/server/emailToken';
 import { sendWelcomeEmail } from '$lib/server/email';
+import { log } from '$lib/server/logger';
 
 export async function GET({ url }) {
 	const token = url.searchParams.get('token');
@@ -29,7 +30,7 @@ export async function GET({ url }) {
 			sendWelcomeEmail({ to: rows[0].email, username: rows[0].username }).catch(() => {});
 		}
 	} catch (err) {
-		console.error('[VerifyEmail] Error:', err);
+		log.auth.error({ err }, '[VerifyEmail] Error');
 		// Tetap redirect ke success meski welcome email gagal
 	}
 

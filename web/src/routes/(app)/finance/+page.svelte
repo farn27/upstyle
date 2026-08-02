@@ -112,12 +112,15 @@
         <Plus class="w-3.5 h-3.5" />
         <span>Unit Baru</span>
       </a>
+      <a href="/finance/planning/wizard" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 shadow-sm h-8 shrink-0">
+        <span>🗺️</span>
+        <span>Planning</span>
+      </a>
     </div>
   </div>
 
   <!-- Business Units Grid (Instantly pulled up close to header) -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pt-1">
-    {#each entitasTerfilter as unit}
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pt-1">    {#each entitasTerfilter as unit}
       {@const punyaCabang = units.some(u => u.cabangDari === unit.id)}
       
       <a 
@@ -166,6 +169,26 @@
       </a>
     {/each}
   </div>
+
+  <!-- Business Planning Banner -->
+  <a href="/finance/planning"
+    class="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xl hover:shadow-md hover:border-emerald-300 transition-all group mt-2">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-xl shadow-md">🗺️</div>
+      <div>
+        <div class="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Business Planning Wizard</div>
+        <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
+          Rencanakan bisnis baru dari nol • AI-powered • Seed semua modul otomatis
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <span class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm group-hover:bg-emerald-700 transition-colors">
+        Mulai Planning →
+      </span>
+    </div>
+  </a>
+
 </div>
 
 <!-- Modal (Branch selection popup) -->

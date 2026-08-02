@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { fixedAssets, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -68,7 +69,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            console.error('Add Asset Error:', err);
+            log.finance.error({ err }, 'Add Asset Error');
             return fail(500, { error: 'Gagal menambah aset' });
         }
     },
@@ -102,7 +103,7 @@ export const actions = {
             }).where(eq(fixedAssets.id, Number(id)));
             return { success: true };
         } catch (err) {
-            console.error('Edit Asset Error:', err);
+            log.finance.error({ err }, 'Edit Asset Error');
             return fail(500, { error: 'Gagal mengubah aset' });
         }
     },
@@ -117,7 +118,7 @@ export const actions = {
             await db.delete(fixedAssets).where(eq(fixedAssets.id, Number(id)));
             return { success: true };
         } catch (err) {
-            console.error('Delete Asset Error:', err);
+            log.finance.error({ err }, 'Delete Asset Error');
             return fail(500, { error: 'Gagal menghapus aset' });
         }
     }

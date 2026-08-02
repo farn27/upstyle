@@ -3,6 +3,7 @@ import { posOrders, posOrderItems } from '$lib/server/schema';
 import { resolvePosUnitAccess } from '$lib/server/posAuth';
 import { eq, inArray, desc, or, and } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
+import { log } from '$lib/server/logger';
 
 export async function load({ params, cookies, locals }) {
     const { unit } = await resolvePosUnitAccess(cookies, params, locals);
@@ -38,7 +39,7 @@ export async function load({ params, cookies, locals }) {
             unit
         };
     } catch (err) {
-        console.error('POS Antrean load error:', err);
+        log.pos.error({ err }, 'POS Antrean load error');
         throw error(500, 'Gagal memuat daftar antrean');
     }
 }
@@ -61,7 +62,7 @@ export const actions = {
             
             return { success: true };
         } catch (err) {
-            console.error('POS Antrean update error:', err);
+            log.pos.error({ err }, 'POS Antrean update error');
             return { success: false, error: 'Gagal update status' };
         }
     }

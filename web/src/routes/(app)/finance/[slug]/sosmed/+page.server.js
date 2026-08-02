@@ -4,6 +4,7 @@ import { socialPosts, unitBisnis } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { groqChatCompletion } from '$lib/server/groq';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
     const { slug } = params;
@@ -51,7 +52,7 @@ export const actions = {
             });
             return { success: true, message: 'Postingan berhasil dibuat' };
         } catch (e) {
-            console.error(e);
+            log.ai.error({ err: e }, 'Gagal menyimpan postingan');
             return fail(500, { message: 'Gagal menyimpan postingan' });
         }
     },
@@ -76,7 +77,7 @@ export const actions = {
             const caption = result?.choices?.[0]?.message?.content?.trim() || '';
             return { success: true, caption };
         } catch (e) {
-            console.error(e);
+            log.ai.error({ err: e }, 'Gagal menghasilkan caption AI');
             return fail(500, { message: 'Gagal menghasilkan caption AI' });
         }
     }

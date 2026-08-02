@@ -756,3 +756,28 @@ export const posCashTransactionsRelations = relations(posCashTransactions, ({ on
 		references: [posShifts.id],
 	}),
 }));
+
+
+// ═══════════════════════════════════════════════════
+// BUSINESS PLAN RELATIONS
+// ═══════════════════════════════════════════════════
+import { businessPlans, businessPlanSeedLogs } from './businessPlanSchema.js';
+
+export const businessPlansRelations = relations(businessPlans, ({ one, many }) => ({
+	user: one(users, {
+		fields: [businessPlans.userId],
+		references: [users.id],
+	}),
+	unit: one(unitBisnis, {
+		fields: [businessPlans.unitId],
+		references: [unitBisnis.id],
+	}),
+	seedLogs: many(businessPlanSeedLogs),
+}));
+
+export const businessPlanSeedLogsRelations = relations(businessPlanSeedLogs, ({ one }) => ({
+	plan: one(businessPlans, {
+		fields: [businessPlanSeedLogs.planId],
+		references: [businessPlans.id],
+	}),
+}));

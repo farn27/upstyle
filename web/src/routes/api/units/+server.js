@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
+import { log } from '$lib/server/logger';
 
 /**
  * GET /api/units?userId=XYZ
@@ -19,7 +20,7 @@ export async function GET({ url }) {
             .where(eq(unitBisnis.userId, Number(userId)));
         return json({ units });
     } catch (e) {
-        console.error('Error fetching units:', e);
+        log.api.error({ err: e }, 'Error fetching units');
         return json({ units: [] });
     }
 }

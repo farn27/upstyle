@@ -1,8 +1,9 @@
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { receivables, accountingContacts } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -14,13 +15,17 @@ export const load = async ({ params, cookies }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
 
-    const invoices = await db.query.receivables.findMany({
-        where: eq(receivables.unitId, unit.id),
-        orderBy: [desc(receivables.id)],
-        with: {
-            contact: true
-        }
-    });
+    // 2-step query karena TiDB Cloud tidak support LATERAL JOIN yang dibuat Drizzle dari `with:`
+    const invoicesRaw = await db.select().from(receivables)
+        .where(eq(receivables.unitId, unit.id))
+        .orderBy(desc(receivables.id));
+    const contactIds = [...new Set(invoicesRaw.map(i => i.contactId).filter(Boolean))];
+    const contactsMap = {};
+    if (contactIds.length > 0) {
+        const cl = await db.select().from(accountingContacts).where(inArray(accountingContacts.id, contactIds));
+        cl.forEach(c => { contactsMap[c.id] = c; });
+    }
+    const invoices = invoicesRaw.map(inv => ({ ...inv, contact: contactsMap[inv.contactId] || null }));
 
     const contacts = await db.query.accountingContacts.findMany({
         where: and(
@@ -70,7 +75,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            console.error('Add Receivable Error:', err);
+            log.finance.error({ err }, 'Add Receivable Error');
             return fail(500, { error: 'Gagal membuat invoice piutang' });
         }
     },
@@ -109,7 +114,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            console.error('Pay Receivable Error:', err);
+            log.finance.error({ err }, 'Pay Receivable Error');
             return fail(500, { error: 'Gagal mencatat pembayaran' });
         }
     }

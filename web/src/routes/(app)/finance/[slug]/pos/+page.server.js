@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { pusherServer } from '$lib/server/pusher';
 import { getActivePosFeatures } from '$lib/posFeatures';
+import { log } from '$lib/server/logger';
 
 export async function load({ params, cookies, locals }) {
     const ownerUserId = locals.user?.id ?? await getCurrentUserId(cookies);
@@ -47,7 +48,7 @@ export async function load({ params, cookies, locals }) {
                 if (fallbackRows.length > 0) {
                     const routeUnit = fallbackRows[0];
                     if (routeUnit.id !== unit.id) {
-                        console.warn('POS Route slug mismatch for staff session unit, falling back to route unit for owner check', {
+                        log.pos.warn({
                             routeSlug: slug,
                             staffUnitId: unit.id,
                             staffUnitSlug: unit.slug,
@@ -55,7 +56,7 @@ export async function load({ params, cookies, locals }) {
                             routeUnitId: routeUnit.id,
                             routeUnitSlug: routeUnit.slug,
                             routeLoginSlug: routeUnit.login_slug
-                        });
+                        }, 'POS Route slug mismatch for staff session unit, falling back to route unit for owner check');
                         unit = routeUnit;
                     }
                 }
@@ -128,19 +129,13 @@ export async function load({ params, cookies, locals }) {
         const isStaff = staffSession && Number(staffSession.unit_id) === Number(unit.id) && !isOwner;
 
         if (!isOwner && !isStaff) {
-            console.warn('POS Unauthorized:', {
+            log.pos.warn({
                 unitSlug: slug,
                 unitId: unit.id,
                 unitOwnerId: unit.user_id,
                 ownerUserId,
-                staffSession: staffSession ? {
-                    unit_id: staffSession.unit_id,
-                    owner_id: staffSession.owner_id,
-                    login_slug: staffSession.login_slug,
-                    unit_slug: staffSession.unit_slug,
-                    role: staffSession.role
-                } : null
-            });
+                staffUnitId: staffSession?.unit_id
+            }, 'POS Unauthorized');
             throw error(403, 'Anda tidak memiliki akses ke unit ini');
         }
 
@@ -208,7 +203,7 @@ export async function load({ params, cookies, locals }) {
             featureAktif
         };
     } catch (err) {
-        console.error("POS Load Error:", err);
+        log.pos.error({ err }, 'POS Load Error');
         throw error(500, 'Gagal memuat data produk');
     }
 }
@@ -287,7 +282,7 @@ export const actions = {
                         shiftId: shiftId
                     });
                 } catch (e) {
-                    console.error("Pusher error on tutupShift:", e);
+                    log.pos.warn({ err: e }, 'Pusher error on tutupShift');
                 }
             }
 

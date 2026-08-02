@@ -7,6 +7,7 @@ import { checkRateLimit, getClientIP, REGISTER_LIMIT } from '$lib/server/rateLim
 import { registerSchema, formDataToObject } from '$lib/server/validation';
 import { createVerifyToken } from '$lib/server/emailToken';
 import { sendVerifyEmail } from '$lib/server/email';
+import { log } from '$lib/server/logger';
 import { env } from '$env/dynamic/private';
 
 export const actions = {
@@ -87,10 +88,10 @@ export const actions = {
 				}
 			} catch (emailErr) {
 				// Jangan gagalkan register jika email error
-				console.error('[Register] Gagal kirim email verifikasi:', emailErr.message);
+				log.auth.warn({ err: emailErr.message }, '[Register] Gagal kirim email verifikasi');
 			}
 		} catch (err) {
-			console.error('[Register] Error:', err);
+			log.auth.error({ err }, '[Register] Error');
 			return fail(500, {
 				message: 'Terjadi kesalahan pada server. Coba lagi nanti.'
 			});

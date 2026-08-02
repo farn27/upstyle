@@ -15,6 +15,7 @@ function toSnakeCase(obj) {
 
 import { error } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export async function load({ params, cookies }) {
     const { employeeSlug, slug } = params;
@@ -82,7 +83,7 @@ export async function load({ params, cookies }) {
         };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error('SQL Error di Detail Karyawan:', message);
+        log.hr.error({ err: message }, 'SQL Error di Detail Karyawan');
         throw error(500, 'Gagal memuat data karyawan: ' + message);
     }
 }

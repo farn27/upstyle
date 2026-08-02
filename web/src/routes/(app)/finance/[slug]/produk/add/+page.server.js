@@ -8,6 +8,8 @@ import { redis } from '$lib/server/redis';
 import { uploadFromFormFile, isStorageConfigured } from '$lib/server/storage';
 import { join } from 'path';
 import { writeFileSync, mkdirSync } from 'fs';
+import { processProductImage, createThumbnail, validateImage } from '$lib/server/imageProcessor.js';
+import { log } from '$lib/server/logger.js';
 
 // --- LOAD FUNCTION ---
 export const load = async ({ params, locals, parent }) => {
@@ -49,7 +51,7 @@ export const load = async ({ params, locals, parent }) => {
         return resultData;
 
     } catch (err) {
-        console.error("🔥 Redis/DB Load Error:", err);
+        log.api.error({ err: err.message, slug }, 'Produk add: Redis/DB load error');
         const unit = await db.query.unitBisnis.findFirst({
             where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, user.id)),
         });
@@ -96,21 +98,30 @@ export const actions = {
 
             if (!unit) return fail(404, { message: "Unit invalid" });
 
-            // 4. Upload foto ke R2 (cloud) atau fallback ke local storage
+            // 4. Upload foto — proses dengan Sharp dulu, lalu upload
             let fotoString = null;
             if (fotoFile && fotoFile.name && fotoFile.size > 0) {
+                const rawBuffer = Buffer.from(await fotoFile.arrayBuffer());
+
+                // Validasi gambar
+                const validation = await validateImage(rawBuffer, { maxSizeMB: 5 });
+                if (!validation.valid) return fail(400, { message: validation.error });
+
+                // Compress & resize dengan Sharp
+                const processedBuffer = await processProductImage(rawBuffer, { width: 800, height: 800, quality: 80 });
+
                 if (isStorageConfigured()) {
-                    // Cloud storage (R2)
-                    const { url } = await uploadFromFormFile(fotoFile, 'products');
+                    // Cloud storage (R2) — upload processed buffer
+                    const processedFile = new File([processedBuffer], fotoFile.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
+                    const { url } = await uploadFromFormFile(processedFile, 'products');
                     fotoString = url;
                 } else {
                     // Fallback local (development only)
                     const uploadDir = join(process.cwd(), 'static', 'uploads');
                     mkdirSync(uploadDir, { recursive: true });
-                    const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                    const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]+$/, '.webp')}`;
                     const fullPath = join(uploadDir, namaFileUnik);
-                    const buffer = Buffer.from(await fotoFile.arrayBuffer());
-                    writeFileSync(fullPath, buffer);
+                    writeFileSync(fullPath, processedBuffer);
                     fotoString = `/uploads/${namaFileUnik}`;
                 }
             }
@@ -206,16 +217,13 @@ export const actions = {
                     message: `Produk baru: ${nama} ditambahkan`,
                     user: locals.user.username
                 });
-            } catch (e) { console.error("⚠️ Integrasi Error:", e.message); }
+            } catch (e) { log.api.warn({ err: e.message }, 'Produk add: integrations error'); }
 
             return { type: 'success', message: 'Produk berhasil disimpan!' };
 
         } catch (err) {
-            console.error("🔥 Pesan Error:", err.message);
-            return fail(500, { 
-                message: "Gagal menyimpan data ke Database", 
-                error: err.message
-            });
+            log.api.error({ err: err.message }, 'Produk add: DB error');
+            return fail(500, { message: "Gagal menyimpan data ke Database", error: err.message });
         }
     }
 };

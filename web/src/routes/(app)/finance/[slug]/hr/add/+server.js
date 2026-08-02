@@ -4,6 +4,7 @@ import * as schema from '$lib/server/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
+import { log } from '$lib/server/logger';
 
 function slugify(value) {
     return String(value || '')
@@ -75,7 +76,7 @@ export async function POST({ request, params, cookies }) {
                 }
             }
         } catch (err) {
-            console.warn('Gagal baca custom roles unit:', err?.message || err);
+            log.hr.warn({ err: err?.message }, 'Gagal baca custom roles unit');
         }
         const allowedRoles = Array.from(new Set([...defaultRoles, ...unitCustomRoles]));
 
@@ -145,7 +146,7 @@ export async function POST({ request, params, cookies }) {
                 tipe: 'success'
             });
         } catch (errNotif) {
-            console.error('❌ Gagal mencatat riwayat:', errNotif.message);
+            log.hr.error({ err: errNotif.message }, 'Gagal mencatat riwayat');
         }
 
         return json({
@@ -154,7 +155,7 @@ export async function POST({ request, params, cookies }) {
             data: { slug: finalSlug }
         });
     } catch (error) {
-        console.error('❌ SQL ERROR UTAMA:', error);
+        log.hr.error({ err: error }, 'SQL ERROR UTAMA');
 
         if (error.errno === 1265) {
             return json({ success: false, message: 'Gagal: format data tidak sesuai (Data truncation).' }, { status: 400 });

@@ -3,6 +3,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { db } from '$lib/server/drizzle';
 import { transaksi, unitBisnis, products, riwayatAksi, abcCategories, posCustomers, posOrders, posOrderItems, chartOfAccounts, journalEntries, journalEntryLines, posPayments, vouchers } from '$lib/server/schema';
+import { log } from '$lib/server/logger.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
 import { pusherServer } from '$lib/server/pusher';
@@ -18,7 +19,7 @@ export async function POST({ request, cookies, params, locals }) {
             try {
                 loginSlugFromCookie = JSON.parse(rawSession)?.login_slug || null;
             } catch (err) {
-                console.warn('POS raw staff_session cookie parse failed', err.message);
+                log.pos.warn({ err: err.message }, 'POS raw staff_session cookie parse failed');
             }
         }
 
@@ -61,14 +62,7 @@ export async function POST({ request, cookies, params, locals }) {
                 }
 
                 if (routeUnit) {
-                    console.log('POS POST: staff session unit slug mismatch, falling back to route unit', {
-                        routeSlug: slug,
-                        staffUnitSlug: unit.slug,
-                        staffLoginSlug: unit.loginSlug,
-                        routeUnitId: routeUnit.id,
-                        routeUnitSlug: routeUnit.slug,
-                        routeLoginSlug: routeUnit.loginSlug
-                    });
+                    log.pos.warn({ routeSlug: slug, staffUnitSlug: unit.slug, staffLoginSlug: unit.loginSlug, routeUnitId: routeUnit.id }, 'POS: staff session unit slug mismatch, using route unit');
                     unit = routeUnit;
                 }
             }
@@ -329,7 +323,7 @@ export async function POST({ request, cookies, params, locals }) {
             const dashboardKeys = await redis.keys(`finance_dash_v4:*:${slug}:*`);
             if (dashboardKeys.length > 0) {
                 await redis.del(...dashboardKeys);
-                console.log(`🧹 POS: Cache Dashboard dihapus (${dashboardKeys.length} key)`);
+                log.pos.debug({ count: dashboardKeys.length, slug }, 'POS: Cache dashboard cleared');
             }
             const historyKeys = await redis.keys(`history_v3:*:${slug}:*`);
             if (historyKeys.length > 0) await redis.del(...historyKeys);
@@ -338,7 +332,7 @@ export async function POST({ request, cookies, params, locals }) {
             const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
             if (productKeys.length > 0) await redis.del(...productKeys);
         } catch (cacheErr) {
-            console.warn("⚠️ Gagal invalidasi cache:", cacheErr.message);
+            log.pos.warn({ err: cacheErr.message }, 'POS: Cache invalidation failed');
         }
 
         // Kirim sinyal Pusher (real-time reload & notifikasi)
@@ -359,19 +353,19 @@ export async function POST({ request, cookies, params, locals }) {
             pusherServer.trigger('channel-bizgrow', 'notif-baru', {
                 id: Date.now(),
                 unitId: Number(unitId),
-                pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(orderTotal)}`,
+                pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${Number(orderTotal).toLocaleString('id-ID')}`,
                 kategori: 'POS',
                 tipe: 'success',
                 waktu: new Date()
             });
         } catch (signalErr) {
-            console.warn("⚠️ Pusher trigger error:", signalErr.message);
+            log.pos.warn({ err: signalErr.message }, 'POS: Pusher trigger failed');
         }
 
         return json({ success: true, message: "Transaksi berhasil!", orderNumber: orderNumber, orderId: finalOrderId });
 
     } catch (err) {
-        console.error("POS Error:", err);
+        log.pos.error({ err: err.message }, 'POS transaction error');
         return json({ error: err.message }, { status: 500 });
     }
 }

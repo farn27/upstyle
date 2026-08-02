@@ -4,6 +4,7 @@ import { posOrders, posReturns, posReturnItems, warehouseStock, stockLogs, journ
 import { eq, and, sql } from 'drizzle-orm';
 import { resolvePosUnitAccess } from '$lib/server/posAuth';
 import { pusherServer } from '$lib/server/pusher';
+import { log } from '$lib/server/logger';
 
 export async function POST({ request, cookies, params, locals }) {
     try {
@@ -124,7 +125,7 @@ export async function POST({ request, cookies, params, locals }) {
                 triggerRefresh: true
             });
         } catch (signalErr) {
-            console.warn("⚠️ Pusher trigger error:", signalErr.message);
+            log.pos.warn({ err: signalErr.message }, 'Pusher trigger error retur');
         }
 
         return json({ success: true, returnNumber });

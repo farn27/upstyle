@@ -1,11 +1,13 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi } from '$lib/server/schema';
-import { eq, and, desc, inArray, like, isNull, count } from 'drizzle-orm';
+import { eq, and, desc, inArray, like, isNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { encryptField, decryptField } from '$lib/server/encryption';
+import { log } from '$lib/server/logger';
+import { z } from 'zod';
 import crypto from 'crypto';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
@@ -39,8 +41,8 @@ export async function GET({ url, cookies, request }) {
         const pagination = parsePagination(url);
 
         // Get total count for employees
-        const [totalResult] = await db.select({ count: count() }).from(employees).where(eq(employees.companyId, Number(unitId)));
-        const total = totalResult.count;
+        const [totalResult] = await db.select({ count: sql`count(*)` }).from(employees).where(eq(employees.companyId, Number(unitId)));
+        const total = Number(totalResult.count) || 0;
 
         // Get paginated employees
         const employeesQuery = db.query.employees.findMany({
@@ -136,7 +138,7 @@ export async function GET({ url, cookies, request }) {
         });
 
     } catch (err) {
-        console.error("API GET HR ERROR:", err);
+        log.hr.error({ err }, 'API GET HR ERROR');
         return json({ success: false, message: "Gagal mengambil data HR" }, { status: 500 });
     }
 }
@@ -148,7 +150,76 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const action = body.action; // 'create-employee', 'check-in', 'check-out', 'process-payroll'
+        const action = body.action;
+
+        // ─── Zod validation per action ──────────────────────────────────────────
+        if (action === 'create-employee') {
+            const schema = z.object({
+                action: z.literal('create-employee'),
+                employee: z.object({
+                    fullName: z.string().min(2, 'Nama minimal 2 karakter'),
+                    position: z.string().min(1, 'Jabatan wajib diisi'),
+                    salary: z.coerce.number().min(0),
+                    pin: z.string().length(4, 'PIN harus 4 digit').regex(/^\d+$/),
+                    role: z.enum(['staff', 'cashier', 'manager', 'employee']).default('staff'),
+                    unitId: z.coerce.number().int().positive(),
+                    taxId: z.string().optional(),
+                    bankName: z.string().optional(),
+                    bankAccountNumber: z.string().optional(),
+                })
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+
+        if (action === 'check-in') {
+            const schema = z.object({
+                action: z.literal('check-in'),
+                employeeId: z.coerce.number().int().positive(),
+                unitId: z.coerce.number().int().positive(),
+                date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal YYYY-MM-DD'),
+                time: z.string().regex(/^\d{2}:\d{2}$/, 'Format waktu HH:MM'),
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+
+        if (action === 'check-out') {
+            const schema = z.object({
+                action: z.literal('check-out'),
+                employeeId: z.coerce.number().int().positive(),
+                date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+                time: z.string().regex(/^\d{2}:\d{2}$/),
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+
+        if (action === 'process-payroll') {
+            const schema = z.object({
+                action: z.literal('process-payroll'),
+                payroll: z.object({
+                    employeeId: z.coerce.number().int().positive(),
+                    monthYear: z.string().min(1),
+                    salary: z.coerce.number().min(0),
+                    allowance: z.coerce.number().min(0).default(0),
+                    deduction: z.coerce.number().min(0).default(0),
+                    netSalary: z.coerce.number().min(0),
+                    unitId: z.coerce.number().int().positive(),
+                })
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────────
 
         if (action === 'create-employee') {
             const { fullName, position, salary, pin, role, unitId, taxId, bankName, bankAccountNumber } = body.employee;
@@ -257,7 +328,7 @@ export async function POST({ request, cookies }) {
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });
 
     } catch (err) {
-        console.error("API POST HR ERROR:", err);
+        log.hr.error({ err }, 'API POST HR ERROR');
         return json({ success: false, message: "Gagal memproses aksi HR: " + err.message }, { status: 500 });
     }
 }
@@ -287,7 +358,56 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: "Karyawan berhasil dinonaktifkan" });
     } catch (err) {
-        console.error("API DELETE HR ERROR:", err);
+        log.hr.error({ err }, 'API DELETE HR ERROR');
         return json({ success: false, message: "Gagal menghapus karyawan" }, { status: 500 });
+    }
+}
+
+// 4. PUT: Update Karyawan
+export async function PUT({ request, url, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+    const employeeId = url.searchParams.get('employeeId');
+    if (!employeeId) return json({ success: false, message: "employeeId wajib diisi" }, { status: 400 });
+
+    try {
+        const body = await request.json();
+        
+        const emp = await db.query.employees.findFirst({
+            where: eq(employees.id, Number(employeeId))
+        });
+        if (!emp) return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
+        if (!emp.companyId) return json({ success: false, message: "Karyawan tidak memiliki unit" }, { status: 400 });
+        
+        const { fullName, position, salary, role, email, phone, division } = body;
+        
+        let updateData = {};
+        if (fullName !== undefined) updateData.fullName = fullName;
+        if (position !== undefined) updateData.position = position;
+        if (salary !== undefined) updateData.salary = String(salary);
+        if (role !== undefined) updateData.role = role;
+        if (email !== undefined) updateData.email = email;
+        if (phone !== undefined) updateData.phone = phone;
+        if (division !== undefined) updateData.division = division;
+
+        if (Object.keys(updateData).length > 0) {
+            await db.update(employees)
+                .set(updateData)
+                .where(eq(employees.id, Number(employeeId)));
+                
+            await db.insert(riwayatAksi).values({
+                userId, 
+                unitId: emp.companyId, 
+                pesan: `Data karyawan diperbarui: ${updateData.fullName || emp.fullName}`, 
+                kategori: 'HR', 
+                tipe: 'success'
+            });
+        }
+        
+        return json({ success: true, message: 'Karyawan berhasil diperbarui' });
+    } catch (err) {
+        log.hr.error({ err }, 'API PUT HR ERROR');
+        return json({ success: false, message: "Gagal memperbarui karyawan" }, { status: 500 });
     }
 }

@@ -165,7 +165,7 @@
                         <span class="text-slate-200">|</span>
                         <span>Tambah</span>
                     </div>
-                    <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1">Unit: {unitAktif?.nama_unit || '...'}</span>
+                    <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1">Unit: {unitAktif?.namaUnit || '...'}</span>
                 </div>
             </div>
             <button on:click={handleSave} disabled={loading} class="bg-indigo-600 text-white px-6 py-2 rounded-md text-[10px] font-black uppercase hover:bg-indigo-700 flex items-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-60">

@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { transaksi, products, unitBisnis } from '$lib/server/schema';
-import { eq, and, desc, gt } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 /**
  * API endpoint for polling updates
@@ -35,6 +36,11 @@ export async function GET({ url, cookies }) {
 
         const unitId = units[0].id;
         const lastUpdateDate = lastUpdate ? new Date(parseInt(lastUpdate)) : new Date(Date.now() - 60000); // Default 1 minute ago
+        
+        // Validate date
+        if (isNaN(lastUpdateDate.getTime())) {
+            return json({ error: 'Invalid lastUpdate timestamp' }, { status: 400 });
+        }
 
         const updates = {
             transactions: [],
@@ -50,14 +56,13 @@ export async function GET({ url, cookies }) {
                 nominal: transaksi.totalHarga,
                 kategoriTrx: transaksi.kategoriTrx,
                 tanggal: transaksi.tanggal,
-                orderNumber: transaksi.orderNumber
             })
             .from(transaksi)
             .where(and(
                 eq(transaksi.unitId, unitId),
                 gt(transaksi.tanggal, lastUpdateDate.toISOString())
             ))
-            .orderBy(desc(transaksi.tanggal))
+            .orderBy(desc(transaksi.id))
             .limit(10);
 
             updates.transactions = recentTransactions;
@@ -69,14 +74,12 @@ export async function GET({ url, cookies }) {
                 id: products.id,
                 nama: products.nama,
                 stok: products.stok,
-                updatedAt: products.updatedAt
             })
             .from(products)
             .where(and(
-                eq(products.unitId, unitId),
-                gt(products.updatedAt, lastUpdateDate.toISOString())
+                eq(products.unitId, unitId)
             ))
-            .orderBy(desc(products.updatedAt))
+            .orderBy(desc(products.id))
             .limit(10);
 
             updates.products = recentProducts;
@@ -85,7 +88,7 @@ export async function GET({ url, cookies }) {
         return json(updates);
 
     } catch (error) {
-        console.error('[Updates API] Error:', error);
+        log.api.error({ err: error }, '[Updates API] Error');
         return json({ error: 'Failed to fetch updates' }, { status: 500 });
     }
 }

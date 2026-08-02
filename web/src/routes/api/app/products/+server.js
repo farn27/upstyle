@@ -1,9 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { products, productVariants, kategoriProduk, stockLogs } from '$lib/server/schema';
-import { eq, and, isNull, count } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
+import { log } from '$lib/server/logger';
+import { z } from 'zod';
 import crypto from 'crypto';
 import { pusherServer } from '$lib/server/pusher';
 import { nowWIB } from '$lib/server/dateUtils';
@@ -20,9 +22,10 @@ export async function GET({ url, cookies, request }) {
         const pagination = parsePagination(url);
 
         // Get total count
-        const [totalResult] = await db.select({ count: count() }).from(products).where(
+        const [totalResult] = await db.select({ count: sql`count(*)` }).from(products).where(
             and(eq(products.unitId, Number(unitId)), isNull(products.deletedAt))
         );
+        const total = Number(totalResult.count) || 0;
         const total = totalResult.count;
 
         // Get paginated products
@@ -60,7 +63,7 @@ export async function GET({ url, cookies, request }) {
 
         return json(paginatedResponse(data, total, pagination));
     } catch (err) {
-        console.error("API GET PRODUCTS ERROR:", err);
+        log.api.error({ err }, 'API GET PRODUCTS ERROR');
         return json({ success: false, message: "Gagal mengambil data produk" }, { status: 500 });
     }
 }
@@ -72,11 +75,31 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const { id, sku, nama, hargaBeli, hargaJual, stok, kategori, unitId, variants } = body;
 
-        if (!nama || !unitId) {
-            return json({ success: false, message: "Nama dan unitId wajib diisi" }, { status: 400 });
+        // ─── Zod validation ───────────────────────────────────────────────────
+        const productPostSchema = z.object({
+            nama: z.string().min(1, 'Nama produk wajib diisi').max(255),
+            unitId: z.coerce.number().int().positive('unitId wajib diisi'),
+            sku: z.string().optional(),
+            hargaBeli: z.coerce.number().min(0).default(0),
+            hargaJual: z.coerce.number().min(0).default(0),
+            stok: z.coerce.number().int().min(0).default(0),
+            kategori: z.string().optional(),
+            variants: z.array(z.object({
+                namaVariasi: z.string().min(1),
+                sku: z.string().optional(),
+                hargaBeli: z.coerce.number().min(0).default(0),
+                hargaJual: z.coerce.number().min(0).default(0),
+                stok: z.coerce.number().int().min(0).default(0),
+            })).optional().default([]),
+        });
+        const parsed = productPostSchema.safeParse(body);
+        if (!parsed.success) {
+            return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
         }
+        // ─────────────────────────────────────────────────────────────────────
+
+        const { id, sku, nama, hargaBeli, hargaJual, stok, kategori, unitId, variants } = body;
 
         const newId = id || crypto.randomUUID();
         const slug = `${nama.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}-${newId.slice(0, 5)}`;
@@ -138,7 +161,7 @@ export async function POST({ request, cookies }) {
         pusherServer.trigger(`private-unit-${unitId}`, 'product-added', { message: 'Produk ditambahkan dari HP' });
         return json({ success: true, message: "Produk berhasil disimpan", id: newId });
     } catch (err) {
-        console.error("API POST PRODUCT ERROR:", err);
+        log.api.error({ err }, 'API POST PRODUCT ERROR');
         return json({ success: false, message: "Gagal menyimpan produk: " + err.message }, { status: 500 });
     }
 }
@@ -229,7 +252,7 @@ export async function PUT({ request, cookies }) {
         }
         return json({ success: true, message: "Produk berhasil diperbarui" });
     } catch (err) {
-        console.error("API PUT PRODUCT ERROR:", err);
+        log.api.error({ err }, 'API PUT PRODUCT ERROR');
         return json({ success: false, message: "Gagal memperbarui produk: " + err.message }, { status: 500 });
     }
 }
@@ -258,7 +281,7 @@ export async function DELETE({ url, cookies, request }) {
         pusherServer.trigger(`private-unit-${unitId}`, 'product-added', { message: 'Produk dihapus dari HP' });
         return json({ success: true, message: "Produk berhasil dipindahkan ke Sampah" });
     } catch (err) {
-        console.error("API DELETE PRODUCT ERROR:", err);
+        log.api.error({ err }, 'API DELETE PRODUCT ERROR');
         return json({ success: false, message: "Gagal menghapus produk" }, { status: 500 });
     }
 }

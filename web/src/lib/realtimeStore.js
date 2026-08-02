@@ -1,16 +1,18 @@
 /**
  * realtimeStore.js — Global Realtime Manager
- * Mengelola semua Pusher subscription secara terpusat.
+ * Mengelola semua realtime subscription secara terpusat.
+ * 
+ * HYBRID APPROACH:
+ * - CRITICAL events: Socket.io (POS, stock alerts, CS tickets, cash alerts)
+ * - NON-CRITICAL events: Polling (finance stats, marketing, reports)
  * 
  * FILOSOFI: Tidak pakai invalidateAll() yang trigger full reload.
  * Sebagai gantinya: update store secara langsung (optimistic),
  * invalidate hanya untuk route yang relevan saja.
- * 
- * FALLBACK: Jika Pusher tidak tersedia, gunakan polling sebagai alternatif.
  */
 
 import { writable, derived } from 'svelte/store';
-import { getPusherClient } from '$lib/pusher';
+import { getSocketClient, onSocketEvent, offSocketEvent, disconnectSocket, joinTicketRoom, leaveTicketRoom } from '$lib/socket';
 import { PollingManager } from '$lib/polling';
 import { invalidate } from '$app/navigation';
 import { addNotif } from '$lib/notifStore';
@@ -31,11 +33,12 @@ export const stockUpdate = writable(null);
 export const financeUpdate = writable(null);
 
 // ─── State internal ───────────────────────────────────────────────────────────
-let pusherClient = null;
+let socketClient = null;
 let currentUnitId = null;
 let currentSlug = null;
 let currentUsername = null;
-let subscribedChannels = new Map(); // channelName → channel object
+let currentUserId = null;
+let eventHandlers = new Map(); // eventName → handler function
 let pollingManager = null;
 let lastUpdate = Date.now();
 let usePolling = false;
@@ -50,7 +53,7 @@ function emit(storeName, store, data) {
 
 /**
  * Polling callback function
- * Checks for updates via API when Pusher is not available
+ * Checks for updates via API for non-critical events
  */
 async function pollingCallback() {
     try {
@@ -58,7 +61,6 @@ async function pollingCallback() {
         const updates = await response.json();
 
         if (updates.transactions && updates.transactions.length > 0) {
-            // Simulate Pusher events for transactions
             updates.transactions.forEach(trx => {
                 emit('financeUpdate', financeUpdate, {
                     action: 'stats-updated',
@@ -68,12 +70,23 @@ async function pollingCallback() {
         }
 
         if (updates.products && updates.products.length > 0) {
-            // Simulate Pusher events for products
             updates.products.forEach(prod => {
                 emit('stockUpdate', stockUpdate, {
                     action: 'stock-updated',
                     product: prod
                 });
+            });
+        }
+
+        if (updates.sales && updates.sales.length > 0) {
+            updates.sales.forEach(sale => {
+                emit('salesPipelineUpdate', salesPipelineUpdate, sale);
+            });
+        }
+
+        if (updates.marketing && updates.marketing.length > 0) {
+            updates.marketing.forEach(marketing => {
+                emit('marketingLeadUpdate', marketingLeadUpdate, marketing);
             });
         }
 
@@ -87,7 +100,7 @@ async function pollingCallback() {
  * Init semua realtime subscription.
  * Dipanggil dari +layout.svelte saat unitId atau slug berubah.
  */
-export function initGlobalRealtime(unitId, slug, username) {
+export async function initGlobalRealtime(unitId, slug, username, userId, sessionToken) {
     if (typeof window === 'undefined') return;
     if (currentUnitId === unitId && currentSlug === slug) return;
 
@@ -97,24 +110,29 @@ export function initGlobalRealtime(unitId, slug, username) {
     currentUnitId = unitId;
     currentSlug = slug;
     currentUsername = username;
-
-    // Try to use Pusher first
-    try {
-        pusherClient = getPusherClient();
-        usePolling = false;
-        console.log('[Realtime] Using Pusher');
-    } catch (pusherError) {
-        console.warn('[Realtime] Pusher not available, falling back to polling:', pusherError);
-        usePolling = true;
-        pusherClient = null;
-    }
+    currentUserId = userId;
 
     const channelNames = [];
 
+    // Try Socket.io for critical events
+    try {
+        socketClient = await getSocketClient({
+            token: sessionToken,
+            unitId,
+            userId
+        });
+        usePolling = false;
+        console.log('[Realtime] Using Socket.io for critical events');
+    } catch (socketError) {
+        console.warn('[Realtime] Socket.io not available, using polling for all events:', socketError);
+        usePolling = true;
+        socketClient = null;
+    }
+
     if (usePolling) {
-        // Use polling instead of Pusher
+        // Use polling for all events
         pollingManager = new PollingManager({
-            interval: 5000, // 5 seconds
+            interval: 30000, // 30 seconds untuk non-critical
             callback: pollingCallback,
             lastUpdate: lastUpdate
         });
@@ -124,157 +142,85 @@ export function initGlobalRealtime(unitId, slug, username) {
         return;
     }
 
-    // ─── 1. Channel Global Bizgrow (notifikasi lintas sistem) ──────────────
-    const globalChannel = pusherClient.subscribe('channel-bizgrow');
-    subscribedChannels.set('channel-bizgrow', globalChannel);
-    channelNames.push('channel-bizgrow');
+    // ─── CRITICAL: Socket.io Events ───────────────────────────────────────
+    
+    // Connection confirmation
+    const handleConnected = (data) => {
+        isRealtimeConnected.set(true);
+        console.log('[Realtime] Socket.io connected:', data);
+    };
 
-    globalChannel.bind('notif-baru', (data) => {
-        addNotif(data.pesan || 'Notifikasi baru');
+    // POS Transactions (CRITICAL)
+    const handlePOSTransaction = (data) => {
+        addNotif(`🛒 Pesanan POS Baru: ${data.orderNumber} (${data.customerName || 'Guest'})`);
+        emit('financeUpdate', financeUpdate, { action: 'pos-transaction', ...data });
+        invalidate('app:finance').catch(() => {});
+        invalidate('app:pos').catch(() => {});
+    };
+
+    // Stock Updates (CRITICAL)
+    const handleStockUpdated = (data) => {
+        addNotif(data.message || '📦 Stok diperbarui');
+        emit('stockUpdate', stockUpdate, { ...data, action: 'stock-updated' });
+        invalidate('app:pos:products').catch(() => {});
+    };
+
+    // Stock Alerts (CRITICAL)
+    const handleStockAlert = (data) => {
+        addNotif(`⚠️ ${data.message}`);
+        emit('stockUpdate', stockUpdate, { ...data, action: 'stock-alert' });
+    };
+
+    // CS Ticket Messages (CRITICAL)
+    const handleTicketMessage = (data) => {
+        emit('csTicketUpdate', csTicketUpdate, { action: 'new-message', ...data });
+        // Sound notification could be added here
+    };
+
+    // POS Cash Alerts (CRITICAL)
+    const handlePOSAlert = (data) => {
+        addNotif(`⚠️ Selisih Kas POS: Kasir ${data.cashier} memiliki selisih Rp ${data.selisih?.toLocaleString('id-ID') || 0} pada Shift #${data.shiftId}`);
+        emit('financeUpdate', financeUpdate, { action: 'pos-cash-alert', ...data });
+    };
+
+    // Notifications (IMPORTANT)
+    const handleNotification = (data) => {
+        addNotif(data.pesan || data.message || 'Notifikasi baru');
         emit('notifUpdate', notifUpdate, data);
-        // Invalidate notification data saja, bukan seluruh halaman
         invalidate('app:notifications').catch(() => {});
-    });
+    };
 
-    globalChannel.bind('cache-cleared', () => {
-        // Server sudah clear cache, kita trigger re-fetch data yang relevan
-        if (slug) {
-            invalidate(`sales:orders`).catch(() => {});
-            invalidate(`sales:pipeline`).catch(() => {});
-            invalidate(`marketing:leads`).catch(() => {});
-        }
-    });
+    // Order Status Changes (IMPORTANT)
+    const handleOrderStatusChanged = (data) => {
+        emit('salesOrderUpdate', salesOrderUpdate, data);
+        addNotif(`📋 Order #${data.orderId} → ${data.status}`);
+        invalidate('sales:orders').catch(() => {});
+    };
 
-    // ─── 2. Channel Private Unit (produk, stok) ────────────────────────────
-    if (unitId) {
-        const privateChannel = pusherClient.subscribe(`private-unit-${unitId}`);
-        subscribedChannels.set(`private-unit-${unitId}`, privateChannel);
-        channelNames.push(`private-unit-${unitId}`);
+    // Register event handlers
+    eventHandlers.set('connected', handleConnected);
+    eventHandlers.set('pos-transaction', handlePOSTransaction);
+    eventHandlers.set('stock-updated', handleStockUpdated);
+    eventHandlers.set('stock-alert', handleStockAlert);
+    eventHandlers.set('ticket-message', handleTicketMessage);
+    eventHandlers.set('pos-cash-alert', handlePOSAlert);
+    eventHandlers.set('notification', handleNotification);
+    eventHandlers.set('order-status-changed', handleOrderStatusChanged);
 
-        privateChannel.bind('pusher:subscription_succeeded', () => {
-            isRealtimeConnected.set(true);
-        });
-
-        privateChannel.bind('product-added', (data) => {
-            addNotif(data.message || '📦 Produk baru ditambahkan');
-            emit('stockUpdate', stockUpdate, data);
-        });
-
-        privateChannel.bind('stock-updated', (data) => {
-            addNotif(data.message || '📦 Stok diperbarui');
-            emit('stockUpdate', stockUpdate, { ...data, action: 'stock-updated' });
-        });
-
-        privateChannel.bind('stock-alert', (data) => {
-            addNotif(`⚠️ ${data.message}`);
-        });
+    // Subscribe to events
+    for (const [event, handler] of eventHandlers) {
+        await onSocketEvent(event, handler);
+        channelNames.push(event);
     }
 
-    // ─── 3. Channel Finance (transaksi, POS, laporan) ──────────────────────
-    if (slug) {
-        const financeChannel = pusherClient.subscribe(`finance-${slug}`);
-        subscribedChannels.set(`finance-${slug}`, financeChannel);
-        channelNames.push(`finance-${slug}`);
-
-        financeChannel.bind('stats-updated', (data) => {
-            emit('financeUpdate', financeUpdate, { action: 'stats-updated', ...data });
-            // Targeted invalidation — hanya data finance, bukan seluruh halaman
-            invalidate('app:finance').catch(() => {});
-        });
-
-        financeChannel.bind('report-ready', (data) => {
-            addNotif(`📊 ${data.message || 'Laporan keuangan siap diunduh'}`);
-        });
-
-        financeChannel.bind('payroll-notified', (data) => {
-            addNotif(`💰 ${data.message || 'Slip gaji terkirim'}`);
-        });
-
-        financeChannel.bind('cache-cleared', () => {
-            invalidate('app:finance').catch(() => {});
-        });
-
-        // POS Realtime Events
-        financeChannel.bind('pos-transaction-new', (data) => {
-            addNotif(`🛒 Pesanan POS Baru: ${data.orderNumber} (${data.customerName})`);
-            invalidate('app:finance').catch(() => {});
-            invalidate('app:pos').catch(() => {}); // update riwayat/report POS
-        });
-
-        financeChannel.bind('pos-stock-updated', (data) => {
-            // Kita tidak perlu memunculkan notif ke kasir untuk setiap update stok,
-            // tapi kita perlu invalidate state agar list produk di POS terupdate
-            invalidate('app:pos:products').catch(() => {});
-        });
-
-        financeChannel.bind('pos-cash-alert', (data) => {
-            addNotif(`⚠️ Selisih Kas POS: Kasir ${data.cashier} memiliki selisih Rp ${data.selisih.toLocaleString('id-ID')} pada Shift #${data.shiftId}`);
-        });
-
-        // ─── 4. Channel Sales ──────────────────────────────────────────────
-        const salesChannel = pusherClient.subscribe(`sales-${slug}`);
-        subscribedChannels.set(`sales-${slug}`, salesChannel);
-        channelNames.push(`sales-${slug}`);
-
-        salesChannel.bind('pipeline-updated', (data) => {
-            emit('salesPipelineUpdate', salesPipelineUpdate, data);
-            // Jangan invalidate seluruh halaman — update store saja
-            // UI pipeline sudah reactive terhadap salesPipelineUpdate
-        });
-
-        salesChannel.bind('order-updated', (data) => {
-            emit('salesOrderUpdate', salesOrderUpdate, data);
-            invalidate('sales:orders').catch(() => {});
-        });
-
-        salesChannel.bind('order-status-changed', (data) => {
-            emit('salesOrderUpdate', salesOrderUpdate, data);
-            addNotif(`📋 Order #${data.orderId} → ${data.status}`);
-            invalidate('sales:orders').catch(() => {});
-        });
-
-        // ─── 5. Channel Marketing ──────────────────────────────────────────
-        const marketingChannel = pusherClient.subscribe(`marketing-${slug}`);
-        subscribedChannels.set(`marketing-${slug}`, marketingChannel);
-        channelNames.push(`marketing-${slug}`);
-
-        marketingChannel.bind('lead-transferred', (data) => {
-            emit('marketingLeadUpdate', marketingLeadUpdate, data);
-            addNotif(`🎯 Lead "${data.nama}" berhasil masuk CRM`);
-            invalidate('marketing:leads').catch(() => {});
-        });
-
-        marketingChannel.bind('campaign-created', (data) => {
-            addNotif(`📣 Kampanye baru: ${data.name}`);
-            invalidate('marketing:campaign').catch(() => {});
-        });
-
-        marketingChannel.bind('campaign-updated', (data) => {
-            invalidate('marketing:campaign').catch(() => {});
-        });
-
-        // ─── 6. Channel CS ─────────────────────────────────────────────────
-        const csChannel = pusherClient.subscribe(`cs-${slug}`);
-        subscribedChannels.set(`cs-${slug}`, csChannel);
-        channelNames.push(`cs-${slug}`);
-
-        csChannel.bind('ticket-new', (data) => {
-            emit('csTicketUpdate', csTicketUpdate, { action: 'new', ...data });
-            addNotif(`🎫 Tiket baru: "${data.subject}" [${data.priority}]`);
-        });
-
-        csChannel.bind('ticket-new-notification', (data) => {
-            addNotif(data.message || '🎫 Tiket baru masuk');
-        });
-
-        csChannel.bind('ticket-updated', (data) => {
-            emit('csTicketUpdate', csTicketUpdate, { action: 'updated', ...data });
-            invalidate('cs:dashboard').catch(() => {});
-        });
-    }
-
-    // ─── 7. Individual ticket channels (untuk realtime reply) ──────────────
-    // Akan di-subscribe secara on-demand dari halaman tiket spesifik
+    // ─── NON-CRITICAL: Polling for Finance, Marketing, Sales Pipeline ─────
+    pollingManager = new PollingManager({
+        interval: 60000, // 60 seconds untuk non-critical
+        callback: pollingCallback,
+        lastUpdate: lastUpdate
+    });
+    pollingManager.start();
+    channelNames.push('polling');
 
     activeChannels.set(channelNames);
 }
@@ -282,24 +228,36 @@ export function initGlobalRealtime(unitId, slug, username) {
 /**
  * Subscribe ke channel spesifik tiket (untuk realtime reply di detail tiket)
  */
-export function subscribeToTicket(ticketId, onMessage) {
-    if (!pusherClient || typeof window === 'undefined') return () => {};
-    const channelName = `cs-ticket-${ticketId}`;
-    if (subscribedChannels.has(channelName)) {
-        subscribedChannels.get(channelName).bind('new-message', onMessage);
-    } else {
-        const ch = pusherClient.subscribe(channelName);
-        subscribedChannels.set(channelName, ch);
-        ch.bind('new-message', onMessage);
+export async function subscribeToTicket(ticketId, onMessage) {
+    if (!socketClient || typeof window === 'undefined') return () => {};
+    
+    try {
+        await joinTicketRoom(ticketId);
+        
+        const handleTicketMessage = (data) => {
+            onMessage(data);
+        };
+        
+        await onSocketEvent('ticket-message', handleTicketMessage);
+        eventHandlers.set(`ticket-${ticketId}`, handleTicketMessage);
+        
+        return () => unsubscribeFromTicket(ticketId);
+    } catch (err) {
+        console.error('[Realtime] Error subscribing to ticket:', err);
+        return () => {};
     }
-    return () => unsubscribeFromTicket(ticketId);
 }
 
-export function unsubscribeFromTicket(ticketId) {
-    const channelName = `cs-ticket-${ticketId}`;
-    if (pusherClient && subscribedChannels.has(channelName)) {
-        pusherClient.unsubscribe(channelName);
-        subscribedChannels.delete(channelName);
+export async function unsubscribeFromTicket(ticketId) {
+    try {
+        await leaveTicketRoom(ticketId);
+        const handler = eventHandlers.get(`ticket-${ticketId}`);
+        if (handler) {
+            await offSocketEvent('ticket-message', handler);
+            eventHandlers.delete(`ticket-${ticketId}`);
+        }
+    } catch (err) {
+        console.error('[Realtime] Error unsubscribing from ticket:', err);
     }
 }
 
@@ -313,16 +271,24 @@ export function cleanupRealtime() {
         pollingManager = null;
     }
 
-    // Unsubscribe from Pusher channels
-    if (pusherClient) {
-        for (const [name] of subscribedChannels) {
-            try { pusherClient.unsubscribe(name); } catch {}
+    // Unsubscribe from Socket.io events
+    if (socketClient) {
+        for (const [event, handler] of eventHandlers) {
+            try {
+                offSocketEvent(event, handler);
+            } catch (err) {
+                console.error('[Realtime] Error unsubscribing from event:', event, err);
+            }
         }
     }
-    subscribedChannels.clear();
+    
+    eventHandlers.clear();
+    disconnectSocket();
+    
     currentUnitId = null;
     currentSlug = null;
     currentUsername = null;
+    currentUserId = null;
     isRealtimeConnected.set(false);
     activeChannels.set([]);
 }

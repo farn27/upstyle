@@ -8,6 +8,7 @@ import argon2 from 'argon2';
 import { secureCookieOptions } from '$lib/server/cookieOptions';
 import { checkRateLimit, getClientIP, LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { loginSchema, formDataToObject } from '$lib/server/validation';
+import { log } from '$lib/server/logger';
 
 export const actions = {
 	// 1. LOGIN MANUAL (Username/Email + Password)
@@ -88,7 +89,7 @@ export const actions = {
 				sameSite: 'strict'
 			});
 		} catch (err) {
-			console.error('[Login] Error:', err);
+			log.auth.error({ err }, '[Login] Error');
 			return fail(500, { error: 'Terjadi kesalahan sistem. Coba lagi nanti.' });
 		}
 

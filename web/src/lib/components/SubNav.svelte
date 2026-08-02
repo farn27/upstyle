@@ -55,13 +55,14 @@
         
         <a
             href={menu.path}
-            class="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap shrink-0
+            class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3.5 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap shrink-0
                 {active 
                     ? 'text-indigo-700 bg-indigo-50 dark:bg-indigo-900/50 dark:text-indigo-300 shadow-sm border border-indigo-100 dark:border-indigo-800/50' 
                     : 'text-slate-600 dark:text-slate-400 border border-transparent hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}"
         >
-            <svelte:component this={menu.icon} class="w-4 h-4 shrink-0" />
-            <span>{menu.name}</span>
+            <svelte:component this={menu.icon} class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span class="hidden sm:inline">{menu.name}</span>
+            <span class="sm:hidden">{menu.name.substring(0, 3)}</span>
         </a>
     {/each}
 </div>

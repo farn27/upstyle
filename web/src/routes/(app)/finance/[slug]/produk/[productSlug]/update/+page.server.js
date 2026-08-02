@@ -6,6 +6,8 @@ import { redis } from '$lib/server/redis';
 import { uploadFromFormFile, isStorageConfigured, extractKeyFromUrl, deleteFile } from '$lib/server/storage';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { processProductImage, validateImage } from '$lib/server/imageProcessor.js';
+import { log } from '$lib/server/logger.js';
 
 // 1. LOAD DATA BERDASARKAN SLUG PRODUK
 export const load = async ({ params, locals }) => {
@@ -67,25 +69,32 @@ export const actions = {
             const variants = variantsRaw ? JSON.parse(variantsRaw) : [];
             const hasVariant = variants.length > 0 ? 1 : 0;
 
-            // 1. File Upload Logic — R2 cloud atau local fallback
+            // 1. File Upload Logic — Sharp process, lalu R2 cloud atau local fallback
             let fotoString = null;
             if (fotoFile && fotoFile.name && fotoFile.size > 0) {
+                const rawBuffer = Buffer.from(await fotoFile.arrayBuffer());
+
+                // Validasi gambar
+                const validation = await validateImage(rawBuffer, { maxSizeMB: 5 });
+                if (!validation.valid) return fail(400, { message: validation.error });
+
+                // Compress & resize dengan Sharp → WebP
+                const processedBuffer = await processProductImage(rawBuffer, { width: 800, height: 800, quality: 80 });
+
                 if (isStorageConfigured()) {
-                    // Hapus foto lama dari R2 jika ada
                     if (existingProduct.foto) {
                         const oldKey = extractKeyFromUrl(existingProduct.foto);
                         if (oldKey) deleteFile(oldKey).catch(() => {});
                     }
-                    const { url } = await uploadFromFormFile(fotoFile, 'products');
+                    const processedFile = new File([processedBuffer], fotoFile.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
+                    const { url } = await uploadFromFormFile(processedFile, 'products');
                     fotoString = url;
                 } else {
-                    // Fallback local (development only)
                     const uploadDir = join(process.cwd(), 'static', 'uploads');
                     mkdirSync(uploadDir, { recursive: true });
-                    const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                    const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]+$/, '.webp')}`;
                     const fullPath = join(uploadDir, namaFileUnik);
-                    const buffer = Buffer.from(await fotoFile.arrayBuffer());
-                    writeFileSync(fullPath, buffer);
+                    writeFileSync(fullPath, processedBuffer);
                     fotoString = `/uploads/${namaFileUnik}`;
                 }
             }
@@ -182,12 +191,12 @@ export const actions = {
                 ];
                 await Promise.all(cacheKeysToDelete.map(k => redis.del(k)));
             } catch (e) {
-                console.warn('Cache invalidation warning:', e.message);
+                log.api.warn({ err: e.message }, 'Produk update: cache invalidation failed');
             }
 
             return { success: true };
         } catch (err) {
-            console.error("🔥 Error Update Produk:", err);
+            log.api.error({ err: err.message }, 'Produk update: DB error');
             return fail(500, { message: err.message });
         }
     }

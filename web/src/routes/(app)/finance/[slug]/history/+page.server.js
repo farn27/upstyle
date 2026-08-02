@@ -7,6 +7,7 @@ import { redis } from '$lib/server/redis';
 import { inngest } from '$lib/server/inngest';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { nowWIB } from '$lib/server/dateUtils';
+import { log } from '$lib/server/logger';
 
 /** @type {import('./$types').PageServerLoad} */
 export const load = async ({ params, url, cookies }) => {
@@ -77,7 +78,7 @@ export const load = async ({ params, url, cookies }) => {
 
     } catch (err) {
         if (err.status) throw err;
-        console.error("Load History Error:", err);
+        log.finance.error({ err }, 'Load History Error');
         throw error(500, "Gagal memuat riwayat transaksi");
     }
 };
@@ -140,7 +141,7 @@ export const actions = {
                 message: `"${namaTerhapus.toUpperCase()}" BERHASIL DIHAPUS!` 
             };
         } catch (e) {
-            console.error("Delete Error:", e.message);
+            log.finance.error({ err: e.message }, 'Delete Error');
             return fail(500, { message: "Gagal memproses sinkronisasi data" });
         }
     }

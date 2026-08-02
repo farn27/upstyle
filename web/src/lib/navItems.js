@@ -182,7 +182,18 @@ export function buildNavItems(slug = '') {
 		},
 		{ name: 'Bantuan & Panduan', desc: 'Dokumentasi dan panduan sistem', path: '/help', cat: 'Sistem', iconKey: 'help', subItems: [] },
 		{ name: 'Daftar Unit Bisnis', desc: 'Kelola semua unit bisnis Anda', path: '/finance', cat: 'Sistem', iconKey: 'building', subItems: [] },
-		{ name: 'Daftarkan Unit Baru', desc: 'Registrasi unit bisnis atau cabang baru', path: '/finance/create', cat: 'Sistem', iconKey: 'plus', subItems: [] }
+		{ name: 'Daftarkan Unit Baru', desc: 'Registrasi unit bisnis atau cabang baru', path: '/finance/create', cat: 'Sistem', iconKey: 'plus', subItems: [] },
+		{
+			name: 'Business Planning',
+			desc: 'Rencanakan bisnis baru dari nol dengan AI wizard',
+			path: '/finance/planning',
+			cat: 'Sistem',
+			iconKey: 'planning',
+			subItems: [
+				{ name: 'Daftar Rencana', path: '/finance/planning' },
+				{ name: 'Buat Rencana Baru', path: '/finance/planning/wizard' }
+			]
+		}
 	];
 }
 

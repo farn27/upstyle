@@ -1,7 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts } from '$lib/server/schema';
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
@@ -29,21 +29,39 @@ export const load = async ({ params, url, cookies }) => {
 
     const baseFilter = and(eq(journalEntries.unitId, unit.id), dateFilter);
 
-    // Load Jurnal Umum (Journal Entries with their Lines)
-    const entries = await db.query.journalEntries.findMany({
-        where: baseFilter,
-        orderBy: [desc(journalEntries.tanggal), desc(journalEntries.id)],
-        with: {
-            lines: {
-                with: {
-                    account: true
-                }
-            }
-        },
-        limit: 500
-    });
+    // 2-step query karena TiDB tidak support LATERAL JOIN dari Drizzle `with:`
+    // Step 1: fetch journal entries
+    const entriesRaw = await db.select().from(journalEntries)
+        .where(baseFilter)
+        .orderBy(desc(journalEntries.tanggal), desc(journalEntries.id))
+        .limit(500);
 
-    // Load Chart of Accounts for manual entry form
+    // Step 2: fetch lines for those entries
+    const entryIds = entriesRaw.map(e => e.id);
+    let linesWithAccounts = [];
+    if (entryIds.length > 0) {
+        const linesRaw = await db.select().from(journalEntryLines)
+            .where(inArray(journalEntryLines.journalId, entryIds));
+        // fetch accounts for lines
+        const coaIds = [...new Set(linesRaw.map(l => l.coaId).filter(Boolean))];
+        const accountsMap = {};
+        if (coaIds.length > 0) {
+            const accts = await db.select().from(chartOfAccounts)
+                .where(inArray(chartOfAccounts.id, coaIds));
+            accts.forEach(a => { accountsMap[a.id] = a; });
+        }
+        linesWithAccounts = linesRaw.map(l => ({ ...l, account: accountsMap[l.coaId] || null }));
+    }
+
+    // Merge lines into entries
+    const linesGrouped = {};
+    linesWithAccounts.forEach(l => {
+        if (!linesGrouped[l.journalId]) linesGrouped[l.journalId] = [];
+        linesGrouped[l.journalId].push(l);
+    });
+    const entries = entriesRaw.map(e => ({ ...e, lines: linesGrouped[e.id] || [] }));
+
+
     const accounts = await db.query.chartOfAccounts.findMany({
         where: and(eq(chartOfAccounts.unitId, unit.id), eq(chartOfAccounts.isActive, true)),
         orderBy: [chartOfAccounts.kodeAkun]

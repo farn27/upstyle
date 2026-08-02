@@ -1,6 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { ecommerceOrders, ecommerceOrderItems } from '$lib/server/schema';
+import { log } from '$lib/server/logger';
 
 export const load = async ({ parent }) => {
     // Parent loader di layout sudah mengecek ketersediaan toko
@@ -62,7 +63,7 @@ export const actions = {
             await db.insert(ecommerceOrderItems).values(itemsToInsert);
 
         } catch (err) {
-            console.error('Error placing order:', err);
+            log.api.error({ err }, 'Error placing order');
             return { success: false, message: 'Gagal membuat pesanan' };
         }
 
