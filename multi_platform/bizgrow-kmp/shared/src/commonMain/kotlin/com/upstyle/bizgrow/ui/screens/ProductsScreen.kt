@@ -402,7 +402,7 @@ fun AddProductForm(
         if (kategoriList.isNotEmpty()) {
             ExposedDropdownMenuBox(expanded = expandedKategori, onExpandedChange = { expandedKategori = !expandedKategori }) {
                 OutlinedTextField(
-                    value = kategoriList.firstOrNull { it.id == selectedKategoriId }?.nama ?: "Pilih Kategori (opsional)",
+                    value = kategoriList.firstOrNull { it.id == selectedKategoriId }?.namaKategori ?: "Pilih Kategori (opsional)",
                     onValueChange = {}, readOnly = true,
                     label = { Text("Kategori") },
                     leadingIcon = { Icon(Icons.Default.Category, null) },
@@ -412,7 +412,7 @@ fun AddProductForm(
                 ExposedDropdownMenu(expanded = expandedKategori, onDismissRequest = { expandedKategori = false }) {
                     DropdownMenuItem(text = { Text("Tanpa Kategori") }, onClick = { selectedKategoriId = null; expandedKategori = false })
                     kategoriList.forEach { k ->
-                        DropdownMenuItem(text = { Text(k.nama) }, onClick = { selectedKategoriId = k.id; expandedKategori = false })
+                        DropdownMenuItem(text = { Text(k.namaKategori) }, onClick = { selectedKategoriId = k.id; expandedKategori = false })
                     }
                 }
             }
