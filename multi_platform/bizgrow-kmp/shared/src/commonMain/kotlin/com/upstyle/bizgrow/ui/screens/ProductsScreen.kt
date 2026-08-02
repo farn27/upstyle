@@ -83,6 +83,12 @@ fun ProductsScreen(viewModel: AppViewModel) {
                     IconButton(onClick = { viewModel.navigate(Screen.StockLogs) }) {
                         Icon(Icons.Default.History, contentDescription = "Riwayat Stok")
                     }
+                    IconButton(onClick = { viewModel.navigate(Screen.StockOpname) }) {
+                        Icon(Icons.Default.Checklist, contentDescription = "Stok Opname")
+                    }
+                    IconButton(onClick = { viewModel.navigate(Screen.TrashProducts) }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Sampah")
+                    }
                 }
             )
         },

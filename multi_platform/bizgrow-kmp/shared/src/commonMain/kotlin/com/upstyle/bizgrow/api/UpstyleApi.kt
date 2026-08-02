@@ -415,4 +415,192 @@ class UpstyleApi(private val client: HttpClient) {
 
     suspend fun createReturn(req: CreateReturnRequest): ApiResponse<Unit> =
         client.post("api/app/pos") { setBody(req) }.body()
+
+    // ─── Fixed Assets ─────────────────────────────────────────────────────────
+
+    suspend fun getFixedAssets(unitId: Int): ApiResponse<List<FixedAsset>> =
+        client.get("api/app/finance/fixed-assets") { parameter("unitId", unitId) }.body()
+
+    suspend fun createFixedAsset(asset: FixedAsset): ApiResponse<Unit> =
+        client.post("api/app/finance/fixed-assets") { setBody(asset) }.body()
+
+    suspend fun updateFixedAsset(asset: FixedAsset): ApiResponse<Unit> =
+        client.put("api/app/finance/fixed-assets") { setBody(asset) }.body()
+
+    suspend fun deleteFixedAsset(assetId: Int): ApiResponse<Unit> =
+        client.delete("api/app/finance/fixed-assets") { parameter("assetId", assetId) }.body()
+
+    // ─── Tax Rates ────────────────────────────────────────────────────────────
+
+    suspend fun getTaxRates(unitId: Int): ApiResponse<List<TaxRate>> =
+        client.get("api/app/finance/tax-rates") { parameter("unitId", unitId) }.body()
+
+    suspend fun createTaxRate(rate: TaxRate): ApiResponse<Unit> =
+        client.post("api/app/finance/tax-rates") { setBody(rate) }.body()
+
+    suspend fun updateTaxRate(rate: TaxRate): ApiResponse<Unit> =
+        client.put("api/app/finance/tax-rates") { setBody(rate) }.body()
+
+    suspend fun deleteTaxRate(taxId: Int): ApiResponse<Unit> =
+        client.delete("api/app/finance/tax-rates") { parameter("taxId", taxId) }.body()
+
+    // ─── Budgeting ────────────────────────────────────────────────────────────
+
+    suspend fun getBudgetItems(unitId: Int, tahun: Int): ApiResponse<List<BudgetItem>> =
+        client.get("api/app/finance/budget") {
+            parameter("unitId", unitId)
+            parameter("tahun", tahun)
+        }.body()
+
+    suspend fun saveBudgetItem(item: BudgetItem): ApiResponse<Unit> =
+        client.post("api/app/finance/budget") { setBody(item) }.body()
+
+    suspend fun deleteBudgetItem(budgetId: Int): ApiResponse<Unit> =
+        client.delete("api/app/finance/budget") { parameter("budgetId", budgetId) }.body()
+
+    // ─── Closing Periods ──────────────────────────────────────────────────────
+
+    suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
+        client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()
+
+    suspend fun closePeriod(req: ClosingPeriod): ApiResponse<Unit> =
+        client.post("api/app/finance/close-period") { setBody(req) }.body()
+
+    // ─── POS Cash Transactions & Vouchers ─────────────────────────────────────
+
+    suspend fun getPosReports(unitId: Int, shiftId: Int? = null): ApiResponse<Map<String, Any>> =
+        client.get("api/app/pos/reports") {
+            parameter("unitId", unitId)
+            shiftId?.let { parameter("shiftId", it) }
+        }.body()
+
+    suspend fun getPosCashTransactions(shiftId: Int): ApiResponse<List<PosCashTransaction>> =
+        client.get("api/app/pos/cash") { parameter("shiftId", shiftId) }.body()
+
+    suspend fun createPosCashTransaction(trx: PosCashTransaction): ApiResponse<Unit> =
+        client.post("api/app/pos/cash") { setBody(trx) }.body()
+
+    suspend fun getPosVouchers(unitId: Int): ApiResponse<List<PosVoucher>> =
+        client.get("api/app/pos/vouchers") { parameter("unitId", unitId) }.body()
+
+    suspend fun createPosVoucher(voucher: PosVoucher): ApiResponse<Unit> =
+        client.post("api/app/pos/vouchers") { setBody(voucher) }.body()
+
+    suspend fun updatePosVoucher(voucher: PosVoucher): ApiResponse<Unit> =
+        client.put("api/app/pos/vouchers") { setBody(voucher) }.body()
+
+    suspend fun deletePosVoucher(voucherId: Int): ApiResponse<Unit> =
+        client.delete("api/app/pos/vouchers") { parameter("voucherId", voucherId) }.body()
+
+    // ─── HR Leave & Departments & Employee Detail ────────────────────────────
+
+    suspend fun getLeaveRequests(unitId: Int, employeeId: Int? = null): ApiResponse<List<LeaveRequest>> =
+        client.get("api/app/hr/leave") {
+            parameter("unitId", unitId)
+            employeeId?.let { parameter("employeeId", it) }
+        }.body()
+
+    suspend fun createLeaveRequest(req: LeaveRequest): ApiResponse<Unit> =
+        client.post("api/app/hr/leave") { setBody(req) }.body()
+
+    suspend fun updateLeaveStatus(leaveRequestId: Int, status: String): ApiResponse<Unit> =
+        client.put("api/app/hr/leave") {
+            setBody(mapOf("leaveRequestId" to leaveRequestId, "status" to status))
+        }.body()
+
+    suspend fun getDepartments(unitId: Int): ApiResponse<List<Department>> =
+        client.get("api/app/hr/departments") { parameter("unitId", unitId) }.body()
+
+    suspend fun createDepartment(dept: Department): ApiResponse<Unit> =
+        client.post("api/app/hr/departments") { setBody(dept) }.body()
+
+    suspend fun deleteDepartment(departmentId: Int): ApiResponse<Unit> =
+        client.delete("api/app/hr/departments") { parameter("departmentId", departmentId) }.body()
+
+    suspend fun getEmployeeDetail(employeeId: Int): ApiResponse<EmployeeDetail> =
+        client.get("api/app/hr/$employeeId").body()
+
+    // ─── CRM Tasks, Quotations, Sales Orders, Campaigns ─────────────────────
+
+    suspend fun getCrmTasks(unitId: Int, contactId: Int? = null, dealId: Int? = null): ApiResponse<List<CrmTask>> =
+        client.get("api/app/crm/tasks") {
+            parameter("unitId", unitId)
+            contactId?.let { parameter("contactId", it) }
+            dealId?.let { parameter("dealId", it) }
+        }.body()
+
+    suspend fun createCrmTask(task: CrmTask): ApiResponse<Unit> =
+        client.post("api/app/crm/tasks") { setBody(task) }.body()
+
+    suspend fun updateCrmTask(task: CrmTask): ApiResponse<Unit> =
+        client.put("api/app/crm/tasks") { setBody(task) }.body()
+
+    suspend fun deleteCrmTask(taskId: Int): ApiResponse<Unit> =
+        client.delete("api/app/crm/tasks") { parameter("taskId", taskId) }.body()
+
+    suspend fun getCrmContactDetail(contactId: Int): ApiResponse<CrmContact> =
+        client.get("api/app/crm/contacts/$contactId").body()
+
+    suspend fun getQuotations(unitId: Int): ApiResponse<List<Quotation>> =
+        client.get("api/app/crm/quotations") { parameter("unitId", unitId) }.body()
+
+    suspend fun createQuotation(quo: Quotation): ApiResponse<Unit> =
+        client.post("api/app/crm/quotations") { setBody(quo) }.body()
+
+    suspend fun updateQuotationStatus(quotationId: Int, status: String): ApiResponse<Unit> =
+        client.put("api/app/crm/quotations") {
+            setBody(mapOf("id" to quotationId, "status" to status))
+        }.body()
+
+    suspend fun getSalesOrders(unitId: Int): ApiResponse<List<SalesOrder>> =
+        client.get("api/app/crm/sales-orders") { parameter("unitId", unitId) }.body()
+
+    suspend fun createSalesOrder(so: SalesOrder): ApiResponse<Unit> =
+        client.post("api/app/crm/sales-orders") { setBody(so) }.body()
+
+    suspend fun updateSalesOrderStatus(orderId: Int, status: String): ApiResponse<Unit> =
+        client.put("api/app/crm/sales-orders") {
+            setBody(mapOf("id" to orderId, "status" to status))
+        }.body()
+
+    suspend fun getMarketingCampaigns(unitId: Int): ApiResponse<List<MarketingCampaign>> =
+        client.get("api/app/crm/campaigns") { parameter("unitId", unitId) }.body()
+
+    suspend fun createMarketingCampaign(camp: MarketingCampaign): ApiResponse<Unit> =
+        client.post("api/app/crm/campaigns") { setBody(camp) }.body()
+
+    suspend fun updateMarketingCampaign(camp: MarketingCampaign): ApiResponse<Unit> =
+        client.put("api/app/crm/campaigns") { setBody(camp) }.body()
+
+    // ─── Products Advanced (Stock Opname, Trash, Pricing) ────────────────────
+
+    suspend fun getStockOpnameList(unitId: Int): ApiResponse<List<StockOpnameSession>> =
+        client.get("api/app/products/stock-opname") { parameter("unitId", unitId) }.body()
+
+    suspend fun createStockOpname(session: StockOpnameSession): ApiResponse<Unit> =
+        client.post("api/app/products/stock-opname") { setBody(session) }.body()
+
+    suspend fun completeStockOpname(opnameId: Int): ApiResponse<Unit> =
+        client.put("api/app/products/stock-opname") {
+            setBody(mapOf("opnameId" to opnameId))
+        }.body()
+
+    suspend fun getTrashProducts(unitId: Int): ApiResponse<List<Product>> =
+        client.get("api/app/products/trash") { parameter("unitId", unitId) }.body()
+
+    suspend fun restoreProduct(productId: String): ApiResponse<Unit> =
+        client.put("api/app/products/trash") {
+            setBody(mapOf("productId" to productId))
+        }.body()
+
+    suspend fun permanentDeleteProduct(productId: String): ApiResponse<Unit> =
+        client.delete("api/app/products/trash") { parameter("productId", productId) }.body()
+
+    suspend fun getPricingProducts(unitId: Int): ApiResponse<List<Product>> =
+        client.get("api/app/products/pricing") { parameter("unitId", unitId) }.body()
+
+    suspend fun updatePricing(items: List<Map<String, Any>>): ApiResponse<Unit> =
+        client.put("api/app/products/pricing") {
+            setBody(mapOf("items" to items))
+        }.body()
 }

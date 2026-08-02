@@ -1008,3 +1008,344 @@ data class SplitPayment(
     val method: String,
     val amount: Double
 )
+
+// ─── Accounting & Advanced Finance ──────────────────────────────────────────
+
+@Serializable
+data class Receivable(
+    val id: Int = 0,
+    val unitId: Int,
+    val contactId: Int,
+    val journalId: Int? = null,
+    val nomorInvoice: String,
+    val tanggal: String,
+    val jatuhTempo: String,
+    val nominal: Double,
+    val sudahDibayar: Double = 0.0,
+    val status: String = "BELUM_BAYAR",
+    val keterangan: String? = null,
+    val contact: AccountingContact? = null
+)
+
+@Serializable
+data class Payable(
+    val id: Int = 0,
+    val unitId: Int,
+    val contactId: Int,
+    val journalId: Int? = null,
+    val nomorFaktur: String,
+    val tanggal: String,
+    val jatuhTempo: String,
+    val nominal: Double,
+    val sudahDibayar: Double = 0.0,
+    val status: String = "BELUM_BAYAR",
+    val keterangan: String? = null,
+    val contact: AccountingContact? = null
+)
+
+@Serializable
+data class AccountingContact(
+    val id: Int = 0,
+    val unitId: Int,
+    val namaKontak: String,
+    val tipeKontak: String = "CUSTOMER",
+    val email: String? = null,
+    val telepon: String? = null,
+    val alamat: String? = null,
+    val npwp: String? = null,
+    val limitKredit: Double = 0.0,
+    val termPembayaran: Int = 30,
+    val isActive: Int = 1
+)
+
+@Serializable
+data class JournalEntry(
+    val id: Int = 0,
+    val unitId: Int,
+    val userId: Int = 0,
+    val tanggal: String,
+    val nomorJurnal: String? = null,
+    val referensi: String? = null,
+    val memo: String? = null,
+    val status: String = "POSTED",
+    val totalDebit: Double = 0.0,
+    val totalKredit: Double = 0.0,
+    val journalEntryLines: List<JournalEntryLine> = emptyList()
+)
+
+@Serializable
+data class JournalEntryLine(
+    val id: Int = 0,
+    val journalId: Int = 0,
+    val coaId: Int,
+    val keterangan: String? = null,
+    val debit: Double = 0.0,
+    val kredit: Double = 0.0,
+    val contactId: Int? = null
+)
+
+@Serializable
+data class CreateJournalRequest(
+    val unitId: Int,
+    val tanggal: String,
+    val memo: String = "",
+    val referensi: String = "",
+    val lines: List<JournalEntryLine>
+)
+
+@Serializable
+data class ChartOfAccount(
+    val id: Int = 0,
+    val unitId: Int,
+    val kodeAkun: String,
+    val namaAkun: String,
+    val tipeAkun: String,
+    val normalBalance: String = "DEBIT",
+    val isActive: Int = 1,
+    val parentId: Int? = null,
+    val deskripsi: String? = null
+)
+
+@Serializable
+data class BukuBesarEntry(
+    val tanggal: String,
+    val nomorJurnal: String = "",
+    val keterangan: String = "",
+    val debit: Double = 0.0,
+    val kredit: Double = 0.0,
+    val saldo: Double = 0.0
+)
+
+@Serializable
+data class BukuBesarData(
+    val coa: ChartOfAccount? = null,
+    val entries: List<BukuBesarEntry> = emptyList()
+)
+
+@Serializable
+data class FixedAsset(
+    val id: Int = 0,
+    val unitId: Int,
+    val namaAset: String,
+    val kategori: String = "LAINNYA",
+    val nilaiPerolehan: Double,
+    val tanggalPerolehan: String,
+    val umurEkonomis: Int,
+    val metodePenyusutan: String = "GARIS_LURUS",
+    val nilaiSisa: Double = 0.0,
+    val akumulasiPenyusutan: Double = 0.0,
+    val nilaiBuku: Double = 0.0,
+    val status: String = "AKTIF",
+    val keterangan: String? = null
+)
+
+@Serializable
+data class TaxRate(
+    val id: Int = 0,
+    val unitId: Int,
+    val namaPajak: String,
+    val persentase: Double,
+    val tipe: String = "PPN",
+    val isDefault: Int = 0,
+    val isActive: Int = 1
+)
+
+@Serializable
+data class BudgetItem(
+    val id: Int = 0,
+    val unitId: Int,
+    val coaId: Int,
+    val tahun: Int,
+    val bulan: Int = 0,
+    val nominal: Double,
+    val keterangan: String? = null
+)
+
+@Serializable
+data class ClosingPeriod(
+    val id: Int = 0,
+    val unitId: Int,
+    val periodStart: String,
+    val periodEnd: String,
+    val status: String = "CLOSED",
+    val labaRugiPeriode: Double = 0.0,
+    val keterangan: String? = null
+)
+
+// ─── POS Advanced ─────────────────────────────────────────────────────────────
+
+@Serializable
+data class PosCashTransaction(
+    val id: Int = 0,
+    val shiftId: Int,
+    val unitId: Int,
+    val type: String,
+    val amount: Double,
+    val description: String = "",
+    val createdAt: String = ""
+)
+
+@Serializable
+data class PosVoucher(
+    val id: Int = 0,
+    val unitId: Int,
+    val code: String,
+    val discountType: String = "PERCENTAGE",
+    val discountValue: Double,
+    val maxUsage: Int = 0,
+    val currentUsage: Int = 0,
+    val minPurchase: Double = 0.0,
+    val validFrom: String = "",
+    val validUntil: String = "",
+    val isActive: Boolean = true
+)
+
+// ─── HR Advanced ──────────────────────────────────────────────────────────────
+
+@Serializable
+data class LeaveRequest(
+    val id: Int = 0,
+    val employeeId: Int,
+    val leaveType: String = "ANNUAL",
+    val startDate: String,
+    val endDate: String,
+    val reason: String = "",
+    val status: String = "PENDING",
+    val approvedBy: Int? = null
+)
+
+@Serializable
+data class Department(
+    val id: Int = 0,
+    val unitId: Int,
+    val name: String
+)
+
+@Serializable
+data class EmployeeDocument(
+    val id: Int = 0,
+    val employeeId: Int,
+    val documentType: String,
+    val filePath: String,
+    val fileName: String? = null,
+    val uploadedAt: String = ""
+)
+
+@Serializable
+data class EmployeeKpiRecord(
+    val id: Int = 0,
+    val employeeId: Int,
+    val periodMonth: Int,
+    val periodYear: Int,
+    val targetScore: Double = 0.0,
+    val actualScore: Double = 0.0,
+    val rating: String? = null,
+    val notes: String? = null
+)
+
+@Serializable
+data class EmployeeDetail(
+    val employee: Employee? = null,
+    val documents: List<EmployeeDocument> = emptyList(),
+    val kpis: List<EmployeeKpiRecord> = emptyList(),
+    val history: List<Map<String, String>> = emptyList(),
+    val attendance: List<Attendance> = emptyList(),
+    val payrolls: List<Payroll> = emptyList()
+)
+
+// ─── CRM Advanced ─────────────────────────────────────────────────────────────
+
+@Serializable
+data class CrmTask(
+    val id: Int = 0,
+    val ownerId: Int = 0,
+    val unitId: Int,
+    val kontakId: Int? = null,
+    val dealId: Int? = null,
+    val deskripsi: String,
+    val deadline: String? = null,
+    val status: String = "pending"
+)
+
+@Serializable
+data class Quotation(
+    val id: Int = 0,
+    val quotationNumber: String = "",
+    val unitId: Int,
+    val customerId: Int? = null,
+    val totalAmount: Double = 0.0,
+    val status: String = "DRAFT",
+    val validUntil: String = "",
+    val notes: String? = null,
+    val items: List<QuotationItem> = emptyList()
+)
+
+@Serializable
+data class QuotationItem(
+    val id: Int = 0,
+    val quotationId: Int = 0,
+    val productId: String? = null,
+    val qty: Int = 1,
+    val price: Double = 0.0,
+    val total: Double = 0.0
+)
+
+@Serializable
+data class SalesOrder(
+    val id: Int = 0,
+    val orderNumber: String = "",
+    val unitId: Int,
+    val customerId: Int? = null,
+    val totalAmount: Double = 0.0,
+    val status: String = "PENDING",
+    val notes: String? = null,
+    val items: List<SalesOrderItem> = emptyList()
+)
+
+@Serializable
+data class SalesOrderItem(
+    val id: Int = 0,
+    val salesOrderId: Int = 0,
+    val productId: String? = null,
+    val qty: Int = 1,
+    val price: Double = 0.0,
+    val total: Double = 0.0
+)
+
+@Serializable
+data class MarketingCampaign(
+    val id: Int = 0,
+    val unitId: Int,
+    val name: String,
+    val type: String = "EMAIL",
+    val status: String = "DRAFT",
+    val budget: Double = 0.0,
+    val composeSubject: String? = null,
+    val composeText: String? = null,
+    val scheduledAt: String? = null
+)
+
+// ─── Products Advanced ────────────────────────────────────────────────────────
+
+@Serializable
+data class StockOpnameSession(
+    val id: Int = 0,
+    val unitId: Int,
+    val warehouseId: Int,
+    val createdBy: Int = 0,
+    val status: String = "DRAFT",
+    val notes: String? = null,
+    val items: List<StockOpnameItem> = emptyList()
+)
+
+@Serializable
+data class StockOpnameItem(
+    val id: Int = 0,
+    val opnameId: Int = 0,
+    val productId: String,
+    val systemStock: Int,
+    val actualStock: Int,
+    val difference: Int = 0,
+    val notes: String? = null
+)
+

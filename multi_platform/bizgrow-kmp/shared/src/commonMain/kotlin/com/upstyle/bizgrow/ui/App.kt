@@ -91,6 +91,12 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.Notifications -> NotificationScreen(viewModel)
                     is Screen.Settings      -> SettingsScreen(viewModel)
                     is Screen.Profile       -> ProfileScreen(viewModel)
+
+                    // ─── Advanced Features
+                    is Screen.Coa           -> CoaScreen(viewModel)
+                    is Screen.FixedAssets   -> FixedAssetsScreen(viewModel)
+                    is Screen.StockOpname   -> StockOpnameScreen(viewModel)
+                    is Screen.TrashProducts -> TrashProductsScreen(viewModel)
                 }
             }
 

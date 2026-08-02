@@ -8,7 +8,7 @@
 import { redis } from '$lib/server/redis';
 import { env } from '$env/dynamic/private';
 
-const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'http://localhost:3001';
+const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'http://localhost:13338';
 
 /**
  * Trigger Socket.io event via HTTP API

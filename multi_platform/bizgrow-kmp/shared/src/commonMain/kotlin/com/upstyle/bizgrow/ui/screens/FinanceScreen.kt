@@ -105,6 +105,8 @@ fun FinanceScreen(viewModel: AppViewModel) {
                     item { ModuleChip("Hutang", Icons.Default.MoneyOff) { viewModel.navigate(Screen.Hutang) } }
                     item { ModuleChip("Jurnal Umum", Icons.Default.Book) { viewModel.navigate(Screen.JurnalUmum) } }
                     item { ModuleChip("Buku Besar", Icons.Default.MenuBook) { viewModel.navigate(Screen.BukuBesar) } }
+                    item { ModuleChip("COA", Icons.Default.ListAlt) { viewModel.navigate(Screen.Coa) } }
+                    item { ModuleChip("Aset Tetap", Icons.Default.Business) { viewModel.navigate(Screen.FixedAssets) } }
                     item { ModuleChip("Laporan", Icons.Default.Assessment) { viewModel.navigate(Screen.Laporan) } }
                 }
             }

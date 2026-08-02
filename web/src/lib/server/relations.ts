@@ -419,6 +419,7 @@ export const journalEntriesRelations = relations(journalEntries, ({ one, many })
 		references: [users.id],
 	}),
 	lines: many(journalEntryLines),
+	journalEntryLines: many(journalEntryLines),
 	receivables: many(receivables),
 	payables: many(payables),
 }));
