@@ -2,6 +2,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis, users } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { log } from '$lib/server/logger';
 
 export async function load({ cookies }) {
     const userId = await getCurrentUserId(cookies);
@@ -29,7 +30,7 @@ export async function load({ cookies }) {
         };
 
     } catch (err) {
-        log.api.error({ err: "LOAD ERROR:", err);
+        log.api.error({ err }, 'LOAD ECOMMERCE ERROR');
         return { units: [], user: { username: 'Error Database' } };
     }
 }
