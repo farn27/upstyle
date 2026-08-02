@@ -330,6 +330,9 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
         }.body()
 
+    suspend fun createTicket(req: CreateTicketRequest): ApiResponse<Unit> =
+        client.post("api/app/cs") { setBody(req) }.body()
+
     suspend fun getTicketMessages(ticketId: Int): ApiResponse<List<TicketMessage>> =
         client.get("api/app/cs/$ticketId/messages").body()
 

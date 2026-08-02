@@ -20,6 +20,9 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
         val screen by viewModel.screen.collectAsStateWithLifecycle()
         val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+        // Auth screens need blocking overlay (login/register actions)
+        val isAuthScreen = screen is Screen.Login || screen is Screen.Register
+
         Box(Modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = screen,
@@ -91,15 +94,44 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                 }
             }
 
+            // Subtle top linear progress indicator for background operations
+            // Does NOT block the UI — just shows activity
+            if (uiState.isLoading && !isAuthScreen) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                )
+            }
+
+            // Full blocking overlay ONLY for auth screens (login/register button presses)
+            if (uiState.isLoading && isAuthScreen) {
+                Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxSize()
+                    ) {}
+                    CircularProgressIndicator()
+                }
+            }
+
             // Global error snackbar
             uiState.error?.let { error ->
                 LaunchedEffect(error) {
-                    kotlinx.coroutines.delay(3000)
+                    kotlinx.coroutines.delay(3500)
                     viewModel.clearMessages()
                 }
-                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomCenter) {
+                Box(
+                    Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
                     Snackbar(
-                        action = { TextButton(onClick = { viewModel.clearMessages() }) { Text("Tutup") } }
+                        action = {
+                            TextButton(onClick = { viewModel.clearMessages() }) { Text("Tutup") }
+                        }
                     ) { Text(error) }
                 }
             }
@@ -110,25 +142,14 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     kotlinx.coroutines.delay(2500)
                     viewModel.clearMessages()
                 }
-                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomCenter) {
+                Box(
+                    Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
                     Snackbar(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) { Text(msg) }
-                }
-            }
-
-            // Global loading overlay
-            if (uiState.isLoading) {
-                Box(
-                    Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                        modifier = Modifier.fillMaxSize()
-                    ) {}
-                    CircularProgressIndicator()
                 }
             }
         }

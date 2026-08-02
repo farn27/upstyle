@@ -24,12 +24,12 @@ export async function GET({ cookies, request }) {
         const total = Number(totalResult.count) || 0;
 
         // Get paginated data
-        const unitsQuery = db.query.unitBisnis.findMany({
+        const units = await db.query.unitBisnis.findMany({
             where: eq(unitBisnis.userId, userId),
-            orderBy: [desc(unitBisnis.id)]
+            orderBy: [desc(unitBisnis.id)],
+            limit: pagination.limit,
+            offset: pagination.offset
         });
-
-        const units = await applyPagination(unitsQuery, pagination);
 
         const data = units.map(u => ({
             id: u.id,

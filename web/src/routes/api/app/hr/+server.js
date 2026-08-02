@@ -45,12 +45,12 @@ export async function GET({ url, cookies, request }) {
         const total = Number(totalResult.count) || 0;
 
         // Get paginated employees
-        const employeesQuery = db.query.employees.findMany({
+        const employeeList = await db.query.employees.findMany({
             where: eq(employees.companyId, Number(unitId)),
-            orderBy: [desc(employees.id)]
+            orderBy: [desc(employees.id)],
+            limit: pagination.limit,
+            offset: pagination.offset
         });
-
-        const employeeList = await applyPagination(employeesQuery, pagination);
 
         // Get employee IDs for filtering attendance and payrolls
         const employeeIds = employeeList.map(e => e.id);

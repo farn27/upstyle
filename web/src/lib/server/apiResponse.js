@@ -73,9 +73,25 @@ export function apiUnauthorized(message = 'Anda tidak memiliki akses. Silakan lo
  * @param {import('zod').ZodError} zodError
  */
 export function apiValidationError(zodError) {
-	const details = zodError.errors.map((e) => ({
-		field: e.path.join('.'),
-		message: e.message
+	let errorsList = [];
+	if (zodError && Array.isArray(zodError.errors)) {
+		errorsList = zodError.errors;
+	} else if (zodError && Array.isArray(zodError.issues)) {
+		errorsList = zodError.issues;
+	} else if (zodError && typeof zodError.message === 'string') {
+		try {
+			errorsList = JSON.parse(zodError.message);
+			if (!Array.isArray(errorsList)) errorsList = [{ message: zodError.message }];
+		} catch (e) {
+			errorsList = [{ message: zodError.message }];
+		}
+	} else {
+		errorsList = [{ message: 'Unknown validation error' }];
+	}
+
+	const details = errorsList.map((e) => ({
+		field: Array.isArray(e.path) ? e.path.join('.') : '',
+		message: e.message || String(e)
 	}));
 	return json(
 		{

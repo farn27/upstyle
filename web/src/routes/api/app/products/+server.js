@@ -7,7 +7,7 @@ import { parsePagination, applyPagination, paginatedResponse } from '$lib/server
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { pusherServer } from '$lib/server/pusher';
+import { triggerEvent } from '$lib/server/pusher';
 import { nowWIB } from '$lib/server/dateUtils';
 
 // 1. GET: Ambil semua produk & variasi untuk unitId (with pagination)
@@ -26,19 +26,18 @@ export async function GET({ url, cookies, request }) {
             and(eq(products.unitId, Number(unitId)), isNull(products.deletedAt))
         );
         const total = Number(totalResult.count) || 0;
-        const total = totalResult.count;
 
         // Get paginated products
-        const productsQuery = db.query.products.findMany({
+        const productRows = await db.query.products.findMany({
             where: and(eq(products.unitId, Number(unitId)), isNull(products.deletedAt)),
             with: {
                 productVariants: true,
                 kategoriProduk: true
             },
-            orderBy: [products.id]
+            orderBy: [products.id],
+            limit: pagination.limit,
+            offset: pagination.offset
         });
-
-        const productRows = await applyPagination(productsQuery, pagination);
 
         // Map to structure expected by mobile app
         const data = productRows.map(p => ({
@@ -158,7 +157,7 @@ export async function POST({ request, cookies }) {
             }
         });
 
-        pusherServer.trigger(`private-unit-${unitId}`, 'product-added', { message: 'Produk ditambahkan dari HP' });
+        triggerEvent(`private-unit-${unitId}`, 'product-added', { message: 'Produk ditambahkan dari HP' });
         return json({ success: true, message: "Produk berhasil disimpan", id: newId });
     } catch (err) {
         log.api.error({ err }, 'API POST PRODUCT ERROR');
@@ -246,9 +245,9 @@ export async function PUT({ request, cookies }) {
             }
         });
 
-        pusherServer.trigger(`private-unit-${unitId}`, 'product-added', { message: 'Produk diperbarui dari HP' });
+        triggerEvent(`private-unit-${unitId}`, 'product-added', { message: 'Produk diperbarui dari HP' });
         if (selisih !== 0) {
-            pusherServer.trigger(`private-unit-${unitId}`, 'stock-updated', { message: 'Stok diperbarui dari HP' });
+            triggerEvent(`private-unit-${unitId}`, 'stock-updated', { message: 'Stok diperbarui dari HP' });
         }
         return json({ success: true, message: "Produk berhasil diperbarui" });
     } catch (err) {
@@ -278,7 +277,7 @@ export async function DELETE({ url, cookies, request }) {
             .set({ deletedAt: nowWIB().toISOString(), status: 'archived' })
             .where(eq(products.id, productId));
 
-        pusherServer.trigger(`private-unit-${unitId}`, 'product-added', { message: 'Produk dihapus dari HP' });
+        triggerEvent(`private-unit-${unitId}`, 'product-added', { message: 'Produk dihapus dari HP' });
         return json({ success: true, message: "Produk berhasil dipindahkan ke Sampah" });
     } catch (err) {
         log.api.error({ err }, 'API DELETE PRODUCT ERROR');

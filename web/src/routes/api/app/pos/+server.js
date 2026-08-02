@@ -6,7 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { pusherServer } from '$lib/server/pusher';
+import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
 import { nowWIB } from '$lib/server/dateUtils';
 
@@ -300,9 +300,9 @@ export async function POST({ request, cookies }) {
                 const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
                 if (productKeys.length > 0) await redis.del(...productKeys);
 
-                pusherServer.trigger(`finance-${slug}`, 'stats-updated', { message: `POS order ${orderNumber}` });
-                pusherServer.trigger('finance-channel', 'new-transaction', { message: `POS order ${orderNumber}` });
-                pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+                triggerEvent(`finance-${slug}`, 'stats-updated', { message: `POS order ${orderNumber}` });
+                triggerEvent('finance-channel', 'new-transaction', { message: `POS order ${orderNumber}` });
+                triggerEvent('channel-bizgrow', 'notif-baru', {
                     id: Date.now(),
                     unitId: Number(unitId),
                     pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(total)}`,

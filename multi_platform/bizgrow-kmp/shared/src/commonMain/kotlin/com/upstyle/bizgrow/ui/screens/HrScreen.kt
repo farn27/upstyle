@@ -27,6 +27,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
+import com.upstyle.bizgrow.ui.todayDate
+import com.upstyle.bizgrow.ui.currentTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,12 +85,10 @@ fun HrScreen(viewModel: AppViewModel) {
                     onToggle = { expandedEmployeeId = if (expandedEmployeeId == it) null else it },
                     onDelete = { viewModel.deleteEmployee(it) },
                     onCheckIn = { id ->
-                        val now = java.time.LocalDateTime.now()
-                        viewModel.checkIn(id, now.toLocalDate().toString(), now.toLocalTime().toString().take(5))
+                        viewModel.checkIn(id, todayDate(), currentTime())
                     },
                     onCheckOut = { id ->
-                        val now = java.time.LocalDateTime.now()
-                        viewModel.checkOut(id, now.toLocalDate().toString(), now.toLocalTime().toString().take(5))
+                        viewModel.checkOut(id, todayDate(), currentTime())
                     }
                 )
                 1 -> AttendanceTab(hrData?.attendance ?: emptyList())

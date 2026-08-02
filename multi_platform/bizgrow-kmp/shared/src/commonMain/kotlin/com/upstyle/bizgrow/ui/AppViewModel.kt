@@ -98,6 +98,9 @@ class AppViewModel(
 
     private val _screenStack = MutableStateFlow<List<Screen>>(listOf(Screen.Login))
 
+    /** Expose for back press handling in Activity */
+    val screenStack: List<Screen> get() = _screenStack.value
+
     fun navigate(s: Screen) {
         _screenStack.value = _screenStack.value + s
         _screen.value = s
@@ -132,6 +135,9 @@ class AppViewModel(
 
     val currentUser: UserInfo? get() = if (session.isLoggedIn()) UserInfo(session.getUserId(), session.getUsername(), session.getEmail(), session.getRole()) else null
 
+    /** Expose session for Settings screen */
+    fun getSession() = session
+
     fun login(email: String, password: String, callback: ((Boolean, String?) -> Unit)? = null) = viewModelScope.launch {
         setLoading(true)
         try {
@@ -141,6 +147,7 @@ class AppViewModel(
                 _isLoggedIn.value = true
                 setupSocket()
                 loadUnits()
+                setLoading(false)
                 callback?.invoke(true, null)
                 navigateToRoot(Screen.Home)
             } else {
@@ -191,6 +198,7 @@ class AppViewModel(
                 _isLoggedIn.value = true
                 setupSocket()
                 loadUnits()
+                setLoading(false)
                 callback?.invoke(true, null)
                 navigateToRoot(Screen.Home)
             } else {
@@ -1039,12 +1047,23 @@ class AppViewModel(
         }
     }
 
-    fun addProduct(nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, callback: (Boolean) -> Unit) = viewModelScope.launch {
+    fun addProduct(
+        nama: String, hargaBeli: Double, hargaJual: Double, stok: Int,
+        minStok: Int = 5, sku: String = "", barcode: String? = null, kategoriId: Int? = null,
+        fotoUri: String? = null,
+        callback: (Boolean) -> Unit
+    ) = viewModelScope.launch {
         setLoading(true)
+        val unitId = _activeUnitId.value
         try {
-            val req = com.upstyle.bizgrow.data.Product(id = "", nama = nama, hargaBeli = hargaBeli, hargaJual = hargaJual, stok = stok, sku = "", barcode = null, foto = null, kategoriId = null, unitId = _activeUnitId.value)
+            val req = com.upstyle.bizgrow.data.Product(
+                id = "", nama = nama, hargaBeli = hargaBeli, hargaJual = hargaJual,
+                stok = stok, minStok = minStok, sku = sku, barcode = barcode,
+                foto = fotoUri, kategoriId = kategoriId, unitId = unitId
+            )
             val res = api.createProduct(req)
             if (res.success) {
+                loadProducts()
                 setSuccess("Produk berhasil ditambahkan")
                 callback(true)
             } else {
@@ -1055,5 +1074,44 @@ class AppViewModel(
             setError("Gagal menambah produk: ${e.message}")
             callback(false)
         }
+    }
+
+    fun updateProduct(product: com.upstyle.bizgrow.data.Product) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updateProduct(product)
+            if (res.success) { loadProducts(); setSuccess("Produk berhasil diperbarui") }
+            else setError(res.message ?: "Gagal update produk")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun loadKategoriProduk() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getKategoriProduk(unitId)
+            if (res.success) _kategoriProduk.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadKategoriProduk error", e) }
+    }
+
+    fun createTicket(subject: String, customerName: String, priority: String, message: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createTicket(CreateTicketRequest(
+                subject = subject, customerName = customerName,
+                priority = priority, message = message, unitId = unitId
+            ))
+            if (res.success) { loadTickets(); setSuccess("Tiket berhasil dibuat!") }
+            else setError(res.message ?: "Gagal buat tiket")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updateTicketStatus(ticketId: Int, status: String) = viewModelScope.launch {
+        try {
+            api.updateTicketStatus(ticketId, status)
+            loadTickets()
+            setSuccess("Status tiket diperbarui")
+        } catch (e: Exception) { Napier.e("updateTicketStatus error", e) }
     }
 }

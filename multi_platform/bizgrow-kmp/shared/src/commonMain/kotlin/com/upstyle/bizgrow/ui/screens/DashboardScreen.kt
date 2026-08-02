@@ -38,6 +38,7 @@ import com.upstyle.bizgrow.data.BiMetrics
 import com.upstyle.bizgrow.data.FinanceData
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,341 +47,256 @@ fun DashboardScreen(viewModel: AppViewModel) {
     val financeData by viewModel.financeData.collectAsStateWithLifecycle()
     val lowStockProducts by viewModel.lowStockProducts.collectAsStateWithLifecycle()
     val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        viewModel.refreshAll()
-    }
+    LaunchedEffect(Unit) { viewModel.refreshAll() }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = activeUnit?.name ?: "Bizgrow App",
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = activeUnit?.type ?: "Dashboard",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = activeUnit?.name?.take(1)?.uppercase() ?: "B",
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 16.sp
+                            )
+                        }
+                        Column {
+                            Text(activeUnit?.name ?: "Dashboard", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 15.sp)
+                            Text(activeUnit?.type ?: "Bizgrow", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 },
                 actions = {
-                    Box(modifier = Modifier.padding(end = 8.dp)) {
+                    Box {
                         IconButton(onClick = { viewModel.navigate(Screen.Notifications) }) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifikasi")
+                            Icon(Icons.Default.Notifications, null)
                         }
                         if (unreadCount > 0) {
-                            Badge(
-                                modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp)
-                            ) {
-                                Text(unreadCount.toString())
+                            Badge(modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp)) {
+                                Text(if (unreadCount > 9) "9+" else unreadCount.toString())
                             }
                         }
                     }
-                    IconButton(onClick = { /* Settings */ }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
+                    IconButton(onClick = { viewModel.navigate(Screen.Settings) }) {
+                        Icon(Icons.Default.Settings, null)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        bottomBar = {
-            BottomNavBar(viewModel, Screen.Dashboard)
-        }
+        bottomBar = { BottomNavBar(viewModel, Screen.Dashboard) },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                item { Spacer(modifier = Modifier.height(4.dp)) }
-
-                item {
-                    DateFilterRow(viewModel)
-                }
-
-                item {
-                    financeData?.let { data ->
-                        QuickViewCards(data)
-                    }
-                }
-
-                item {
-                    financeData?.biMetrics?.let { metrics ->
-                        BiMetricsSection(metrics)
-                    }
-                }
-
-                item {
-                    FinanceChart(financeData)
-                }
-
-                item {
-                    financeData?.summary?.let { summary ->
-                        FinanceSummaryCards(summary)
-                    }
-                }
-
-                item {
-                    AlertsSection(
-                        financeData = financeData,
-                        lowStockProducts = lowStockProducts,
-                        viewModel = viewModel
-                    )
-                }
-
-                item {
-                    Text("Quick Actions", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    QuickActionsGrid(viewModel)
-                }
-
-                item {
-                    Text("Recent Transactions", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                }
-
-                financeData?.transactions?.take(5)?.let { transactions ->
-                    items(transactions) { trx ->
-                        TransactionItem(trx)
-                    }
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BiMetricsSection(metrics: BiMetrics) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Business Insights", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text(
-                    text = metrics.outlook,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+            // Hero Finance Card
+            item { DashboardHeroCard(financeData, viewModel) }
+            // Cash flow chart
+            item { FinanceChart(financeData) }
+            // Alerts
+            item {
+                AlertsSection(
+                    financeData = financeData,
+                    lowStockProducts = lowStockProducts,
+                    viewModel = viewModel
                 )
             }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GradientBiCard(
-                title = "Laba Bersih",
-                value = formatCurrency(metrics.netProfit),
-                gradient = Brush.linearGradient(listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364))),
-                icon = Icons.Default.TrendingUp,
-                modifier = Modifier.weight(1f)
-            )
-            GradientBiCard(
-                title = "Margin %",
-                value = "${metrics.margin}%",
-                gradient = Brush.linearGradient(listOf(Color(0xFF11998E), Color(0xFF38EF7D))),
-                icon = Icons.Default.PieChart,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GradientBiCard(
-                title = "Cash Runway",
-                value = "${metrics.cashRunway} bln",
-                gradient = Brush.linearGradient(listOf(Color(0xFFEE0979), Color(0xFFFF6A00))),
-                icon = Icons.Default.Timeline,
-                modifier = Modifier.weight(1f)
-            )
-            GradientBiCard(
-                title = "Health Score",
-                value = metrics.integrityScore.toString(),
-                gradient = Brush.linearGradient(listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))),
-                icon = Icons.Default.Favorite,
-                modifier = Modifier.weight(1f)
-            )
+            // BI Metrics
+            financeData?.biMetrics?.let { metrics ->
+                item { BiMetricsSection(metrics) }
+            }
+            // Quick Actions
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Menu Utama", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                Spacer(Modifier.height(10.dp))
+                QuickActionsGrid(viewModel)
+            }
+            // Recent transactions
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Transaksi Terbaru", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    TextButton(onClick = { viewModel.navigate(Screen.Finance) }) { Text("Lihat Semua", fontSize = 12.sp) }
+                }
+            }
+            financeData?.transactions?.take(5)?.let { transactions ->
+                if (transactions.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                            Text("Belum ada transaksi", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else {
+                    items(transactions) { trx -> TransactionItem(trx) }
+                }
+            }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
 
+// ─── Hero Card ────────────────────────────────────────────────────────────────
 @Composable
-fun GradientBiCard(title: String, value: String, gradient: Brush, icon: ImageVector, modifier: Modifier = Modifier) {
+fun DashboardHeroCard(financeData: FinanceData?, viewModel: AppViewModel) {
+    val trxs = financeData?.transactions ?: emptyList()
+    val totalIncome = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }.sumOf { it.nominal }
+    val totalExpense = trxs.filter { it.kategoriTrx.equals("PENGELUARAN", ignoreCase = true) }.sumOf { it.nominal }
+    val balance = totalIncome - totalExpense
+    val isPositive = balance >= 0
+
     Card(
-        modifier = modifier.height(115.dp),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(gradient)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.05f))
-            )
-            Column(
-                modifier = Modifier.padding(16.dp).fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(title, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Medium)
-                    Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        if (isPositive) listOf(Color(0xFF5B50F0), Color(0xFF8B5CF6))
+                        else listOf(Color(0xFFDC2626), Color(0xFFEF4444))
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                    Column {
+                        Text("Saldo Bersih", fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
+                        Text(
+                            formatCurrency(balance),
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
+                    Surface(color = Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(10.dp)) {
+                        Icon(
+                            if (isPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                            null,
+                            Modifier.padding(8.dp).size(20.dp),
+                            tint = Color.White
+                        )
+                    }
                 }
-                Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    MiniStatChip("Masuk", formatCurrency(totalIncome), Color.White, isGood = true)
+                    MiniStatChip("Keluar", formatCurrency(totalExpense), Color.White, isGood = false)
+                    MiniStatChip("Transaksi", "${trxs.size}x", Color.White)
+                }
             }
         }
     }
 }
 
+@Composable
+fun MiniStatChip(label: String, value: String, textColor: Color, isGood: Boolean? = null) {
+    Column {
+        Text(label, fontSize = 11.sp, color = textColor.copy(alpha = 0.7f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            isGood?.let {
+                Icon(
+                    if (it) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                    null, Modifier.size(16.dp),
+                    tint = if (it) Color(0xFF86EFAC) else Color(0xFFFCA5A5)
+                )
+            }
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1)
+        }
+    }
+}
+
+// ─── Cash Flow Chart ──────────────────────────────────────────────────────────
 @Composable
 fun FinanceChart(financeData: FinanceData?) {
-    // Generate data from real transactions if available
     val dataPoints = remember(financeData) {
         val trxs = financeData?.transactions ?: emptyList()
-        if (trxs.isEmpty()) return@remember listOf(0f, 0f) // default flat line
-
-        // Filter pemasukan dan urutkan berdasarkan tanggal
-        val incomes = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }
+        val grouped = trxs
+            .filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }
             .sortedBy { it.tanggal }
-
-        if (incomes.isEmpty()) return@remember listOf(0f, 0f)
-
-        // Group by tanggal
-        val grouped = incomes.groupBy { it.tanggal.take(10) } // YYYY-MM-DD
-        val sortedKeys = grouped.keys.sorted()
-        
-        // Return max 10 points
-        val points = sortedKeys.takeLast(10).map { date ->
-            grouped[date]?.sumOf { it.nominal }?.toFloat() ?: 0f
+            .groupBy { it.tanggal.take(10) }
+            .entries.sortedBy { it.key }
+            .takeLast(7)
+            .map { (_, v) -> v.sumOf { it.nominal }.toFloat() }
+        when {
+            grouped.isEmpty() -> listOf(0f, 0f, 0f, 0f, 0f, 0f, 0f)
+            grouped.size == 1 -> listOf(0f, grouped.first())
+            else -> grouped
         }
-        
-        if (points.size == 1) listOf(0f, points.first()) else points
     }
-    
-    val animationProgress = remember { Animatable(0f) }
-    
-    LaunchedEffect(Unit) {
-        animationProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 1500, easing = FastOutSlowInEasing)
-        )
+
+    val animProg = remember { Animatable(0f) }
+    LaunchedEffect(dataPoints) {
+        animProg.snapTo(0f)
+        animProg.animateTo(1f, tween(1000, easing = FastOutSlowInEasing))
     }
+
+    val maxVal = dataPoints.maxOrNull()?.takeIf { it > 0 } ?: 1f
+    val totalStr = formatCurrency(dataPoints.sum().toDouble())
 
     Card(
-        modifier = Modifier.fillMaxWidth().height(240.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp).fillMaxSize()) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Cash Flow Overview", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column {
+                    Text("Cash Flow", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("7 hari terakhir", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(totalStr, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
             }
-            Spacer(modifier = Modifier.height(24.dp))
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val width = size.width
-                val height = size.height
-                val maxVal = dataPoints.maxOrNull() ?: 100f
-                val minVal = dataPoints.minOrNull() ?: 0f
-                
-                val yRange = maxVal - minVal
-                val spacing = width / (dataPoints.size - 1)
-                
-                val path = Path()
-                
-                val points = dataPoints.mapIndexed { index, value ->
-                    val x = index * spacing
-                    val y = height - ((value - minVal) / yRange * height * 0.8f) - (height * 0.1f)
-                    Offset(x, y)
+            Spacer(Modifier.height(16.dp))
+            Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
+                val w = size.width; val h = size.height
+                val count = dataPoints.size
+                if (count < 2) {
+                    // Draw flat line if no data
+                    drawLine(Color(0xFF6366F1).copy(alpha = 0.3f), Offset(0f, h * 0.5f), Offset(w, h * 0.5f), strokeWidth = 2.dp.toPx())
+                    return@Canvas
                 }
-
-                for (i in 0 until points.size) {
-                    if (i == 0) {
-                        path.moveTo(points[i].x, points[i].y)
-                    } else {
-                        val prev = points[i - 1]
-                        val curr = points[i]
-                        val controlPointX = (prev.x + curr.x) / 2
-                        
-                        path.cubicTo(
-                            controlPointX, prev.y,
-                            controlPointX, curr.y,
-                            curr.x, curr.y
-                        )
-                    }
+                val spacing = w / (count - 1)
+                val pts = dataPoints.mapIndexed { i, v ->
+                    Offset(i * spacing, h - (v / maxVal) * h * 0.85f - h * 0.075f)
                 }
-                
                 val fillPath = Path().apply {
-                    addPath(path)
-                    lineTo(width, height)
-                    lineTo(0f, height)
-                    close()
+                    moveTo(pts[0].x, pts[0].y)
+                    for (i in 1 until pts.size) {
+                        val cp = (pts[i-1].x + pts[i].x) / 2f
+                        cubicTo(cp, pts[i-1].y, cp, pts[i].y, pts[i].x, pts[i].y)
+                    }
+                    lineTo(pts.last().x, h); lineTo(pts.first().x, h); close()
                 }
-                
-                clipRect(right = width * animationProgress.value) {
-                    drawPath(
-                        path = fillPath,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF4FACFE).copy(alpha = 0.4f),
-                                Color.Transparent
-                            ),
-                            startY = 0f,
-                            endY = height
-                        )
-                    )
-                    
-                    drawPath(
-                        path = path,
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF4FACFE), Color(0xFF00F2FE))
-                        ),
-                        style = Stroke(
-                            width = 4.dp.toPx(),
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round
-                        )
-                    )
-                    
-                    points.forEach { point ->
-                        drawCircle(
-                            color = Color.White,
-                            radius = 5.dp.toPx(),
-                            center = point
-                        )
-                        drawCircle(
-                            color = Color(0xFF00F2FE),
-                            radius = 3.dp.toPx(),
-                            center = point
-                        )
+                val linePath = Path().apply {
+                    moveTo(pts[0].x, pts[0].y)
+                    for (i in 1 until pts.size) {
+                        val cp = (pts[i-1].x + pts[i].x) / 2f
+                        cubicTo(cp, pts[i-1].y, cp, pts[i].y, pts[i].x, pts[i].y)
+                    }
+                }
+                clipRect(right = w * animProg.value) {
+                    drawPath(fillPath, Brush.verticalGradient(listOf(Color(0xFF5B50F0).copy(alpha = 0.25f), Color.Transparent), 0f, h))
+                    drawPath(linePath, Brush.linearGradient(listOf(Color(0xFF5B50F0), Color(0xFF8B5CF6))),
+                        style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    pts.forEach {
+                        drawCircle(Color.White, 4.dp.toPx(), it)
+                        drawCircle(Color(0xFF5B50F0), 2.5.dp.toPx(), it)
                     }
                 }
             }
@@ -388,304 +304,262 @@ fun FinanceChart(financeData: FinanceData?) {
     }
 }
 
+// ─── BI Metrics ───────────────────────────────────────────────────────────────
 @Composable
-fun FinanceSummaryCards(summary: com.upstyle.bizgrow.data.FinanceSummary) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(
-            modifier = Modifier.weight(1f),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFC8E6C9)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Income", fontSize = 14.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.SemiBold)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(formatCurrency(summary.totalMasuk), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF2E7D32), maxLines = 1)
+fun BiMetricsSection(metrics: BiMetrics) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Business Insights", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(8.dp)) {
+                Text(metrics.outlook, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
         }
-        Card(
-            modifier = Modifier.weight(1f),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFFFCDD2)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Expense", fontSize = 14.sp, color = Color(0xFFC62828), fontWeight = FontWeight.SemiBold)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(formatCurrency(summary.totalKeluar), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFC62828), maxLines = 1)
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BiMetricCard("Laba Bersih", formatCurrency(metrics.netProfit), Icons.Default.TrendingUp,
+                Brush.linearGradient(BizgrowColors.GradPrimary), Modifier.weight(1f))
+            BiMetricCard("Margin", "${metrics.margin}%", Icons.Default.PieChart,
+                Brush.linearGradient(BizgrowColors.GradSuccess), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BiMetricCard("Cash Runway", "${metrics.cashRunway} bln", Icons.Default.Timeline,
+                Brush.linearGradient(BizgrowColors.GradWarning), Modifier.weight(1f))
+            BiMetricCard("Health Score", "${metrics.integrityScore}", Icons.Default.Favorite,
+                Brush.linearGradient(BizgrowColors.GradDark), Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-fun AlertsSection(
-    financeData: FinanceData?,
-    lowStockProducts: List<com.upstyle.bizgrow.data.LowStockProduct>,
-    viewModel: AppViewModel
-) {
+fun BiMetricCard(title: String, value: String, icon: ImageVector, gradient: Brush, modifier: Modifier = Modifier) {
+    Card(modifier = modifier.height(90.dp), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(2.dp)) {
+        Box(Modifier.fillMaxSize().background(gradient).padding(14.dp)) {
+            Icon(icon, null, Modifier.size(16.dp).align(Alignment.TopEnd), tint = Color.White.copy(alpha = 0.7f))
+            Column(Modifier.align(Alignment.BottomStart), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
+                Text(value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+@Composable
+fun AlertsSection(financeData: FinanceData?, lowStockProducts: List<com.upstyle.bizgrow.data.LowStockProduct>, viewModel: AppViewModel) {
+    val alerts = buildList {
+        if ((financeData?.alerts?.receivables ?: 0) > 0)
+            add(Triple("${financeData?.alerts?.receivables} piutang jatuh tempo", Color(0xFFF59E0B), Screen.Piutang))
+        if ((financeData?.alerts?.payables ?: 0) > 0)
+            add(Triple("${financeData?.alerts?.payables} hutang jatuh tempo", Color(0xFFEF4444), Screen.Hutang))
+        if (lowStockProducts.isNotEmpty())
+            add(Triple("${lowStockProducts.size} produk stok menipis", Color(0xFFF97316), Screen.Products))
+    }
+    if (alerts.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if ((financeData?.alerts?.receivables ?: 0) > 0) {
-            AlertCard(
-                message = "${financeData?.alerts?.receivables} piutang overdue!",
-                icon = Icons.Default.Warning,
-                color = Color(0xFFEF6C00),
-                onClick = { viewModel.navigate(Screen.Piutang) }
-            )
-        }
-        
-        if ((financeData?.alerts?.payables ?: 0) > 0) {
-            AlertCard(
-                message = "${financeData?.alerts?.payables} hutang overdue!",
-                icon = Icons.Default.Warning,
-                color = Color(0xFFC62828),
-                onClick = { viewModel.navigate(Screen.Hutang) }
-            )
-        }
-        
-        if (lowStockProducts.isNotEmpty()) {
-            AlertCard(
-                message = "${lowStockProducts.size} produk stok menipis!",
-                icon = Icons.Default.Inventory,
-                color = Color(0xFFF57C00),
-                onClick = { viewModel.navigate(Screen.Products) }
-            )
-        }
-    }
-}
-
-@Composable
-fun AlertCard(message: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
+        alerts.forEach { (msg, color, screen) ->
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { viewModel.navigate(screen) },
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
+                elevation = CardDefaults.cardElevation(0.dp)
             ) {
-                Icon(icon, contentDescription = null, tint = color)
+                Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, null, Modifier.size(18.dp), tint = color)
+                    Spacer(Modifier.width(10.dp))
+                    Text(msg, color = color, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp), tint = color)
+                }
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(message, color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = color)
         }
     }
 }
 
+// ─── Quick Actions Grid ───────────────────────────────────────────────────────
 @Composable
 fun QuickActionsGrid(viewModel: AppViewModel) {
+    data class Action(val label: String, val icon: ImageVector, val screen: Screen, val gradient: List<Color>)
     val actions = listOf(
-        Pair("Finance", Icons.Default.AccountBalanceWallet) to Screen.Finance,
-        Pair("POS", Icons.Default.PointOfSale) to Screen.Pos,
-        Pair("Products", Icons.Default.Inventory2) to Screen.Products,
-        Pair("HR", Icons.Default.People) to Screen.Hr,
-        Pair("CRM", Icons.Default.Contacts) to Screen.Crm,
-        Pair("SCM", Icons.Default.LocalShipping) to Screen.Scm,
-        Pair("Orders", Icons.Default.ShoppingCart) to Screen.Orders,
-        Pair("AI Chat", Icons.Default.SmartToy) to Screen.AiChat,
-        Pair("Receivables", Icons.Default.Receipt) to Screen.Piutang,
-        Pair("Payables", Icons.Default.MoneyOff) to Screen.Hutang,
-        Pair("Reports", Icons.Default.Assessment) to Screen.Laporan,
-        Pair("Support", Icons.Default.Inbox) to Screen.CsInbox
-    )
-
-    val colors = listOf(
-        Color(0xFFFF9A9E) to Color(0xFFFECFEF),
-        Color(0xFFA18CD1) to Color(0xFFFBC2EB),
-        Color(0xFF84FAB0) to Color(0xFF8FD3F4),
-        Color(0xFFFCCB90) to Color(0xFFD57EEB),
-        Color(0xFFE0C3FC) to Color(0xFF8EC5FC),
-        Color(0xFFF093FB) to Color(0xFFF5576C),
-        Color(0xFF4FACFE) to Color(0xFF00F2FE),
-        Color(0xFF43E97B) to Color(0xFF38F9D7),
-        Color(0xFFFA709A) to Color(0xFFFEE140),
-        Color(0xFF667EEA) to Color(0xFF764BA2),
-        Color(0xFFFF0844) to Color(0xFFFFB199),
-        Color(0xFF96FBC4) to Color(0xFFF9F586)
+        Action("Keuangan",   Icons.Default.AccountBalanceWallet, Screen.Finance,   BizgrowColors.GradPrimary),
+        Action("POS Kasir",  Icons.Default.PointOfSale,          Screen.Pos,       BizgrowColors.GradSuccess),
+        Action("Produk",     Icons.Default.Inventory2,           Screen.Products,  BizgrowColors.GradOcean),
+        Action("HR & Absen", Icons.Default.People,               Screen.Hr,        BizgrowColors.GradWarning),
+        Action("CRM",        Icons.Default.Contacts,             Screen.Crm,       BizgrowColors.GradRose),
+        Action("Supply",     Icons.Default.LocalShipping,        Screen.Scm,       BizgrowColors.GradEmerald),
+        Action("Pesanan",    Icons.Default.ShoppingCart,         Screen.Orders,    BizgrowColors.GradDark),
+        Action("AI Chat",    Icons.Default.SmartToy,             Screen.AiChat,    BizgrowColors.GradPrimary),
+        Action("Piutang",    Icons.Default.Receipt,              Screen.Piutang,   BizgrowColors.GradWarning),
+        Action("Hutang",     Icons.Default.MoneyOff,             Screen.Hutang,    BizgrowColors.GradDanger),
+        Action("Laporan",    Icons.Default.Assessment,           Screen.Laporan,   BizgrowColors.GradDark),
+        Action("Support",    Icons.Default.Inbox,                Screen.CsInbox,   BizgrowColors.GradOcean),
     )
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
-        modifier = Modifier.height(320.dp),
+        modifier = Modifier.height(280.dp),
         userScrollEnabled = false,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        itemsIndexed(actions) { index, (info, screen) ->
-            val gradientColors = colors[index % colors.size]
+        itemsIndexed(actions) { _, action ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable { viewModel.navigate(screen) }
+                modifier = Modifier.clickable { viewModel.navigate(action.screen) }
             ) {
                 Box(
                     modifier = Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Brush.linearGradient(listOf(gradientColors.first, gradientColors.second))),
+                        .size(54.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Brush.linearGradient(action.gradient)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = info.second,
-                        contentDescription = info.first,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Icon(action.icon, null, Modifier.size(24.dp), tint = Color.White)
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = info.first,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    action.label,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
         }
     }
 }
 
+// ─── Transaction Item ─────────────────────────────────────────────────────────
 @Composable
 fun TransactionItem(trx: com.upstyle.bizgrow.data.Transaction) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val isMasuk = trx.kategoriTrx == "MASUK"
-            val icon = if (isMasuk) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward
-            val color = if (isMasuk) Color(0xFF2E7D32) else Color(0xFFC62828)
+    val isMasuk = trx.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) || trx.kategoriTrx.equals("MASUK", ignoreCase = true)
+    val color = if (isMasuk) Color(0xFF22C55E) else Color(0xFFEF4444)
 
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(color.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(trx.keterangan, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(trx.tanggal, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "${if (isMasuk) "+" else "-"}${formatCurrency(trx.nominal)}",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
-                    color = color
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Text(
-                        text = trx.metodeBayar,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (isMasuk) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                null, Modifier.size(18.dp), tint = color
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(trx.keterangan, fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(trx.tanggal.take(10), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                "${if (isMasuk) "+" else "-"}${formatCurrency(trx.nominal)}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = color
+            )
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(4.dp)) {
+                Text(trx.metodeBayar, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
-fun formatCurrency(amount: Double): String {
-    return "Rp ${"%,.0f".format(amount)}"
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+fun formatCurrency(amount: Double): String = "Rp ${"%,.0f".format(amount)}"
 
 @Composable
 fun DateFilterRow(viewModel: AppViewModel) {
     var isExpanded by remember { mutableStateOf(false) }
-    var selectedFilter by remember { mutableStateOf("Hari Ini") }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("Ringkasan Pendapatan", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+    var selectedFilter by remember { mutableStateOf("Bulan Ini") }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text("Ringkasan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Box {
-            OutlinedButton(onClick = { isExpanded = true }) {
-                Text(selectedFilter)
-                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+            OutlinedButton(
+                onClick = { isExpanded = true },
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(selectedFilter, fontSize = 12.sp)
+                Icon(Icons.Default.ArrowDropDown, null, Modifier.size(16.dp))
             }
             DropdownMenu(expanded = isExpanded, onDismissRequest = { isExpanded = false }) {
-                listOf("Hari Ini", "Minggu Ini", "Bulan Ini", "Semua").forEach { filter ->
-                    DropdownMenuItem(
-                        text = { Text(filter) },
-                        onClick = {
-                            selectedFilter = filter
-                            isExpanded = false
-                            viewModel.loadFinanceData()
-                        }
-                    )
+                listOf("Hari Ini", "Minggu Ini", "Bulan Ini", "Semua").forEach { f ->
+                    DropdownMenuItem(text = { Text(f) }, onClick = { selectedFilter = f; isExpanded = false; viewModel.loadFinanceData() })
                 }
             }
         }
     }
 }
 
+// Kept for FinanceSummaryCards compatibility
 @Composable
-fun QuickViewCards(financeData: FinanceData) {
-    val trxs = financeData.transactions
-    val incomes = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }
-    
-    val todayTotal = incomes.sumOf { it.nominal } * 0.1 
-    val weekTotal = incomes.sumOf { it.nominal } * 0.4 
-
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(
-            modifier = Modifier.weight(1f).height(90.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                Text("Hari Ini", fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(formatCurrency(todayTotal), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+fun FinanceSummaryCards(summary: com.upstyle.bizgrow.data.FinanceSummary) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)), shape = RoundedCornerShape(14.dp), elevation = CardDefaults.cardElevation(0.dp)) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Total Masuk", fontSize = 11.sp, color = Color(0xFF059669))
+                Text(formatCurrency(summary.totalMasuk), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF065F46), maxLines = 1)
             }
         }
-        Card(
-            modifier = Modifier.weight(1f).height(90.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                Text("Minggu Ini", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(formatCurrency(weekTotal), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+        Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)), shape = RoundedCornerShape(14.dp), elevation = CardDefaults.cardElevation(0.dp)) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Total Keluar", fontSize = 11.sp, color = Color(0xFFDC2626))
+                Text(formatCurrency(summary.totalKeluar), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFFB91C1C), maxLines = 1)
             }
         }
     }
+}
+
+// Kept for QuickViewCards compatibility
+@Composable
+fun QuickViewCards(financeData: FinanceData) {
+    val trxs = financeData.transactions
+    val totalIncome = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }.sumOf { it.nominal }
+    val totalExpense = trxs.filter { it.kategoriTrx.equals("PENGELUARAN", ignoreCase = true) }.sumOf { it.nominal }
+    val totalBalance = totalIncome - totalExpense
+    val isPositive = totalBalance >= 0
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)), shape = RoundedCornerShape(14.dp), elevation = CardDefaults.cardElevation(0.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.TrendingUp, null, Modifier.size(13.dp), tint = Color(0xFF059669))
+                    Text("Pemasukan", fontSize = 10.sp, color = Color(0xFF059669))
+                }
+                Text(formatCurrency(totalIncome), fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = Color(0xFF065F46))
+            }
+        }
+        Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (isPositive) MaterialTheme.colorScheme.primaryContainer else Color(0xFFFEF2F2)), shape = RoundedCornerShape(14.dp), elevation = CardDefaults.cardElevation(0.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.AccountBalance, null, Modifier.size(13.dp), tint = if (isPositive) MaterialTheme.colorScheme.primary else Color(0xFFDC2626))
+                    Text("Saldo", fontSize = 10.sp, color = if (isPositive) MaterialTheme.colorScheme.primary else Color(0xFFDC2626))
+                }
+                Text(formatCurrency(totalBalance), fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = if (isPositive) MaterialTheme.colorScheme.onPrimaryContainer else Color(0xFFB91C1C))
+            }
+        }
+    }
+}
+
+// Alert card for standalone use
+@Composable
+fun AlertCard(message: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)), shape = RoundedCornerShape(12.dp), elevation = CardDefaults.cardElevation(0.dp)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(message, color = color, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ChevronRight, null, tint = color, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+// BiMetricsSection compat
+@Composable
+fun GradientBiCard(title: String, value: String, gradient: Brush, icon: ImageVector, modifier: Modifier = Modifier) {
+    BiMetricCard(title, value, icon, gradient, modifier)
 }

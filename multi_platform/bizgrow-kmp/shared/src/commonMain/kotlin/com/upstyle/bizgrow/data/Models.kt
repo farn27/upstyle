@@ -836,6 +836,16 @@ data class TicketMessage(
     val createdAt: String = ""
 )
 
+@Serializable
+data class CreateTicketRequest(
+    val action: String = "create",
+    val subject: String,
+    val customerName: String,
+    val priority: String = "medium",
+    val message: String = "",
+    val unitId: Int
+)
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 data class NotifItem(

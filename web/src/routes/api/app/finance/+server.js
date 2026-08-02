@@ -3,7 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { transaksi, riwayatAksi, unitBisnis } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { pusherServer } from '$lib/server/pusher';
+import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
 import { nowWIB } from '$lib/server/dateUtils';
 import { z } from 'zod';
@@ -162,9 +162,9 @@ export async function POST({ request, cookies }) {
         const slug = unit?.slug || '';
 
         if (slug) {
-            pusherServer.trigger(`finance-${slug}`, 'stats-updated', { message: 'Update dari HP' });
-            pusherServer.trigger('finance-channel', 'new-transaction', { message: 'Update dari HP' });
-            pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+            triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Update dari HP' });
+            triggerEvent('finance-channel', 'new-transaction', { message: 'Update dari HP' });
+            triggerEvent('channel-bizgrow', 'notif-baru', {
                 id: Date.now(),
                 unitId: Number(unitId),
                 pesan: `Transaksi baru ditambahkan dari HP: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
@@ -214,9 +214,9 @@ export async function DELETE({ url, cookies, request }) {
         const slug = unit?.slug || '';
 
         if (slug) {
-            pusherServer.trigger(`finance-${slug}`, 'stats-updated', { message: 'Hapus dari HP' });
-            pusherServer.trigger('finance-channel', 'new-transaction', { message: 'Hapus dari HP' });
-            pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+            triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Hapus dari HP' });
+            triggerEvent('finance-channel', 'new-transaction', { message: 'Hapus dari HP' });
+            triggerEvent('channel-bizgrow', 'notif-baru', {
                 id: Date.now(),
                 unitId: Number(unitId),
                 pesan: `Transaksi dihapus dari HP`,

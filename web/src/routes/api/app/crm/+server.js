@@ -23,15 +23,15 @@ export async function GET({ url, cookies, request }) {
         const total = Number(totalResult.count) || 0;
 
         // Get paginated deals
-        const dealsQuery = db.query.crmDeals.findMany({
+        const dealsList = await db.query.crmDeals.findMany({
             where: eq(crmDeals.unitId, Number(unitId)),
             orderBy: [desc(crmDeals.id)],
+            limit: pagination.limit,
+            offset: pagination.offset,
             with: {
                 contact: true
             }
         });
-
-        const dealsList = await applyPagination(dealsQuery, pagination);
 
         // Map to mobile CrmDeal structure
         const data = dealsList.map(d => ({
