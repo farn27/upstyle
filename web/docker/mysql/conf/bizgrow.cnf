@@ -1,0 +1,43 @@
+[mysqld]
+# ─── Character Set ────────────────────────────────────────────────────────────
+character-set-server    = utf8mb4
+collation-server        = utf8mb4_unicode_ci
+
+# ─── InnoDB Performance ───────────────────────────────────────────────────────
+innodb_buffer_pool_size     = 512M   # Set 50-70% of available RAM
+innodb_buffer_pool_instances = 2
+innodb_log_file_size        = 128M
+innodb_log_buffer_size      = 16M
+innodb_flush_log_at_trx_commit = 1   # ACID compliance
+innodb_flush_method         = O_DIRECT
+innodb_file_per_table       = 1
+
+# ─── Connection ───────────────────────────────────────────────────────────────
+max_connections     = 200
+wait_timeout        = 600
+interactive_timeout = 600
+connect_timeout     = 10
+
+# ─── Query Cache & Temp ───────────────────────────────────────────────────────
+tmp_table_size      = 64M
+max_heap_table_size = 64M
+join_buffer_size    = 4M
+sort_buffer_size    = 4M
+
+# ─── Slow Query Log ───────────────────────────────────────────────────────────
+slow_query_log          = 1
+slow_query_log_file     = /var/log/mysql/slow.log
+long_query_time         = 2
+log_queries_not_using_indexes = 0
+
+# ─── Binary Log (untuk backup/replication) ────────────────────────────────────
+# Uncomment jika butuh replication
+# log_bin = /var/log/mysql/mysql-bin.log
+# binlog_format = ROW
+# expire_logs_days = 7
+
+[client]
+default-character-set = utf8mb4
+
+[mysql]
+default-character-set = utf8mb4

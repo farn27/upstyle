@@ -1,0 +1,11 @@
+# Tauri build output
+src-tauri/target/
+
+# Node
+node_modules/
+
+# Icons (generate sendiri)
+src-tauri/icons/*.png
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns
+!src-tauri/icons/.gitkeep

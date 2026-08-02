@@ -1042,7 +1042,7 @@ class AppViewModel(
     fun addProduct(nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, callback: (Boolean) -> Unit) = viewModelScope.launch {
         setLoading(true)
         try {
-            val req = com.upstyle.bizgrow.data.Product(id = 0, name = nama, costPrice = hargaBeli, sellingPrice = hargaJual, stock = stok, sku = "", barcode = null, image = null, categoryId = null, unitId = _activeUnitId.value)
+            val req = com.upstyle.bizgrow.data.Product(id = "", nama = nama, hargaBeli = hargaBeli, hargaJual = hargaJual, stok = stok, sku = "", barcode = null, foto = null, kategoriId = null, unitId = _activeUnitId.value)
             val res = api.createProduct(req)
             if (res.success) {
                 setSuccess("Produk berhasil ditambahkan")

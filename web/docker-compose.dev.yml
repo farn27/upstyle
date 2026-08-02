@@ -1,0 +1,37 @@
+# Development override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Atau buat alias di .bashrc:
+#   alias dcdev="docker compose -f docker-compose.yml -f docker-compose.dev.yml"
+
+version: '3.9'
+
+services:
+  app:
+    build:
+      target: builder    # Stop di stage build (dengan devDependencies)
+    command: npm run dev
+    ports:
+      - "5173:5173"      # Vite HMR
+    environment:
+      - NODE_ENV=development
+      - PORT=5173
+      - HOST=0.0.0.0
+    volumes:
+      - .:/app           # Mount source code untuk hot reload
+      - /app/node_modules # Exclude node_modules dari mount
+    # Tidak perlu depends_on mysql di dev (bisa pakai MySQL lokal)
+
+  socket:
+    command: node socket-server/index.js
+    volumes:
+      - ./socket-server:/app/socket-server
+
+  # Di dev, tidak perlu nginx
+  nginx:
+    profiles:
+      - production       # Hanya aktif kalau pakai --profile production
+
+  mysql:
+    ports:
+      - "3306:3306"      # Expose ke localhost untuk development tools

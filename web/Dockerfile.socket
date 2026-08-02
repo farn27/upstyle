@@ -1,0 +1,28 @@
+# Dockerfile untuk Socket.io server
+# Build: docker build -f Dockerfile.socket -t bizgrow-socket .
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies needed by socket server
+RUN npm ci --omit=dev
+
+# Copy only the socket server file
+COPY socket-server ./socket-server
+
+# Non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S socket -u 1001 && \
+    chown -R socket:nodejs /app
+
+USER socket
+
+EXPOSE 13337 13338
+
+ENV NODE_ENV=production
+
+CMD ["node", "socket-server/index.js"]
