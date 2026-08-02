@@ -726,6 +726,8 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadCOA error", e) }
     }
 
+    fun loadCoa() = loadChartOfAccounts()
+
     // ─── Ecommerce Orders ─────────────────────────────────────────────────────
     private val _orders = MutableStateFlow<List<EcommerceOrder>>(emptyList())
     val orders: StateFlow<List<EcommerceOrder>> = _orders.asStateFlow()
@@ -1119,112 +1121,6 @@ class AppViewModel(
             loadTickets()
             setSuccess("Status tiket diperbarui")
         } catch (e: Exception) { Napier.e("updateTicketStatus error", e) }
-    }
-
-    // ─── Receivables & Payables & Accounting Contacts ────────────────────────
-    private val _receivables = MutableStateFlow<List<Receivable>>(emptyList())
-    val receivables: StateFlow<List<Receivable>> = _receivables.asStateFlow()
-
-    private val _payables = MutableStateFlow<List<Payable>>(emptyList())
-    val payables: StateFlow<List<Payable>> = _payables.asStateFlow()
-
-    private val _accountingContacts = MutableStateFlow<List<AccountingContact>>(emptyList())
-    val accountingContacts: StateFlow<List<AccountingContact>> = _accountingContacts.asStateFlow()
-
-    fun loadReceivables() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getReceivables(unitId)
-            if (res.success) _receivables.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadReceivables error", e) }
-    }
-
-    fun payReceivable(invoiceId: Int, nominalBayar: Double) = viewModelScope.launch {
-        setLoading(true)
-        try {
-            val res = api.payReceivable(PayInvoiceRequest(invoiceId, nominalBayar))
-            if (res.success) { loadReceivables(); setSuccess("Pembayaran piutang berhasil!") }
-            else setError(res.message ?: "Gagal bayar piutang")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
-    fun loadPayables() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getPayables(unitId)
-            if (res.success) _payables.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadPayables error", e) }
-    }
-
-    fun payPayable(invoiceId: Int, nominalBayar: Double) = viewModelScope.launch {
-        setLoading(true)
-        try {
-            val res = api.payPayable(PayInvoiceRequest(invoiceId, nominalBayar))
-            if (res.success) { loadPayables(); setSuccess("Pembayaran hutang berhasil!") }
-            else setError(res.message ?: "Gagal bayar hutang")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
-    fun loadAccountingContacts() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getAccountingContacts(unitId)
-            if (res.success) _accountingContacts.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadAccountingContacts error", e) }
-    }
-
-    // ─── Journal & Buku Besar & COA ──────────────────────────────────────────
-    private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
-    val journalEntries: StateFlow<List<JournalEntry>> = _journalEntries.asStateFlow()
-
-    private val _bukuBesarData = MutableStateFlow<BukuBesarData?>(null)
-    val bukuBesarData: StateFlow<BukuBesarData?> = _bukuBesarData.asStateFlow()
-
-    private val _coaList = MutableStateFlow<List<ChartOfAccount>>(emptyList())
-    val coaList: StateFlow<List<ChartOfAccount>> = _coaList.asStateFlow()
-
-    fun loadJournalEntries(tahun: Int? = null, bulan: String? = null) = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getJournalEntries(unitId, tahun, bulan)
-            if (res.success) _journalEntries.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadJournalEntries error", e) }
-    }
-
-    fun createJournalEntry(tanggal: String, memo: String, referensi: String, lines: List<JournalEntryLine>) = viewModelScope.launch {
-        setLoading(true)
-        val unitId = _activeUnitId.value
-        try {
-            val res = api.createJournalEntry(unitId, CreateJournalRequest(unitId, tanggal, memo, referensi, lines))
-            if (res.success) { loadJournalEntries(); setSuccess("Jurnal berhasil disimpan!") }
-            else setError(res.message ?: "Gagal simpan jurnal")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
-    fun loadBukuBesar(coaId: Int, tahun: Int? = null) = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getBukuBesar(unitId, coaId, tahun)
-            if (res.success) _bukuBesarData.value = res.data
-        } catch (e: Exception) { Napier.e("loadBukuBesar error", e) }
-    }
-
-    fun loadCoa() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getChartOfAccounts(unitId)
-            if (res.success) {
-                val list = res.data ?: emptyList()
-                _coaList.value = list
-                _chartOfAccounts.value = list
-            }
-        } catch (e: Exception) { Napier.e("loadCoa error", e) }
     }
 
     // ─── Fixed Assets & Tax Rates & Budget & Closing Periods ─────────────────

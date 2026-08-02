@@ -692,12 +692,13 @@ data class PayInvoiceRequest(
 
 @Serializable
 data class ChartOfAccount(
-    val id: Int,
-    val unitId: Int,
-    val kodeAkun: String,
-    val namaAkun: String,
-    val tipeAkun: String,
-    val isActive: Boolean = true,
+    val id: Int = 0,
+    val unitId: Int = 0,
+    val kodeAkun: String = "",
+    val namaAkun: String = "",
+    val tipeAkun: String = "",
+    val normalBalance: String = "DEBIT",
+    val isActive: Int = 1,
     val deskripsi: String? = null
 )
 
@@ -1009,118 +1010,35 @@ data class SplitPayment(
     val amount: Double
 )
 
-// ─── Accounting & Advanced Finance ──────────────────────────────────────────
+// ─── POS Cash & Vouchers ───────────────────────────────────────────────────
 
 @Serializable
-data class Receivable(
+data class PosCashTransaction(
+    val id: Int = 0,
+    val shiftId: Int,
+    val unitId: Int,
+    val type: String,
+    val amount: Double,
+    val description: String = "",
+    val createdAt: String = ""
+)
+
+@Serializable
+data class PosVoucher(
     val id: Int = 0,
     val unitId: Int,
-    val contactId: Int,
-    val journalId: Int? = null,
-    val nomorInvoice: String,
-    val tanggal: String,
-    val jatuhTempo: String,
-    val nominal: Double,
-    val sudahDibayar: Double = 0.0,
-    val status: String = "BELUM_BAYAR",
-    val keterangan: String? = null,
-    val contact: AccountingContact? = null
+    val code: String,
+    val discountType: String = "PERCENTAGE",
+    val discountValue: Double,
+    val maxUsage: Int = 0,
+    val currentUsage: Int = 0,
+    val minPurchase: Double = 0.0,
+    val validFrom: String = "",
+    val validUntil: String = "",
+    val isActive: Boolean = true
 )
 
-@Serializable
-data class Payable(
-    val id: Int = 0,
-    val unitId: Int,
-    val contactId: Int,
-    val journalId: Int? = null,
-    val nomorFaktur: String,
-    val tanggal: String,
-    val jatuhTempo: String,
-    val nominal: Double,
-    val sudahDibayar: Double = 0.0,
-    val status: String = "BELUM_BAYAR",
-    val keterangan: String? = null,
-    val contact: AccountingContact? = null
-)
-
-@Serializable
-data class AccountingContact(
-    val id: Int = 0,
-    val unitId: Int,
-    val namaKontak: String,
-    val tipeKontak: String = "CUSTOMER",
-    val email: String? = null,
-    val telepon: String? = null,
-    val alamat: String? = null,
-    val npwp: String? = null,
-    val limitKredit: Double = 0.0,
-    val termPembayaran: Int = 30,
-    val isActive: Int = 1
-)
-
-@Serializable
-data class JournalEntry(
-    val id: Int = 0,
-    val unitId: Int,
-    val userId: Int = 0,
-    val tanggal: String,
-    val nomorJurnal: String? = null,
-    val referensi: String? = null,
-    val memo: String? = null,
-    val status: String = "POSTED",
-    val totalDebit: Double = 0.0,
-    val totalKredit: Double = 0.0,
-    val journalEntryLines: List<JournalEntryLine> = emptyList()
-)
-
-@Serializable
-data class JournalEntryLine(
-    val id: Int = 0,
-    val journalId: Int = 0,
-    val coaId: Int,
-    val keterangan: String? = null,
-    val debit: Double = 0.0,
-    val kredit: Double = 0.0,
-    val contactId: Int? = null
-)
-
-@Serializable
-data class CreateJournalRequest(
-    val unitId: Int,
-    val tanggal: String,
-    val memo: String = "",
-    val referensi: String = "",
-    val lines: List<JournalEntryLine>
-)
-
-@Serializable
-data class ChartOfAccount(
-    val id: Int = 0,
-    val unitId: Int,
-    val kodeAkun: String,
-    val namaAkun: String,
-    val tipeAkun: String,
-    val normalBalance: String = "DEBIT",
-    val isActive: Int = 1,
-    val parentId: Int? = null,
-    val deskripsi: String? = null
-)
-
-@Serializable
-data class BukuBesarEntry(
-    val tanggal: String,
-    val nomorJurnal: String = "",
-    val keterangan: String = "",
-    val debit: Double = 0.0,
-    val kredit: Double = 0.0,
-    val saldo: Double = 0.0
-)
-
-@Serializable
-data class BukuBesarData(
-    val coa: ChartOfAccount? = null,
-    val entries: List<BukuBesarEntry> = emptyList()
-)
+// ─── Fixed Assets, Tax, Budget, Closing ─────────────────────────────────────
 
 @Serializable
 data class FixedAsset(
@@ -1172,47 +1090,7 @@ data class ClosingPeriod(
     val keterangan: String? = null
 )
 
-// ─── POS Advanced ─────────────────────────────────────────────────────────────
-
-@Serializable
-data class PosCashTransaction(
-    val id: Int = 0,
-    val shiftId: Int,
-    val unitId: Int,
-    val type: String,
-    val amount: Double,
-    val description: String = "",
-    val createdAt: String = ""
-)
-
-@Serializable
-data class PosVoucher(
-    val id: Int = 0,
-    val unitId: Int,
-    val code: String,
-    val discountType: String = "PERCENTAGE",
-    val discountValue: Double,
-    val maxUsage: Int = 0,
-    val currentUsage: Int = 0,
-    val minPurchase: Double = 0.0,
-    val validFrom: String = "",
-    val validUntil: String = "",
-    val isActive: Boolean = true
-)
-
 // ─── HR Advanced ──────────────────────────────────────────────────────────────
-
-@Serializable
-data class LeaveRequest(
-    val id: Int = 0,
-    val employeeId: Int,
-    val leaveType: String = "ANNUAL",
-    val startDate: String,
-    val endDate: String,
-    val reason: String = "",
-    val status: String = "PENDING",
-    val approvedBy: Int? = null
-)
 
 @Serializable
 data class Department(
@@ -1241,6 +1119,29 @@ data class EmployeeKpiRecord(
     val actualScore: Double = 0.0,
     val rating: String? = null,
     val notes: String? = null
+)
+
+@Serializable
+data class Attendance(
+    val id: Int = 0,
+    val employeeId: Int = 0,
+    val checkIn: String = "",
+    val checkOut: String? = null,
+    val status: String = "present",
+    val tanggal: String = ""
+)
+
+@Serializable
+data class Payroll(
+    val id: Int = 0,
+    val employeeId: Int = 0,
+    val periodMonth: Int = 0,
+    val periodYear: Int = 0,
+    val basicSalary: Double = 0.0,
+    val allowances: Double = 0.0,
+    val deductions: Double = 0.0,
+    val netSalary: Double = 0.0,
+    val paymentStatus: String = "unpaid"
 )
 
 @Serializable
