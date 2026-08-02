@@ -4,6 +4,6 @@ import androidx.compose.runtime.Composable
 
 @Composable
 actual fun rememberImagePickerLauncher(onImageSelected: (String?) -> Unit): () -> Unit {
-    // iOS: stub — will implement native UIImagePickerController in later phase
+    // iOS: stub — UIImagePickerController integration planned for future phase
     return { onImageSelected(null) }
 }

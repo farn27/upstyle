@@ -79,6 +79,9 @@ kotlin {
             implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kotlinx.coroutines.android)
+            // Activity Compose — provides rememberLauncherForActivityResult
+            implementation("androidx.activity:activity-compose:1.9.3")
+            implementation("androidx.activity:activity:1.9.3")
             // Socket.io — Android only (no iOS equivalent in shared)
             implementation("io.socket:socket.io-client:2.1.1") {
                 exclude(group = "org.json", module = "json")

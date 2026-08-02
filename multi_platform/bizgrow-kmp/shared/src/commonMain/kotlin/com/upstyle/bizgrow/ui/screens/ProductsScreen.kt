@@ -447,4 +447,5 @@ fun AddProductForm(
 }
 
 // Expect/actual for image picker — platform specific
+@androidx.compose.runtime.Composable
 expect fun rememberImagePickerLauncher(onImageSelected: (String?) -> Unit): () -> Unit
