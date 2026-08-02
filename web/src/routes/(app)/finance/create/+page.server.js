@@ -161,14 +161,14 @@ throw redirect(303, `/finance?sorot=${unitId}&pesan=${encodeURIComponent(pesanTo
         } catch (err) {
             if (err.status === 303 || err.status === 302) throw err;
             
-            log.api.error({ err: "❌ ERROR OBJECT:", err);
+            log.api.error({ err }, '❌ ERROR OBJECT:');
             // Error Handling untuk Data Truncated
             if (err.code === 'WARN_DATA_TRUNCATED' || err.errno === 1265) {
-                log.api.error({ err: "❌ DB ERROR: Data truncated.", err);
+                log.api.error({ err }, '❌ DB ERROR: Data truncated.');
                 throw error(500, `Database error: Data truncated/kurang lebar. Detail: ${err.message || err}`);
             }
 
-            log.api.error({ err: "❌ GAGAL SIMPAN:", err);
+            log.api.error({ err }, '❌ GAGAL SIMPAN:');
             throw error(500, err.code === 'ER_DUP_ENTRY' ? `Nama unit "${nama_unit}" sudah ada.` : `Gagal menyimpan unit: ${err.message}`);
         }
     }
