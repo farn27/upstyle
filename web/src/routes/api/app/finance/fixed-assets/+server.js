@@ -1,202 +1,97 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { fixedAssets } from '$lib/server/schema';
+import { fixedAssets, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
-import { triggerEvent } from '$lib/server/pusher';
+import { z } from 'zod';
 
+// GET /api/app/finance/fixed-assets?unitId=X
 export async function GET({ url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) {
-		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
-	}
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const unitId = url.searchParams.get('unitId');
+    if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
 
-	const unitId = url.searchParams.get('unitId');
-	if (!unitId) {
-		return json({ success: false, message: 'unitId parameter is required' }, { status: 400 });
-	}
+    try {
+        const assets = await db.query.fixedAssets.findMany({
+            where: eq(fixedAssets.unitId, Number(unitId)),
+            orderBy: [desc(fixedAssets.id)]
+        });
 
-	try {
-		const data = await db.query.fixedAssets.findMany({
-			where: eq(fixedAssets.unitId, Number(unitId)),
-			orderBy: [desc(fixedAssets.createdAt)]
-		});
+        const data = assets.map(a => {
+            // Calculate current book value and depreciation
+            const nilaiPerolehan = Number(a.nilaiPerolehan || 0);
+            const nilaiSisa = Number(a.nilaiSisa || 0);
+            const umurEkonomis = a.umurEkonomis || 1;
+            const penyusutanTahunan = (nilaiPerolehan - nilaiSisa) / umurEkonomis;
+            const akumulasi = Number(a.akumulasiPenyusutan || 0);
+            const nilaiBuku = nilaiPerolehan - akumulasi;
 
-		return json({
-			success: true,
-			message: 'Berhasil mengambil data aset tetap',
-			data
-		});
-	} catch (err) {
-		log.finance.error({ err }, 'API GET FIXED ASSETS ERROR');
-		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
-	}
+            return {
+                id: a.id, unitId: a.unitId, namaAset: a.namaAset, kategori: a.kategori,
+                nilaiPerolehan, tanggalPerolehan: a.tanggalPerolehan || '',
+                umurEkonomis, metodePenyusutan: a.metodePenyusutan,
+                nilaiSisa, akumulasiPenyusutan: akumulasi,
+                nilaiBuku, penyusutanTahunan, status: a.status, keterangan: a.keterangan || ''
+            };
+        });
+
+        return json({ success: true, data });
+    } catch (err) {
+        log.api.error({ err }, 'GET finance/fixed-assets');
+        return json({ success: false, message: 'Gagal memuat aset tetap' }, { status: 500 });
+    }
 }
 
+// POST /api/app/finance/fixed-assets — tambah aset tetap baru
 export async function POST({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) {
-		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
-	}
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
-	try {
-		const body = await request.json();
-		const {
-			unitId,
-			namaAset,
-			kategori,
-			nilaiPerolehan,
-			tanggalPerolehan,
-			umurEkonomis,
-			metodePenyusutan,
-			nilaiSisa,
-			keterangan,
-			coaId
-		} = body;
+    const schema = z.object({
+        namaAset: z.string().min(1).max(150),
+        kategori: z.enum(['TANAH','BANGUNAN','KENDARAAN','MESIN','INVENTARIS','LAINNYA']).default('LAINNYA'),
+        nilaiPerolehan: z.coerce.number().positive(),
+        tanggalPerolehan: z.string().min(1),
+        umurEkonomis: z.coerce.number().int().positive(),
+        metodePenyusutan: z.enum(['GARIS_LURUS','SALDO_MENURUN']).default('GARIS_LURUS'),
+        nilaiSisa: z.coerce.number().optional().default(0),
+        keterangan: z.string().optional(),
+        unitId: z.coerce.number().int().positive()
+    });
 
-		if (!unitId || !namaAset || nilaiPerolehan == null || !tanggalPerolehan || umurEkonomis == null) {
-			return json({ success: false, message: 'Data tidak lengkap' }, { status: 400 });
-		}
+    try {
+        const body = await request.json();
+        const parsed = schema.safeParse(body.asset || body);
+        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
 
-		const perolehan = Number(nilaiPerolehan);
-		const sisa = Number(nilaiSisa || 0);
-		const nilaiBuku = perolehan - sisa;
+        const { namaAset, kategori, nilaiPerolehan, tanggalPerolehan, umurEkonomis, metodePenyusutan, nilaiSisa, keterangan, unitId } = parsed.data;
+        const nilaiBuku = nilaiPerolehan - (nilaiSisa || 0);
 
-		const [inserted] = await db.insert(fixedAssets).values({
-			unitId: Number(unitId),
-			namaAset,
-			kategori: kategori || 'LAINNYA',
-			nilaiPerolehan: String(perolehan),
-			tanggalPerolehan,
-			umurEkonomis: Number(umurEkonomis),
-			metodePenyusutan: metodePenyusutan || 'GARIS_LURUS',
-			nilaiSisa: String(sisa),
-			akumulasiPenyusutan: '0',
-			nilaiBuku: String(nilaiBuku),
-			status: 'AKTIF',
-			coaId: coaId ? Number(coaId) : null,
-			keterangan: keterangan || null
-		});
+        const [result] = await db.insert(fixedAssets).values({
+            unitId: Number(unitId), namaAset, kategori, nilaiPerolehan: String(nilaiPerolehan),
+            tanggalPerolehan, umurEkonomis, metodePenyusutan,
+            nilaiSisa: String(nilaiSisa || 0), akumulasiPenyusutan: '0',
+            nilaiBuku: String(nilaiBuku), status: 'AKTIF', keterangan: keterangan || null
+        });
 
-		try {
-			await triggerEvent(`unit-${unitId}`, 'fixed-asset-created', {
-				id: inserted.insertId,
-				namaAset
-			});
-		} catch (e) {
-			// ignore pusher notification errors
-		}
+        // Record purchase as expense
+        await db.insert(transaksi).values({
+            userId, unitId: Number(unitId), kategoriTrx: 'KELUAR',
+            nominal: String(nilaiPerolehan), totalHarga: String(nilaiPerolehan),
+            keterangan: `Pembelian Aset Tetap: ${namaAset}`, metodeBayar: 'TRANSFER'
+        });
 
-		return json({
-			success: true,
-			message: 'Aset tetap berhasil ditambahkan',
-			data: { id: inserted.insertId }
-		});
-	} catch (err) {
-		log.finance.error({ err }, 'API POST FIXED ASSET ERROR');
-		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
-	}
-}
+        await db.insert(riwayatAksi).values({
+            userId, unitId: Number(unitId),
+            pesan: `Aset tetap baru: ${namaAset} (Rp ${nilaiPerolehan.toLocaleString('id-ID')})`,
+            kategori: 'FINANCE', tipe: 'success'
+        });
 
-export async function PUT({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) {
-		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
-	}
-
-	try {
-		const body = await request.json();
-		const { id, namaAset, status, keterangan, akumulasiPenyusutan } = body;
-
-		if (!id) {
-			return json({ success: false, message: 'id aset tetap wajib diisi' }, { status: 400 });
-		}
-
-		const asset = await db.query.fixedAssets.findFirst({
-			where: eq(fixedAssets.id, Number(id))
-		});
-
-		if (!asset) {
-			return json({ success: false, message: 'Aset tetap tidak ditemukan' }, { status: 404 });
-		}
-
-		const newAkumulasi = akumulasiPenyusutan != null ? Number(akumulasiPenyusutan) : Number(asset.akumulasiPenyusutan || 0);
-		const perolehan = Number(asset.nilaiPerolehan);
-		const newNilaiBuku = perolehan - newAkumulasi;
-
-		await db.update(fixedAssets)
-			.set({
-				namaAset: namaAset !== undefined ? namaAset : asset.namaAset,
-				status: status !== undefined ? status : asset.status,
-				keterangan: keterangan !== undefined ? keterangan : asset.keterangan,
-				akumulasiPenyusutan: String(newAkumulasi),
-				nilaiBuku: String(newNilaiBuku)
-			})
-			.where(eq(fixedAssets.id, Number(id)));
-
-		try {
-			await triggerEvent(`unit-${asset.unitId}`, 'fixed-asset-updated', {
-				id: asset.id,
-				nilaiBuku: newNilaiBuku
-			});
-		} catch (e) {
-			// ignore pusher notification errors
-		}
-
-		return json({
-			success: true,
-			message: 'Aset tetap berhasil diperbarui',
-			data: {
-				id: asset.id,
-				nilaiBuku: newNilaiBuku
-			}
-		});
-	} catch (err) {
-		log.finance.error({ err }, 'API PUT FIXED ASSET ERROR');
-		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
-	}
-}
-
-export async function DELETE({ url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) {
-		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
-	}
-
-	const assetId = url.searchParams.get('assetId');
-	if (!assetId) {
-		return json({ success: false, message: 'assetId parameter is required' }, { status: 400 });
-	}
-
-	try {
-		const asset = await db.query.fixedAssets.findFirst({
-			where: eq(fixedAssets.id, Number(assetId))
-		});
-
-		if (!asset) {
-			return json({ success: false, message: 'Aset tetap tidak ditemukan' }, { status: 404 });
-		}
-
-		await db.update(fixedAssets)
-			.set({ status: 'DINONAKTIFKAN' })
-			.where(eq(fixedAssets.id, Number(assetId)));
-
-		try {
-			await triggerEvent(`unit-${asset.unitId}`, 'fixed-asset-deleted', {
-				id: asset.id
-			});
-		} catch (e) {
-			// ignore pusher notification errors
-		}
-
-		return json({
-			success: true,
-			message: 'Aset tetap berhasil dinonaktifkan',
-			data: { id: asset.id }
-		});
-	} catch (err) {
-		log.finance.error({ err }, 'API DELETE FIXED ASSET ERROR');
-		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
-	}
+        return json({ success: true, message: 'Aset tetap berhasil ditambahkan', data: { id: result.insertId } });
+    } catch (err) {
+        log.api.error({ err }, 'POST finance/fixed-assets');
+        return json({ success: false, message: 'Gagal tambah aset tetap' }, { status: 500 });
+    }
 }

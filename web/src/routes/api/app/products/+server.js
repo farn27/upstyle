@@ -94,7 +94,8 @@ export async function POST({ request, cookies }) {
         });
         const parsed = productPostSchema.safeParse(body);
         if (!parsed.success) {
-            return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+            const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input produk tidak valid';
+            return json({ success: false, message: msg }, { status: 400 });
         }
         // ─────────────────────────────────────────────────────────────────────
 

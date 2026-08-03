@@ -1,142 +1,99 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { stockOpname, stockOpnameItems, products } from '$lib/server/schema';
+import { stockOpname, stockOpnameItems, products, stockLogs, riwayatAksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import crypto from 'crypto';
 
+// GET /api/app/products/stock-opname?unitId=X
 export async function GET({ url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const unitId = url.searchParams.get('unitId');
+    if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
 
-	const unitId = url.searchParams.get('unitId');
-	if (!unitId) return json({ success: false, message: "unitId wajib diisi" }, { status: 400 });
+    try {
+        const sessions = await db.query.stockOpname.findMany({
+            where: eq(stockOpname.unitId, Number(unitId)),
+            orderBy: [desc(stockOpname.id)],
+            with: { items: { with: { product: true } } }
+        });
 
-	try {
-		const records = await db.query.stockOpname.findMany({
-			where: eq(stockOpname.unitId, Number(unitId)),
-			orderBy: [desc(stockOpname.createdAt)],
-			with: {
-				items: true
-			}
-		});
+        const data = sessions.map(s => ({
+            id: s.id, unitId: s.unitId, status: s.status, notes: s.notes || '',
+            createdAt: s.createdAt?.toISOString() || '',
+            completedAt: s.completedAt?.toISOString() || null,
+            items: (s.items || []).map(i => ({
+                id: i.id, productId: i.productId, productName: i.product?.nama || '',
+                systemStock: i.systemStock, actualStock: i.actualStock, difference: i.difference,
+                notes: i.notes || ''
+            }))
+        }));
 
-		return json({
-			success: true,
-			message: "Berhasil mengambil data stock opname",
-			data: records
-		});
-	} catch (err) {
-		log.product.error({ err }, 'API GET stock-opname error');
-		return json({ success: false, message: "Gagal mengambil data stock opname" }, { status: 500 });
-	}
+        return json({ success: true, data });
+    } catch (err) {
+        log.api.error({ err }, 'GET products/stock-opname');
+        return json({ success: false, message: 'Gagal memuat stok opname' }, { status: 500 });
+    }
 }
 
+// POST /api/app/products/stock-opname — buat opname baru + selesaikan
 export async function POST({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
-	try {
-		const body = await request.json();
-		const { unitId, warehouseId, notes, items } = body;
+    try {
+        const body = await request.json();
+        const { unitId, warehouseId, notes, items } = body;
+        if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
 
-		if (!unitId || !warehouseId || !Array.isArray(items)) {
-			return json({ success: false, message: "unitId, warehouseId, dan items wajib diisi" }, { status: 400 });
-		}
+        const wId = warehouseId || 1; // default warehouse
 
-		const createdOpnameId = await db.transaction(async (tx) => {
-			const [result] = await tx.insert(stockOpname).values({
-				unitId: Number(unitId),
-				warehouseId: Number(warehouseId),
-				createdBy: userId,
-				status: 'DRAFT',
-				notes: notes || null
-			});
-			const opnameId = result.insertId;
+        const [result] = await db.insert(stockOpname).values({
+            unitId: Number(unitId), warehouseId: Number(wId),
+            createdBy: userId, status: 'COMPLETED',
+            notes: notes || null, completedAt: new Date()
+        });
+        const opnameId = result.insertId;
 
-			if (items.length > 0) {
-				const opnameItems = items.map(item => {
-					const sysStock = Number(item.systemStock || 0);
-					const actStock = Number(item.actualStock || 0);
-					const diff = actStock - sysStock;
-					return {
-						opnameId,
-						productId: String(item.productId),
-						systemStock: sysStock,
-						actualStock: actStock,
-						difference: diff,
-						notes: item.notes || null
-					};
-				});
+        if (Array.isArray(items)) {
+            for (const item of items) {
+                await db.insert(stockOpnameItems).values({
+                    opnameId, productId: item.productId,
+                    systemStock: Number(item.systemStock),
+                    actualStock: Number(item.actualStock),
+                    difference: Number(item.actualStock) - Number(item.systemStock),
+                    notes: item.notes || null
+                });
 
-				await tx.insert(stockOpnameItems).values(opnameItems);
-			}
+                // Adjust stock if there's a difference
+                const diff = Number(item.actualStock) - Number(item.systemStock);
+                if (diff !== 0) {
+                    await db.update(products)
+                        .set({ stok: Number(item.actualStock) })
+                        .where(eq(products.id, item.productId));
 
-			return opnameId;
-		});
+                    await db.insert(stockLogs).values({
+                        id: crypto.randomUUID(), productId: item.productId,
+                        userId: String(userId), unitId: Number(unitId),
+                        stokAwal: Number(item.systemStock), perubahan: diff,
+                        stokAkhir: Number(item.actualStock), alasan: 'OPNAME',
+                        keterangan: `Stok Opname #${opnameId}`
+                    });
+                }
+            }
+        }
 
-		return json({
-			success: true,
-			message: "Stock opname berhasil dibuat",
-			data: { id: createdOpnameId }
-		});
-	} catch (err) {
-		log.product.error({ err }, 'API POST stock-opname error');
-		return json({ success: false, message: "Gagal membuat stock opname: " + err.message }, { status: 500 });
-	}
-}
+        await db.insert(riwayatAksi).values({
+            userId, unitId: Number(unitId),
+            pesan: `Stok Opname #${opnameId} selesai. ${(items || []).length} produk diverifikasi.`,
+            kategori: 'PRODUK', tipe: 'success'
+        });
 
-export async function PUT({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
-
-	try {
-		const body = await request.json();
-		const { opnameId } = body;
-
-		if (!opnameId) {
-			return json({ success: false, message: "opnameId wajib diisi" }, { status: 400 });
-		}
-
-		await db.transaction(async (tx) => {
-			const opname = await tx.query.stockOpname.findFirst({
-				where: eq(stockOpname.id, Number(opnameId))
-			});
-
-			if (!opname) {
-				throw new Error("Stock opname tidak ditemukan");
-			}
-
-			if (opname.status === 'COMPLETED') {
-				throw new Error("Stock opname sudah dalam status COMPLETED");
-			}
-
-			const items = await tx.query.stockOpnameItems.findMany({
-				where: eq(stockOpnameItems.opnameId, Number(opnameId))
-			});
-
-			for (const item of items) {
-				if (item.difference !== 0) {
-					await tx.update(products)
-						.set({ stok: item.actualStock })
-						.where(eq(products.id, item.productId));
-				}
-			}
-
-			await tx.update(stockOpname)
-				.set({
-					status: 'COMPLETED',
-					completedAt: new Date()
-				})
-				.where(eq(stockOpname.id, Number(opnameId)));
-		});
-
-		return json({
-			success: true,
-			message: "Stock opname berhasil diselesaikan"
-		});
-	} catch (err) {
-		log.product.error({ err }, 'API PUT stock-opname error');
-		return json({ success: false, message: err.message || "Gagal menyelesaikan stock opname" }, { status: 500 });
-	}
+        return json({ success: true, message: 'Stok opname berhasil diselesaikan', data: { id: opnameId } });
+    } catch (err) {
+        log.api.error({ err }, 'POST products/stock-opname');
+        return json({ success: false, message: 'Gagal proses stok opname' }, { status: 500 });
+    }
 }

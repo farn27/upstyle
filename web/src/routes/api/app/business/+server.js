@@ -65,7 +65,8 @@ export async function POST({ request, cookies }) {
     });
     const parsed = businessPostSchema.safeParse(body);
     if (!parsed.success) {
-        return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+        const errorMsg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input bisnis tidak valid';
+        return json({ success: false, message: errorMsg }, { status: 400 });
     }
     // ──────────────────────────────────────────────────────────────────────
 

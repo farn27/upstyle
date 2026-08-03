@@ -1,98 +1,61 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$lib/server/schema';
-import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { journalEntries, journalEntryLines, chartOfAccounts } from '$lib/server/schema';
+import { eq, and, desc, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 
+// GET /api/app/finance/buku-besar?unitId=X&coaId=Y&tahun=2026
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     const unitId = url.searchParams.get('unitId');
     const coaId = url.searchParams.get('coaId');
-    const tahun = url.searchParams.get('tahun');
-
-    if (!unitId || !coaId) {
-        return json({ success: false, message: 'unitId dan coaId wajib diisi', data: null }, { status: 400 });
-    }
+    if (!unitId || !coaId) return json({ success: false, message: 'unitId dan coaId wajib' }, { status: 400 });
 
     try {
         const coa = await db.query.chartOfAccounts.findFirst({
-            where: and(
-                eq(chartOfAccounts.id, Number(coaId)),
-                eq(chartOfAccounts.unitId, Number(unitId))
-            )
+            where: and(eq(chartOfAccounts.id, Number(coaId)), eq(chartOfAccounts.unitId, Number(unitId)))
+        });
+        if (!coa) return json({ success: false, message: 'COA tidak ditemukan' }, { status: 404 });
+
+        // Get all journal entry lines for this COA
+        const lines = await db.query.journalEntryLines.findMany({
+            where: eq(journalEntryLines.coaId, Number(coaId)),
+            orderBy: [asc(journalEntryLines.id)],
+            with: { journal: true }
         });
 
-        if (!coa) {
-            return json({ success: false, message: 'Akun COA tidak ditemukan', data: null }, { status: 404 });
-        }
-
-        const conditions = [
-            eq(journalEntries.unitId, Number(unitId)),
-            eq(journalEntryLines.coaId, Number(coaId))
-        ];
-
-        if (tahun) {
-            conditions.push(sql`YEAR(${journalEntries.tanggal}) = ${Number(tahun)}`);
-        }
-
-        const lines = await db.select({
-            id: journalEntryLines.id,
-            tanggal: journalEntries.tanggal,
-            nomorJurnal: journalEntries.nomorJurnal,
-            keterangan: journalEntryLines.keterangan,
-            debit: journalEntryLines.debit,
-            kredit: journalEntryLines.kredit
-        })
-        .from(journalEntryLines)
-        .innerJoin(journalEntries, eq(journalEntryLines.journalId, journalEntries.id))
-        .where(and(...conditions))
-        .orderBy(asc(journalEntries.tanggal), asc(journalEntries.id));
-
-        let runningBalance = 0;
-        const entries = lines.map(line => {
-            const debit = Number(line.debit || 0);
-            const kredit = Number(line.kredit || 0);
-
+        let saldo = 0;
+        const entries = lines.map(l => {
+            const debit = Number(l.debit || 0);
+            const kredit = Number(l.kredit || 0);
+            // Normal balance determines saldo direction
             if (coa.normalBalance === 'DEBIT') {
-                runningBalance += debit - kredit;
+                saldo = saldo + debit - kredit;
             } else {
-                runningBalance += kredit - debit;
+                saldo = saldo + kredit - debit;
             }
-
             return {
-                tanggal: line.tanggal,
-                nomorJurnal: line.nomorJurnal || '',
-                keterangan: line.keterangan || '',
-                debit: debit,
-                kredit: kredit,
-                saldo: runningBalance
+                tanggal: l.journal?.tanggal || '',
+                nomorJurnal: l.journal?.nomorJurnal || '',
+                keterangan: l.keterangan || l.journal?.memo || '',
+                debit, kredit, saldo
             };
         });
 
         return json({
             success: true,
-            message: 'Berhasil mengambil buku besar',
             data: {
-                coa: {
-                    id: coa.id,
-                    unitId: coa.unitId,
-                    kodeAkun: coa.kodeAkun,
-                    namaAkun: coa.namaAkun,
-                    tipeAkun: coa.tipeAkun,
-                    normalBalance: coa.normalBalance,
-                    isActive: coa.isActive,
-                    deskripsi: coa.deskripsi
-                },
-                entries
+                coa: { id: coa.id, kodeAkun: coa.kodeAkun, namaAkun: coa.namaAkun, tipeAkun: coa.tipeAkun },
+                entries,
+                saldoAwal: 0,
+                saldoAkhir: saldo
             }
         });
-
     } catch (err) {
-        if (log?.finance?.error) log.finance.error({ err }, 'API GET Buku Besar Error');
-        else if (log?.error) log.error({ err }, 'API GET Buku Besar Error');
-        return json({ success: false, message: 'Gagal mengambil buku besar: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'GET finance/buku-besar');
+        return json({ success: false, message: 'Gagal memuat buku besar' }, { status: 500 });
     }
 }

@@ -170,7 +170,8 @@ export async function POST({ request, cookies }) {
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
-                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input HR tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
             }
         }
 
@@ -184,7 +185,8 @@ export async function POST({ request, cookies }) {
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
-                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input check-in tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
             }
         }
 
@@ -197,7 +199,8 @@ export async function POST({ request, cookies }) {
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
-                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input check-out tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
             }
         }
 
@@ -216,7 +219,8 @@ export async function POST({ request, cookies }) {
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
-                return json({ success: false, message: parsed.error.errors[0].message }, { status: 400 });
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input payroll tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
             }
         }
         // ────────────────────────────────────────────────────────────────────────

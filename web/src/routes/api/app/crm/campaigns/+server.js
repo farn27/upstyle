@@ -1,96 +1,60 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { crmContacts, crmDeals, crmActivities, crmTasks, quotations, quotationItems, salesOrders, salesOrderItems, marketingCampaigns } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { marketingCampaigns, riwayatAksi } from '$lib/server/schema';
+import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
-import crypto from 'crypto';
+import { z } from 'zod';
 
-// GET: ?unitId= - fetch marketing campaigns for unit, ordered by createdAt desc
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     const unitId = url.searchParams.get('unitId');
-    if (!unitId) return json({ success: false, message: 'unitId wajib diisi', data: null }, { status: 400 });
-
+    if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
     try {
-        const data = await db.query.marketingCampaigns.findMany({
+        const campaigns = await db.query.marketingCampaigns.findMany({
             where: eq(marketingCampaigns.unitId, Number(unitId)),
-            orderBy: [desc(marketingCampaigns.createdAt)]
+            orderBy: [desc(marketingCampaigns.id)]
         });
-
-        return json({ success: true, message: 'Berhasil mengambil data marketing campaign', data });
+        const data = campaigns.map(c => ({
+            id: c.id, unitId: c.unitId, name: c.name, type: c.type, status: c.status,
+            budget: Number(c.budget || 0), composeSubject: c.composeSubject || '',
+            composeText: c.composeText || '', scheduledAt: c.scheduledAt || '',
+            createdAt: c.createdAt || ''
+        }));
+        return json({ success: true, data });
     } catch (err) {
-        log.crm.error({ err }, 'API GET MARKETING CAMPAIGNS ERROR');
-        return json({ success: false, message: 'Gagal mengambil data campaign: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'GET crm/campaigns');
+        return json({ success: false, message: 'Gagal memuat kampanye' }, { status: 500 });
     }
 }
 
-// POST: Create campaign. Body: { unitId, name, type, budget, composeSubject, composeText, scheduledAt }. Set status='DRAFT'.
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const schema = z.object({
+        name: z.string().min(1), unitId: z.coerce.number().int().positive(),
+        type: z.enum(['EMAIL','WA','AD_TRACKER']),
+        budget: z.coerce.number().optional().default(0),
+        composeSubject: z.string().optional(), composeText: z.string().optional()
+    });
     try {
         const body = await request.json();
-        const { unitId, name, type, budget, composeSubject, composeText, scheduledAt } = body;
-
-        if (!unitId || !name || !type) {
-            return json({ success: false, message: 'unitId, name, dan type wajib diisi', data: null }, { status: 400 });
+        const parsed = schema.safeParse(body.campaign || body);
+        if (!parsed.success) {
+            const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input kampanye tidak valid';
+            return json({ success: false, message: msg }, { status: 422 });
         }
-
-        const [result] = await db.insert(marketingCampaigns).values({
-            unitId: Number(unitId),
-            name,
-            type,
-            status: 'DRAFT',
-            budget: budget !== undefined ? String(budget) : '0.00',
-            composeSubject: composeSubject || null,
-            composeText: composeText || null,
-            scheduledAt: scheduledAt || null
+        const { name, unitId, type, budget, composeSubject, composeText } = parsed.data;
+        await db.insert(marketingCampaigns).values({
+            unitId: Number(unitId), name, type, status: 'DRAFT',
+            budget: String(budget), composeSubject: composeSubject || null,
+            composeText: composeText || null, createdAt: new Date().toISOString()
         });
-
-        return json({
-            success: true,
-            message: 'Campaign berhasil dibuat',
-            data: { id: result.insertId }
-        });
+        await db.insert(riwayatAksi).values({ userId, unitId: Number(unitId), pesan: `Kampanye baru: ${name}`, kategori: 'MARKETING', tipe: 'success' });
+        return json({ success: true, message: 'Kampanye berhasil dibuat' });
     } catch (err) {
-        log.crm.error({ err }, 'API POST MARKETING CAMPAIGNS ERROR');
-        return json({ success: false, message: 'Gagal membuat campaign: ' + err.message, data: null }, { status: 500 });
-    }
-}
-
-// PUT: Update campaign. Body: { id, status, composeText, scheduledAt }.
-export async function PUT({ request, cookies }) {
-    const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
-    try {
-        const body = await request.json();
-        const { id, status, composeText, scheduledAt } = body;
-
-        if (!id) {
-            return json({ success: false, message: 'id campaign wajib diisi', data: null }, { status: 400 });
-        }
-
-        const updateData = {};
-        if (status !== undefined) updateData.status = status;
-        if (composeText !== undefined) updateData.composeText = composeText;
-        if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt;
-
-        if (Object.keys(updateData).length === 0) {
-            return json({ success: false, message: 'Tidak ada data yang diperbarui', data: null }, { status: 400 });
-        }
-
-        await db.update(marketingCampaigns)
-            .set(updateData)
-            .where(eq(marketingCampaigns.id, Number(id)));
-
-        return json({ success: true, message: 'Campaign berhasil diperbarui', data: null });
-    } catch (err) {
-        log.crm.error({ err }, 'API PUT MARKETING CAMPAIGNS ERROR');
-        return json({ success: false, message: 'Gagal memperbarui campaign: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'POST crm/campaigns');
+        return json({ success: false, message: 'Gagal buat kampanye' }, { status: 500 });
     }
 }

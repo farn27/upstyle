@@ -1,118 +1,68 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { crmContacts, crmDeals, crmActivities, crmTasks, quotations, quotationItems, salesOrders, salesOrderItems, marketingCampaigns } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { quotations, quotationItems, crmContacts, products, riwayatAksi } from '$lib/server/schema';
+import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
-import crypto from 'crypto';
+import { z } from 'zod';
 
-// GET: ?unitId= - fetch quotations with items, ordered by createdAt desc
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     const unitId = url.searchParams.get('unitId');
-    if (!unitId) return json({ success: false, message: 'unitId wajib diisi', data: null }, { status: 400 });
-
+    if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
     try {
-        const data = await db.query.quotations.findMany({
+        const quos = await db.query.quotations.findMany({
             where: eq(quotations.unitId, Number(unitId)),
-            orderBy: [desc(quotations.createdAt)],
-            with: {
-                items: true
-            }
+            orderBy: [desc(quotations.id)],
+            with: { customer: true, items: { with: { product: true } } }
         });
-
-        return json({ success: true, message: 'Berhasil mengambil data quotation', data });
+        const data = quos.map(q => ({
+            id: q.id, unitId: q.unitId, quotationNumber: q.quotationNumber,
+            customerId: q.customerId, customerName: q.customer?.nama || 'Customer',
+            totalAmount: Number(q.totalAmount || 0), status: q.status,
+            validUntil: q.validUntil, notes: q.notes || '', createdAt: q.createdAt || '',
+            items: (q.items || []).map(i => ({
+                id: i.id, productId: i.productId, productName: i.product?.nama || '',
+                qty: i.qty, price: Number(i.price), total: Number(i.total)
+            }))
+        }));
+        return json({ success: true, data });
     } catch (err) {
-        log.crm.error({ err }, 'API GET QUOTATIONS ERROR');
-        return json({ success: false, message: 'Gagal mengambil data quotation: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'GET crm/quotations');
+        return json({ success: false, message: 'Gagal memuat penawaran' }, { status: 500 });
     }
 }
 
-// POST: Create quotation. Body: { unitId, customerId, validUntil, notes, items: [{productId, qty, price, total}] }
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     try {
         const body = await request.json();
-        const { unitId, customerId, validUntil, notes, items } = body;
+        const { unitId, customerId, totalAmount, validUntil, notes, items } = body;
+        if (!unitId || !totalAmount) return json({ success: false, message: 'unitId dan totalAmount wajib' }, { status: 400 });
 
-        if (!unitId || !validUntil || !Array.isArray(items) || items.length === 0) {
-            return json({ success: false, message: 'unitId, validUntil, dan items (min 1) wajib diisi', data: null }, { status: 400 });
-        }
-
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const dateStr = `${year}${month}${day}`;
-        const random4 = crypto.randomInt(1000, 10000);
-        const quotationNumber = `QUO-${dateStr}-${random4}`;
-
-        const totalAmount = items.reduce((sum, item) => {
-            const itemTotal = item.total !== undefined ? Number(item.total) : (Number(item.qty || 0) * Number(item.price || 0));
-            return sum + itemTotal;
-        }, 0);
-
-        let newQuotationId = null;
-
-        await db.transaction(async (tx) => {
-            const [qResult] = await tx.insert(quotations).values({
-                quotationNumber,
-                unitId: Number(unitId),
-                customerId: customerId ? Number(customerId) : null,
-                totalAmount: String(totalAmount.toFixed(2)),
-                status: 'DRAFT',
-                validUntil: String(validUntil),
-                notes: notes || null
-            });
-
-            newQuotationId = qResult.insertId;
-
-            const itemInserts = items.map(item => ({
-                quotationId: newQuotationId,
-                productId: item.productId ? String(item.productId) : null,
-                qty: Number(item.qty || 1),
-                price: String(item.price || 0),
-                total: String(item.total !== undefined ? item.total : (Number(item.qty || 1) * Number(item.price || 0)))
-            }));
-
-            await tx.insert(quotationItems).values(itemInserts);
+        const quotationNumber = `QUO-${Date.now()}`;
+        const [result] = await db.insert(quotations).values({
+            quotationNumber, unitId: Number(unitId), customerId: customerId || null,
+            totalAmount: String(totalAmount), status: 'DRAFT',
+            validUntil: validUntil || new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0],
+            notes: notes || null, createdAt: new Date().toISOString()
         });
+        const quoId = result.insertId;
 
-        return json({
-            success: true,
-            message: 'Quotation berhasil dibuat',
-            data: { id: newQuotationId, quotationNumber }
-        });
-    } catch (err) {
-        log.crm.error({ err }, 'API POST QUOTATIONS ERROR');
-        return json({ success: false, message: 'Gagal membuat quotation: ' + err.message, data: null }, { status: 500 });
-    }
-}
-
-// PUT: Update quotation status. Body: { id, status }.
-export async function PUT({ request, cookies }) {
-    const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
-    try {
-        const body = await request.json();
-        const { id, status } = body;
-
-        if (!id || !status) {
-            return json({ success: false, message: 'id dan status wajib diisi', data: null }, { status: 400 });
+        if (Array.isArray(items)) {
+            for (const item of items) {
+                await db.insert(quotationItems).values({
+                    quotationId: quoId, productId: item.productId || null,
+                    qty: Number(item.qty), price: String(item.price), total: String(Number(item.qty) * Number(item.price))
+                });
+            }
         }
-
-        await db.update(quotations)
-            .set({ status })
-            .where(eq(quotations.id, Number(id)));
-
-        return json({ success: true, message: 'Status quotation berhasil diperbarui', data: null });
+        await db.insert(riwayatAksi).values({ userId, unitId: Number(unitId), pesan: `Penawaran baru: ${quotationNumber}`, kategori: 'CRM', tipe: 'success' });
+        return json({ success: true, message: 'Penawaran berhasil dibuat', data: { id: quoId, quotationNumber } });
     } catch (err) {
-        log.crm.error({ err }, 'API PUT QUOTATIONS ERROR');
-        return json({ success: false, message: 'Gagal memperbarui status quotation: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'POST crm/quotations');
+        return json({ success: false, message: 'Gagal buat penawaran' }, { status: 500 });
     }
 }

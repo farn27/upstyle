@@ -1,117 +1,90 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { crmContacts, crmDeals, crmActivities, crmTasks, quotations, quotationItems, salesOrders, salesOrderItems, marketingCampaigns } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { salesOrders, salesOrderItems, crmContacts, products, riwayatAksi, transaksi } from '$lib/server/schema';
+import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
-import crypto from 'crypto';
 
-// GET: ?unitId= - fetch sales orders with items, ordered by createdAt desc
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     const unitId = url.searchParams.get('unitId');
-    if (!unitId) return json({ success: false, message: 'unitId wajib diisi', data: null }, { status: 400 });
-
+    if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
     try {
-        const data = await db.query.salesOrders.findMany({
+        const orders = await db.query.salesOrders.findMany({
             where: eq(salesOrders.unitId, Number(unitId)),
-            orderBy: [desc(salesOrders.createdAt)],
-            with: {
-                items: true
-            }
+            orderBy: [desc(salesOrders.id)],
+            with: { customer: true, items: { with: { product: true } } }
         });
-
-        return json({ success: true, message: 'Berhasil mengambil data sales order', data });
+        const data = orders.map(o => ({
+            id: o.id, unitId: o.unitId, orderNumber: o.orderNumber,
+            customerId: o.customerId, customerName: o.customer?.nama || 'Customer',
+            totalAmount: Number(o.totalAmount || 0), status: o.status,
+            notes: o.notes || '', createdAt: o.createdAt || '',
+            items: (o.items || []).map(i => ({
+                id: i.id, productId: i.productId, productName: i.product?.nama || '',
+                qty: i.qty, price: Number(i.price), total: Number(i.total)
+            }))
+        }));
+        return json({ success: true, data });
     } catch (err) {
-        log.crm.error({ err }, 'API GET SALES ORDERS ERROR');
-        return json({ success: false, message: 'Gagal mengambil data sales order: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'GET crm/sales-orders');
+        return json({ success: false, message: 'Gagal memuat sales orders' }, { status: 500 });
     }
 }
 
-// POST: Create sales order. Body: { unitId, customerId, notes, items: [{productId, qty, price, total}] }
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     try {
         const body = await request.json();
-        const { unitId, customerId, notes, items } = body;
+        const { unitId, customerId, totalAmount, notes, items } = body;
+        if (!unitId || !totalAmount) return json({ success: false, message: 'unitId dan totalAmount wajib' }, { status: 400 });
 
-        if (!unitId || !Array.isArray(items) || items.length === 0) {
-            return json({ success: false, message: 'unitId dan items (min 1) wajib diisi', data: null }, { status: 400 });
+        const orderNumber = `SO-${Date.now()}`;
+        const [result] = await db.insert(salesOrders).values({
+            orderNumber, unitId: Number(unitId), customerId: customerId || null,
+            totalAmount: String(totalAmount), status: 'PENDING',
+            notes: notes || null, createdAt: new Date().toISOString()
+        });
+        const soId = result.insertId;
+
+        if (Array.isArray(items)) {
+            for (const item of items) {
+                await db.insert(salesOrderItems).values({
+                    salesOrderId: soId, productId: item.productId || null,
+                    qty: Number(item.qty), price: String(item.price),
+                    total: String(Number(item.qty) * Number(item.price))
+                });
+            }
         }
 
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const dateStr = `${year}${month}${day}`;
-        const random4 = crypto.randomInt(1000, 10000);
-        const orderNumber = `SO-${dateStr}-${random4}`;
-
-        const totalAmount = items.reduce((sum, item) => {
-            const itemTotal = item.total !== undefined ? Number(item.total) : (Number(item.qty || 0) * Number(item.price || 0));
-            return sum + itemTotal;
-        }, 0);
-
-        let newSalesOrderId = null;
-
-        await db.transaction(async (tx) => {
-            const [soResult] = await tx.insert(salesOrders).values({
-                orderNumber,
-                unitId: Number(unitId),
-                customerId: customerId ? Number(customerId) : null,
-                totalAmount: String(totalAmount.toFixed(2)),
-                status: 'PENDING',
-                notes: notes || null
-            });
-
-            newSalesOrderId = soResult.insertId;
-
-            const itemInserts = items.map(item => ({
-                salesOrderId: newSalesOrderId,
-                productId: item.productId ? String(item.productId) : null,
-                qty: Number(item.qty || 1),
-                price: String(item.price || 0),
-                total: String(item.total !== undefined ? item.total : (Number(item.qty || 1) * Number(item.price || 0)))
-            }));
-
-            await tx.insert(salesOrderItems).values(itemInserts);
+        // Record as income transaction
+        await db.insert(transaksi).values({
+            userId, unitId: Number(unitId), kategoriTrx: 'MASUK',
+            nominal: String(totalAmount), totalHarga: String(totalAmount),
+            keterangan: `Sales Order ${orderNumber}`, metodeBayar: 'TRANSFER'
         });
 
-        return json({
-            success: true,
-            message: 'Sales order berhasil dibuat',
-            data: { id: newSalesOrderId, orderNumber }
-        });
+        await db.insert(riwayatAksi).values({ userId, unitId: Number(unitId), pesan: `Sales Order baru: ${orderNumber}`, kategori: 'CRM', tipe: 'success' });
+        return json({ success: true, message: 'Sales order berhasil dibuat', data: { id: soId, orderNumber } });
     } catch (err) {
-        log.crm.error({ err }, 'API POST SALES ORDERS ERROR');
-        return json({ success: false, message: 'Gagal membuat sales order: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'POST crm/sales-orders');
+        return json({ success: false, message: 'Gagal buat sales order' }, { status: 500 });
     }
 }
 
-// PUT: Update order status. Body: { id, status }.
 export async function PUT({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
-    if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
-
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     try {
         const body = await request.json();
-        const { id, status } = body;
-
-        if (!id || !status) {
-            return json({ success: false, message: 'id dan status wajib diisi', data: null }, { status: 400 });
-        }
-
-        await db.update(salesOrders)
-            .set({ status })
-            .where(eq(salesOrders.id, Number(id)));
-
-        return json({ success: true, message: 'Status sales order berhasil diperbarui', data: null });
+        const { orderId, status } = body;
+        if (!orderId || !status) return json({ success: false, message: 'orderId dan status wajib' }, { status: 400 });
+        await db.update(salesOrders).set({ status }).where(eq(salesOrders.id, Number(orderId)));
+        return json({ success: true, message: 'Status diperbarui' });
     } catch (err) {
-        log.crm.error({ err }, 'API PUT SALES ORDERS ERROR');
-        return json({ success: false, message: 'Gagal memperbarui status sales order: ' + err.message, data: null }, { status: 500 });
+        log.api.error({ err }, 'PUT crm/sales-orders');
+        return json({ success: false, message: 'Gagal update status' }, { status: 500 });
     }
 }
