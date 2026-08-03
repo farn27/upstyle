@@ -1,100 +1,73 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { closingPeriods, transaksi } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { closingPeriods, transaksi, riwayatAksi } from '$lib/server/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
-import { triggerEvent } from '$lib/server/pusher';
+import { z } from 'zod';
 
+// GET /api/app/finance/close-period?unitId=X
 export async function GET({ url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) {
-		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
-	}
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const unitId = url.searchParams.get('unitId');
+    if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
 
-	const unitId = url.searchParams.get('unitId');
-	if (!unitId) {
-		return json({ success: false, message: 'unitId parameter is required' }, { status: 400 });
-	}
-
-	try {
-		const data = await db.query.closingPeriods.findMany({
-			where: eq(closingPeriods.unitId, Number(unitId)),
-			orderBy: [desc(closingPeriods.createdAt)]
-		});
-
-		return json({
-			success: true,
-			message: 'Berhasil mengambil data periode tutup buku',
-			data
-		});
-	} catch (err) {
-		log.finance.error({ err }, 'API GET CLOSING PERIODS ERROR');
-		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
-	}
+    try {
+        const periods = await db.query.closingPeriods.findMany({
+            where: eq(closingPeriods.unitId, Number(unitId)),
+            orderBy: [desc(closingPeriods.id)]
+        });
+        const data = periods.map(p => ({
+            id: p.id, unitId: p.unitId, periodStart: p.periodStart, periodEnd: p.periodEnd,
+            status: p.status, labaRugiPeriode: Number(p.labaRugiPeriode || 0),
+            keterangan: p.keterangan || '', closedAt: p.closedAt || ''
+        }));
+        return json({ success: true, data });
+    } catch (err) {
+        log.api.error({ err }, 'GET finance/close-period');
+        return json({ success: false, message: 'Gagal memuat periode tutup buku' }, { status: 500 });
+    }
 }
 
+// POST /api/app/finance/close-period — tutup periode buku
 export async function POST({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies, request);
-	if (!userId) {
-		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
-	}
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
-	try {
-		const body = await request.json();
-		const { unitId, periodStart, periodEnd, keterangan } = body;
+    const schema = z.object({
+        unitId: z.coerce.number().int().positive(),
+        periodStart: z.string().min(1), periodEnd: z.string().min(1),
+        keterangan: z.string().optional()
+    });
 
-		if (!unitId || !periodStart || !periodEnd) {
-			return json({ success: false, message: 'Data tidak lengkap' }, { status: 400 });
-		}
+    try {
+        const body = await request.json();
+        const parsed = schema.safeParse(body);
+        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        const { unitId, periodStart, periodEnd, keterangan } = parsed.data;
 
-		const [summary] = await db
-			.select({
-				totalMasuk: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'MASUK' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
-				totalKeluar: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'KELUAR' THEN ${transaksi.nominal} ELSE 0 END), 0)`
-			})
-			.from(transaksi)
-			.where(
-				and(
-					eq(transaksi.unitId, Number(unitId)),
-					sql`DATE(${transaksi.tanggal}) BETWEEN ${periodStart} AND ${periodEnd}`
-				)
-			);
+        // Calculate laba/rugi for the period
+        const trxList = await db.query.transaksi.findMany({ where: eq(transaksi.unitId, Number(unitId)) });
+        const totalMasuk = trxList.filter(t => t.kategoriTrx === 'MASUK').reduce((s, t) => s + Number(t.nominal || 0), 0);
+        const totalKeluar = trxList.filter(t => t.kategoriTrx === 'KELUAR').reduce((s, t) => s + Number(t.nominal || 0), 0);
+        const labaRugi = totalMasuk - totalKeluar;
 
-		const labaRugiPeriode = Number(summary?.totalMasuk || 0) - Number(summary?.totalKeluar || 0);
+        const [result] = await db.insert(closingPeriods).values({
+            unitId: Number(unitId), userId, periodStart, periodEnd,
+            status: 'CLOSED', labaRugiPeriode: String(labaRugi),
+            keterangan: keterangan || null, closedAt: new Date()
+        });
 
-		const [inserted] = await db.insert(closingPeriods).values({
-			unitId: Number(unitId),
-			userId,
-			periodStart,
-			periodEnd,
-			status: 'CLOSED',
-			labaRugiPeriode: String(labaRugiPeriode),
-			keterangan: keterangan || null,
-			closedAt: new Date()
-		});
+        await db.insert(riwayatAksi).values({
+            userId, unitId: Number(unitId),
+            pesan: `Tutup Buku: Periode ${periodStart} s/d ${periodEnd}. Laba/Rugi: Rp ${labaRugi.toLocaleString('id-ID')}`,
+            kategori: 'FINANCE', tipe: labaRugi >= 0 ? 'success' : 'info'
+        });
 
-		try {
-			await triggerEvent(`unit-${unitId}`, 'period-closed', {
-				id: inserted.insertId,
-				periodStart,
-				periodEnd,
-				labaRugiPeriode
-			});
-		} catch (e) {
-			// ignore pusher notification errors
-		}
-
-		return json({
-			success: true,
-			message: 'Periode buku berhasil ditutup',
-			data: {
-				id: inserted.insertId,
-				labaRugiPeriode
-			}
-		});
-	} catch (err) {
-		log.finance.error({ err }, 'API POST CLOSE PERIOD ERROR');
-		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
-	}
+        return json({ success: true, message: 'Periode berhasil ditutup', data: { id: result.insertId, labaRugi } });
+    } catch (err) {
+        log.api.error({ err }, 'POST finance/close-period');
+        return json({ success: false, message: 'Gagal tutup periode' }, { status: 500 });
+    }
 }
