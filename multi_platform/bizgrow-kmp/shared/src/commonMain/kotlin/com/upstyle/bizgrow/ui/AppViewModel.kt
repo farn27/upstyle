@@ -86,8 +86,15 @@ sealed class Screen {
     object LeaveRequests : Screen()
     object PosVouchers : Screen()
     object CrmTasks : Screen()
-}
 
+    // Missing UI Gaps
+    object Neraca : Screen()
+    object Budget : Screen()
+    object TaxRates : Screen()
+    object ClosingPeriod : Screen()
+    object MarketingCampaigns : Screen()
+    object Pricing : Screen()
+}
 // ─── UI State ─────────────────────────────────────────────────────────────────
 
 data class UiState(
@@ -359,9 +366,22 @@ class AppViewModel(
         if (unitId == 0) return@launch
         try {
             val res = api.getProducts(unitId)
-            if (res.success) _products.value = res.data
+            if (res.success) {
+                _products.value = res.data
+                try {
+                    val json = kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(Product.serializer()), res.data)
+                    session.saveOfflineProducts(json)
+                } catch (e: Exception) { Napier.e("Failed to cache products", e) }
+            }
         } catch (e: Exception) {
-            Napier.e("loadProducts error", e)
+            Napier.e("loadProducts error (network), trying offline cache", e)
+            val cachedJson = session.getOfflineProducts()
+            if (cachedJson != null) {
+                try {
+                    val cachedData = kotlinx.serialization.json.Json.decodeFromString<List<Product>>(cachedJson)
+                    _products.value = cachedData
+                } catch (e: Exception) { Napier.e("Failed to parse cached products", e) }
+            }
         }
     }
 
@@ -1283,6 +1303,30 @@ class AppViewModel(
             if (res.success) _marketingCampaigns.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadMarketingCampaigns error", e) }
     }
+
+    fun createMarketingCampaign(name: String, type: String = "EMAIL", budget: Double = 0.0, scheduledAt: String? = null) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val camp = MarketingCampaign(
+                unitId = unitId,
+                name = name,
+                type = type,
+                budget = budget,
+                scheduledAt = scheduledAt
+            )
+            val res = api.createMarketingCampaign(camp)
+            if (res.success) {
+                loadMarketingCampaigns()
+            } else {
+                setError(res.message ?: "Gagal membuat kampanye")
+            }
+        } catch (e: Exception) {
+            Napier.e("createMarketingCampaign error", e)
+            setError("Koneksi gagal: ${e.message}")
+        }
+    }
+
 
     // ─── Products Advanced (Stock Opname, Trash) ─────────────────────────────
     private val _stockOpnameSessions = MutableStateFlow<List<StockOpnameSession>>(emptyList())

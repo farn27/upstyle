@@ -55,7 +55,7 @@ export async function GET({ url, cookies, request }) {
             }
         });
     } catch (err) {
-        log.api.error({ err }, 'GET finance/buku-besar');
+        log?.error?.({ err }, 'GET finance/buku-besar');
         return json({ success: false, message: 'Gagal memuat buku besar' }, { status: 500 });
     }
 }

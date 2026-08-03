@@ -39,6 +39,12 @@ export async function POST({ request }) {
 
 	const { googleToken } = parsed.data;
 
+	// Log token length for debugging
+	log.auth.info({ tokenLength: googleToken.length, tokenSample: googleToken.slice(0, 20) }, 'Received Google token');
+	if (googleToken.length < 10) {
+		return apiError('Google token terlalu pendek', 400, 'TOKEN_TOO_SHORT');
+	}
+
 	try {
         let profile;
         if (googleToken.startsWith('mock-token-')) {
@@ -62,8 +68,9 @@ export async function POST({ request }) {
 
             profile = await verifyRes.json();
 
-            // Pastikan token dari client ID yang benar
-            if (profile.aud !== GOOGLE_CLIENT_ID) {
+            // Trim possible surrounding quotes from env var
+            const expectedAud = GOOGLE_CLIENT_ID.replace(/^"|"$/g, '');
+            if (profile.aud !== expectedAud) {
                 return apiError('Token bukan untuk aplikasi ini', 401, 'WRONG_AUDIENCE');
             }
         }

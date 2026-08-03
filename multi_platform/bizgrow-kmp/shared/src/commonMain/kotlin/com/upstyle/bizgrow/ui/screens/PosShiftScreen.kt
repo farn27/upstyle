@@ -71,7 +71,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
             // Active Shift Banner
             activeShift?.let { shift ->
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20)),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                 ) {
@@ -84,14 +84,14 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                                 Text("Modal Awal", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                                 Text(formatCurrency(shift.modalAwal), color = Color.White, fontWeight = FontWeight.Bold)
                             }
-                            Surface(color = Color(0xFF4CAF50), shape = RoundedCornerShape(8.dp)) {
+                            Surface(color = Color(0xFF4CAF50), shape = RoundedCornerShape(12.dp)) {
                                 Text(" OPEN ", color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             } ?: Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
@@ -133,7 +133,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                         label = { Text("Modal Awal (Rp)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             },
@@ -168,7 +168,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                         label = { Text("Kas Akhir Aktual (Rp)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
@@ -176,7 +176,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                         onValueChange = { catatan = it },
                         label = { Text("Catatan (opsional)") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             },
@@ -203,7 +203,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
 fun ShiftItem(shift: PosShift) {
     val isOpen = shift.status == "OPEN"
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -214,7 +214,7 @@ fun ShiftItem(shift: PosShift) {
                 }
                 Surface(
                     color = if (isOpen) Color(0xFF4CAF50) else Color.Gray,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(shift.status, color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }

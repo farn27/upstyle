@@ -15,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @Composable
 fun AuthScreen(viewModel: AppViewModel) {
@@ -32,78 +34,122 @@ fun AuthScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(BizgrowColors.Background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.Center
     ) {
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.weight(1f))
 
-        Surface(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(20.dp), modifier = Modifier.size(72.dp)) {
+        Surface(color = BizgrowColors.PrimaryLight, shape = RoundedCornerShape(24.dp), modifier = Modifier.size(80.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.BusinessCenter, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Default.BusinessCenter, null, Modifier.size(40.dp), tint = BizgrowColors.Primary)
             }
         }
+        
+        Spacer(Modifier.height(24.dp))
 
-        Text("Bizgrow", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-        Text("Platform Bisnis UMKM Indonesia", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Text("BizGrow", fontSize = 32.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Gray950)
+        Text("Platform Bisnis UMKM Indonesia", fontSize = 14.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(32.dp))
 
-        TabRow(selectedTabIndex = if (isRegister) 1 else 0) {
-            Tab(selected = !isRegister, onClick = { isRegister = false; errorMsg = null }) {
-                Text("Masuk", Modifier.padding(vertical = 12.dp), fontWeight = FontWeight.Bold)
-            }
-            Tab(selected = isRegister, onClick = { isRegister = true; errorMsg = null }) {
-                Text("Daftar", Modifier.padding(vertical = 12.dp), fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (isRegister) {
-                    OutlinedTextField(value = username, onValueChange = { username = it; errorMsg = null },
-                        label = { Text("Username") }, leadingIcon = { Icon(Icons.Default.Person, null) },
-                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+        Card(
+            modifier = Modifier.fillMaxWidth(), 
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = BizgrowColors.White),
+            elevation = CardDefaults.cardElevation(2.dp)
+        ) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    TabRow(
+                        selectedTabIndex = if (isRegister) 1 else 0,
+                        containerColor = BizgrowColors.White,
+                        contentColor = BizgrowColors.Primary,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Tab(
+                            selected = !isRegister, 
+                            onClick = { isRegister = false; errorMsg = null; successMsg = null },
+                            text = { Text("Masuk", fontWeight = FontWeight.Bold) }
+                        )
+                        Tab(
+                            selected = isRegister, 
+                            onClick = { isRegister = true; errorMsg = null; successMsg = null },
+                            text = { Text("Daftar", fontWeight = FontWeight.Bold) }
+                        )
+                    }
                 }
-                OutlinedTextField(value = email, onValueChange = { email = it; errorMsg = null },
-                    label = { Text("Email") }, leadingIcon = { Icon(Icons.Default.Email, null) },
-                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-                OutlinedTextField(value = password, onValueChange = { password = it; errorMsg = null },
-                    label = { Text("Password") }, leadingIcon = { Icon(Icons.Default.Lock, null) },
+                
+                Spacer(Modifier.height(8.dp))
+
+                if (isRegister) {
+                    OutlinedTextField(
+                        value = username, onValueChange = { username = it; errorMsg = null },
+                        placeholder = { Text("Nama Lengkap", color = BizgrowColors.Gray400) },
+                        leadingIcon = { Icon(Icons.Default.Person, null, tint = BizgrowColors.Gray400) },
+                        modifier = Modifier.fillMaxWidth(), 
+                        shape = RoundedCornerShape(20.dp), singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BizgrowColors.Primary,
+                            unfocusedBorderColor = BizgrowColors.Gray200
+                        )
+                    )
+                }
+                OutlinedTextField(
+                    value = email, onValueChange = { email = it; errorMsg = null },
+                    placeholder = { Text("Email", color = BizgrowColors.Gray400) }, 
+                    leadingIcon = { Icon(Icons.Default.Email, null, tint = BizgrowColors.Gray400) },
+                    modifier = Modifier.fillMaxWidth(), 
+                    shape = RoundedCornerShape(20.dp), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BizgrowColors.Primary,
+                        unfocusedBorderColor = BizgrowColors.Gray200
+                    )
+                )
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it; errorMsg = null },
+                    placeholder = { Text("Password", color = BizgrowColors.Gray400) }, 
+                    leadingIcon = { Icon(Icons.Default.Lock, null, tint = BizgrowColors.Gray400) },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
+                            Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, null, tint = BizgrowColors.Gray400)
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), 
+                    shape = RoundedCornerShape(20.dp), singleLine = true,
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BizgrowColors.Primary,
+                        unfocusedBorderColor = BizgrowColors.Gray200
+                    )
+                )
 
-                errorMsg?.let {
-                    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(8.dp)) {
-                        Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall)
+                if (errorMsg != null || uiState.error != null) {
+                    Surface(color = BizgrowColors.DangerLight, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text(errorMsg ?: uiState.error ?: "", Modifier.padding(12.dp), color = BizgrowColors.DangerDark, fontSize = 13.sp)
                     }
                 }
                 successMsg?.let {
-                    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(8.dp)) {
-                        Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            style = MaterialTheme.typography.bodySmall)
+                    Surface(color = BizgrowColors.SuccessLight, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text(it, Modifier.padding(12.dp), color = BizgrowColors.Success, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
+                Spacer(Modifier.height(8.dp))
+
                 Button(
                     onClick = {
-                        errorMsg = null
+                        errorMsg = null; successMsg = null
                         if (isRegister) {
                             if (username.isBlank() || email.isBlank() || password.isBlank()) { errorMsg = "Semua field wajib diisi"; return@Button }
                             viewModel.register(username, email, password) { ok, msg ->
-                                if (ok) { successMsg = "Registrasi berhasil! Silakan masuk."; isRegister = false }
+                                if (ok) { successMsg = "Registrasi berhasil! Silakan masuk."; isRegister = false; password = "" }
                                 else errorMsg = msg ?: "Registrasi gagal"
                             }
                         } else {
@@ -111,14 +157,17 @@ fun AuthScreen(viewModel: AppViewModel) {
                             viewModel.login(email, password) { ok, msg -> if (!ok) errorMsg = msg ?: "Login gagal" }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Primary),
                     enabled = !uiState.isLoading
                 ) {
-                    if (uiState.isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
-                    else Text(if (isRegister) "Daftar Akun" else "Masuk", fontWeight = FontWeight.Bold)
+                    if (uiState.isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = BizgrowColors.White, strokeWidth = 2.dp)
+                    else Text(if (isRegister) "Daftar Akun" else "Masuk", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }
+        
+        Spacer(Modifier.weight(1f))
     }
 }

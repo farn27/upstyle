@@ -47,10 +47,10 @@ fun UnitsScreen(viewModel: AppViewModel) {
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(units) { unit ->
-                    Card(onClick = { viewModel.selectUnit(unit) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Card(onClick = { viewModel.selectUnit(unit) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(48.dp)) {
+                                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(20.dp), modifier = Modifier.size(48.dp)) {
                                     Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Storefront, null, tint = MaterialTheme.colorScheme.primary) }
                                 }
                                 Spacer(Modifier.width(12.dp))
@@ -75,7 +75,7 @@ fun UnitsScreen(viewModel: AppViewModel) {
             title = { Text("Buat Unit Bisnis", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nama Bisnis") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nama Bisnis") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("RETAIL", "FNB", "JASA", "LAINNYA").forEach { t ->
                             FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t, style = MaterialTheme.typography.labelSmall) })

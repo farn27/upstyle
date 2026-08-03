@@ -56,7 +56,7 @@ fun CsInboxScreen(viewModel: AppViewModel) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddTicketSheet = true },
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.background,
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Buat Tiket", tint = Color.White)
             }
@@ -163,7 +163,7 @@ fun TicketCard(ticket: SupportTicket, onClick: () -> Unit) {
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
@@ -180,7 +180,7 @@ fun TicketCard(ticket: SupportTicket, onClick: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     maxLines = 1
                 )
-                Surface(color = statusColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
+                Surface(color = statusColor.copy(alpha = 0.1f), shape = RoundedCornerShape(12.dp)) {
                     Text(ticket.status, color = statusColor, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp), fontWeight = FontWeight.Bold)
                 }
             }
@@ -253,7 +253,7 @@ fun AddTicketSheet(
                 label = { Text("Subjek / Judul") },
                 leadingIcon = { Icon(Icons.Default.Title, null) },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 singleLine = true
             )
             Spacer(Modifier.height(8.dp))
@@ -263,7 +263,7 @@ fun AddTicketSheet(
                 label = { Text("Nama Pelanggan") },
                 leadingIcon = { Icon(Icons.Default.Person, null) },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 singleLine = true
             )
             Spacer(Modifier.height(12.dp))
@@ -291,7 +291,7 @@ fun AddTicketSheet(
                 label = { Text("Pesan Awal") },
                 leadingIcon = { Icon(Icons.Default.Message, null) },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 minLines = 3
             )
 
@@ -303,7 +303,7 @@ fun AddTicketSheet(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 enabled = subject.isNotBlank() && customerName.isNotBlank()
             ) {
                 Text("Buat Tiket", fontSize = 16.sp, fontWeight = FontWeight.Bold)

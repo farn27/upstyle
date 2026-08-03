@@ -70,7 +70,7 @@ fun CrmContactsScreen(viewModel: AppViewModel) {
                 items(filteredContacts) { contact ->
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable { },
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Surface(

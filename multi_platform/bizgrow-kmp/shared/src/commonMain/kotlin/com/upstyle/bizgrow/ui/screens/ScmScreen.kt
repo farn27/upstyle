@@ -180,19 +180,19 @@ fun AddSupplierSheet(onDismiss: () -> Unit, onSave: (String, String, String, Str
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Tambah Supplier", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(name, { name = it }, label = { Text("Nama Supplier *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(name, { name = it }, label = { Text("Nama Supplier *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(contactName, { contactName = it }, label = { Text("Nama Kontak") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(contactName, { contactName = it }, label = { Text("Nama Kontak") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
+                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(category, { category = it }, label = { Text("Kategori") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
+                OutlinedTextField(category, { category = it }, label = { Text("Kategori") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
             }
-            OutlinedTextField(address, { address = it }, label = { Text("Alamat") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(address, { address = it }, label = { Text("Alamat") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Button(
                 onClick = { if (name.isNotBlank()) onSave(name, contactName, phone, email, category, address) },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
             ) { Text("Simpan Supplier", fontWeight = FontWeight.Bold) }
         }
     }
@@ -224,22 +224,22 @@ fun AddPurchaseOrderSheet(
             Text("No PO: $poNumber", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             ExposedDropdownMenuBox(expandedSupplier, { expandedSupplier = it }) {
-                OutlinedTextField(selectedSupplier?.name ?: "Pilih Supplier", {}, readOnly = true, label = { Text("Supplier *") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedSupplier) }, modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(selectedSupplier?.name ?: "Pilih Supplier", {}, readOnly = true, label = { Text("Supplier *") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedSupplier) }, modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp))
                 ExposedDropdownMenu(expandedSupplier, { expandedSupplier = false }) {
                     suppliers.forEach { s -> DropdownMenuItem(text = { Text(s.name) }, onClick = { selectedSupplierId = s.id; expandedSupplier = false }) }
                 }
             }
 
             ExposedDropdownMenuBox(expandedProduct, { expandedProduct = it }) {
-                OutlinedTextField(selectedProduct?.nama ?: "Pilih Produk", {}, readOnly = true, label = { Text("Produk *") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedProduct) }, modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(selectedProduct?.nama ?: "Pilih Produk", {}, readOnly = true, label = { Text("Produk *") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedProduct) }, modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp))
                 ExposedDropdownMenu(expandedProduct, { expandedProduct = false }) {
                     products.forEach { p -> DropdownMenuItem(text = { Column { Text(p.nama); Text(p.hargaBeli.toRupiah(), style = MaterialTheme.typography.bodySmall) } }, onClick = { selectedProductId = p.id; unitCost = p.hargaBeli.toString(); expandedProduct = false }) }
                 }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(qty, { qty = it }, label = { Text("Qty") }, modifier = Modifier.weight(0.6f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(unitCost, { unitCost = it }, label = { Text("Harga Satuan") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(qty, { qty = it }, label = { Text("Qty") }, modifier = Modifier.weight(0.6f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(unitCost, { unitCost = it }, label = { Text("Harga Satuan") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
 
             BizCard { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
@@ -252,7 +252,7 @@ fun AddPurchaseOrderSheet(
                     if (selectedSupplierId != null && selectedProductId != null && qty.isNotBlank())
                         onSave(poNumber, selectedSupplierId!!, selectedProductId!!, qty.toIntOrNull() ?: 1, unitCost.toDoubleOrNull() ?: 0.0, total)
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
             ) { Text("Buat Purchase Order", fontWeight = FontWeight.Bold) }
         }
     }

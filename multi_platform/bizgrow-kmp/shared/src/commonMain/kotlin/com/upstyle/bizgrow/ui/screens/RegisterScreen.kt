@@ -55,7 +55,7 @@ fun RegisterScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.Center
         ) {
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -80,7 +80,7 @@ fun RegisterScreen(viewModel: AppViewModel) {
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Username") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -93,7 +93,7 @@ fun RegisterScreen(viewModel: AppViewModel) {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -113,7 +113,7 @@ fun RegisterScreen(viewModel: AppViewModel) {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -127,7 +127,7 @@ fun RegisterScreen(viewModel: AppViewModel) {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
 
                     if (errorMsg != null) {
@@ -154,7 +154,7 @@ fun RegisterScreen(viewModel: AppViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         enabled = !uiState.isLoading
                     ) {
                         if (uiState.isLoading) {

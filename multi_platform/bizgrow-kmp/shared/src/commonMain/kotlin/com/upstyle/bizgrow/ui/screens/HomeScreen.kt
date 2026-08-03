@@ -11,9 +11,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Business
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.LocalDining
 import androidx.compose.material.icons.rounded.MiscellaneousServices
@@ -24,7 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +50,7 @@ fun HomeScreen(viewModel: AppViewModel) {
     val user = viewModel.currentUser
     var showDialog by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         viewModel.loadUnits()
@@ -53,6 +59,57 @@ fun HomeScreen(viewModel: AppViewModel) {
 
     Scaffold(
         containerColor = BizgrowColors.Background,
+        bottomBar = {
+            NavigationBar(
+                containerColor = BizgrowColors.Surface,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home") },
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BizgrowColors.Primary,
+                        selectedTextColor = BizgrowColors.Primary,
+                        indicatorColor = BizgrowColors.PrimaryLight
+                    )
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Business, contentDescription = "Bisnis") },
+                    label = { Text("Bisnis") },
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BizgrowColors.Primary,
+                        selectedTextColor = BizgrowColors.Primary,
+                        indicatorColor = BizgrowColors.PrimaryLight
+                    )
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Assessment, contentDescription = "Laporan") },
+                    label = { Text("Laporan") },
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BizgrowColors.Primary,
+                        selectedTextColor = BizgrowColors.Primary,
+                        indicatorColor = BizgrowColors.PrimaryLight
+                    )
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profil") },
+                    label = { Text("Profil") },
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BizgrowColors.Primary,
+                        selectedTextColor = BizgrowColors.Primary,
+                        indicatorColor = BizgrowColors.PrimaryLight
+                    )
+                )
+            }
+        },
         floatingActionButton = {
             AnimatedVisibility(
                 visible = isVisible,
@@ -62,202 +119,135 @@ fun HomeScreen(viewModel: AppViewModel) {
                     onClick = { showDialog = true },
                     containerColor = BizgrowColors.Primary,
                     contentColor = BizgrowColors.White,
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp)
                 ) {
-                    Icon(Icons.Default.Add, "Tambah Bisnis", modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.Add, "Tambah", modifier = Modifier.size(24.dp))
                 }
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Top Background Decor
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(BizgrowColors.Primary, BizgrowColors.PrimaryDark)
-                        )
-                    )
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                // Header Profile Section
-                AnimatedVisibility(
-                    visible = isVisible,
-                    enter = fadeIn(animationSpec = tween(500)) + slideInVertically(initialOffsetY = { -20 })
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
+            item {
+                // Header
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 24.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 24.dp, end = 24.dp, top = 40.dp, bottom = 20.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
                             Text(
-                                text = "Halo, Selamat datang!",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = BizgrowColors.PrimaryLight.copy(alpha = 0.8f),
-                                fontWeight = FontWeight.Normal
+                                text = "Selamat malam \uD83D\uDC4B",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = BizgrowColors.Gray500,
+                                fontWeight = FontWeight.Medium
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = user?.username ?: "Pengusaha",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = BizgrowColors.White,
-                                fontWeight = FontWeight.Bold
+                                text = user?.username ?: "Farn",
+                                style = MaterialTheme.typography.displayLarge.copy(fontSize = 28.sp),
+                                color = BizgrowColors.Gray950,
+                            )
+                            Text(
+                                text = "Kelola ${units.size} Bisnis",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = BizgrowColors.Primary,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            IconButton(
-                                onClick = { viewModel.navigate(Screen.Settings) },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(BizgrowColors.White.copy(alpha = 0.15f), CircleShape)
-                            ) {
-                                Icon(Icons.Default.Settings, "Pengaturan", tint = BizgrowColors.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            IconButton(onClick = { }) {
+                                Icon(Icons.Default.Notifications, "Notifikasi", tint = BizgrowColors.Gray500)
                             }
-                            IconButton(
-                                onClick = { viewModel.navigate(Screen.Profile) },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(BizgrowColors.White.copy(alpha = 0.15f), CircleShape)
-                            ) {
-                                Icon(Icons.Default.Person, "Profil", tint = BizgrowColors.White)
+                            IconButton(onClick = { viewModel.navigate(Screen.Settings) }) {
+                                Icon(Icons.Default.Settings, "Pengaturan", tint = BizgrowColors.Gray500)
                             }
                         }
                     }
                 }
+            }
 
-                // Overview Card
-                AnimatedVisibility(
-                    visible = isVisible,
-                    enter = fadeIn(animationSpec = tween(600, delayMillis = 100)) + slideInVertically(initialOffsetY = { 20 }, animationSpec = tween(600, delayMillis = 100))
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
-                            .shadow(12.dp, RoundedCornerShape(20.dp), spotColor = BizgrowColors.Primary.copy(alpha = 0.2f)),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = BizgrowColors.White)
+            item {
+                // Quick Actions Grid
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Total Bisnis Anda",
-                                    fontSize = 13.sp,
-                                    color = BizgrowColors.Slate500,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${units.size} Cabang",
-                                    fontSize = 24.sp,
-                                    color = BizgrowColors.Slate900,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .background(BizgrowColors.SecondaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Business, contentDescription = null, tint = BizgrowColors.Secondary, modifier = Modifier.size(28.dp))
-                            }
-                        }
+                        QuickActionCard(
+                            title = "Tambah Bisnis",
+                            icon = Icons.Default.Add,
+                            color = BizgrowColors.Primary,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showDialog = true }
+                        )
+                        QuickActionCard(
+                            title = "Laporan",
+                            icon = Icons.Default.Assessment,
+                            color = BizgrowColors.Success,
+                            modifier = Modifier.weight(1f),
+                            onClick = { /* TODO */ }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        QuickActionCard(
+                            title = "Keuangan",
+                            icon = Icons.Default.AccountBalanceWallet,
+                            color = BizgrowColors.Warning,
+                            modifier = Modifier.weight(1f),
+                            onClick = { /* TODO */ }
+                        )
+                        QuickActionCard(
+                            title = "Produk",
+                            icon = Icons.Default.Inventory,
+                            color = BizgrowColors.Secondary,
+                            modifier = Modifier.weight(1f),
+                            onClick = { /* TODO */ }
+                        )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(32.dp))
+            }
 
-                // Title for List
-                AnimatedVisibility(
-                    visible = isVisible,
-                    enter = fadeIn(animationSpec = tween(600, delayMillis = 200))
-                ) {
-                    Text(
-                        text = "Pilih Bisnis untuk Dikelola",
-                        modifier = Modifier.padding(horizontal = 24.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = BizgrowColors.Slate900,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            item {
+                Text(
+                    text = "Semua Bisnis",
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = BizgrowColors.Gray950,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // List of Business Units
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 100.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    if (units.isEmpty()) {
-                        item {
-                            AnimatedVisibility(
-                                visible = isVisible,
-                                enter = fadeIn(animationSpec = tween(600, delayMillis = 300))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 40.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Business,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(64.dp),
-                                        tint = BizgrowColors.Slate400
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "Belum ada bisnis",
-                                        color = BizgrowColors.Slate500,
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Ketuk tombol + di bawah untuk membuat",
-                                        color = BizgrowColors.Slate400,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        itemsIndexed(units) { index, unit ->
-                            var itemVisible by remember { mutableStateOf(false) }
-                            LaunchedEffect(Unit) {
-                                delay(300L + (index * 100L))
-                                itemVisible = true
-                            }
-                            
-                            AnimatedVisibility(
-                                visible = itemVisible,
-                                enter = fadeIn(animationSpec = tween(500)) + slideInVertically(initialOffsetY = { 30 }, animationSpec = tween(500))
-                            ) {
-                                BusinessUnitCard(unit, onClick = {
-                                    viewModel.selectUnit(unit)
-                                })
-                            }
-                        }
+            if (units.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.Business, contentDescription = null, modifier = Modifier.size(48.dp), tint = BizgrowColors.Gray300)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Belum ada bisnis", color = BizgrowColors.Gray500, style = MaterialTheme.typography.titleMedium)
                     }
+                }
+            } else {
+                itemsIndexed(units) { index, unit ->
+                    BusinessUnitCard(unit = unit, onClick = { viewModel.selectUnit(unit) })
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
@@ -276,21 +266,38 @@ fun HomeScreen(viewModel: AppViewModel) {
 }
 
 @Composable
+fun QuickActionCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier
+            .height(86.dp)
+            .clickable(onClick = onClick)
+            .shadow(2.dp, RoundedCornerShape(20.dp), spotColor = BizgrowColors.Gray200),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = BizgrowColors.White)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Icon(icon, contentDescription = title, tint = color, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = BizgrowColors.Gray900)
+        }
+    }
+}
+
+@Composable
 fun BusinessUnitCard(unit: BusinessUnit, onClick: () -> Unit) {
     val icon = when (unit.type.lowercase()) {
         "retail" -> Icons.Rounded.Store
         "fnb" -> Icons.Rounded.LocalDining
         else -> Icons.Rounded.MiscellaneousServices
     }
-    
-    val iconBgColor = when (unit.type.lowercase()) {
-        "retail" -> BizgrowColors.PrimaryLight
-        "fnb" -> BizgrowColors.SecondaryContainer
-        else -> BizgrowColors.WarningLight
-    }
-    
-    val iconColor = when (unit.type.lowercase()) {
-        "retail" -> BizgrowColors.Primary
+    val iconBgColor = BizgrowColors.PrimaryLight
+    val iconColor = BizgrowColors.Primary
+    val categoryColor = when (unit.type.lowercase()) {
+        "retail" -> BizgrowColors.Success
         "fnb" -> BizgrowColors.Secondary
         else -> BizgrowColors.Warning
     }
@@ -298,47 +305,71 @@ fun BusinessUnitCard(unit: BusinessUnit, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 24.dp)
             .clickable(onClick = onClick)
-            .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = BizgrowColors.Slate200),
-        shape = RoundedCornerShape(16.dp),
+            .shadow(4.dp, RoundedCornerShape(20.dp), spotColor = BizgrowColors.Gray300.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = BizgrowColors.White)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .background(iconBgColor, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(28.dp))
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = unit.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BizgrowColors.Slate900,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = unit.type.uppercase(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = iconColor,
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
                     modifier = Modifier
-                        .background(iconBgColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+                        .size(48.dp)
+                        .background(iconBgColor, RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = unit.name,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BizgrowColors.Gray950,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = unit.type,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = categoryColor,
+                        modifier = Modifier
+                            .background(categoryColor.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = BizgrowColors.Gray400)
             }
-            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = BizgrowColors.Slate400)
+            
+            HorizontalDivider(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), color = BizgrowColors.Gray100)
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Pendapatan Hari Ini", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Rp 1.250.000", fontSize = 15.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Gray950)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Produk", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
+                        Text("32", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Pegawai", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
+                        Text("2", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900)
+                    }
+                }
+            }
         }
     }
 }
@@ -370,9 +401,9 @@ fun CreateUnitDialog(
                     Icon(Icons.Default.Add, contentDescription = null, tint = BizgrowColors.Primary)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Bisnis Baru", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BizgrowColors.Slate900)
+                Text("Bisnis Baru", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Buat profil bisnis baru untuk dikelola", color = BizgrowColors.Slate500, fontSize = 14.sp, textAlign = TextAlign.Center)
+                Text("Buat profil bisnis baru untuk dikelola", color = BizgrowColors.Gray500, fontSize = 14.sp, textAlign = TextAlign.Center)
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 OutlinedTextField(
@@ -381,12 +412,12 @@ fun CreateUnitDialog(
                     label = { Text("Nama Bisnis") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Tipe Bisnis", fontSize = 13.sp, color = BizgrowColors.Slate700, fontWeight = FontWeight.Medium)
+                    Text("Tipe Bisnis", fontSize = 13.sp, color = BizgrowColors.Gray700, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -397,15 +428,15 @@ fun CreateUnitDialog(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) BizgrowColors.Primary else BizgrowColors.Slate100)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) BizgrowColors.Primary else BizgrowColors.Gray100)
                                     .clickable { selectedType = type }
                                     .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = type,
-                                    color = if (isSelected) BizgrowColors.White else BizgrowColors.Slate500,
+                                    color = if (isSelected) BizgrowColors.White else BizgrowColors.Gray500,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -419,16 +450,16 @@ fun CreateUnitDialog(
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         enabled = !isLoading,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Slate200)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Gray200)
                     ) {
-                        Text("Batal", color = BizgrowColors.Slate700, fontWeight = FontWeight.Bold)
+                        Text("Batal", color = BizgrowColors.Gray700, fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = { onConfirm(name, selectedType) },
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Primary),
                         enabled = name.isNotBlank() && !isLoading
                     ) {

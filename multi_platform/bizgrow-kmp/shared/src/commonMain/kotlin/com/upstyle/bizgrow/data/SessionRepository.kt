@@ -62,4 +62,18 @@ class SessionRepository(private val settings: Settings) {
 
     fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
     fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
+
+    // ─── Phase 3: Offline-First Caching ──────────────────────────────────────
+    private val KEY_OFFLINE_PRODUCTS = "offline_products"
+    private val KEY_OFFLINE_CUSTOMERS = "offline_customers"
+    private val KEY_PENDING_TX = "pending_transactions"
+
+    fun saveOfflineProducts(jsonString: String) = settings.putString(KEY_OFFLINE_PRODUCTS, jsonString)
+    fun getOfflineProducts(): String? = settings.getStringOrNull(KEY_OFFLINE_PRODUCTS)
+
+    fun saveOfflineCustomers(jsonString: String) = settings.putString(KEY_OFFLINE_CUSTOMERS, jsonString)
+    fun getOfflineCustomers(): String? = settings.getStringOrNull(KEY_OFFLINE_CUSTOMERS)
+
+    fun savePendingTransactions(jsonString: String) = settings.putString(KEY_PENDING_TX, jsonString)
+    fun getPendingTransactions(): String? = settings.getStringOrNull(KEY_PENDING_TX)
 }

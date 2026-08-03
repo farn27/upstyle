@@ -96,7 +96,7 @@ fun StockLogsScreen(viewModel: AppViewModel) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 singleLine = true
             )
 
@@ -167,7 +167,7 @@ fun EnhancedStockLogCard(log: StockLog, productName: String) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
@@ -177,7 +177,7 @@ fun EnhancedStockLogCard(log: StockLog, productName: String) {
         ) {
             // Icon indicator
             Box(
-                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(bgColor),
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(20.dp)).background(bgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

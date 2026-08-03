@@ -123,7 +123,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
@@ -139,7 +139,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
                         onValueChange = { manualBarcode = it },
                         placeholder = { Text("Contoh: 89912345678") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         singleLine = true
                     )
 
@@ -149,7 +149,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
                             searchResultId = p?.id ?: "NOT_FOUND"
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Text("Cari Produk", fontWeight = FontWeight.Bold)
                     }
@@ -159,10 +159,10 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
             if (searchResult != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
                     Column(
@@ -193,7 +193,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
                                 viewModel.navigateBack() // Go back after adding to cart makes sense for POS flow
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(20.dp)
                         ) {
                             Text("Tambah ke Keranjang", fontWeight = FontWeight.Bold)
                         }
@@ -203,7 +203,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Text(
                         "Produk tidak ditemukan.", 

@@ -111,7 +111,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     Button(
                         onClick = { showLogoutDialog = true },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Danger)
                     ) {
                         Icon(Icons.Default.Logout, null, modifier = Modifier.size(18.dp))
@@ -138,7 +138,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         label = { Text("URL Server") },
                         placeholder = { Text("http://10.0.2.2:5173") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         singleLine = true
                     )
                     Text("Contoh: http://10.0.2.2:5173 (emulator) atau http://192.168.1.x:5173 (WiFi)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -174,7 +174,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
 fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column {
         Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
-        Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
+        Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
             Column(modifier = Modifier.padding(16.dp), content = content)
         }
     }

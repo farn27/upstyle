@@ -18,17 +18,17 @@
     });
 
     function getWaLink(product) {
-        const rawPhone = settings.contactPhone || '';
+        const rawPhone = settings?.contactPhone || '';
         // Format phone to international format without + or spaces
         const formattedPhone = rawPhone.replace(/[^0-9]/g, '');
-        const message = `Halo Admin ${unit.namaUnit},\n\nSaya tertarik untuk memesan produk ini:\n- Nama Produk: ${product.nama}\n- Harga: Rp ${product.hargaJual.toLocaleString('id-ID')}\n\nApakah produk ini masih tersedia lurd?`;
+        const message = `Halo Admin ${unit?.namaUnit || ''},\n\nSaya tertarik untuk memesan produk ini:\n- Nama Produk: ${product.nama}\n- Harga: Rp ${product.hargaJual.toLocaleString('id-ID')}\n\nApakah produk ini masih tersedia lurd?`;
         return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
     }
 </script>
 
 <svelte:head>
-    <title>{unit.namaUnit} - Katalog Online Resmi</title>
-    <meta name="description" content={settings.heroSubtitle} />
+    <title>{unit?.namaUnit || 'Katalog'} - Katalog Online Resmi</title>
+    <meta name="description" content={settings?.heroSubtitle || ''} />
 </svelte:head>
 
 <div 
@@ -40,13 +40,13 @@
         <div class="max-w-6xl mx-auto px-6 h-16 flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm shadow-sm" style="background-color: var(--primary-color)">
-                    {unit.namaUnit.charAt(0).toUpperCase()}
+                    {(unit?.namaUnit || 'B').charAt(0).toUpperCase()}
                 </div>
-                <span class="text-base font-black tracking-tight text-slate-900">{unit.namaUnit}</span>
+                <span class="text-base font-black tracking-tight text-slate-900">{unit?.namaUnit || ''}</span>
             </div>
             
             <div class="flex items-center gap-4">
-                {#if settings.contactPhone}
+                {#if settings?.contactPhone}
                     <a 
                         href="https://wa.me/{settings.contactPhone.replace(/[^0-9]/g, '')}" 
                         target="_blank" 

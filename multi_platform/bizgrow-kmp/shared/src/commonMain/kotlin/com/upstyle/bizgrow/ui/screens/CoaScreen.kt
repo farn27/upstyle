@@ -47,7 +47,7 @@ fun CoaScreen(viewModel: AppViewModel) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.background,
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Tambah COA", tint = Color.White)
             }
@@ -66,7 +66,7 @@ fun CoaScreen(viewModel: AppViewModel) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(coaList) { coa ->
                         Card(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -80,7 +80,7 @@ fun CoaScreen(viewModel: AppViewModel) {
                                     Text("Tipe: ${coa.tipeAkun} | Normal: ${coa.normalBalance}", fontSize = 12.sp, color = Color.Gray)
                                 }
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     color = if (coa.isActive == 1) MaterialTheme.colorScheme.primaryContainer else Color.LightGray
                                 ) {
                                     Text(

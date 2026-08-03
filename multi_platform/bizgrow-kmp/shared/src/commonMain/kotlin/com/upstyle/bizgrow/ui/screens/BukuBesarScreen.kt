@@ -56,7 +56,7 @@ fun BukuBesarScreen(viewModel: AppViewModel) {
                     label = { Text("Akun Perkiraan") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 ExposedDropdownMenu(
                     expanded = expanded,
@@ -86,7 +86,7 @@ fun BukuBesarScreen(viewModel: AppViewModel) {
                     val data = bukuBesarData!!
                     
                     Card(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     ) {
@@ -117,8 +117,8 @@ fun BukuBesarScreen(viewModel: AppViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {

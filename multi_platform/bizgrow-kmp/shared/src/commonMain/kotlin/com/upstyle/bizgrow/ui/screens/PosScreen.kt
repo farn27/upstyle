@@ -30,7 +30,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +42,7 @@ import com.upstyle.bizgrow.data.*
 import kotlinx.coroutines.launch
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,38 +75,36 @@ fun PosScreen(viewModel: AppViewModel) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = BizgrowColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("Kasir POS", fontWeight = FontWeight.Bold) },
+                title = { Text("Point of Sale", fontWeight = FontWeight.Bold, color = BizgrowColors.Gray950) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali", tint = BizgrowColors.Gray900)
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.navigate(Screen.PosVouchers) }) {
-                        Icon(Icons.Default.ConfirmationNumber, contentDescription = "Voucher POS")
+                        Icon(Icons.Default.ShoppingCart, contentDescription = "Voucher", tint = BizgrowColors.Gray900)
                     }
                     IconButton(onClick = { viewModel.navigate(Screen.PosShift) }) {
-                        Icon(Icons.Default.Schedule, contentDescription = "Manajemen Shift")
+                        Icon(Icons.Default.Schedule, contentDescription = "Shift", tint = BizgrowColors.Gray900)
                     }
                     IconButton(onClick = { viewModel.navigate(Screen.PosReturn) }) {
-                        Icon(Icons.Default.AssignmentReturn, contentDescription = "Retur")
-                    }
-                    IconButton(onClick = { viewModel.navigate(Screen.BarcodeScanner) }) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan Barcode")
+                        Icon(Icons.Default.AssignmentReturn, contentDescription = "Retur", tint = BizgrowColors.Gray900)
                     }
                     IconButton(onClick = { showCartSheet = true }) {
                         BadgedBox(
-                            badge = { if (cartItemCount > 0) Badge { Text(cartItemCount.toString()) } }
+                            badge = { 
+                                if (cartItemCount > 0) Badge(containerColor = BizgrowColors.Danger) { Text(cartItemCount.toString(), color = BizgrowColors.White) } 
+                            }
                         ) {
-                            Icon(Icons.Default.ShoppingCart, contentDescription = "Keranjang")
+                            Icon(Icons.Default.ShoppingCart, contentDescription = "Keranjang", tint = BizgrowColors.Gray900)
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BizgrowColors.Surface)
             )
         },
         bottomBar = {
@@ -115,51 +113,26 @@ fun PosScreen(viewModel: AppViewModel) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(16.dp)
                             .clickable { showCartSheet = true },
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = BizgrowColors.Primary),
+                        elevation = CardDefaults.cardElevation(4.dp)
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.primary,
-                                            MaterialTheme.colorScheme.tertiary
-                                        )
-                                    )
-                                )
-                                .padding(16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(
-                                    text = "$cartItemCount Item",
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Rp ${"%,.0f".format(cartTotal)}",
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleLarge
-                                )
+                                Text("$cartItemCount Item", color = BizgrowColors.PrimaryLight, fontSize = 13.sp)
+                                Text("Rp ${"%,.0f".format(cartTotal)}", color = BizgrowColors.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
                             }
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                contentColor = MaterialTheme.colorScheme.primary
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Checkout", fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Surface(shape = RoundedCornerShape(20.dp), color = BizgrowColors.White) {
+                                Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Checkout", fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.ShoppingCart, null, modifier = Modifier.size(18.dp), tint = BizgrowColors.Primary)
                                 }
                             }
                         }
@@ -173,32 +146,25 @@ fun PosScreen(viewModel: AppViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
         ) {
             // Premium Search Bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Cari produk atau SKU...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                placeholder = { Text("Cari produk atau SKU...", color = BizgrowColors.Gray400) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = BizgrowColors.Gray400) },
                 trailingIcon = {
-                    IconButton(onClick = {
-                        // Simulasi scan barcode dengan set query ke dummy SKU
-                        // Di implementasi aslinya, ini akan memanggil API kamera/barcode scanner
-                        searchQuery = "SKU-DUMMY-123"
-                    }) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan Barcode")
+                    IconButton(onClick = { searchQuery = "SKU-DUMMY-123" }) {
+                        Icon(Icons.Default.QrCodeScanner, null, tint = BizgrowColors.Primary)
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = BizgrowColors.Primary,
+                    unfocusedBorderColor = BizgrowColors.Gray200,
+                    focusedContainerColor = BizgrowColors.White,
+                    unfocusedContainerColor = BizgrowColors.White,
                 ),
                 singleLine = true
             )
@@ -206,22 +172,23 @@ fun PosScreen(viewModel: AppViewModel) {
             // Dynamic Category Row
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 lazyRowItems(categories) { cat ->
                     val isSelected = selectedCategory == cat
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                        border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSelected) BizgrowColors.Primary else BizgrowColors.White,
+                        contentColor = if (isSelected) BizgrowColors.White else BizgrowColors.Gray700,
+                        border = if (!isSelected) BorderStroke(1.dp, BizgrowColors.Gray200) else null,
                         modifier = Modifier.clickable { selectedCategory = cat }
                     ) {
                         Text(
                             text = cat,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 13.sp
                         )
                     }
                 }
@@ -247,10 +214,12 @@ fun PosScreen(viewModel: AppViewModel) {
             }
         }
 
+        val printerManager = com.upstyle.bizgrow.device.rememberPrinterManager()
+
         if (showCartSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showCartSheet = false },
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = BizgrowColors.Surface,
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ) {
                 CartCheckoutSheetPremium(
@@ -260,9 +229,28 @@ fun PosScreen(viewModel: AppViewModel) {
                     customers = posData?.customers ?: emptyList(),
                     onDismiss = { showCartSheet = false },
                     onPrintRequested = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Mencetak struk ke printer Bluetooth...")
+                        scope.launch { snackbarHostState.showSnackbar("Menghubungkan ke printer...") }
+                        
+                        val receiptText = buildString {
+                            appendLine("===== BIZGROW POS =====")
+                            appendLine("Toko: Upstyle")
+                            appendLine("-----------------------")
+                            cart.forEach { (prod, qty) ->
+                                appendLine("${prod.nama} x$qty  Rp${(prod.hargaJual * qty)}")
+                            }
+                            appendLine("-----------------------")
+                            appendLine("Total: Rp$cartTotal")
+                            appendLine("Terima Kasih!")
+                            appendLine("=======================")
+                            appendLine("\n\n")
                         }
+                        
+                        printerManager.connectAndPrint(
+                            macAddress = "00:11:22:33:44:55",
+                            receiptText = receiptText,
+                            onSuccess = { scope.launch { snackbarHostState.showSnackbar("Struk berhasil dicetak!") } },
+                            onError = { err -> scope.launch { snackbarHostState.showSnackbar("Gagal cetak: $err") } }
+                        )
                     }
                 )
             }
@@ -282,19 +270,14 @@ fun PosProductCardPremium(
     var showVariationDialog by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(260.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier.fillMaxWidth().height(260.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = BizgrowColors.White),
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Column {
-                Box(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().height(130.dp)) {
                     AsyncImage(
                         model = product.foto ?: "https://via.placeholder.com/150",
                         contentDescription = product.nama,
@@ -303,18 +286,15 @@ fun PosProductCardPremium(
                     )
                     Box(
                         modifier = Modifier
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (isOutOfStock) MaterialTheme.colorScheme.errorContainer 
-                                else MaterialTheme.colorScheme.tertiaryContainer
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .padding(10.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isOutOfStock) BizgrowColors.Danger else BizgrowColors.Success)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = if (isOutOfStock) "Habis" else "Stok: ${product.stok}", 
-                            color = if (isOutOfStock) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
-                            style = MaterialTheme.typography.labelSmall,
+                            text = if (isOutOfStock) "Habis" else "Sisa ${product.stok}", 
+                            color = BizgrowColors.White,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -322,33 +302,25 @@ fun PosProductCardPremium(
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = product.nama, 
-                    fontWeight = FontWeight.Bold, 
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "Rp ${"%,.0f".format(product.hargaJual.toDouble())}", 
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 14.sp,
+                        color = BizgrowColors.Gray950,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Rp ${"%,.0f".format(product.hargaJual.toDouble())}", 
+                        fontSize = 13.sp,
+                        color = BizgrowColors.Primary,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
-            } // Close inner Column
             
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .padding(8.dp)
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp)) {
                 if (isOutOfStock) {
-                    Button(
-                        onClick = {}, 
-                        enabled = false, 
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
+                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth().height(40.dp), shape = RoundedCornerShape(10.dp)) {
                         Text("Habis", fontWeight = FontWeight.Bold)
                     }
                 } else if (cartQty > 0) {
@@ -359,36 +331,24 @@ fun PosProductCardPremium(
                     ) {
                         IconButton(
                             onClick = onDecrease,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        ) { Text("-", fontWeight = FontWeight.Bold) }
+                            modifier = Modifier.size(36.dp).background(BizgrowColors.Gray100, CircleShape)
+                        ) { Text("-", fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900) }
                         
-                        Text(
-                            text = cartQty.toString(), 
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Text(cartQty.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
                         
                         IconButton(
                             onClick = onIncrease,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        ) { Text("+", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold) }
+                            modifier = Modifier.size(36.dp).background(BizgrowColors.Primary, CircleShape)
+                        ) { Text("+", color = BizgrowColors.White, fontWeight = FontWeight.Bold) }
                     }
                 } else {
-                    Button(
-                        onClick = { 
-                            showVariationDialog = true
-                        }, 
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                    OutlinedButton(
+                        onClick = { showVariationDialog = true }, 
+                        modifier = Modifier.fillMaxWidth().height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, BizgrowColors.Primary)
                     ) {
-                        Text("Tambah", fontWeight = FontWeight.Bold)
+                        Text("Tambah", fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
                     }
                 }
             }
@@ -403,12 +363,9 @@ fun PosProductCardPremium(
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Pilih variasi produk sebelum menambahkan ke keranjang:")
                     if (product.variants.isEmpty()) {
-                        Text("Tidak ada variasi yang tersedia.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        Text("Tidak ada variasi yang tersedia.", color = BizgrowColors.Danger, fontSize = 12.sp)
                     } else {
-                        // Untuk simplicity, kita asumsikan hanya ada 1 level variasi
-                        // Di masa depan bisa pakai LazyRow / FlowRow
                         var selectedVariantId by remember { mutableStateOf(product.variants.firstOrNull()?.id) }
-                        
                         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             product.variants.forEach { variant ->
                                 FilterChip(
@@ -421,17 +378,8 @@ fun PosProductCardPremium(
                     }
                 }
             },
-            confirmButton = {
-                Button(onClick = { 
-                    onAdd()
-                    showVariationDialog = false
-                }) {
-                    Text("Konfirmasi")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showVariationDialog = false }) { Text("Batal") }
-            }
+            confirmButton = { Button(onClick = { onAdd(); showVariationDialog = false }) { Text("Pilih") } },
+            dismissButton = { TextButton(onClick = { showVariationDialog = false }) { Text("Batal") } }
         )
     }
 }
@@ -449,19 +397,12 @@ fun CartCheckoutSheetPremium(
     val posDiskon by viewModel.posDiskon.collectAsStateWithLifecycle()
     var diskonText by remember { mutableStateOf(if (posDiskon == 0.0) "" else posDiskon.toString()) }
     var selectedMethod by remember { mutableStateOf("CASH") }
-    val methods = listOf("CASH", "QRIS", "TRANSFER", "KREDIT")
+    val methods = listOf("CASH", "QRIS", "TRANSFER")
     
     val selectedCustomerId by viewModel.selectedCustomerId.collectAsStateWithLifecycle()
     val selectedCustomer = customers.find { it.id == selectedCustomerId }
     var expandedCustomer by remember { mutableStateOf(false) }
-
     var selectedOrderType by remember { mutableStateOf("Dine In") }
-    var tableNumber by remember { mutableStateOf("") }
-    
-    var isSplitPayment by remember { mutableStateOf(false) }
-    var splitMethod1 by remember { mutableStateOf("CASH") }
-    var splitMethod2 by remember { mutableStateOf("QRIS") }
-    var splitAmount1 by remember { mutableStateOf("") }
 
     LaunchedEffect(diskonText) {
         val d = diskonText.toDoubleOrNull() ?: 0.0
@@ -472,23 +413,19 @@ fun CartCheckoutSheetPremium(
     val finalTotal = cartTotal - diskon
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxWidth().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text("Detail Pembayaran", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Checkout Pesanan", fontSize = 20.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Gray950)
         
         Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = BizgrowColors.Gray50),
+            border = BorderStroke(1.dp, BizgrowColors.Gray200)
         ) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 150.dp)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 listItems(cart.entries.toList()) { entry ->
                     Row(
@@ -500,15 +437,13 @@ fun CartCheckoutSheetPremium(
                             model = entry.key.foto ?: "https://via.placeholder.com/150",
                             contentDescription = entry.key.nama,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(entry.key.nama, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("x${entry.value} @ Rp ${"%,.0f".format(entry.key.hargaJual.toDouble())}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(entry.key.nama, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950)
+                            Text("x${entry.value} @ Rp ${"%,.0f".format(entry.key.hargaJual.toDouble())}", fontSize = 12.sp, color = BizgrowColors.Gray500)
                         }
-                        Text("Rp ${"%,.0f".format(entry.key.hargaJual.toDouble() * entry.value)}", fontWeight = FontWeight.Bold)
+                        Text("Rp ${"%,.0f".format(entry.key.hargaJual.toDouble() * entry.value)}", fontWeight = FontWeight.Black, fontSize = 14.sp)
                     }
                 }
             }
@@ -522,188 +457,69 @@ fun CartCheckoutSheetPremium(
             ) {
                 OutlinedTextField(
                     value = selectedCustomer?.namaCustomer ?: "Customer Umum",
-                    onValueChange = {},
-                    readOnly = true,
+                    onValueChange = {}, readOnly = true,
                     label = { Text("Pelanggan") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCustomer) },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    )
+                    shape = RoundedCornerShape(20.dp),
+                    colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = BizgrowColors.Gray200)
                 )
-                ExposedDropdownMenu(
-                    expanded = expandedCustomer,
-                    onDismissRequest = { expandedCustomer = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Customer Umum", fontWeight = FontWeight.Bold) },
-                        onClick = {
-                            viewModel.setCustomer(null)
-                            expandedCustomer = false
-                        }
-                    )
-                    Divider()
-                    customers.forEach { customer ->
-                        DropdownMenuItem(
-                            text = { Text(customer.namaCustomer) },
-                            onClick = {
-                                viewModel.setCustomer(customer.id)
-                                expandedCustomer = false
-                            }
-                        )
-                    }
+                ExposedDropdownMenu(expanded = expandedCustomer, onDismissRequest = { expandedCustomer = false }) {
+                    DropdownMenuItem(text = { Text("Customer Umum", fontWeight = FontWeight.Bold) }, onClick = { viewModel.setCustomer(null); expandedCustomer = false })
+                    customers.forEach { customer -> DropdownMenuItem(text = { Text(customer.namaCustomer) }, onClick = { viewModel.setCustomer(customer.id); expandedCustomer = false }) }
                 }
             }
 
             OutlinedTextField(
-                value = diskonText,
-                onValueChange = { diskonText = it },
-                label = { Text("Diskon (Rp)") },
-                modifier = Modifier.weight(0.7f),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                )
+                value = diskonText, onValueChange = { diskonText = it },
+                label = { Text("Diskon (Rp)") }, modifier = Modifier.weight(0.7f),
+                shape = RoundedCornerShape(20.dp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = BizgrowColors.Gray200)
             )
         }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Tipe Pesanan", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = selectedOrderType == "Dine In", onClick = { selectedOrderType = "Dine In" }, label = { Text("Dine In") })
-                    FilterChip(selected = selectedOrderType == "Take Away", onClick = { selectedOrderType = "Take Away" }, label = { Text("Take Away") })
-                }
-            }
-            if (selectedOrderType == "Dine In") {
-                OutlinedTextField(
-                    value = tableNumber,
-                    onValueChange = { tableNumber = it },
-                    label = { Text("No Meja") },
-                    modifier = Modifier.weight(0.7f),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-            }
-        }
         
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Split", style = MaterialTheme.typography.bodySmall)
-                    androidx.compose.material3.Switch(
-                        checked = isSplitPayment,
-                        onCheckedChange = { isSplitPayment = it },
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
-            
-            if (!isSplitPayment) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    lazyRowItems(methods) { method ->
-                        val isSelected = selectedMethod == method
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                            border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.clickable { selectedMethod = method }
-                        ) {
-                            Text(
-                                text = method,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Split Payment UI
-                val amt1 = splitAmount1.toDoubleOrNull() ?: 0.0
-                val amt2 = finalTotal - amt1
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Metode 1", style = MaterialTheme.typography.labelSmall)
-                        // Simple selector
-                        var showM1 by remember { mutableStateOf(false) }
-                        Box {
-                            OutlinedButton(onClick = { showM1 = true }) { Text(splitMethod1) }
-                            DropdownMenu(expanded = showM1, onDismissRequest = { showM1 = false }) {
-                                methods.forEach { m ->
-                                    DropdownMenuItem(text = { Text(m) }, onClick = { splitMethod1 = m; showM1 = false })
-                                }
-                            }
-                        }
-                        OutlinedTextField(
-                            value = splitAmount1,
-                            onValueChange = { splitAmount1 = it },
-                            label = { Text("Jumlah (Rp)") },
-                            singleLine = true
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Metode 2", style = MaterialTheme.typography.labelSmall)
-                        var showM2 by remember { mutableStateOf(false) }
-                        Box {
-                            OutlinedButton(onClick = { showM2 = true }) { Text(splitMethod2) }
-                            DropdownMenu(expanded = showM2, onDismissRequest = { showM2 = false }) {
-                                methods.forEach { m ->
-                                    DropdownMenuItem(text = { Text(m) }, onClick = { splitMethod2 = m; showM2 = false })
-                                }
-                            }
-                        }
-                        OutlinedTextField(
-                            value = amt2.toString(),
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Sisa (Rp)") },
-                            singleLine = true
-                        )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Metode Pembayaran", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray950)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                lazyRowItems(methods) { method ->
+                    val isSelected = selectedMethod == method
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSelected) BizgrowColors.Primary else BizgrowColors.White,
+                        contentColor = if (isSelected) BizgrowColors.White else BizgrowColors.Gray700,
+                        border = if (!isSelected) BorderStroke(1.dp, BizgrowColors.Gray200) else null,
+                        modifier = Modifier.clickable { selectedMethod = method }
+                    ) {
+                        Text(method, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, fontSize = 13.sp)
                     }
                 }
             }
         }
         
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = BizgrowColors.Gray200)
         
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("TOTAL TAGIHAN", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Rp ${"%,.0f".format(finalTotal)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("TOTAL", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray500)
+            Text("Rp ${"%,.0f".format(finalTotal)}", fontSize = 28.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Primary)
         }
         
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(
                 onClick = onPrintRequested,
-                modifier = Modifier.weight(0.3f).height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                modifier = Modifier.weight(0.25f).height(56.dp),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, BizgrowColors.Gray300)
             ) {
-                Icon(Icons.Default.Print, contentDescription = "Print Struk")
+                Icon(Icons.Default.Print, "Print", tint = BizgrowColors.Gray700)
             }
             
             Button(
-                onClick = {
-                    val methodToSave = if (isSplitPayment) "SPLIT: $splitMethod1 & $splitMethod2" else selectedMethod
-                    // Ide: Tipe Pesanan dan Meja disisipkan ke method atau notes. Tapi backend API PosOrder belum mendukung field custom. 
-                    // Kita bisa abaikan sementara atau masukkan ke metodeBayar, misal: "DINEIN_T1_CASH".
-                    // Kita pakai methodToSave ke checkout().
-                    viewModel.checkout(methodToSave, onSuccess = { ok -> if (ok) onDismiss() })
-                },
-                modifier = Modifier.weight(0.7f).height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                onClick = { viewModel.checkout(selectedMethod, onSuccess = { ok -> if (ok) onDismiss() }) },
+                modifier = Modifier.weight(0.75f).height(56.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Success)
             ) {
-                Text("Selesaikan Pembayaran", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("Bayar", fontWeight = FontWeight.Black, fontSize = 16.sp)
             }
         }
         Spacer(modifier = Modifier.height(16.dp))

@@ -110,7 +110,7 @@ fun LaporanScreen(viewModel: AppViewModel) {
                         label = { Text("Periode") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         periods.forEach { period ->
@@ -168,7 +168,7 @@ fun LaporanScreen(viewModel: AppViewModel) {
 @Composable
 fun MetricCard(title: String, amount: Double, color: Color, isTotal: Boolean = false) {
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isTotal) color.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
         ),

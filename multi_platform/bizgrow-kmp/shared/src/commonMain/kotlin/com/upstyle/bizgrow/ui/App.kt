@@ -102,6 +102,14 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.LeaveRequests -> LeaveRequestsScreen(viewModel)
                     is Screen.PosVouchers   -> PosVouchersScreen(viewModel)
                     is Screen.CrmTasks      -> CrmTasksScreen(viewModel)
+                    
+                    // Phase 1 New Screens
+                    is Screen.Neraca        -> NeracaScreen(viewModel)
+                    is Screen.Budget        -> BudgetScreen(viewModel)
+                    is Screen.TaxRates      -> TaxRatesScreen(viewModel)
+                    is Screen.ClosingPeriod -> ClosingPeriodScreen(viewModel)
+                    is Screen.MarketingCampaigns -> MarketingCampaignsScreen(viewModel)
+                    is Screen.Pricing       -> PricingScreen(viewModel)
                 }
             }
 

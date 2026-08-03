@@ -264,19 +264,19 @@ fun AddEmployeeBottomSheet(
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Tambah Karyawan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(fullName, { fullName = it }, label = { Text("Nama Lengkap *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            OutlinedTextField(position, { position = it }, label = { Text("Jabatan *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(fullName, { fullName = it }, label = { Text("Nama Lengkap *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
+            OutlinedTextField(position, { position = it }, label = { Text("Jabatan *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(salary, { salary = it }, label = { Text("Gaji Pokok") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(pin, { pin = it }, label = { Text("PIN (4 digit)") }, modifier = Modifier.weight(0.8f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(salary, { salary = it }, label = { Text("Gaji Pokok") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(pin, { pin = it }, label = { Text("PIN (4 digit)") }, modifier = Modifier.weight(0.8f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
+                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(division, { division = it }, label = { Text("Divisi") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(role, { role = it }, label = { Text("Role") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(division, { division = it }, label = { Text("Divisi") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
+                OutlinedTextField(role, { role = it }, label = { Text("Role") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
             }
             Button(
                 onClick = {
@@ -284,7 +284,7 @@ fun AddEmployeeBottomSheet(
                         onSave(fullName, position, salary.toDoubleOrNull() ?: 0.0, pin.ifBlank { "1234" }, role, email, phone, division)
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(20.dp)
             ) { Text("Simpan Karyawan", fontWeight = FontWeight.Bold) }
         }
     }
@@ -317,7 +317,7 @@ fun ProcessPayrollBottomSheet(
                     onValueChange = {}, readOnly = true,
                     label = { Text("Karyawan") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp)
                 )
                 ExposedDropdownMenu(expanded, { expanded = false }) {
                     employees.forEach { emp ->
@@ -325,12 +325,12 @@ fun ProcessPayrollBottomSheet(
                     }
                 }
             }
-            OutlinedTextField(monthYear, { monthYear = it }, label = { Text("Bulan/Tahun (mis. 08/2025)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(monthYear, { monthYear = it }, label = { Text("Bulan/Tahun (mis. 08/2025)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(salary, { salary = it }, label = { Text("Gaji Pokok") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(allowance, { allowance = it }, label = { Text("Tunjangan") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(salary, { salary = it }, label = { Text("Gaji Pokok") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(allowance, { allowance = it }, label = { Text("Tunjangan") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
-            OutlinedTextField(deduction, { deduction = it }, label = { Text("Potongan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            OutlinedTextField(deduction, { deduction = it }, label = { Text("Potongan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             BizCard { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                 Text("Gaji Bersih", fontWeight = FontWeight.SemiBold)
                 Text(net.toRupiah(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
@@ -340,7 +340,7 @@ fun ProcessPayrollBottomSheet(
                     if (selectedEmpId != null && monthYear.isNotBlank())
                         onSave(selectedEmpId!!, monthYear, salary.toDoubleOrNull() ?: 0.0, allowance.toDoubleOrNull() ?: 0.0, deduction.toDoubleOrNull() ?: 0.0, net)
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
             ) { Text("Proses Payroll", fontWeight = FontWeight.Bold) }
         }
     }

@@ -223,11 +223,11 @@ fun AddDealSheet(onDismiss: () -> Unit, onSave: (String, String, Double, String,
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Tambah Deal Baru", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(contactName, { contactName = it }, label = { Text("Nama Kontak *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            OutlinedTextField(companyName, { companyName = it }, label = { Text("Perusahaan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(contactName, { contactName = it }, label = { Text("Nama Kontak *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
+            OutlinedTextField(companyName, { companyName = it }, label = { Text("Perusahaan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(dealValue, { dealValue = it }, label = { Text("Nilai Deal (Rp)") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(dealValue, { dealValue = it }, label = { Text("Nilai Deal (Rp)") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
             }
             Text("Stage", style = MaterialTheme.typography.labelMedium)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -235,7 +235,7 @@ fun AddDealSheet(onDismiss: () -> Unit, onSave: (String, String, Double, String,
             }
             Button(
                 onClick = { if (contactName.isNotBlank()) onSave(contactName, companyName, dealValue.toDoubleOrNull() ?: 0.0, stage, phone) },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
             ) { Text("Simpan Deal", fontWeight = FontWeight.Bold) }
         }
     }
@@ -254,19 +254,19 @@ fun AddContactSheet(onDismiss: () -> Unit, onSave: (String, String, String, Stri
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Tambah Kontak", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(nama, { nama = it }, label = { Text("Nama *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(nama, { nama = it }, label = { Text("Nama *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(telepon, { telepon = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(telepon, { telepon = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
+                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
             }
-            OutlinedTextField(perusahaan, { perusahaan = it }, label = { Text("Perusahaan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(perusahaan, { perusahaan = it }, label = { Text("Perusahaan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
             Text("Stage", style = MaterialTheme.typography.labelMedium)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(stages) { s -> FilterChip(selected = stage == s, onClick = { stage = s }, label = { Text(s.replaceFirstChar { it.uppercase() }) }) }
             }
             Button(
                 onClick = { if (nama.isNotBlank()) onSave(nama, telepon, email, perusahaan, stage) },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
             ) { Text("Simpan Kontak", fontWeight = FontWeight.Bold) }
         }
     }
@@ -291,7 +291,7 @@ fun AddActivitySheet(contacts: List<CrmContact>, onDismiss: () -> Unit, onSave: 
                     onValueChange = {}, readOnly = true,
                     label = { Text("Kontak") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedContact) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp)
                 )
                 ExposedDropdownMenu(expandedContact, { expandedContact = false }) {
                     contacts.forEach { c -> DropdownMenuItem(text = { Text(c.nama) }, onClick = { selectedContactId = c.id; expandedContact = false }) }
@@ -301,10 +301,10 @@ fun AddActivitySheet(contacts: List<CrmContact>, onDismiss: () -> Unit, onSave: 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(tipes) { t -> FilterChip(selected = tipe == t, onClick = { tipe = t }, label = { Text(t) }) }
             }
-            OutlinedTextField(catatan, { catatan = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth().height(100.dp), shape = RoundedCornerShape(12.dp), maxLines = 3)
+            OutlinedTextField(catatan, { catatan = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth().height(100.dp), shape = RoundedCornerShape(20.dp), maxLines = 3)
             Button(
                 onClick = { if (selectedContactId != null) onSave(selectedContactId!!, tipe, catatan) },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
             ) { Text("Simpan Aktivitas", fontWeight = FontWeight.Bold) }
         }
     }

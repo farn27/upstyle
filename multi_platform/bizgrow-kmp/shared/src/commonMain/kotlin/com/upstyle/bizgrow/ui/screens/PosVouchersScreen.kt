@@ -61,7 +61,7 @@ fun PosVouchersScreen(viewModel: AppViewModel) {
                 ) {
                     items(posVouchers) { item ->
                         Card(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             modifier = Modifier.fillMaxWidth()
                         ) {

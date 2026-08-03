@@ -96,7 +96,7 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
                 Surface(
                     modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
                     color = badgeColor,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(badgeText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
                 }
@@ -133,14 +133,14 @@ fun ProductInfoTab(product: Product, viewModel: AppViewModel, onAdjust: () -> Un
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Stock hero
         item {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = stockColor.copy(alpha = 0.08f)), elevation = CardDefaults.cardElevation(0.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = stockColor.copy(alpha = 0.08f)), elevation = CardDefaults.cardElevation(0.dp)) {
                 Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("Stok Saat Ini", fontSize = 12.sp, color = stockColor)
                         Text("${product.stok} unit", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = stockColor)
                         Text("Min: ${product.minStok} unit", fontSize = 11.sp, color = stockColor.copy(alpha = 0.7f))
                     }
-                    OutlinedButton(onClick = onAdjust, shape = RoundedCornerShape(12.dp)) {
+                    OutlinedButton(onClick = onAdjust, shape = RoundedCornerShape(20.dp)) {
                         Icon(Icons.Default.Tune, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Sesuaikan")
@@ -151,7 +151,7 @@ fun ProductInfoTab(product: Product, viewModel: AppViewModel, onAdjust: () -> Un
 
         // Pricing
         item {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Harga", fontWeight = FontWeight.Bold)
                     HorizontalDivider()
@@ -178,7 +178,7 @@ fun ProductInfoTab(product: Product, viewModel: AppViewModel, onAdjust: () -> Un
 
         // Product details
         item {
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Detail Produk", fontWeight = FontWeight.Bold)
                     HorizontalDivider()
@@ -233,7 +233,7 @@ fun StockAdjustSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
             Text("${product.nama} · Stok: ${product.stok}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
 
             // Delta stepper
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     FilledIconButton(onClick = { stockDelta-- }, colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFEF4444))) {
                         Icon(Icons.Default.Remove, null, tint = Color.White)
@@ -253,15 +253,15 @@ fun StockAdjustSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
             ExposedDropdownMenuBox(expanded = expandedReason, onExpandedChange = { expandedReason = !expandedReason }) {
                 OutlinedTextField(value = selectedReason, onValueChange = {}, readOnly = true, label = { Text("Alasan") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedReason) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp))
                 ExposedDropdownMenu(expanded = expandedReason, onDismissRequest = { expandedReason = false }) {
                     reasons.forEach { r -> DropdownMenuItem(text = { Text(r) }, onClick = { selectedReason = r; expandedReason = false }) }
                 }
             }
-            OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Keterangan (opsional)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), minLines = 2)
+            OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Keterangan (opsional)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), minLines = 2)
 
             Button(onClick = { if (stockDelta != 0) { viewModel.adjustStock(product.id, stockDelta, selectedReason, reason.ifBlank { null }); onDismiss() } },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp), enabled = stockDelta != 0) {
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp), enabled = stockDelta != 0) {
                 Text("Simpan Penyesuaian", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(24.dp))
@@ -289,7 +289,7 @@ fun EditProductSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
 
             // Photo picker
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                Box(modifier = Modifier.size(72.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
                     if (!fotoUrl.isNullOrBlank()) {
                         AsyncImage(model = fotoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
@@ -306,15 +306,15 @@ fun EditProductSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
                 }
             }
 
-            OutlinedTextField(value = nama, onValueChange = { nama = it }, label = { Text("Nama Produk") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+            OutlinedTextField(value = nama, onValueChange = { nama = it }, label = { Text("Nama Produk") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = hargaBeli, onValueChange = { hargaBeli = it }, label = { Text("Harga Beli") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), singleLine = true, prefix = { Text("Rp ") })
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true, prefix = { Text("Rp ") })
                 OutlinedTextField(value = hargaJual, onValueChange = { hargaJual = it }, label = { Text("Harga Jual") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), singleLine = true, prefix = { Text("Rp ") })
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true, prefix = { Text("Rp ") })
             }
             OutlinedTextField(value = minStok, onValueChange = { minStok = it }, label = { Text("Min Stok Alert") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
 
             Button(
                 onClick = {
@@ -322,7 +322,7 @@ fun EditProductSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
                     viewModel.updateProduct(updated)
                     onDismiss()
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp), enabled = nama.isNotBlank()
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp), enabled = nama.isNotBlank()
             ) { Text("Simpan Perubahan", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(24.dp))
         }

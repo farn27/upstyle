@@ -68,7 +68,7 @@ fun CrmPipelineScreen(viewModel: AppViewModel) {
                                         selectedDeal = deal
                                         showStageSheet = true 
                                     },
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(20.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(deal.contactName, fontWeight = FontWeight.Bold)

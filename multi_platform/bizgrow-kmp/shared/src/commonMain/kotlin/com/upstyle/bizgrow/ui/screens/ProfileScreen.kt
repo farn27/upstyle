@@ -94,7 +94,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
 
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = planColor.copy(alpha = 0.08f))
                 ) {
                     Row(
@@ -115,7 +115,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                                 Text(planLabel, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = planColor)
                             }
                         }
-                        Surface(color = planColor, shape = RoundedCornerShape(8.dp)) {
+                        Surface(color = planColor, shape = RoundedCornerShape(12.dp)) {
                             Text(role.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                         }
                     }
@@ -126,7 +126,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -160,7 +160,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                         .clickable { viewModel.selectUnit(unit) },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                     ),
@@ -207,7 +207,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                     OutlinedButton(
                         onClick = { viewModel.navigate(Screen.Settings) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Icon(Icons.Default.Settings, null)
                         Spacer(Modifier.width(8.dp))
@@ -216,7 +216,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                     Button(
                         onClick = { showLogoutDialog = true },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
                     ) {
                         Icon(Icons.Default.Logout, null)

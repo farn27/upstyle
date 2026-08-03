@@ -92,13 +92,13 @@ fun PayrollScreen(viewModel: AppViewModel) {
 
             // Summary cards
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(12.dp)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Total Payroll", style = MaterialTheme.typography.labelSmall)
                         Text(formatCurrency(totalPayroll), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
                 }
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
+                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Karyawan Diproses", style = MaterialTheme.typography.labelSmall)
                         Text("${filteredRecords.size} / ${employees.size}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -180,7 +180,7 @@ fun ProcessPayrollSheet(
                     label = { Text("Karyawan") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEmp) },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 ExposedDropdownMenu(expanded = expandedEmp, onDismissRequest = { expandedEmp = false }) {
                     employees.forEach { emp ->
@@ -199,7 +199,7 @@ fun ProcessPayrollSheet(
                 label = { Text("Bulan/Tahun (YYYY-MM)") },
                 placeholder = { Text("2026-08") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -207,7 +207,7 @@ fun ProcessPayrollSheet(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Gaji Pokok")
@@ -223,7 +223,7 @@ fun ProcessPayrollSheet(
                 label = { Text("Tunjangan (Rp)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             )
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -232,7 +232,7 @@ fun ProcessPayrollSheet(
                 label = { Text("Potongan (Rp)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             )
 
             // Calculated net
@@ -244,8 +244,8 @@ fun ProcessPayrollSheet(
             Spacer(Modifier.height(12.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                shape = RoundedCornerShape(12.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Gaji Bersih", fontWeight = FontWeight.Bold)
@@ -262,7 +262,7 @@ fun ProcessPayrollSheet(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 enabled = selectedEmployee != null && monthYear.isNotBlank()
             ) {
                 Text("Proses Payroll", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -278,7 +278,7 @@ fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>) {
     val isPaid = record.status.equals("PAID", ignoreCase = true)
 
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -290,7 +290,7 @@ fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>) {
                 }
                 Surface(
                     color = if (isPaid) Color(0xFF2E7D32).copy(alpha = 0.1f) else Color(0xFFEF6C00).copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         record.status,
@@ -337,8 +337,8 @@ fun MonthSelector(currentMonth: String, onPrev: () -> Unit, onNext: () -> Unit) 
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier.padding(8.dp).fillMaxWidth(),

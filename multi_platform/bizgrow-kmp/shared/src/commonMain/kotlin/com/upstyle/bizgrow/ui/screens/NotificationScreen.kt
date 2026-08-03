@@ -88,7 +88,7 @@ fun NotificationScreen(viewModel: AppViewModel) {
 fun NotificationItem(notif: RiwayatAksi) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(20.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),

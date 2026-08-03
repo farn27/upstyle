@@ -83,7 +83,7 @@ export const staffLoginSchema = z.object({
 });
 
 export const googleTokenSchema = z.object({
-	googleToken: z.string({ required_error: 'Google token wajib diisi' }).min(10)
+	googleToken: z.string({ required_error: 'Google token wajib diisi' }).min(10, 'Google token terlalu pendek')
 });
 
 // ─── Transaksi ─────────────────────────────────────────────────────────────

@@ -66,7 +66,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
             ) {
                 // Status + source
                 item {
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                         Row(
                             modifier = Modifier.padding(16.dp).fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -80,7 +80,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
                                     "SHIPPED" -> Color(0xFF1565C0)
                                     else -> Color(0xFFEF6C00)
                                 }
-                                Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp)) {
+                                Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp)) {
                                     Text(
                                         order.status,
                                         color = statusColor,
@@ -100,7 +100,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
 
                 // Customer info
                 item {
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
@@ -128,7 +128,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
                 items(order.items) { item ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Row(
@@ -147,7 +147,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
 
                 // Summary
                 item {
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Ringkasan Pembayaran", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             HorizontalDivider()
@@ -172,7 +172,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
 
                 // Update status
                 item {
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Perbarui Status", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Spacer(Modifier.height(12.dp))

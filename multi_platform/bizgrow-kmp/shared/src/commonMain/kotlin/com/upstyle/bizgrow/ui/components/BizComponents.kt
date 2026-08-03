@@ -100,7 +100,7 @@ fun MenuCard(
             Box(
                 modifier = Modifier
                     .size(58.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Brush.linearGradient(gradient)),
                 contentAlignment = Alignment.Center
             ) {
@@ -155,7 +155,7 @@ fun StatusBadge(status: String, modifier: Modifier = Modifier) {
         else ->
             MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(shape = RoundedCornerShape(8.dp), color = bg, modifier = modifier) {
+    Surface(shape = RoundedCornerShape(12.dp), color = bg, modifier = modifier) {
         Text(
             status,
             color = fg,
@@ -213,7 +213,7 @@ fun EmptyState(
         }
         if (actionLabel != null && onAction != null) {
             Spacer(modifier = Modifier.height(20.dp))
-            Button(onClick = onAction, shape = RoundedCornerShape(12.dp)) { Text(actionLabel) }
+            Button(onClick = onAction, shape = RoundedCornerShape(20.dp)) { Text(actionLabel) }
         }
     }
 }
@@ -239,7 +239,7 @@ fun BizCard(
 ) {
     Card(
         modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         content = { Column(modifier = Modifier.padding(16.dp), content = content) }

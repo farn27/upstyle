@@ -82,6 +82,11 @@ kotlin {
             // Activity Compose — provides rememberLauncherForActivityResult
             implementation("androidx.activity:activity-compose:1.9.3")
             implementation("androidx.activity:activity:1.9.3")
+            
+            // Phase 2: Biometrics & Location (GPS)
+            implementation("androidx.biometric:biometric:1.2.0-alpha05")
+            implementation("com.google.android.gms:play-services-location:21.3.0")
+            
             // Socket.io — Android only (no iOS equivalent in shared)
             implementation("io.socket:socket.io-client:2.1.1") {
                 exclude(group = "org.json", module = "json")

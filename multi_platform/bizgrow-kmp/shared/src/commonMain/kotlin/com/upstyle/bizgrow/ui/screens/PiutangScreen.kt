@@ -65,7 +65,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     showAddSheet = true
                     viewModel.loadAccountingContacts()
                 }, 
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.background,
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Tambah Piutang", tint = Color.White)
             }
@@ -73,8 +73,8 @@ fun PiutangScreen(viewModel: AppViewModel) {
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize().padding(16.dp)) {
             Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -133,7 +133,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     label = { Text("Nominal Pembayaran") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
@@ -145,7 +145,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Text("Bayar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
@@ -174,7 +174,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                         label = { Text("Kontak") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedContact) },
                         modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     ExposedDropdownMenu(
                         expanded = expandedContact,
@@ -198,7 +198,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     onValueChange = { newTanggal = it },
                     label = { Text("Tanggal (YYYY-MM-DD)") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -207,7 +207,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     onValueChange = { newJatuhTempo = it },
                     label = { Text("Jatuh Tempo (YYYY-MM-DD)") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -217,7 +217,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     label = { Text("Nominal") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -226,7 +226,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     onValueChange = { newKeterangan = it },
                     label = { Text("Keterangan (Opsional)") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -245,7 +245,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Text("Simpan", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
@@ -264,7 +264,7 @@ fun ReceivableItem(receivable: Receivable, onClick: () -> Unit) {
     }
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -272,7 +272,7 @@ fun ReceivableItem(receivable: Receivable, onClick: () -> Unit) {
                 Text(receivable.nomorInvoice, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Surface(
                     color = statusColor.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(receivable.status, color = statusColor, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }

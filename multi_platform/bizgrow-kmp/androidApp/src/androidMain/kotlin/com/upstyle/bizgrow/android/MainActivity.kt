@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
-class MainActivity : ComponentActivity() {
+import androidx.fragment.app.FragmentActivity
+
+class MainActivity : FragmentActivity() {
 
     private val viewModel: AppViewModel by viewModel()
 

@@ -61,7 +61,7 @@ fun LeaveRequestsScreen(viewModel: AppViewModel) {
                 ) {
                     items(leaveRequests) { item ->
                         Card(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -77,9 +77,9 @@ fun LeaveRequestsScreen(viewModel: AppViewModel) {
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Tipe: ${item.leaveType}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    Text("Tipe: ${item.type}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                     Text("Tanggal: ${item.startDate} s/d ${item.endDate}", fontSize = 12.sp, color = Color.Gray)
-                                    Text("Alasan: ${item.reason.ifEmpty { "-" }}", fontSize = 12.sp, color = Color.Gray)
+                                    Text("Alasan: ${item.reason?.ifEmpty { "-" } ?: "-"}", fontSize = 12.sp, color = Color.Gray)
                                 }
                                 AssistChip(
                                     onClick = {},

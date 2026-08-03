@@ -75,7 +75,7 @@ fun OrdersScreen(viewModel: AppViewModel) {
                 items(filteredOrders) { order ->
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable { viewModel.navigate(Screen.OrderDetail(order.id)) },
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

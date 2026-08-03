@@ -105,7 +105,7 @@ fun LoginScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BizgrowColors.Primary,
                         unfocusedBorderColor = BizgrowColors.Slate200,
@@ -135,7 +135,7 @@ fun LoginScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BizgrowColors.Primary,
                         unfocusedBorderColor = BizgrowColors.Slate200,
@@ -168,7 +168,7 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = BizgrowColors.Primary,
                         contentColor = BizgrowColors.White
@@ -202,32 +202,80 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Google Sign-In
-                OutlinedButton(
-                    onClick = { onGoogleSignIn?.invoke() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    enabled = !uiState.isLoading && onGoogleSignIn != null,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = BizgrowColors.White,
-                        contentColor = BizgrowColors.Slate800
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Slate200)
+                // Biometric Manager instance
+                val biometricManager = com.upstyle.bizgrow.device.rememberBiometricManager()
+                
+                // Google & Biometric Sign-In Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "G",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color(0xFF4285F4)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "Lanjutkan dengan Google",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    OutlinedButton(
+                        onClick = { onGoogleSignIn?.invoke() },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        enabled = !uiState.isLoading && onGoogleSignIn != null,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = BizgrowColors.White,
+                            contentColor = BizgrowColors.Slate800
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Slate200)
+                    ) {
+                        Text(
+                            text = "G",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF4285F4)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Google",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            biometricManager.authenticate(
+                                title = "Login Biometrik",
+                                subtitle = "Gunakan sidik jari atau wajah Anda",
+                                onSuccess = {
+                                    // Normally we would exchange a secure token stored in Keystore, 
+                                    // but for mockup we will auto-login a demo account or use saved credentials.
+                                    // If we had stored credentials:
+                                    // viewModel.login(savedEmail, savedPassword)
+                                    // For now, let's just show an error that credentials must be saved first
+                                    errorMsg = "Login Biometrik berhasil. (Namun fitur auto-fill kredensial belum tersedia)"
+                                },
+                                onError = { err -> errorMsg = err }
+                            )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        enabled = !uiState.isLoading,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = BizgrowColors.White,
+                            contentColor = BizgrowColors.Slate800
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Slate200)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Biometrik",
+                            tint = BizgrowColors.Primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Biometrik",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))

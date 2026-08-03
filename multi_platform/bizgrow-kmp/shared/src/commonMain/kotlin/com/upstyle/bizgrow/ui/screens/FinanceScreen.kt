@@ -64,7 +64,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
         },
         bottomBar = { BottomNavBar(viewModel, Screen.Finance) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(16.dp)) {
+            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = MaterialTheme.colorScheme.background, shape = RoundedCornerShape(20.dp)) {
                 Icon(Icons.Default.Add, null, tint = Color.White)
             }
         }
@@ -86,7 +86,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
             item {
                 val balance = totalMasuk - totalKeluar
                 val isPos = balance >= 0
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = if (isPos) Color(0xFFECFDF5) else Color(0xFFFEF2F2))) {
                     Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
@@ -117,7 +117,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
                     placeholder = { Text("Cari transaksi...") },
                     leadingIcon = { Icon(Icons.Default.Search, null) },
                     trailingIcon = { if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, null) } },
-                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -163,7 +163,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
 
 @Composable
 fun SummaryCard(label: String, amount: Double, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)), elevation = CardDefaults.cardElevation(0.dp)) {
+    Card(modifier = modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)), elevation = CardDefaults.cardElevation(0.dp)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(28.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
@@ -188,9 +188,9 @@ fun TransactionCard(trx: Transaction, onDelete: () -> Unit) {
     val isMasuk = trx.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) || trx.kategoriTrx.equals("MASUK", ignoreCase = true)
     val color = if (isMasuk) Color(0xFF22C55E) else Color(0xFFEF4444)
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), elevation = CardDefaults.cardElevation(1.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = CardDefaults.cardElevation(1.dp)) {
         Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).background(color.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                 Icon(if (isMasuk) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward, null, Modifier.size(18.dp), tint = color)
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -243,7 +243,7 @@ fun AddTransactionSheet(onDismiss: () -> Unit, onSave: (String, Double, String, 
                 listOf("MASUK" to Color(0xFF22C55E), "KELUAR" to Color(0xFFEF4444)).forEach { (k, c) ->
                     Card(
                         modifier = Modifier.weight(1f).height(48.dp).clickable { kategoriTrx = k },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = if (kategoriTrx == k) c.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant),
                         border = if (kategoriTrx == k) CardDefaults.outlinedCardBorder() else null
                     ) {
@@ -255,9 +255,9 @@ fun AddTransactionSheet(onDismiss: () -> Unit, onSave: (String, Double, String, 
             }
 
             OutlinedTextField(value = nominal, onValueChange = { nominal = it }, label = { Text("Nominal (Rp)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
             OutlinedTextField(value = keterangan, onValueChange = { keterangan = it }, label = { Text("Keterangan") },
-                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
 
             Text("Metode Bayar:", fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -271,7 +271,7 @@ fun AddTransactionSheet(onDismiss: () -> Unit, onSave: (String, Double, String, 
                     val nom = nominal.toDoubleOrNull() ?: 0.0
                     if (nom > 0 && keterangan.isNotBlank()) { onSave(kategoriTrx, nom, keterangan, metodeBayar) }
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp),
                 enabled = nominal.isNotBlank() && keterangan.isNotBlank()
             ) { Text("Simpan Transaksi", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(24.dp))

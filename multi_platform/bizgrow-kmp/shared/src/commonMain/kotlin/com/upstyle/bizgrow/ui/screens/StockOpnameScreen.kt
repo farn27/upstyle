@@ -53,7 +53,7 @@ fun StockOpnameScreen(viewModel: AppViewModel) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(stockOpnameList) { session ->
                         Card(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -63,7 +63,7 @@ fun StockOpnameScreen(viewModel: AppViewModel) {
                                 ) {
                                     Text("Opname #${session.id}", fontWeight = FontWeight.Bold)
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
+                                        shape = RoundedCornerShape(12.dp),
                                         color = if (session.status == "COMPLETED") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
                                     ) {
                                         Text(

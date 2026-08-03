@@ -53,7 +53,7 @@ fun TrashProductsScreen(viewModel: AppViewModel) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(trashProducts) { product ->
                         Card(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -67,7 +67,7 @@ fun TrashProductsScreen(viewModel: AppViewModel) {
                                 }
                                 Button(
                                     onClick = { viewModel.restoreProduct(product.id) },
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = "Pulihkan", modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))

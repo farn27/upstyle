@@ -59,7 +59,7 @@ fun PosReturnScreen(viewModel: AppViewModel) {
             // Info Banner
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -109,7 +109,7 @@ fun PosReturnScreen(viewModel: AppViewModel) {
                         onValueChange = { orderIdInput = it },
                         label = { Text("Order ID / Nomor Order") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     OutlinedTextField(
                         value = refundAmount,
@@ -117,14 +117,14 @@ fun PosReturnScreen(viewModel: AppViewModel) {
                         label = { Text("Jumlah Refund (Rp)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     OutlinedTextField(
                         value = reasonInput,
                         onValueChange = { reasonInput = it },
                         label = { Text("Alasan Retur") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp),
                         minLines = 2
                     )
                 }
@@ -157,7 +157,7 @@ fun PosReturnScreen(viewModel: AppViewModel) {
 @Composable
 fun ReturnItem(ret: PosReturn) {
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {

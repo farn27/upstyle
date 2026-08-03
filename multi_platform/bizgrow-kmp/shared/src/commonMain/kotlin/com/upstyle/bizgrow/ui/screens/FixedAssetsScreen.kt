@@ -53,7 +53,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(fixedAssets) { asset ->
                         Card(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
@@ -73,7 +73,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
                                 ) {
                                     Text("Nilai Buku: Rp ${"%,.0f".format(asset.nilaiBuku)}", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
+                                        shape = RoundedCornerShape(12.dp),
                                         color = if (asset.status == "AKTIF") MaterialTheme.colorScheme.primaryContainer else Color.LightGray
                                     ) {
                                         Text(asset.status, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), fontSize = 10.sp)

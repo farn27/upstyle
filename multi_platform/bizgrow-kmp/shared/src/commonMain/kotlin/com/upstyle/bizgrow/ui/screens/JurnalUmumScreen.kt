@@ -48,15 +48,15 @@ fun JurnalUmumScreen(viewModel: AppViewModel) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddJurnal = true }, containerColor = MaterialTheme.colorScheme.primary) {
+            FloatingActionButton(onClick = { showAddJurnal = true }, containerColor = MaterialTheme.colorScheme.background,) {
                 Icon(Icons.Default.Add, contentDescription = "Tambah Jurnal", tint = Color.White)
             }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize().padding(16.dp)) {
             Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -124,7 +124,7 @@ fun AddJurnalSheet(
                 onValueChange = { tanggal = it },
                 label = { Text("Tanggal (YYYY-MM-DD)") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             )
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
@@ -132,7 +132,7 @@ fun AddJurnalSheet(
                 onValueChange = { memo = it },
                 label = { Text("Memo / Keterangan") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             )
 
             Spacer(Modifier.height(16.dp))
@@ -143,7 +143,7 @@ fun AddJurnalSheet(
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -170,7 +170,7 @@ fun AddJurnalSheet(
                                 label = { Text("Akun") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCoa) },
                                 modifier = Modifier.menuAnchor().fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             ExposedDropdownMenu(expanded = expandedCoa, onDismissRequest = { expandedCoa = false }) {
                                 chartOfAccounts.forEach { coa ->
@@ -189,7 +189,7 @@ fun AddJurnalSheet(
                                 label = { Text("Debit") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             OutlinedTextField(
                                 value = lineMap["kredit"] ?: "",
@@ -197,7 +197,7 @@ fun AddJurnalSheet(
                                 label = { Text("Kredit") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                         }
                     }
@@ -232,7 +232,7 @@ fun AddJurnalSheet(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Text("Simpan Jurnal", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
@@ -248,7 +248,7 @@ fun JournalEntryItem(entry: JournalEntry) {
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { expanded = !expanded },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -256,7 +256,7 @@ fun JournalEntryItem(entry: JournalEntry) {
                 Text(entry.nomorJurnal, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Surface(
                     color = statusColor.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(entry.status, color = statusColor, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }

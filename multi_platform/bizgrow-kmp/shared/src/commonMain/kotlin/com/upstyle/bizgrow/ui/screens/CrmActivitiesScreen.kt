@@ -66,7 +66,7 @@ fun CrmActivitiesScreen(viewModel: AppViewModel) {
                 items(filteredActivities) { activity ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             val icon = when (activity.tipe) {

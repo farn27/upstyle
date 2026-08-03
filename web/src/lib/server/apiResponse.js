@@ -96,7 +96,7 @@ export function apiValidationError(zodError) {
 	return json(
 		{
 			success: false,
-			message: 'Validasi gagal',
+			message: 'Validasi gagal: ' + details.map((d) => `${d.field ? d.field + ' ' : ''}${d.message}`).join(', '),
 			code: 'VALIDATION_ERROR',
 			details
 		},

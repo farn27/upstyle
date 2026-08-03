@@ -13,10 +13,10 @@ import androidx.compose.ui.unit.sp
 // Palette: Deep Indigo primary + Emerald accent + warm neutrals
 object BizgrowColors {
     // Primary — Deep Indigo/Violet (professional, premium)
-    val Primary          = Color(0xFF5B50F0)  // Vibrant indigo
-    val PrimaryDark      = Color(0xFF3730A3)
-    val PrimaryDarker    = Color(0xFF1E1B4B)
-    val PrimaryLight     = Color(0xFFEEF2FF)
+    val Primary          = Color(0xFF5B5FEF)  // Linear/Stripe Enterprise Indigo
+    val PrimaryDark      = Color(0xFF4549D3)
+    val PrimaryDarker    = Color(0xFF2C2F8A)
+    val PrimaryLight     = Color(0xFFEFF0FE)
     val PrimaryMid       = Color(0xFF818CF8)
 
     // Secondary — Emerald (growth, money)
@@ -165,9 +165,9 @@ val BizgrowTypography = Typography(
 val BizgrowShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
     small      = RoundedCornerShape(8.dp),
-    medium     = RoundedCornerShape(12.dp),
-    large      = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp),
+    medium     = RoundedCornerShape(20.dp),
+    large      = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp),
 )
 
 @Composable

@@ -66,19 +66,19 @@ fun AbsensiScreen(viewModel: AppViewModel) {
 
             // Ringkasan hari ini
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = BizgrowColors.SuccessLight), shape = RoundedCornerShape(16.dp)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = BizgrowColors.SuccessLight), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text("Hadir", style = MaterialTheme.typography.labelSmall, color = BizgrowColors.Success)
                         Text("${todayRecords.count { it.status == "HADIR" }}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = BizgrowColors.Success)
                     }
                 }
-                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = BizgrowColors.DangerLight), shape = RoundedCornerShape(16.dp)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = BizgrowColors.DangerLight), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text("Alfa/Izin", style = MaterialTheme.typography.labelSmall, color = BizgrowColors.Danger)
                         Text("${todayRecords.count { it.status != "HADIR" }}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = BizgrowColors.Danger)
                     }
                 }
-                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(16.dp)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), shape = RoundedCornerShape(20.dp)) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text("Total", style = MaterialTheme.typography.labelSmall)
                         Text("${employees.size}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -94,7 +94,7 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                     label = { Text("Karyawan") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedEmpPicker) },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(20.dp)
                 )
                 ExposedDropdownMenu(expandedEmpPicker, { expandedEmpPicker = false }) {
                     employees.forEach { emp ->
@@ -106,12 +106,29 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                 }
             }
 
+            // Location Tracker instance
+            val locationTracker = com.upstyle.bizgrow.device.rememberLocationTracker()
+            var currentLocation by remember { mutableStateOf<com.upstyle.bizgrow.device.LocationData?>(null) }
+            var locationError by remember { mutableStateOf<String?>(null) }
+
             // Tombol Check-In / Check-Out
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
-                    onClick = { isCheckIn = true; pinInput = ""; pinError = ""; showPinDialog = true },
+                    onClick = { 
+                        locationTracker.getCurrentLocation(
+                            onSuccess = { loc ->
+                                currentLocation = loc
+                                isCheckIn = true; pinInput = ""; pinError = ""; showPinDialog = true
+                            },
+                            onError = { err ->
+                                locationError = err
+                                // Tetap bolehkan absen walau tanpa GPS (atau bisa diblokir jika strict)
+                                isCheckIn = true; pinInput = ""; pinError = ""; showPinDialog = true
+                            }
+                        )
+                    },
                     modifier = Modifier.weight(1f).height(56.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Success),
                     enabled = selectedEmployeeId != null
                 ) {
@@ -120,9 +137,20 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                     Text("CHECK IN", fontWeight = FontWeight.Bold)
                 }
                 Button(
-                    onClick = { isCheckIn = false; pinInput = ""; pinError = ""; showPinDialog = true },
+                    onClick = { 
+                        locationTracker.getCurrentLocation(
+                            onSuccess = { loc ->
+                                currentLocation = loc
+                                isCheckIn = false; pinInput = ""; pinError = ""; showPinDialog = true
+                            },
+                            onError = { err ->
+                                locationError = err
+                                isCheckIn = false; pinInput = ""; pinError = ""; showPinDialog = true
+                            }
+                        )
+                    },
                     modifier = Modifier.weight(1f).height(56.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Danger),
                     enabled = selectedEmployeeId != null
                 ) {
@@ -130,6 +158,12 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                     Spacer(Modifier.width(8.dp))
                     Text("CHECK OUT", fontWeight = FontWeight.Bold)
                 }
+            }
+
+            if (locationError != null) {
+                Text(locationError ?: "", color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            } else if (currentLocation != null) {
+                Text("Lokasi terdeteksi: ${currentLocation!!.latitude.toString().take(7)}, ${currentLocation!!.longitude.toString().take(7)}", color = BizgrowColors.Success, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
 
             if (selectedEmployeeId == null) {
@@ -167,7 +201,7 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                         isError = pinError.isNotEmpty(),
                         supportingText = if (pinError.isNotEmpty()) {{ Text(pinError, color = MaterialTheme.colorScheme.error) }} else null,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             },
