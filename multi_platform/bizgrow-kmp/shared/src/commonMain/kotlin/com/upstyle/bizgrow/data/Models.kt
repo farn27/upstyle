@@ -59,12 +59,24 @@ data class BusinessUnit(
     val type: String,
     val uid: String = "",
     val slug: String = "",
+    val loginSlug: String = "",
     val alamat: String? = null,
     val telepon: String? = null,
     val email: String? = null,
     val modalAwal: Double = 0.0,
     val isCabang: Int = 0,
-    @SerialName("pos_feature_override") val posFeatureOverride: String? = null
+    @SerialName("pos_feature_override") val posFeatureOverride: String? = null,
+    val settings: BusinessUnitSettings? = null
+)
+
+@Serializable
+data class BusinessUnitSettings(
+    val alamat: String = "",
+    val telepon: String = "",
+    val email: String = "",
+    val modalAwal: Double = 0.0,
+    val isCabang: Int = 0,
+    val posFeatureOverride: String? = null
 )
 
 @Serializable
@@ -324,10 +336,15 @@ data class Employee(
     val unitId: Int,
     val email: String = "",
     val phone: String = "",
-    val status: String = "active",
-    val division: String? = null,
+    val joinDate: String? = null,
+    val address: String = "",
     val employmentStatus: String? = null,
-    val joinDate: String? = null
+    val placementLocation: String = "",
+    val idNumber: String = "",
+    val emergencyContact: String = "",
+    val emergencyRelation: String = "",
+    val bloodType: String = "",
+    val employeeIdCard: String = ""
 )
 
 @Serializable
@@ -377,11 +394,13 @@ data class EmployeeKpi(
 data class LeaveRequest(
     val id: Int,
     val employeeId: Int,
+    val employeeName: String = "",
     val type: String,
     val startDate: String,
     val endDate: String,
     val reason: String? = null,
-    val status: String
+    val status: String,
+    val createdAt: String = ""
 )
 
 @Serializable
@@ -408,8 +427,15 @@ data class CreateEmployeeBody(
     val unitId: Int,
     val email: String = "",
     val phone: String = "",
-    val division: String = "",
-    val employmentStatus: String = "TETAP"
+    val joinDate: String = "",
+    val address: String = "",
+    val employmentStatus: String = "active",
+    val placementLocation: String = "",
+    val idNumber: String = "",
+    val emergencyContact: String = "",
+    val emergencyRelation: String = "",
+    val bloodType: String = "",
+    val employeeIdCard: String = ""
 )
 
 @Serializable
@@ -439,6 +465,8 @@ data class ProcessPayrollRequest(
 data class ProcessPayrollBody(
     val employeeId: Int,
     val monthYear: String,
+    val periodMonth: Int = 0,
+    val periodYear: Int = 0,
     val salary: Double,
     val allowance: Double,
     val deduction: Double,
@@ -460,6 +488,8 @@ data class CrmContact(
     val stage: String = "lead",
     val sumber: String = "manual",
     val tags: String? = null,
+    val alamat: String = "",
+    val catatan: String = "",
     val createdAt: String = ""
 )
 
@@ -474,7 +504,8 @@ data class CrmDeal(
     val unitId: Int,
     val kontakId: Int? = null,
     val status: String = "open",
-    val createdAt: String = ""
+    val createdAt: String = "",
+    val contact: CrmContact? = null
 )
 
 @Serializable
@@ -823,9 +854,13 @@ data class SupportTicket(
     val customerId: Int? = null,
     val customerName: String = "",
     val assigneeId: Int? = null,
+    val assignedTo: String? = null,
+    val ticketNumber: String = "",
+    val description: String = "",
     val createdAt: String = "",
     val updatedAt: String = "",
-    val lastMessage: String? = null
+    val lastMessage: String? = null,
+    val lastMessageAt: String? = null
 )
 
 @Serializable
@@ -835,6 +870,7 @@ data class TicketMessage(
     val senderId: Int,
     val senderType: String, // "customer" | "agent"
     val message: String,
+    val senderName: String? = null,
     val createdAt: String = ""
 )
 
@@ -929,17 +965,18 @@ data class PosFeatureOverride(
     val maxDiskonPersen: Int = 100
 )
 
+// ─── POS Shift ───────────────────────────────────────────────────────────
+
 @Serializable
 data class UpdateUnitSettingsRequest(
+    val unitId: Int,
+    val action: String = "updateBusiness",
     val namaUnit: String? = null,
     val alamat: String? = null,
     val telepon: String? = null,
     val email: String? = null,
-    val posShortageThreshold: Double? = null,
-    val posFeatureOverride: String? = null
+    val modalAwal: Double? = null
 )
-
-// ─── POS Shift ───────────────────────────────────────────────────────────
 
 @Serializable
 data class PosShift(
@@ -1097,7 +1134,12 @@ data class ClosingPeriod(
 data class Department(
     val id: Int = 0,
     val unitId: Int,
-    val name: String
+    val name: String = "",
+    val description: String = "",
+    val manager: String = "",
+    val budget: Double = 0.0,
+    val isActive: Boolean = true,
+    val employeeCount: Int = 0
 )
 
 @Serializable
@@ -1175,6 +1217,7 @@ data class Quotation(
     val quotationNumber: String = "",
     val unitId: Int,
     val customerId: Int? = null,
+    val customerName: String = "",
     val totalAmount: Double = 0.0,
     val status: String = "DRAFT",
     val validUntil: String = "",
@@ -1198,6 +1241,7 @@ data class SalesOrder(
     val orderNumber: String = "",
     val unitId: Int,
     val customerId: Int? = null,
+    val customerName: String = "",
     val totalAmount: Double = 0.0,
     val status: String = "PENDING",
     val notes: String? = null,
@@ -1402,4 +1446,121 @@ data class UnitDashboardSummary(
     val totalProduk: Int = 0,
     val totalKaryawan: Int = 0,
     val totalTransaksi: Int = 0
+)
+
+// ─── Business Plan ─────────────────────────────────────────────────────────────
+
+@Serializable
+data class BusinessPlan(
+    val id: Int = 0,
+    val unitId: Int,
+    val title: String = "",
+    val description: String = "",
+    val executiveSummary: String = "",
+    val marketAnalysis: String = "",
+    val swot: String = "",
+    val financialProjection: String = "",
+    val actionPlan: String = "",
+    val status: String = "DRAFT", // DRAFT | REVIEW | APPROVED | ACTIVE
+    val createdAt: String = "",
+    val updatedAt: String = ""
+)
+
+@Serializable
+data class BusinessPlanSeedLog(
+    val id: Int = 0,
+    val unitId: Int,
+    val planId: Int,
+    val action: String = "", // SEED | APPLY
+    val sourceData: String = "",
+    val resultSummary: String = "",
+    val createdAt: String = ""
+)
+
+// ─── Sosmed ────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class SocialPost(
+    val id: Int = 0,
+    val unitId: Int,
+    val platform: String = "", // INSTAGRAM | FACEBOOK | TWITTER | WHATSAPP | TIKTOK
+    val caption: String = "",
+    val imageUrl: String = "",
+    val status: String = "DRAFT", // DRAFT | SCHEDULED | PUBLISHED
+    val scheduledAt: String? = null,
+    val createdAt: String = ""
+)
+
+// ─── Website ───────────────────────────────────────────────────────────────────
+
+@Serializable
+data class WebsiteSetting(
+    val id: Int = 0,
+    val unitId: Int,
+    val domainSlug: String = "",
+    val theme: String = "modern", // modern | classic | retro
+    val colorPrimary: String = "#6366F1",
+    val heroTitle: String = "",
+    val heroSubtitle: String = "",
+    val aboutUs: String = "",
+    val contactPhone: String = "",
+    val contactEmail: String = "",
+    val contactAddress: String = "",
+    val isPublished: Boolean = false,
+    val updatedAt: String = ""
+)
+
+// ─── Help ──────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class HelpArticle(
+    val id: String = "",
+    val title: String = "",
+    val content: String = "",
+    val category: String = "", // GENERAL | FINANCE | POS | HR | CRM
+    val tags: List<String> = emptyList(),
+    val views: Int = 0,
+    val helpful: Int = 0,
+    val notHelpful: Int = 0
+)
+
+// ─── Landing Page ──────────────────────────────────────────────────────────────
+
+@Serializable
+data class LandingPage(
+    val id: Int = 0,
+    val unitId: Int,
+    val title: String = "",
+    val pageSlug: String = "",
+    val template: String = "leadgen", // leadgen | promo | catalog | portfolio | minimal | luxury | event | seasonal | webinar | restaurant
+    val contentJson: String = "{}", // JSON string with sections config
+    val isActive: Boolean = false,
+    val views: Int = 0,
+    val leads: Int = 0,
+    val createdAt: String = "",
+    val updatedAt: String = ""
+)
+
+@Serializable
+data class LandingPageTemplate(
+    val key: String = "",
+    val name: String = "",
+    val description: String = "",
+    val sections: List<String> = emptyList(),
+    val previewImage: String = ""
+)
+
+// ─── Shopee ────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class ShopeeIntegration(
+    val id: Int = 0,
+    val unitId: Int,
+    val shopId: String = "",
+    val shopName: String = "",
+    val accessToken: String = "",
+    val refreshToken: String = "",
+    val isActive: Boolean = false,
+    val lastSyncAt: String = "",
+    val connectedAt: String = ""
 )

@@ -4,11 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.upstyle.bizgrow.api.UpstyleApi
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.navigation.NavigationManager
+import com.upstyle.bizgrow.ui.state.*
+import com.upstyle.bizgrow.cache.CacheManager
+import com.upstyle.bizgrow.cache.CacheKeys
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import com.upstyle.bizgrow.socket.SocketManager
 import com.upstyle.bizgrow.socket.RealtimeEvent
+import kotlinx.serialization.builtins.ListSerializer
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
@@ -101,6 +106,15 @@ sealed class Screen {
     object Katalog : Screen()
     object Marketing : Screen()
     object Departments : Screen()
+
+    // Feature Gap Closure
+    object BusinessPlan : Screen()
+    object Sosmed : Screen()
+    object WebsiteBuilder : Screen()
+    object HelpCenter : Screen()
+    object AdvancedSettings : Screen()
+    object LandingPageScreen : Screen()
+    object ShopeeIntegrationScreen : Screen()
 }
 // ─── UI State ─────────────────────────────────────────────────────────────────
 
@@ -117,35 +131,21 @@ class AppViewModel(
     private val session: SessionRepository
 ) : ViewModel() {
 
-    // ─── Navigation ───────────────────────────────────────────────────────────
-    private val _screen = MutableStateFlow<Screen>(Screen.Login)
-    val screen: StateFlow<Screen> = _screen.asStateFlow()
+    // ─── Navigation (Task 6: delegated to NavigationManager) ─────────────────
+    private val navigationManager = NavigationManager()
 
-    private val _screenStack = MutableStateFlow<List<Screen>>(listOf(Screen.Login))
+    val screen: StateFlow<Screen> = navigationManager.screen
+    val screenStack: List<Screen> get() = navigationManager.screenStack.value
+    val canNavigateBack: Boolean get() = navigationManager.canNavigateBack
 
-    /** Expose for back press handling in Activity */
-    val screenStack: List<Screen> get() = _screenStack.value
+    fun navigate(s: Screen) = navigationManager.navigate(s)
+    fun navigateBack() { navigationManager.navigateBack() }
+    fun navigateToRoot(s: Screen) = navigationManager.navigateToRoot(s)
 
-    fun navigate(s: Screen) {
-        _screenStack.value = _screenStack.value + s
-        _screen.value = s
-    }
+    // ─── Cache Manager (Task 10: offline-first) ───────────────────────────────
+    private val cacheManager = CacheManager(session)
 
-    fun navigateBack() {
-        val stack = _screenStack.value
-        if (stack.size > 1) {
-            val newStack = stack.dropLast(1)
-            _screenStack.value = newStack
-            _screen.value = newStack.last()
-        }
-    }
-
-    fun navigateToRoot(s: Screen) {
-        _screenStack.value = listOf(s)
-        _screen.value = s
-    }
-
-    // ─── Global UI State ──────────────────────────────────────────────────────
+    // ─── Global UI State (legacy — used for auth screens only) ───────────────
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
@@ -153,6 +153,59 @@ class AppViewModel(
     private fun setError(msg: String) { _uiState.update { it.copy(isLoading = false, error = msg) } }
     private fun setSuccess(msg: String) { _uiState.update { it.copy(isLoading = false, successMessage = msg, error = null) } }
     fun clearMessages() { _uiState.update { it.copy(error = null, successMessage = null) } }
+
+    // ─── Per-Feature States (Task 7: granular loading/error per feature) ──────
+    private val _unitsState = MutableStateFlow(UnitsState())
+    val unitsState: StateFlow<UnitsState> = _unitsState.asStateFlow()
+
+    private val _dashboardState = MutableStateFlow(DashboardState())
+    val dashboardState: StateFlow<DashboardState> = _dashboardState.asStateFlow()
+
+    private val _productsState = MutableStateFlow(ProductsState())
+    val productsState: StateFlow<ProductsState> = _productsState.asStateFlow()
+
+    private val _hrState = MutableStateFlow(HrState())
+    val hrState: StateFlow<HrState> = _hrState.asStateFlow()
+
+    private val _crmState = MutableStateFlow(CrmState())
+    val crmState: StateFlow<CrmState> = _crmState.asStateFlow()
+
+    private val _scmState = MutableStateFlow(ScmState())
+    val scmState: StateFlow<ScmState> = _scmState.asStateFlow()
+
+    private val _financeArApState = MutableStateFlow(FinanceArApState())
+    val financeArApState: StateFlow<FinanceArApState> = _financeArApState.asStateFlow()
+
+    private val _csState = MutableStateFlow(CsState())
+    val csState: StateFlow<CsState> = _csState.asStateFlow()
+
+    private val _ordersState = MutableStateFlow(OrdersState())
+    val ordersState: StateFlow<OrdersState> = _ordersState.asStateFlow()
+
+    private val _marketingState = MutableStateFlow(MarketingState())
+    val marketingState: StateFlow<MarketingState> = _marketingState.asStateFlow()
+
+    // ─── Feature Gap States ───────────────────────────────────────────────────
+    private val _businessPlansState = MutableStateFlow(BusinessPlansState())
+    val businessPlansState: StateFlow<BusinessPlansState> = _businessPlansState.asStateFlow()
+
+    private val _sosmedState = MutableStateFlow(SosmedState())
+    val sosmedState: StateFlow<SosmedState> = _sosmedState.asStateFlow()
+
+    private val _websiteState = MutableStateFlow(WebsiteBuilderState())
+    val websiteState: StateFlow<WebsiteBuilderState> = _websiteState.asStateFlow()
+
+    private val _helpState = MutableStateFlow(HelpCenterState())
+    val helpState: StateFlow<HelpCenterState> = _helpState.asStateFlow()
+
+    private val _landingPageState = MutableStateFlow(LandingPageState())
+    val landingPageState: StateFlow<LandingPageState> = _landingPageState.asStateFlow()
+
+    private val _shopeeState = MutableStateFlow(ShopeeState())
+    val shopeeState: StateFlow<ShopeeState> = _shopeeState.asStateFlow()
+
+    private val _advancedSettingsState = MutableStateFlow(AdvancedSettingsState())
+    val advancedSettingsState: StateFlow<AdvancedSettingsState> = _advancedSettingsState.asStateFlow()
 
     // ─── Auth ─────────────────────────────────────────────────────────────────
     private val _isLoggedIn = MutableStateFlow(session.isLoggedIn())
@@ -249,11 +302,29 @@ class AppViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun loadUnits() = viewModelScope.launch {
+        // Task 7: feature-specific loading state
+        _unitsState.update { it.copy(isLoading = true, error = null) }
+
+        // Task 10: load from cache first (offline-first)
+        val cached = cacheManager.loadList(CacheKeys.UNITS, BusinessUnit.serializer())
+        if (cached != null) {
+            _units.value = cached
+            _unitsState.update { it.copy(units = cached) }
+        }
+
         try {
             val res = api.getBusinessUnits()
-            if (res.success) _units.value = res.data
+            if (res.success) {
+                _units.value = res.data
+                _unitsState.update { it.copy(isLoading = false, units = res.data) }
+                cacheManager.saveList(CacheKeys.UNITS, res.data, BusinessUnit.serializer())
+            } else {
+                _unitsState.update { it.copy(isLoading = false, error = "Gagal memuat unit") }
+            }
         } catch (e: Exception) {
             Napier.e("loadUnits error", e)
+            val errMsg = if (cached != null) null else "Gagal memuat unit: ${e.message}"
+            _unitsState.update { it.copy(isLoading = false, error = errMsg) }
         }
     }
 
@@ -317,11 +388,31 @@ class AppViewModel(
     fun loadDashboard(startDate: String? = null, endDate: String? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+
+        // Task 7: feature-specific loading
+        _dashboardState.update { it.copy(isLoading = true, error = null) }
+
+        // Task 10: cache-first
+        val cacheKey = CacheKeys.dashboardKey(unitId)
+        val cached = cacheManager.load(cacheKey, FinanceData.serializer())
+        if (cached != null) {
+            _financeData.value = cached
+            _dashboardState.update { it.copy(financeData = cached) }
+        }
+
         try {
             val res = api.getFinanceData(unitId, startDate, endDate)
-            if (res.success) _financeData.value = res.data
+            if (res.success) {
+                _financeData.value = res.data
+                _dashboardState.update { it.copy(isLoading = false, financeData = res.data) }
+                res.data?.let { cacheManager.save(cacheKey, it, FinanceData.serializer()) }
+            } else {
+                _dashboardState.update { it.copy(isLoading = false, error = res.message ?: "Gagal memuat dashboard") }
+            }
         } catch (e: Exception) {
             Napier.e("loadDashboard error", e)
+            val errMsg = if (cached != null) null else "Gagal memuat dashboard: ${e.message}"
+            _dashboardState.update { it.copy(isLoading = false, error = errMsg) }
         }
     }
 
@@ -371,24 +462,47 @@ class AppViewModel(
     fun loadProducts() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+
+        // Task 7: feature-specific loading
+        _productsState.update { it.copy(isLoading = true, error = null) }
+
+        // Task 10: cache-first (extends original offline logic via CacheManager)
+        val cacheKey = CacheKeys.productsKey(unitId)
+        val cached = cacheManager.loadList(cacheKey, Product.serializer())
+        if (cached != null) {
+            _products.value = cached
+            _productsState.update { it.copy(products = cached) }
+        }
+
         try {
             val res = api.getProducts(unitId)
             if (res.success) {
                 _products.value = res.data
+                _productsState.update { it.copy(isLoading = false, products = res.data) }
+                cacheManager.saveList(cacheKey, res.data, Product.serializer())
+                // Legacy offline cache compat
                 try {
-                    val json = kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(Product.serializer()), res.data)
+                    val json = kotlinx.serialization.json.Json.encodeToString(ListSerializer(Product.serializer()), res.data)
                     session.saveOfflineProducts(json)
-                } catch (e: Exception) { Napier.e("Failed to cache products", e) }
+                } catch (e: Exception) { Napier.e("Failed to write legacy offline cache", e) }
+            } else {
+                _productsState.update { it.copy(isLoading = false, error = res.message ?: "Gagal memuat produk") }
             }
         } catch (e: Exception) {
             Napier.e("loadProducts error (network), trying offline cache", e)
-            val cachedJson = session.getOfflineProducts()
-            if (cachedJson != null) {
-                try {
-                    val cachedData = kotlinx.serialization.json.Json.decodeFromString<List<Product>>(cachedJson)
-                    _products.value = cachedData
-                } catch (e: Exception) { Napier.e("Failed to parse cached products", e) }
+            if (cached == null) {
+                // fallback: legacy offline cache
+                val cachedJson = session.getOfflineProducts()
+                if (cachedJson != null) {
+                    try {
+                        val legacy = kotlinx.serialization.json.Json.decodeFromString<List<Product>>(cachedJson)
+                        _products.value = legacy
+                        _productsState.update { it.copy(products = legacy) }
+                    } catch (e2: Exception) { Napier.e("Failed to parse cached products", e2) }
+                }
             }
+            val errMsg = if (cached != null || session.getOfflineProducts() != null) null else "Gagal memuat produk: ${e.message}"
+            _productsState.update { it.copy(isLoading = false, error = errMsg) }
         }
     }
 
@@ -402,6 +516,8 @@ class AppViewModel(
             Napier.e("loadStockLogs error", e)
         }
     }
+
+    private fun <T> ApiResponse<T>.messageOr(fallback: String) = message ?: fallback
 
     fun adjustStock(productId: String, perubahan: Int, alasan: String, keterangan: String? = null) = viewModelScope.launch {
         setLoading(true)
@@ -418,98 +534,99 @@ class AppViewModel(
         }
     }
 
-    // ─── POS ──────────────────────────────────────────────────────────────────
-    private val _cart = MutableStateFlow<Map<Product, Int>>(emptyMap())
-    val cart: StateFlow<Map<Product, Int>> = _cart.asStateFlow()
+    // ─── Task 8: POS (bridged to PosViewModel during screen migration) ────────
+    // POS screens still receive AppViewModel from App.kt. Keep this bridge so the
+    // extracted PosViewModel works without breaking existing screen contracts.
+    private val posViewModel = PosViewModel(api) { _activeUnitId.value }
 
-    val cartTotal: StateFlow<Double> = _cart.map { it.entries.sumOf { e -> e.key.hargaJual * e.value } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.state"))
+    val posState: StateFlow<PosState> = posViewModel.state
 
-    val cartItemCount: StateFlow<Int> = _cart.map { it.values.sum() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.cart"))
+    val cart: StateFlow<Map<Product, Int>> = posViewModel.cart
 
-    private val _posData = MutableStateFlow<PosData?>(null)
-    val posData: StateFlow<PosData?> = _posData.asStateFlow()
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.cartTotal"))
+    val cartTotal: StateFlow<Double> = posViewModel.cartTotal
 
-    private val _selectedCustomerId = MutableStateFlow<Int?>(null)
-    val selectedCustomerId: StateFlow<Int?> = _selectedCustomerId.asStateFlow()
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.cartItemCount"))
+    val cartItemCount: StateFlow<Int> = posViewModel.cartItemCount
 
-    private val _posDiskon = MutableStateFlow(0.0)
-    val posDiskon: StateFlow<Double> = _posDiskon.asStateFlow()
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.posData"))
+    val posData: StateFlow<PosData?> = posViewModel.posData
 
-    fun loadPosData() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getPosData(unitId)
-            if (res.success) _posData.value = res.data
-        } catch (e: Exception) {
-            Napier.e("loadPosData error", e)
-        }
-    }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.selectedCustomerId"))
+    val selectedCustomerId: StateFlow<Int?> = posViewModel.selectedCustomerId
 
-    fun addToCart(product: Product, qty: Int = 1) {
-        val current = _cart.value.toMutableMap()
-        current[product] = (current[product] ?: 0) + qty
-        _cart.value = current
-    }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.diskon"))
+    val posDiskon: StateFlow<Double> = posViewModel.diskon
 
-    fun removeFromCart(product: Product) {
-        val current = _cart.value.toMutableMap()
-        val cur = current[product] ?: 0
-        if (cur <= 1) current.remove(product) else current[product] = cur - 1
-        _cart.value = current
-    }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.posShifts"))
+    val posShifts: StateFlow<List<PosShift>> = posViewModel.posShifts
 
-    fun clearCart() {
-        _cart.value = emptyMap()
-        _selectedCustomerId.value = null
-        _posDiskon.value = 0.0
-    }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.activeShift"))
+    val activeShift: StateFlow<PosShift?> = posViewModel.activeShift
 
-    fun setCustomer(customerId: Int?) { _selectedCustomerId.value = customerId }
-    fun setDiskon(diskon: Double) { _posDiskon.value = diskon }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.posReturns"))
+    val posReturns: StateFlow<List<PosReturn>> = posViewModel.posReturns
 
-    fun checkout(paymentMethod: String, onSuccess: ((Boolean) -> Unit)? = null, onSuccessUnit: () -> Unit = {}) = viewModelScope.launch {
-        setLoading(true)
-        val unitId = _activeUnitId.value
-        val cartItems = _cart.value
-        if (cartItems.isEmpty()) { setError("Keranjang kosong"); return@launch }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.posCashTransactions"))
+    val posCashTransactions: StateFlow<List<PosCashTransaction>> = posViewModel.posCashTransactions
 
-        val subtotal = cartItems.entries.sumOf { e -> e.key.hargaJual * e.value }
-        val diskon = _posDiskon.value
-        val total = subtotal - diskon
-        val items = cartItems.entries.map { (p, qty) ->
-            PosOrderItem(productId = p.id, productName = p.nama, qty = qty, price = p.hargaJual)
-        }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.posVouchers"))
+    val posVouchers: StateFlow<List<PosVoucher>> = posViewModel.posVouchers
 
-        try {
-            val req = CheckoutRequest(order = CheckoutBody(
-                orderNumber = "ORD-${currentTimeMillis()}",
-                unitId = unitId,
-                customerId = _selectedCustomerId.value,
-                subtotal = subtotal,
-                diskon = diskon,
-                total = total,
-                paymentMethod = paymentMethod,
-                items = items
-            ))
-            val res = api.checkout(req)
-            if (res.success) {
-                clearCart()
-                loadProducts()
-                loadDashboard()
-                setSuccess("Transaksi berhasil! Total: Rp ${"%,.0f".format(total)}")
-                onSuccess?.invoke(true)
-                onSuccessUnit()
-            } else {
-                setError(res.message ?: "Checkout gagal")
-                onSuccess?.invoke(false)
-            }
-        } catch (e: Exception) {
-            setError("Koneksi gagal: ${e.message}")
-        }
-    }
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.loadPosData()"))
+    fun loadPosData() = posViewModel.loadPosData()
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.addToCart(product, qty)"))
+    fun addToCart(product: Product, qty: Int = 1) = posViewModel.addToCart(product, qty)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.removeFromCart(product)"))
+    fun removeFromCart(product: Product) = posViewModel.removeFromCart(product)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.clearCart()"))
+    fun clearCart() = posViewModel.clearCart()
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.setCustomer(customerId)"))
+    fun setCustomer(customerId: Int?) = posViewModel.setCustomer(customerId)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.setDiskon(diskon)"))
+    fun setDiskon(diskon: Double) = posViewModel.setDiskon(diskon)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.checkout(paymentMethod)"))
+    fun checkout(paymentMethod: String, onSuccess: ((Boolean) -> Unit)? = null, onSuccessUnit: () -> Unit = {}) =
+        posViewModel.checkout(
+            paymentMethod = paymentMethod,
+            onSuccess = { ok ->
+                if (ok) onSuccessUnit()
+                onSuccess?.invoke(ok)
+            },
+            onProductsUpdated = { loadProducts() },
+            onDashboardUpdated = { loadDashboard() }
+        )
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.loadPosShifts()"))
+    fun loadPosShifts() = posViewModel.loadPosShifts()
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.openShift(modalAwal)"))
+    fun openShift(modalAwal: Double) = posViewModel.openShift(modalAwal)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.closeShift(shiftId, kasAkhirAktual, catatan)"))
+    fun closeShift(shiftId: Int, kasAkhirAktual: Double, catatan: String = "") =
+        posViewModel.closeShift(shiftId, kasAkhirAktual, catatan)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.loadPosReturns()"))
+    fun loadPosReturns() = posViewModel.loadPosReturns()
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.createReturn(orderId, items, reason)"))
+    fun createReturn(orderId: String, items: List<ReturnItem>, reason: String) =
+        posViewModel.createReturn(orderId, items, reason)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.loadPosCashTransactions(shiftId)"))
+    fun loadPosCashTransactions(shiftId: Int) = posViewModel.loadPosCashTransactions(shiftId)
+
+    @Deprecated("Use PosViewModel directly once POS screens are migrated", ReplaceWith("posViewModel.loadPosVouchers()"))
+    fun loadPosVouchers() = posViewModel.loadPosVouchers()
 
     // ─── HR ───────────────────────────────────────────────────────────────────
     private val _hrData = MutableStateFlow<HrData?>(null)
@@ -518,11 +635,30 @@ class AppViewModel(
     fun loadHrData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+
+        _hrState.update { it.copy(isLoading = true, error = null) }
+
+        // Task 10: cache-first
+        val cacheKey = CacheKeys.hrKey(unitId)
+        val cached = cacheManager.load(cacheKey, HrData.serializer())
+        if (cached != null) {
+            _hrData.value = cached
+            _hrState.update { it.copy(hrData = cached) }
+        }
+
         try {
             val res = api.getHrData(unitId)
-            if (res.success) _hrData.value = res.data
+            if (res.success) {
+                _hrData.value = res.data
+                _hrState.update { it.copy(isLoading = false, hrData = res.data) }
+                res.data?.let { cacheManager.save(cacheKey, it, HrData.serializer()) }
+            } else {
+                _hrState.update { it.copy(isLoading = false, error = res.message ?: "Gagal memuat data HR") }
+            }
         } catch (e: Exception) {
             Napier.e("loadHrData error", e)
+            val errMsg = if (cached != null) null else "Gagal memuat data HR: ${e.message}"
+            _hrState.update { it.copy(isLoading = false, error = errMsg) }
         }
     }
 
@@ -592,12 +728,37 @@ class AppViewModel(
     fun loadCrmData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+
+        _crmState.update { it.copy(isLoading = true, error = null) }
+
+        // Task 10: cache-first
+        val dealsKey = CacheKeys.crmDealsKey(unitId)
+        val contactsKey = CacheKeys.crmContactsKey(unitId)
+        val cachedDeals = cacheManager.loadList(dealsKey, CrmDeal.serializer())
+        val cachedContacts = cacheManager.loadList(contactsKey, CrmContact.serializer())
+        if (cachedDeals != null) { _crmDeals.value = cachedDeals }
+        if (cachedContacts != null) { _crmContacts.value = cachedContacts }
+        if (cachedDeals != null || cachedContacts != null) {
+            _crmState.update { it.copy(deals = cachedDeals ?: emptyList(), contacts = cachedContacts ?: emptyList()) }
+        }
+
         try {
             val dealsRes = api.getCrmDeals(unitId)
-            if (dealsRes.success) _crmDeals.value = dealsRes.data
+            if (dealsRes.success) {
+                _crmDeals.value = dealsRes.data
+                cacheManager.saveList(dealsKey, dealsRes.data, CrmDeal.serializer())
+            }
             val contactsRes = api.getCrmContacts(unitId)
-            if (contactsRes.success) _crmContacts.value = contactsRes.data
-        } catch (e: Exception) { Napier.e("loadCrmData error", e) }
+            if (contactsRes.success) {
+                _crmContacts.value = contactsRes.data
+                cacheManager.saveList(contactsKey, contactsRes.data, CrmContact.serializer())
+            }
+            _crmState.update { it.copy(isLoading = false, deals = _crmDeals.value, contacts = _crmContacts.value) }
+        } catch (e: Exception) {
+            Napier.e("loadCrmData error", e)
+            val errMsg = if (cachedDeals != null || cachedContacts != null) null else "Gagal memuat data CRM: ${e.message}"
+            _crmState.update { it.copy(isLoading = false, error = errMsg) }
+        }
     }
 
     fun loadCrmActivities() = viewModelScope.launch {
@@ -654,10 +815,20 @@ class AppViewModel(
     fun loadScmData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+
+        _scmState.update { it.copy(isLoading = true, error = null) }
         try {
             val res = api.getScmData(unitId)
-            if (res.success) _scmData.value = res.data
-        } catch (e: Exception) { Napier.e("loadScmData error", e) }
+            if (res.success) {
+                _scmData.value = res.data
+                _scmState.update { it.copy(isLoading = false, scmData = res.data) }
+            } else {
+                _scmState.update { it.copy(isLoading = false, error = res.message ?: "Gagal memuat data SCM") }
+            }
+        } catch (e: Exception) {
+            Napier.e("loadScmData error", e)
+            _scmState.update { it.copy(isLoading = false, error = "Gagal memuat data SCM: ${e.message}") }
+        }
     }
 
     fun createSupplier(name: String, contactName: String, phone: String, email: String, category: String, address: String) = viewModelScope.launch {
@@ -691,20 +862,37 @@ class AppViewModel(
     fun loadReceivables() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        _financeArApState.update { it.copy(isLoading = true, error = null) }
         try {
             val res = api.getReceivables(unitId)
-            if (res.success) _receivables.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadReceivables error", e) }
-    }
+            if (res.success) {
+                _receivables.value = res.data ?: emptyList()
+                _financeArApState.update { it.copy(isLoading = false, receivables = res.data ?: emptyList()) }
+            } else {
+                _financeArApState.update { it.copy(isLoading = false, error = "Gagal memuat piutang") }
+            }
+        } catch (e: Exception) {
+            Napier.e("loadReceivables error", e)
+            _financeArApState.update { it.copy(isLoading = false, error = "Gagal memuat piutang: ${e.message}") }
+        }
 
-    fun loadPayables() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getPayables(unitId)
-            if (res.success) _payables.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadPayables error", e) }
-    }
+        fun loadPayables() = viewModelScope.launch {
+            val unitId = _activeUnitId.value
+            if (unitId == 0) return@launch
+            _financeArApState.update { it.copy(isLoading = true, error = null) }
+            try {
+                val res = api.getPayables(unitId)
+                if (res.success) {
+                    _payables.value = res.data ?: emptyList()
+                    _financeArApState.update { it.copy(isLoading = false, payables = res.data ?: emptyList()) }
+                } else {
+                    _financeArApState.update { it.copy(isLoading = false, error = "Gagal memuat hutang") }
+                }
+            } catch (e: Exception) {
+                Napier.e("loadPayables error", e)
+                _financeArApState.update { it.copy(isLoading = false, error = "Gagal memuat hutang: ${e.message}") }
+            }
+        }
 
     fun loadAccountingContacts() = viewModelScope.launch {
         val unitId = _activeUnitId.value
@@ -770,10 +958,19 @@ class AppViewModel(
     fun loadOrders() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        _ordersState.update { it.copy(isLoading = true, error = null) }
         try {
             val res = api.getOrders(unitId)
-            if (res.success) _orders.value = res.data
-        } catch (e: Exception) { Napier.e("loadOrders error", e) }
+            if (res.success) {
+                _orders.value = res.data
+                _ordersState.update { it.copy(isLoading = false, orders = res.data) }
+            } else {
+                _ordersState.update { it.copy(isLoading = false, error = res.message ?: "Gagal memuat pesanan") }
+            }
+        } catch (e: Exception) {
+            Napier.e("loadOrders error", e)
+            _ordersState.update { it.copy(isLoading = false, error = "Gagal memuat pesanan: ${e.message}") }
+        }
     }
 
     fun loadOrderDetail(orderId: Int) = viewModelScope.launch {
@@ -793,10 +990,19 @@ class AppViewModel(
     fun loadTickets() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        _csState.update { it.copy(isLoading = true, error = null) }
         try {
             val res = api.getTickets(unitId)
-            if (res.success) _tickets.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadTickets error", e) }
+            if (res.success) {
+                _tickets.value = res.data ?: emptyList()
+                _csState.update { it.copy(isLoading = false, tickets = res.data ?: emptyList()) }
+            } else {
+                _csState.update { it.copy(isLoading = false, error = res.message ?: "Gagal memuat tiket") }
+            }
+        } catch (e: Exception) {
+            Napier.e("loadTickets error", e)
+            _csState.update { it.copy(isLoading = false, error = "Gagal memuat tiket: ${e.message}") }
+        }
     }
 
     fun loadTicketMessages(ticketId: Int) = viewModelScope.launch {
@@ -981,68 +1187,6 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
-    // ─── POS Shift ────────────────────────────────────────────────────────────
-    private val _posShifts = MutableStateFlow<List<PosShift>>(emptyList())
-    val posShifts: StateFlow<List<PosShift>> = _posShifts.asStateFlow()
-
-    private val _activeShift = MutableStateFlow<PosShift?>(null)
-    val activeShift: StateFlow<PosShift?> = _activeShift.asStateFlow()
-
-    fun loadPosShifts() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getPosShifts(unitId)
-            if (res.success) {
-                _posShifts.value = res.data ?: emptyList()
-                _activeShift.value = res.data?.firstOrNull { it.status == "OPEN" }
-            }
-        } catch (e: Exception) { Napier.e("loadPosShifts error", e) }
-    }
-
-    fun openShift(modalAwal: Double) = viewModelScope.launch {
-        setLoading(true)
-        val unitId = _activeUnitId.value
-        try {
-            val res = api.openShift(OpenShiftRequest(unitId = unitId, modalAwal = modalAwal))
-            if (res.success) { loadPosShifts(); setSuccess("Shift berhasil dibuka!") }
-            else setError(res.message ?: "Gagal buka shift")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
-    fun closeShift(shiftId: Int, kasAkhirAktual: Double, catatan: String = "") = viewModelScope.launch {
-        setLoading(true)
-        val unitId = _activeUnitId.value
-        try {
-            val res = api.closeShift(CloseShiftRequest(shiftId = shiftId, kasAkhirAktual = kasAkhirAktual, catatan = catatan, unitId = unitId))
-            if (res.success) { loadPosShifts(); _activeShift.value = null; setSuccess("Shift berhasil ditutup!") }
-            else setError(res.message ?: "Gagal tutup shift")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
-    // ─── POS Return ───────────────────────────────────────────────────────────
-    private val _posReturns = MutableStateFlow<List<PosReturn>>(emptyList())
-    val posReturns: StateFlow<List<PosReturn>> = _posReturns.asStateFlow()
-
-    fun loadPosReturns() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getPosReturns(unitId)
-            if (res.success) _posReturns.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadPosReturns error", e) }
-    }
-
-    fun createReturn(orderId: String, items: List<ReturnItem>, reason: String) = viewModelScope.launch {
-        setLoading(true)
-        val unitId = _activeUnitId.value
-        try {
-            val res = api.createReturn(CreateReturnRequest(orderId = orderId, items = items, reason = reason, unitId = unitId))
-            if (res.success) { loadPosReturns(); loadPosData(); setSuccess("Retur berhasil diproses!") }
-            else setError(res.message ?: "Gagal proses retur")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
     private fun setupSocket() {
         val userId = session.getUserId()
         val token = session.getToken()
@@ -1202,29 +1346,6 @@ class AppViewModel(
             val res = api.getClosingPeriods(unitId)
             if (res.success) _closingPeriods.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadClosingPeriods error", e) }
-    }
-
-    // ─── POS Cash & Vouchers ──────────────────────────────────────────────────
-    private val _posCashTransactions = MutableStateFlow<List<PosCashTransaction>>(emptyList())
-    val posCashTransactions: StateFlow<List<PosCashTransaction>> = _posCashTransactions.asStateFlow()
-
-    private val _posVouchers = MutableStateFlow<List<PosVoucher>>(emptyList())
-    val posVouchers: StateFlow<List<PosVoucher>> = _posVouchers.asStateFlow()
-
-    fun loadPosCashTransactions(shiftId: Int) = viewModelScope.launch {
-        try {
-            val res = api.getPosCashTransactions(shiftId)
-            if (res.success) _posCashTransactions.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadPosCashTransactions error", e) }
-    }
-
-    fun loadPosVouchers() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
-        try {
-            val res = api.getPosVouchers(unitId)
-            if (res.success) _posVouchers.value = res.data ?: emptyList()
-        } catch (e: Exception) { Napier.e("loadPosVouchers error", e) }
     }
 
     // ─── HR Leave & Departments & Employee Detail ────────────────────────────
@@ -1510,17 +1631,273 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
-    fun deleteDepartment(departmentId: Int) = viewModelScope.launch {
-        setLoading(true)
-        try {
-            val res = api.deleteDepartment(departmentId)
-            if (res.success) { loadDepartments(); setSuccess("Departemen dihapus") }
-            else setError(res.message ?: "Gagal hapus departemen")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
-    }
-
     // ─── Navigation helper untuk fitur baru ──────────────────────────────────
     // Navigation screens baru sudah ada di sealed class Screen
     // SalesTargets, Approvals, Katalog, Marketing sudah bisa diakses
-}
 
+    // ─── Business Plan ────────────────────────────────────────────────────────
+    fun loadBusinessPlans() = viewModelScope.launch {
+        _businessPlansState.update { it.copy(isLoading = true, error = null) }
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { _businessPlansState.update { it.copy(isLoading = false, error = "Pilih unit bisnis terlebih dahulu") }; return@launch }
+        try {
+            val res = api.getBusinessPlans(unitId)
+            if (res.success) _businessPlansState.update { it.copy(isLoading = false, plans = res.data ?: emptyList()) }
+            else _businessPlansState.update { it.copy(isLoading = false, error = res.message) }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
+    }
+
+    fun createBusinessPlan(title: String, description: String, status: String) = viewModelScope.launch {
+        _businessPlansState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createBusinessPlan(BusinessPlan(unitId = unitId, title = title, description = description, status = status))
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil dibuat!") }
+            else { _businessPlansState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updateBusinessPlan(id: Int, title: String, description: String, status: String) = viewModelScope.launch {
+        _businessPlansState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateBusinessPlan(BusinessPlan(id = id, unitId = unitId, title = title, description = description, status = status))
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil diperbarui!") }
+            else { _businessPlansState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteBusinessPlan(id: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteBusinessPlan(id, unitId)
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil dihapus!") }
+            else setError(res.message ?: "Gagal hapus")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun applyBusinessPlan(id: Int) = viewModelScope.launch {
+        _businessPlansState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.applyBusinessPlan(id, unitId)
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil diterapkan!") }
+            else { _businessPlansState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Sosmed ───────────────────────────────────────────────────────────────
+    fun loadSosmedPosts() = viewModelScope.launch {
+        _sosmedState.update { it.copy(isLoading = true, error = null) }
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { _sosmedState.update { it.copy(isLoading = false, error = "Pilih unit bisnis") }; return@launch }
+        try {
+            val res = api.getSocialPosts(unitId)
+            if (res.success) _sosmedState.update { it.copy(isLoading = false, posts = res.data ?: emptyList()) }
+            else _sosmedState.update { it.copy(isLoading = false, error = res.message) }
+        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
+    }
+
+    fun createSosmedPost(platform: String, caption: String, imageUrl: String, scheduledAt: String, status: String) = viewModelScope.launch {
+        _sosmedState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createSocialPost(SocialPost(unitId = unitId, platform = platform, caption = caption, imageUrl = imageUrl, scheduledAt = scheduledAt.ifBlank { null }, status = status))
+            if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil dibuat!") }
+            else { _sosmedState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updateSosmedPost(id: Int, platform: String, caption: String, imageUrl: String, scheduledAt: String, status: String) = viewModelScope.launch {
+        _sosmedState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateSocialPost(SocialPost(id = id, unitId = unitId, platform = platform, caption = caption, imageUrl = imageUrl, scheduledAt = scheduledAt.ifBlank { null }, status = status))
+            if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil diperbarui!") }
+            else { _sosmedState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteSosmedPost(id: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteSocialPost(id, unitId)
+            if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil dihapus!") }
+            else setError(res.message ?: "Gagal hapus")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun generateAiCaption(platform: String, productName: String, callback: (String) -> Unit) = viewModelScope.launch {
+        try {
+            val res = api.generateAiCaption(platform, productName)
+            if (res.success) callback(res.data?.get("caption") ?: "Caption AI tidak tersedia")
+            else callback("Gagal generate caption")
+        } catch (e: Exception) { callback("Error: ${e.message}") }
+    }
+
+    // ─── Website Builder ──────────────────────────────────────────────────────
+    fun loadWebsiteSettings() = viewModelScope.launch {
+        _websiteState.update { it.copy(isLoading = true, error = null) }
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { _websiteState.update { it.copy(isLoading = false, error = "Pilih unit bisnis") }; return@launch }
+        try {
+            val res = api.getWebsiteSettings(unitId)
+            if (res.success) _websiteState.update { it.copy(isLoading = false, settings = res.data) }
+            else _websiteState.update { it.copy(isLoading = false, error = res.message) }
+        } catch (e: Exception) { _websiteState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
+    }
+
+    fun saveWebsiteSettings(settings: WebsiteSetting) = viewModelScope.launch {
+        _websiteState.update { it.copy(isSaving = true, error = null) }
+        try {
+            val res = api.updateWebsiteSettings(settings)
+            if (res.success) { _websiteState.update { it.copy(isSaving = false, settings = res.data) }; setSuccess("Pengaturan website berhasil disimpan!") }
+            else { _websiteState.update { it.copy(isSaving = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _websiteState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Help Center ──────────────────────────────────────────────────────────
+    fun loadHelpArticles(category: String? = null, query: String? = null) = viewModelScope.launch {
+        _helpState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val res = api.getHelpArticles(category, query)
+            if (res.success) _helpState.update { it.copy(isLoading = false, articles = res.data ?: emptyList()) }
+            else _helpState.update { it.copy(isLoading = false, error = res.message) }
+        } catch (e: Exception) { _helpState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
+    }
+
+    fun sendHelpFeedback(articleId: String, helpful: Boolean) = viewModelScope.launch {
+        try {
+            api.sendHelpFeedback(articleId, helpful)
+            setSuccess("Terima kasih atas feedback Anda!")
+        } catch (e: Exception) { Napier.e("sendHelpFeedback error", e) }
+    }
+
+    // ─── Landing Page ─────────────────────────────────────────────────────────
+    fun loadLandingPages() = viewModelScope.launch {
+        _landingPageState.update { it.copy(isLoading = true, error = null) }
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { _landingPageState.update { it.copy(isLoading = false, error = "Pilih unit bisnis") }; return@launch }
+        try {
+            val res = api.getLandingPages(unitId)
+            if (res.success) _landingPageState.update { it.copy(isLoading = false, pages = res.data ?: emptyList()) }
+            else _landingPageState.update { it.copy(isLoading = false, error = res.message) }
+        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
+    }
+
+    fun loadLandingPageTemplates() = viewModelScope.launch {
+        try {
+            val res = api.getLandingPageTemplates()
+            if (res.success) _landingPageState.update { it.copy(templates = res.data ?: emptyList()) }
+        } catch (e: Exception) { Napier.e("loadLandingPageTemplates error", e) }
+    }
+
+    fun createLandingPage(page: LandingPage) = viewModelScope.launch {
+        _landingPageState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createLandingPage(page.copy(unitId = unitId))
+            if (res.success) { loadLandingPages(); setSuccess("Landing page berhasil dibuat!") }
+            else { _landingPageState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updateLandingPage(page: LandingPage) = viewModelScope.launch {
+        _landingPageState.update { it.copy(isLoading = true) }
+        try {
+            val res = api.updateLandingPage(page)
+            if (res.success) { loadLandingPages(); setSuccess("Landing page berhasil diperbarui!") }
+            else { _landingPageState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteLandingPage(pageId: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteLandingPage(pageId, unitId)
+            if (res.success) { loadLandingPages(); setSuccess("Landing page berhasil dihapus!") }
+            else setError(res.message ?: "Gagal hapus")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun toggleLandingPageActive(pageId: Int, isActive: Boolean) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.toggleLandingPage(pageId, unitId, isActive)
+            if (res.success) loadLandingPages()
+        } catch (e: Exception) { Napier.e("toggleLandingPageActive error", e) }
+    }
+
+    // ─── Shopee Integration ───────────────────────────────────────────────────
+    fun loadShopeeStatus() = viewModelScope.launch {
+        _shopeeState.update { it.copy(isLoading = true, error = null) }
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { _shopeeState.update { it.copy(isLoading = false, error = "Pilih unit bisnis") }; return@launch }
+        try {
+            val res = api.getShopeeStatus(unitId)
+            if (res.success) _shopeeState.update { it.copy(isLoading = false, integration = res.data) }
+            else _shopeeState.update { it.copy(isLoading = false, error = res.message) }
+        } catch (e: Exception) { _shopeeState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
+    }
+
+    fun connectShopee(shopId: String, shopName: String, token: String) = viewModelScope.launch {
+        _shopeeState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.connectShopee(ShopeeIntegration(unitId = unitId, shopId = shopId, shopName = shopName, accessToken = token, isActive = true))
+            if (res.success) { _shopeeState.update { it.copy(isLoading = false, integration = res.data) }; setSuccess("Shopee berhasil terhubung!") }
+            else { _shopeeState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _shopeeState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun disconnectShopee() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.disconnectShopee(unitId)
+            if (res.success) { loadShopeeStatus(); setSuccess("Shopee berhasil diputus!") }
+            else setError(res.message ?: "Gagal putus koneksi")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Advanced Settings ────────────────────────────────────────────────────
+    fun loadProfileSettings() = viewModelScope.launch {
+        _advancedSettingsState.update { it.copy(isLoading = true, error = null) }
+        val unitId = _activeUnitId.value
+        try {
+            // For now just load from session
+            _advancedSettingsState.update { it.copy(
+                isLoading = false,
+                username = session.getUsername(),
+                email = session.getEmail(),
+                phone = ""
+            ) }
+        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isLoading = false, error = e.message) } }
+    }
+
+    fun saveProfile(name: String, email: String, phone: String) = viewModelScope.launch {
+        _advancedSettingsState.update { it.copy(isSaving = true, error = null) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateProfile(unitId, mapOf("name" to name, "email" to email, "phone" to phone))
+            if (res.success) { _advancedSettingsState.update { it.copy(isSaving = false, successMessage = "Profil berhasil disimpan!") }; setSuccess("Profil berhasil disimpan!") }
+            else { _advancedSettingsState.update { it.copy(isSaving = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun changePassword(currentPassword: String, newPassword: String) = viewModelScope.launch {
+        _advancedSettingsState.update { it.copy(isSaving = true, error = null) }
+        try {
+            val res = api.changePassword(mapOf("currentPassword" to currentPassword, "newPassword" to newPassword))
+            if (res.success) { _advancedSettingsState.update { it.copy(isSaving = false, successMessage = "Password berhasil diubah!") }; setSuccess("Password berhasil diubah!") }
+            else { _advancedSettingsState.update { it.copy(isSaving = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean) = viewModelScope.launch {
+        try {
+            val res = api.updatePreferences(mapOf("darkMode" to darkMode, "notifPref" to notifEnabled))
+            if (res.success) { _advancedSettingsState.update { it.copy(darkMode = darkMode, notifEnabled = notifEnabled) }; setSuccess("Preferensi berhasil disimpan!") }
+            else setError(res.message ?: "Gagal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+}

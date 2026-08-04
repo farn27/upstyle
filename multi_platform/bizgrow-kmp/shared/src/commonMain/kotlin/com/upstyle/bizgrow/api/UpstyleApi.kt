@@ -19,6 +19,12 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun loginWithGoogle(req: GoogleAuthRequest): ApiResponse<LoginData> =
         client.post("api/auth/google") { setBody(req) }.body()
 
+    suspend fun forgotPassword(email: String): ApiResponse<Unit> =
+        client.post("api/auth/forgot-password") { setBody(mapOf("email" to email)) }.body()
+
+    suspend fun resetPassword(token: String, password: String): ApiResponse<Unit> =
+        client.post("api/auth/reset-password") { setBody(mapOf("token" to token, "password" to password)) }.body()
+
     suspend fun logout(): ApiResponse<Unit> =
         client.post("api/auth/logout").body()
 
@@ -704,5 +710,149 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun markPayrollPaid(payrollId: Int): ApiResponse<Unit> =
         client.put("api/app/hr/payroll") {
             setBody(mapOf("action" to "mark-paid", "payrollId" to payrollId))
+        }.body()
+
+    // ─── AI Advisor ────────────────────────────────────────────────────────────
+
+    suspend fun getAiAdvice(unitId: Int, question: String): ApiResponse<AiAdvisorData> =
+        client.get("api/ai-advisor") {
+            parameter("unitId", unitId)
+            parameter("question", question)
+        }.body()
+
+    // ─── Business Plan ─────────────────────────────────────────────────────────
+
+    suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> =
+        client.get("api/app/business-plan").body()
+
+    suspend fun createBusinessPlan(plan: BusinessPlan): ApiResponse<BusinessPlan> =
+        client.post("api/app/business-plan") { setBody(plan) }.body()
+
+    suspend fun updateBusinessPlan(plan: BusinessPlan): ApiResponse<BusinessPlan> =
+        client.post("api/app/business-plan") { setBody(plan) }.body()
+
+    suspend fun deleteBusinessPlan(planId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/business-plan") { parameter("id", planId) }.body()
+
+    suspend fun applyBusinessPlan(planId: Int, unitId: Int?): ApiResponse<Map<String, Any>> =
+        client.post("api/app/business-plan/apply") {
+            setBody(mapOf("planId" to planId, "unitId" to unitId))
+        }.body()
+
+    // ─── Sosmed ────────────────────────────────────────────────────────────────
+
+    suspend fun getSocialPosts(unitId: Int): ApiResponse<List<SocialPost>> =
+        client.get("api/app/sosmed") { parameter("unitId", unitId) }.body()
+
+    suspend fun createSocialPost(post: SocialPost): ApiResponse<SocialPost> =
+        client.post("api/app/sosmed") { setBody(post) }.body()
+
+    suspend fun updateSocialPost(post: SocialPost): ApiResponse<SocialPost> =
+        client.put("api/app/sosmed") { setBody(post) }.body()
+
+    suspend fun deleteSocialPost(postId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/sosmed") {
+            parameter("postId", postId)
+            parameter("unitId", unitId)
+        }.body()
+
+    suspend fun generateAiCaption(platform: String, productName: String, tone: String = "energik"): ApiResponse<Map<String, String>> =
+        client.post("api/app/sosmed/generate-caption") {
+            setBody(mapOf("platform" to platform, "productName" to productName, "tone" to tone))
+        }.body()
+
+    // ─── Website ───────────────────────────────────────────────────────────────
+
+    suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> =
+        client.get("api/app/website") { parameter("unitId", unitId) }.body()
+
+    suspend fun updateWebsiteSettings(settings: WebsiteSetting): ApiResponse<WebsiteSetting> =
+        client.put("api/app/website") { setBody(settings) }.body()
+
+    // ─── Help ──────────────────────────────────────────────────────────────────
+
+    suspend fun getHelpArticles(
+        category: String? = null,
+        query: String? = null
+    ): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help") {
+            category?.let { parameter("category", it) }
+            query?.let { parameter("query", it) }
+        }.body()
+
+    suspend fun sendHelpFeedback(articleId: String, helpful: Boolean): ApiResponse<Unit> =
+        client.post("api/app/help") {
+            setBody(mapOf("articleId" to articleId, "helpful" to helpful))
+        }.body()
+
+    // ─── Settings ──────────────────────────────────────────────────────────────
+
+    suspend fun getProfileSettings(): ApiResponse<Map<String, String>> =
+        client.get("api/app/settings") { parameter("mode", "profile") }.body()
+
+    suspend fun updateProfile(unitId: Int, data: Map<String, Any>): ApiResponse<Unit> =
+        client.put("api/app/settings") {
+            setBody(data + mapOf("mode" to "profile"))
+        }.body()
+
+    suspend fun changePassword(req: Map<String, String>): ApiResponse<Unit> =
+        client.put("api/app/settings") {
+            setBody(req + mapOf("mode" to "password"))
+        }.body()
+
+    suspend fun updatePreferences(data: Map<String, Any>): ApiResponse<Unit> =
+        client.put("api/app/settings") {
+            setBody(data + mapOf("mode" to "preferences"))
+        }.body()
+
+    // ─── Landing Page ──────────────────────────────────────────────────────────
+
+    suspend fun getLandingPages(unitId: Int): ApiResponse<List<LandingPage>> =
+        client.get("api/app/landing-page") { parameter("unitId", unitId) }.body()
+
+    suspend fun getLandingPageTemplates(): ApiResponse<List<LandingPageTemplate>> =
+        client.get("api/app/landing-page") { parameter("mode", "templates") }.body()
+
+    suspend fun getLandingPageDetail(pageId: Int, unitId: Int): ApiResponse<LandingPage> =
+        client.get("api/app/landing-page") {
+            parameter("unitId", unitId)
+            parameter("id", pageId)
+        }.body()
+
+    suspend fun createLandingPage(page: LandingPage): ApiResponse<LandingPage> =
+        client.post("api/app/landing-page") { setBody(page) }.body()
+
+    suspend fun updateLandingPage(page: LandingPage): ApiResponse<LandingPage> =
+        client.put("api/app/landing-page") { setBody(page) }.body()
+
+    suspend fun deleteLandingPage(pageId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/landing-page") {
+            parameter("id", pageId)
+            parameter("unitId", unitId)
+        }.body()
+
+    suspend fun toggleLandingPage(pageId: Int, unitId: Int, isActive: Boolean): ApiResponse<LandingPage> =
+        client.put("api/app/landing-page") {
+            setBody(mapOf("id" to pageId, "unitId" to unitId, "isActive" to isActive))
+        }.body()
+
+    // ─── Shopee ────────────────────────────────────────────────────────────────
+
+    suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> =
+        client.get("api/app/shopee") { parameter("unitId", unitId) }.body()
+
+    suspend fun connectShopee(integration: ShopeeIntegration): ApiResponse<ShopeeIntegration> =
+        client.post("api/app/shopee") {
+            setBody(mapOf(
+                "action" to "connect",
+                "shopId" to integration.shopId,
+                "shopName" to integration.shopName,
+                "token" to integration.accessToken
+            ))
+        }.body()
+
+    suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> =
+        client.post("api/app/shopee") {
+            setBody(mapOf("action" to "disconnect"))
         }.body()
 }

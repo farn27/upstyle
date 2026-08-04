@@ -117,8 +117,16 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.Katalog       -> KatalogScreen(viewModel)
                     is Screen.Marketing     -> MarketingScreen(viewModel)
                     is Screen.Departments   -> DepartmentsScreen(viewModel)
-                }
-            }
+
+                    // Feature Gap Closure
+                    is Screen.BusinessPlan           -> BusinessPlanScreen(viewModel)
+                    is Screen.Sosmed                 -> SosmedScreen(viewModel)
+                    is Screen.WebsiteBuilder         -> WebsiteBuilderScreen(viewModel)
+                    is Screen.HelpCenter             -> HelpCenterScreen(viewModel)
+                    is Screen.AdvancedSettings       -> AdvancedSettingsScreen(viewModel)
+                    is Screen.LandingPageScreen      -> LandingPageScreen(viewModel)
+                    is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
+                }            }
 
             // Subtle top linear progress indicator for background operations
             // Does NOT block the UI — just shows activity

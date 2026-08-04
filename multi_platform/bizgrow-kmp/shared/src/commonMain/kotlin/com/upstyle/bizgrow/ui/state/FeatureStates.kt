@@ -45,6 +45,7 @@ data class ProductsState(
 data class PosState(
     val isLoading: Boolean = false,
     val error: String? = null,
+    val successMessage: String? = null,
     val posData: PosData? = null,
     val cart: Map<Product, Int> = emptyMap(),
     val selectedCustomerId: Int? = null,
@@ -96,16 +97,16 @@ data class FinanceArApState(
 data class CsState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val tickets: List<Ticket> = emptyList(),
-    val ticketDetail: TicketDetail? = null
+    val tickets: List<SupportTicket> = emptyList(),
+    val ticketDetail: SupportTicket? = null
 )
 
 // ─── Orders State ─────────────────────────────────────────────────────────────
 data class OrdersState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val orders: List<Order> = emptyList(),
-    val orderDetail: Order? = null
+    val orders: List<EcommerceOrder> = emptyList(),
+    val orderDetail: EcommerceOrder? = null
 )
 
 // ─── Marketing State ──────────────────────────────────────────────────────────
@@ -148,7 +149,7 @@ data class DepartmentsState(
 data class CoaState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val accounts: List<CoaAccount> = emptyList()
+    val accounts: List<ChartOfAccount> = emptyList()
 )
 
 // ─── Payroll State ────────────────────────────────────────────────────────────
@@ -156,4 +157,61 @@ data class PayrollState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val payrolls: List<Payroll> = emptyList()
+)
+
+// ─── Business Plan State ──────────────────────────────────────────────────────
+data class BusinessPlansState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val plans: List<BusinessPlan> = emptyList()
+)
+
+// ─── Sosmed State ─────────────────────────────────────────────────────────────
+data class SosmedState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val posts: List<SocialPost> = emptyList()
+)
+
+// ─── Website Builder State ────────────────────────────────────────────────────
+data class WebsiteBuilderState(
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val error: String? = null,
+    val settings: WebsiteSetting? = null
+)
+
+// ─── Help Center State ────────────────────────────────────────────────────────
+data class HelpCenterState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val articles: List<HelpArticle> = emptyList()
+)
+
+// ─── Landing Page State ───────────────────────────────────────────────────────
+data class LandingPageState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val pages: List<LandingPage> = emptyList(),
+    val templates: List<LandingPageTemplate> = emptyList()
+)
+
+// ─── Shopee Integration State ─────────────────────────────────────────────────
+data class ShopeeState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val integration: ShopeeIntegration? = null
+)
+
+// ─── Advanced Settings State ──────────────────────────────────────────────────
+data class AdvancedSettingsState(
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val username: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val darkMode: Boolean = false,
+    val notifEnabled: Boolean = true
 )
