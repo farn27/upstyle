@@ -31,10 +31,10 @@ enum class AiTab { CHAT, FINANCIAL_ADVISOR, WA_REPORT }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiChatScreen(viewModel: AppViewModel) {
-    val chatHistory by viewModel.chatHistory.collectAsState()
-    val isLoading by viewModel.isChatLoading.collectAsState()
-    val units by viewModel.units.collectAsState()
-    val activeUnitId by viewModel.activeUnitId.collectAsState()
+    val chatHistory by viewModel.chatHistory.collectAsState(initial = viewModel.chatHistory.value)
+    val isLoading by viewModel.isChatLoading.collectAsState(initial = viewModel.isChatLoading.value)
+    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
+    val activeUnitId by viewModel.activeUnitId.collectAsState(initial = viewModel.activeUnitId.value)
 
     var currentTab by remember { mutableStateOf(AiTab.CHAT) }
     var inputText by remember { mutableStateOf("") }

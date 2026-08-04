@@ -26,8 +26,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosReturnScreen(viewModel: AppViewModel) {
-    val posReturns by viewModel.posReturns.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val posReturns by viewModel.posReturns.collectAsState(initial = viewModel.posReturns.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var showReturnDialog by remember { mutableStateOf(false) }
     var orderIdInput by remember { mutableStateOf("") }

@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmTasksScreen(viewModel: AppViewModel) {
-    val crmTasks by viewModel.crmTasks.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val crmTasks by viewModel.crmTasks.collectAsState(initial = viewModel.crmTasks.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadCrmTasks()

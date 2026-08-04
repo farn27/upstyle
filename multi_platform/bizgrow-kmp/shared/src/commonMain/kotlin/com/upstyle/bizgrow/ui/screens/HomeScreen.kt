@@ -46,7 +46,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsState()
+    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
     val user = viewModel.currentUser
     var showDialog by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }

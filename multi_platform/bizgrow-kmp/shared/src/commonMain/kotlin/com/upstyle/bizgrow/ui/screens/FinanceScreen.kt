@@ -32,8 +32,8 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceScreen(viewModel: AppViewModel) {
-    val financeData by viewModel.financeData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val financeData by viewModel.financeData.collectAsState(initial = viewModel.financeData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Semua") }
     var searchQuery by remember { mutableStateOf("") }

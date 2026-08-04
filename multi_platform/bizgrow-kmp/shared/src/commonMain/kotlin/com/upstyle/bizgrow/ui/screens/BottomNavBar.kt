@@ -15,7 +15,7 @@ import com.upstyle.bizgrow.ui.Screen
 
 @Composable
 fun BottomNavBar(viewModel: AppViewModel, currentScreen: Screen) {
-    val unreadCount by viewModel.unreadCount.collectAsState()
+    val unreadCount by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
 
     NavigationBar(
         tonalElevation = 4.dp,

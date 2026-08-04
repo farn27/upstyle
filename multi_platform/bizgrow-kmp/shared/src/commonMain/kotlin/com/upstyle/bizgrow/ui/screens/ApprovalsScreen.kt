@@ -24,8 +24,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApprovalsScreen(viewModel: AppViewModel) {
-    val approvalsData by viewModel.approvalsData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val approvalsData by viewModel.approvalsData.collectAsState(initial = viewModel.approvalsData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Pending", "Disetujui", "Ditolak")
     var showCreateDialog by remember { mutableStateOf(false) }

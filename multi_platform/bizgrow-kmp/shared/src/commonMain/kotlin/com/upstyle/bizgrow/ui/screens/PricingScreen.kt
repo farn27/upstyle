@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PricingScreen(viewModel: AppViewModel) {
-    val products by viewModel.products.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 

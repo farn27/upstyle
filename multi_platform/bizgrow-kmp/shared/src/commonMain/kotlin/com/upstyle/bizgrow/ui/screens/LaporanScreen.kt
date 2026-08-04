@@ -30,9 +30,9 @@ import kotlinx.datetime.todayIn
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LaporanScreen(viewModel: AppViewModel) {
-    val labaRugiData by viewModel.labaRugiData.collectAsState()
-    val arusKasData by viewModel.arusKasData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val labaRugiData by viewModel.labaRugiData.collectAsState(initial = viewModel.labaRugiData.value)
+    val arusKasData by viewModel.arusKasData.collectAsState(initial = viewModel.arusKasData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Laba Rugi", "Arus Kas")
 

@@ -65,7 +65,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @Composable
 fun AdvancedSettingsScreen(viewModel: AppViewModel) {
     // Use advancedSettingsState which exists in AppViewModel
-    val state by viewModel.advancedSettingsState.collectAsState()
+    val state by viewModel.advancedSettingsState.collectAsState(initial = viewModel.advancedSettingsState.value)
 
     var profileName by remember { mutableStateOf("") }
     var profileEmail by remember { mutableStateOf("") }

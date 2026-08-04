@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrashProductsScreen(viewModel: AppViewModel) {
-    val trashProducts by viewModel.trashProducts.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val trashProducts by viewModel.trashProducts.collectAsState(initial = viewModel.trashProducts.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadTrashProducts()

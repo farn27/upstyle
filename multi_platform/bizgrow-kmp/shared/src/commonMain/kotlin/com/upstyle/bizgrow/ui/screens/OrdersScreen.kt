@@ -22,7 +22,7 @@ import com.upstyle.bizgrow.data.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(viewModel: AppViewModel) {
-    val orders by viewModel.orders.collectAsState()
+    val orders by viewModel.orders.collectAsState(initial = viewModel.orders.value)
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "Pending", "Processing", "Shipped", "Completed", "Cancelled")
 

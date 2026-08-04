@@ -60,7 +60,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HelpCenterScreen(viewModel: AppViewModel) {
-    val state by viewModel.helpState.collectAsState()
+    val state by viewModel.helpState.collectAsState(initial = viewModel.helpState.value)
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }

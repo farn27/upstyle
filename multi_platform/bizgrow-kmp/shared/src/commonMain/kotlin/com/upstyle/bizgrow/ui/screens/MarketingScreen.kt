@@ -24,8 +24,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketingScreen(viewModel: AppViewModel) {
-    val marketingData by viewModel.marketingData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val marketingData by viewModel.marketingData.collectAsState(initial = viewModel.marketingData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Leads", "Kampanye")
     var showCreateDialog by remember { mutableStateOf(false) }

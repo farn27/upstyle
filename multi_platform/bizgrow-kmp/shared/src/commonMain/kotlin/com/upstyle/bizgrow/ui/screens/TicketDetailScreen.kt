@@ -26,8 +26,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
-    val messages by viewModel.ticketMessages.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val messages by viewModel.ticketMessages.collectAsState(initial = viewModel.ticketMessages.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var replyText by remember { mutableStateOf("") }
     var showStatusMenu by remember { mutableStateOf(false) }

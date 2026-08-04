@@ -33,8 +33,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AbsensiScreen(viewModel: AppViewModel) {
-    val hrData by viewModel.hrData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val hrData by viewModel.hrData.collectAsState(initial = viewModel.hrData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     // PIN dialog state
     var showPinDialog by remember { mutableStateOf(false) }

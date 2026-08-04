@@ -23,8 +23,8 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LaporanWaScreen(viewModel: AppViewModel) {
-    val laporanWa by viewModel.laporanWa.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val laporanWa by viewModel.laporanWa.collectAsState(initial = viewModel.laporanWa.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedPeriode by remember { mutableStateOf("Bulan Ini") }
     val snackbarHostState = remember { SnackbarHostState() }
 

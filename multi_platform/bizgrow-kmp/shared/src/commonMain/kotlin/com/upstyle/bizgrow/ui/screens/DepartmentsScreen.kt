@@ -24,8 +24,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DepartmentsScreen(viewModel: AppViewModel) {
-    val departments by viewModel.departments.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val departments by viewModel.departments.collectAsState(initial = viewModel.departments.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {

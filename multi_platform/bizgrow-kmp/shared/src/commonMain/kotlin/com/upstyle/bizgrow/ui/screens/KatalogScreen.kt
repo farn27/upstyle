@@ -28,8 +28,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KatalogScreen(viewModel: AppViewModel) {
-    val katalogData by viewModel.katalogData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val katalogData by viewModel.katalogData.collectAsState(initial = viewModel.katalogData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) { viewModel.loadKatalog() }
 

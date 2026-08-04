@@ -26,8 +26,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationScreen(viewModel: AppViewModel) {
-    val notifications by viewModel.notifications.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val notifications by viewModel.notifications.collectAsState(initial = viewModel.notifications.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedFilter by remember { mutableStateOf("Semua") }
 
     LaunchedEffect(Unit) {

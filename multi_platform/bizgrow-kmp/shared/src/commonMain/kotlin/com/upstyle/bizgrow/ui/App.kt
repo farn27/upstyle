@@ -18,8 +18,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowTheme
 @Composable
 fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
     BizgrowTheme {
-        val screen by viewModel.screen.collectAsState()
-        val uiState by viewModel.uiState.collectAsState()
+        val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
+        val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
         // Auth screens need blocking overlay (login/register actions)
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register

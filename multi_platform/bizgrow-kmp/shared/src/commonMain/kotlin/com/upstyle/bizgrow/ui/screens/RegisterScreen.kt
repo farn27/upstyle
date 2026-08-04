@@ -26,7 +26,7 @@ import com.upstyle.bizgrow.ui.Screen
 
 @Composable
 fun RegisterScreen(viewModel: AppViewModel) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }

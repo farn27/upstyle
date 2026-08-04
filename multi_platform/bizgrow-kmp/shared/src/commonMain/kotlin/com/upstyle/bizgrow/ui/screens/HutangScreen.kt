@@ -27,8 +27,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HutangScreen(viewModel: AppViewModel) {
-    val payables by viewModel.payables.collectAsState()
-    val accountingContacts by viewModel.accountingContacts.collectAsState()
+    val payables by viewModel.payables.collectAsState(initial = viewModel.payables.value)
+    val accountingContacts by viewModel.accountingContacts.collectAsState(initial = viewModel.accountingContacts.value)
     var selectedPayable by remember { mutableStateOf<Payable?>(null) }
     var showPaymentSheet by remember { mutableStateOf(false) }
     var showAddSheet by remember { mutableStateOf(false) }

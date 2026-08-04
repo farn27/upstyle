@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LeaveRequestsScreen(viewModel: AppViewModel) {
-    val leaveRequests by viewModel.leaveRequests.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val leaveRequests by viewModel.leaveRequests.collectAsState(initial = viewModel.leaveRequests.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadLeaveRequests()

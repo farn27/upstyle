@@ -36,8 +36,8 @@ import com.upstyle.bizgrow.ui.currentTime
 fun HrScreen(viewModel: AppViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Karyawan", "Absensi", "Payroll", "Cuti")
-    val hrData by viewModel.hrData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val hrData by viewModel.hrData.collectAsState(initial = viewModel.hrData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var showAddSheet by remember { mutableStateOf(false) }
     var showPayrollSheet by remember { mutableStateOf(false) }
     var expandedEmployeeId by remember { mutableStateOf<Int?>(null) }

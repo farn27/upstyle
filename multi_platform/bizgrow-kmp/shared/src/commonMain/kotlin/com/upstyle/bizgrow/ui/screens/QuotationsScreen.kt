@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuotationsScreen(viewModel: AppViewModel) {
-    val quotations by viewModel.quotations.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val quotations by viewModel.quotations.collectAsState(initial = viewModel.quotations.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadQuotations()

@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaxRatesScreen(viewModel: AppViewModel) {
-    val taxRates by viewModel.taxRates.collectAsState()
+    val taxRates by viewModel.taxRates.collectAsState(initial = viewModel.taxRates.value)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 

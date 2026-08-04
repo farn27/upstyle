@@ -24,8 +24,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SalesTargetsScreen(viewModel: AppViewModel) {
-    val salesTargetData by viewModel.salesTargetData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val salesTargetData by viewModel.salesTargetData.collectAsState(initial = viewModel.salesTargetData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadSalesTargets() }

@@ -25,7 +25,7 @@ import com.upstyle.bizgrow.data.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmContactsScreen(viewModel: AppViewModel) {
-    val contacts by viewModel.crmContacts.collectAsState()
+    val contacts by viewModel.crmContacts.collectAsState(initial = viewModel.crmContacts.value)
     var searchQuery by remember { mutableStateOf("") }
     var showAddContactSheet by remember { mutableStateOf(false) }
 

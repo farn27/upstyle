@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SalesOrdersScreen(viewModel: AppViewModel) {
-    val salesOrders by viewModel.salesOrders.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val salesOrders by viewModel.salesOrders.collectAsState(initial = viewModel.salesOrders.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadSalesOrders()

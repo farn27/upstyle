@@ -34,8 +34,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 fun ScmScreen(viewModel: AppViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Supplier", "Purchase Orders")
-    val scmData by viewModel.scmData.collectAsState()
-    val products by viewModel.products.collectAsState()
+    val scmData by viewModel.scmData.collectAsState(initial = viewModel.scmData.value)
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
     var showAddSupplier by remember { mutableStateOf(false) }
     var showAddPo by remember { mutableStateOf(false) }
 

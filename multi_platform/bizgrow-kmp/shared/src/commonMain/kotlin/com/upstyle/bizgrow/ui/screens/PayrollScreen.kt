@@ -28,8 +28,8 @@ import com.upstyle.bizgrow.ui.todayDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PayrollScreen(viewModel: AppViewModel) {
-    val hrData by viewModel.hrData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val hrData by viewModel.hrData.collectAsState(initial = viewModel.hrData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     // Month/year picker state — default to current month
     val today = todayDate() // e.g. "2026-08-02"

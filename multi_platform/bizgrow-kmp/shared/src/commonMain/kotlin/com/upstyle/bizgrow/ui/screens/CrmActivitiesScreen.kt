@@ -21,7 +21,7 @@ import com.upstyle.bizgrow.data.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmActivitiesScreen(viewModel: AppViewModel) {
-    val activities by viewModel.crmActivities.collectAsState()
+    val activities by viewModel.crmActivities.collectAsState(initial = viewModel.crmActivities.value)
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "Call", "WA", "Meeting", "Email", "Task")
 

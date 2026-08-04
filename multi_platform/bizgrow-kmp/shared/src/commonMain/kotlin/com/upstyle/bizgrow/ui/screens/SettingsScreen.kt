@@ -25,7 +25,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: AppViewModel) {
-    val activeUnit by viewModel.activeUnit.collectAsState()
+    val activeUnit by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
     val session = viewModel.getSession()
 
     var serverUrl by remember { mutableStateOf(session.getServerUrl()) }

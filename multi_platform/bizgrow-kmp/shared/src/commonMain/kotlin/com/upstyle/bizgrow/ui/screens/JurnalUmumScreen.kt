@@ -30,7 +30,7 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JurnalUmumScreen(viewModel: AppViewModel) {
-    val journalEntries by viewModel.journalEntries.collectAsState()
+    val journalEntries by viewModel.journalEntries.collectAsState(initial = viewModel.journalEntries.value)
     var showAddJurnal by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
@@ -93,7 +93,7 @@ fun AddJurnalSheet(
     onDismiss: () -> Unit,
     onSave: (tanggal: String, memo: String?, lines: List<CreateJournalLineBody>) -> Unit
 ) {
-    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState()
+    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState(initial = viewModel.chartOfAccounts.value)
     var tanggal by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
 

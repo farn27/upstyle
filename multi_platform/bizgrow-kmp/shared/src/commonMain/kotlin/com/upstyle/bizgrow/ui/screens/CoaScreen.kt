@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CoaScreen(viewModel: AppViewModel) {
-    val coaList by viewModel.chartOfAccounts.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val coaList by viewModel.chartOfAccounts.collectAsState(initial = viewModel.chartOfAccounts.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var showAddDialog by remember { mutableStateOf(false) }
     var kodeAkun by remember { mutableStateOf("") }

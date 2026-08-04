@@ -80,7 +80,7 @@ private fun parseHexColor(value: String, fallback: Color): Color {
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun WebsiteBuilderScreen(viewModel: AppViewModel) {
-    val state by viewModel.websiteState.collectAsState()
+    val state by viewModel.websiteState.collectAsState(initial = viewModel.websiteState.value)
 
     var slug by remember { mutableStateOf("") }
     var theme by remember { mutableStateOf("default") }

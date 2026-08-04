@@ -18,7 +18,7 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShopeeIntegrationScreen(viewModel: AppViewModel) {
-    val state by viewModel.shopeeState.collectAsState()
+    val state by viewModel.shopeeState.collectAsState(initial = viewModel.shopeeState.value)
     var showConnectForm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {

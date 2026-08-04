@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FixedAssetsScreen(viewModel: AppViewModel) {
-    val fixedAssets by viewModel.fixedAssets.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val fixedAssets by viewModel.fixedAssets.collectAsState(initial = viewModel.fixedAssets.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadFixedAssets()

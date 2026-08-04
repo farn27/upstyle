@@ -48,11 +48,11 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosScreen(viewModel: AppViewModel) {
-    val products by viewModel.products.collectAsState()
-    val posData by viewModel.posData.collectAsState()
-    val cart by viewModel.cart.collectAsState()
-    val cartTotal by viewModel.cartTotal.collectAsState()
-    val cartItemCount by viewModel.cartItemCount.collectAsState()
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
+    val posData by viewModel.posData.collectAsState(initial = viewModel.posData.value)
+    val cart by viewModel.cart.collectAsState(initial = viewModel.cart.value)
+    val cartTotal by viewModel.cartTotal.collectAsState(initial = viewModel.cartTotal.value)
+    val cartItemCount by viewModel.cartItemCount.collectAsState(initial = viewModel.cartItemCount.value)
 
     var showCartSheet by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Semua") }
@@ -402,12 +402,12 @@ fun CartCheckoutSheetPremium(
     onDismiss: () -> Unit,
     onPrintRequested: () -> Unit
 ) {
-    val posDiskon by viewModel.posDiskon.collectAsState()
+    val posDiskon by viewModel.posDiskon.collectAsState(initial = viewModel.posDiskon.value)
     var diskonText by remember { mutableStateOf(if (posDiskon == 0.0) "" else posDiskon.toString()) }
     var selectedMethod by remember { mutableStateOf("CASH") }
     val methods = listOf("CASH", "QRIS", "TRANSFER")
     
-    val selectedCustomerId by viewModel.selectedCustomerId.collectAsState()
+    val selectedCustomerId by viewModel.selectedCustomerId.collectAsState(initial = viewModel.selectedCustomerId.value)
     val selectedCustomer = customers.find { it.id == selectedCustomerId }
     var expandedCustomer by remember { mutableStateOf(false) }
     var selectedOrderType by remember { mutableStateOf("Dine In") }

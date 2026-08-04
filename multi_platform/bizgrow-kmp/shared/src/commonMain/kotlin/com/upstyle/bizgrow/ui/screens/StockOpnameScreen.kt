@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StockOpnameScreen(viewModel: AppViewModel) {
-    val stockOpnameList by viewModel.stockOpnameSessions.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val stockOpnameList by viewModel.stockOpnameSessions.collectAsState(initial = viewModel.stockOpnameSessions.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadStockOpnameList()

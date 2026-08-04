@@ -29,7 +29,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
     var manualBarcode by remember { mutableStateOf("") }
     var searchResultId by remember { mutableStateOf<String?>(null) }
     
-    val products by viewModel.products.collectAsState()
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
     val searchResult = searchResultId?.let { id -> products.find { it.id == id } }
 
     Scaffold(

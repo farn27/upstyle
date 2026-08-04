@@ -30,7 +30,7 @@ fun AuthScreen(viewModel: AppViewModel) {
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var successMsg by remember { mutableStateOf<String?>(null) }
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     Column(
         modifier = Modifier

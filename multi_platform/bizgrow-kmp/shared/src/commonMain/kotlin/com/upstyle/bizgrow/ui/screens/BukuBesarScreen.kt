@@ -22,9 +22,9 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BukuBesarScreen(viewModel: AppViewModel) {
-    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState()
-    val bukuBesarData by viewModel.bukuBesarData.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState(initial = viewModel.chartOfAccounts.value)
+    val bukuBesarData by viewModel.bukuBesarData.collectAsState(initial = viewModel.bukuBesarData.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     
     var selectedCoa by remember { mutableStateOf<ChartOfAccount?>(null) }
     var expanded by remember { mutableStateOf(false) }

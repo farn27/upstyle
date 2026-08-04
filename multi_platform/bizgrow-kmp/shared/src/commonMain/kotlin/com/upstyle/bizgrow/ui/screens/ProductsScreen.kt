@@ -35,10 +35,10 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsScreen(viewModel: AppViewModel) {
-    val products by viewModel.products.collectAsState()
-    val lowStockProducts by viewModel.lowStockProducts.collectAsState()
-    val kategoriList by viewModel.kategoriProduk.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
+    val lowStockProducts by viewModel.lowStockProducts.collectAsState(initial = viewModel.lowStockProducts.value)
+    val kategoriList by viewModel.kategoriProduk.collectAsState(initial = viewModel.kategoriProduk.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }

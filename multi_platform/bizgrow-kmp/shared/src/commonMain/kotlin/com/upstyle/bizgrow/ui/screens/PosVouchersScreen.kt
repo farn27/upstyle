@@ -22,8 +22,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosVouchersScreen(viewModel: AppViewModel) {
-    val posVouchers by viewModel.posVouchers.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val posVouchers by viewModel.posVouchers.collectAsState(initial = viewModel.posVouchers.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     LaunchedEffect(Unit) {
         viewModel.loadPosVouchers()

@@ -26,9 +26,9 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StockLogsScreen(viewModel: AppViewModel) {
-    val stockLogs by viewModel.stockLogs.collectAsState()
-    val products by viewModel.products.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val stockLogs by viewModel.stockLogs.collectAsState(initial = viewModel.stockLogs.value)
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var filterType by remember { mutableStateOf("Semua") }
     var searchQuery by remember { mutableStateOf("") }

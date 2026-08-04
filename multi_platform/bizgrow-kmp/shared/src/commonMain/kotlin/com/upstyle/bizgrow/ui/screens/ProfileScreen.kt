@@ -29,8 +29,8 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsState()
-    val activeUnit by viewModel.activeUnit.collectAsState()
+    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
+    val activeUnit by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
     val currentUser = viewModel.currentUser
     var showLogoutDialog by remember { mutableStateOf(false) }
 

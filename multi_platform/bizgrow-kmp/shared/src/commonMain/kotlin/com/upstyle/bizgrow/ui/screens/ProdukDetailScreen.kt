@@ -32,9 +32,9 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
-    val products by viewModel.products.collectAsState()
-    val stockLogs by viewModel.stockLogs.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val products by viewModel.products.collectAsState(initial = viewModel.products.value)
+    val stockLogs by viewModel.stockLogs.collectAsState(initial = viewModel.stockLogs.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val product = products.find { it.id == productId }
 
     var showAdjustSheet by remember { mutableStateOf(false) }

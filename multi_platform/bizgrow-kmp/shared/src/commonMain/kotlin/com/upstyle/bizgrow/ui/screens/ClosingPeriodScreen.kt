@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClosingPeriodScreen(viewModel: AppViewModel) {
-    val closingPeriods by viewModel.closingPeriods.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val closingPeriods by viewModel.closingPeriods.collectAsState(initial = viewModel.closingPeriods.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 

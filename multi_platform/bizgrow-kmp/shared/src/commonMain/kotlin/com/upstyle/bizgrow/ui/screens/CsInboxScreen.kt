@@ -30,8 +30,8 @@ import com.upstyle.bizgrow.data.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CsInboxScreen(viewModel: AppViewModel) {
-    val tickets by viewModel.tickets.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val tickets by viewModel.tickets.collectAsState(initial = viewModel.tickets.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Open", "In Progress", "Resolved", "Closed")
     var showAddTicketSheet by remember { mutableStateOf(false) }

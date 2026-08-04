@@ -76,8 +76,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun SosmedScreen(viewModel: AppViewModel) {
-    val state by viewModel.sosmedState.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val state by viewModel.sosmedState.collectAsState(initial = viewModel.sosmedState.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var showCreate by remember { mutableStateOf(false) }
     var editingPost by remember { mutableStateOf<SocialPost?>(null) }

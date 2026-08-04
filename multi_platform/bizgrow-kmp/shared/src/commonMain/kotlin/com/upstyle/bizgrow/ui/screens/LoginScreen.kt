@@ -37,7 +37,7 @@ fun LoginScreen(
     viewModel: AppViewModel,
     onGoogleSignIn: (() -> Unit)? = null
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }

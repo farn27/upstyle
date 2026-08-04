@@ -35,9 +35,9 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 fun CrmScreen(viewModel: AppViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Deals", "Kontak", "Aktivitas")
-    val deals by viewModel.crmDeals.collectAsState()
-    val contacts by viewModel.crmContacts.collectAsState()
-    val activities by viewModel.crmActivities.collectAsState()
+    val deals by viewModel.crmDeals.collectAsState(initial = viewModel.crmDeals.value)
+    val contacts by viewModel.crmContacts.collectAsState(initial = viewModel.crmContacts.value)
+    val activities by viewModel.crmActivities.collectAsState(initial = viewModel.crmActivities.value)
     var showAddDeal by remember { mutableStateOf(false) }
     var showAddContact by remember { mutableStateOf(false) }
     var showAddActivity by remember { mutableStateOf(false) }

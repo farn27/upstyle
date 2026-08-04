@@ -22,7 +22,7 @@ import androidx.compose.animation.animateContentSize
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmPipelineScreen(viewModel: AppViewModel) {
-    val deals by viewModel.crmDeals.collectAsState()
+    val deals by viewModel.crmDeals.collectAsState(initial = viewModel.crmDeals.value)
     val stages = listOf("PROSPECT", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST")
     var selectedDeal by remember { mutableStateOf<com.upstyle.bizgrow.data.CrmDeal?>(null) }
     var showStageSheet by remember { mutableStateOf(false) }

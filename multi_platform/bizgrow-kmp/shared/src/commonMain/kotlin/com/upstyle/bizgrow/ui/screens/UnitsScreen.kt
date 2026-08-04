@@ -20,7 +20,7 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnitsScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsState()
+    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
 
     var showDialog by remember { mutableStateOf(false) }
     var nameInput by remember { mutableStateOf("") }

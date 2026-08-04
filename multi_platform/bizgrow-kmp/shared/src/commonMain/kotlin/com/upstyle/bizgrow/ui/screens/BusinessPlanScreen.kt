@@ -68,7 +68,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun BusinessPlanScreen(viewModel: AppViewModel) {
-    val state by viewModel.businessPlansState.collectAsState()
+    val state by viewModel.businessPlansState.collectAsState(initial = viewModel.businessPlansState.value)
 
     var showCreate by remember { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<BusinessPlan?>(null) }

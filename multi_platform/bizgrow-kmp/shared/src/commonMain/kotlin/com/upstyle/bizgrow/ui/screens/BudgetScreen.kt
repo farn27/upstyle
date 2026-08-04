@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(viewModel: AppViewModel) {
-    val budgetItems by viewModel.budgetItems.collectAsState()
+    val budgetItems by viewModel.budgetItems.collectAsState(initial = viewModel.budgetItems.value)
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 

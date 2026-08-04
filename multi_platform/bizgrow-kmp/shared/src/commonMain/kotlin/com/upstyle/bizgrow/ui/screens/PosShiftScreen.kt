@@ -26,9 +26,9 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosShiftScreen(viewModel: AppViewModel) {
-    val posShifts by viewModel.posShifts.collectAsState()
-    val activeShift by viewModel.activeShift.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val posShifts by viewModel.posShifts.collectAsState(initial = viewModel.posShifts.value)
+    val activeShift by viewModel.activeShift.collectAsState(initial = viewModel.activeShift.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     var showOpenShiftDialog by remember { mutableStateOf(false) }
     var showCloseShiftDialog by remember { mutableStateOf(false) }

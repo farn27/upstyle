@@ -44,10 +44,10 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: AppViewModel) {
-    val activeUnit by viewModel.activeUnit.collectAsState()
-    val financeData by viewModel.financeData.collectAsState()
-    val lowStockProducts by viewModel.lowStockProducts.collectAsState()
-    val unreadCount by viewModel.unreadCount.collectAsState()
+    val activeUnit by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
+    val financeData by viewModel.financeData.collectAsState(initial = viewModel.financeData.value)
+    val lowStockProducts by viewModel.lowStockProducts.collectAsState(initial = viewModel.lowStockProducts.value)
+    val unreadCount by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
 

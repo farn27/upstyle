@@ -22,7 +22,7 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LandingPageScreen(viewModel: AppViewModel) {
-    val state by viewModel.landingPageState.collectAsState()
+    val state by viewModel.landingPageState.collectAsState(initial = viewModel.landingPageState.value)
     var showForm by remember { mutableStateOf(false) }
     var editingPage by remember { mutableStateOf<LandingPage?>(null) }
     var showTemplates by remember { mutableStateOf(false) }
