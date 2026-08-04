@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.Employee
 import com.upstyle.bizgrow.data.PayrollRecord
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -27,8 +27,8 @@ import com.upstyle.bizgrow.ui.todayDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PayrollScreen(viewModel: AppViewModel) {
-    val hrData by viewModel.hrData.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val hrData by viewModel.hrData.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     // Month/year picker state — default to current month
     val today = todayDate() // e.g. "2026-08-02"

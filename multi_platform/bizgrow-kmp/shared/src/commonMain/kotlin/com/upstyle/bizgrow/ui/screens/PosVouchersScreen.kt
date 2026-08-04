@@ -15,14 +15,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosVouchersScreen(viewModel: AppViewModel) {
-    val posVouchers by viewModel.posVouchers.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val posVouchers by viewModel.posVouchers.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadPosVouchers()

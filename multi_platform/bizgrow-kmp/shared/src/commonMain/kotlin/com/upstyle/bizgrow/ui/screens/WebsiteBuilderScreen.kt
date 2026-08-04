@@ -57,7 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.BizCard
@@ -80,7 +80,7 @@ private fun parseHexColor(value: String, fallback: Color): Color {
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun WebsiteBuilderScreen(viewModel: AppViewModel) {
-    val state by viewModel.websiteState.collectAsStateWithLifecycle()
+    val state by viewModel.websiteState.collectAsState()
 
     var slug by remember { mutableStateOf("") }
     var theme by remember { mutableStateOf("default") }

@@ -15,15 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LaporanWaScreen(viewModel: AppViewModel) {
-    val laporanWa by viewModel.laporanWa.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val laporanWa by viewModel.laporanWa.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var selectedPeriode by remember { mutableStateOf("Bulan Ini") }
     val snackbarHostState = remember { SnackbarHostState() }
 

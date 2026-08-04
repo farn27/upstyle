@@ -18,15 +18,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.RiwayatAksi
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationScreen(viewModel: AppViewModel) {
-    val notifications by viewModel.notifications.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val notifications by viewModel.notifications.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var selectedFilter by remember { mutableStateOf("Semua") }
 
     LaunchedEffect(Unit) {

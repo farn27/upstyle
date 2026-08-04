@@ -13,14 +13,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.data.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmActivitiesScreen(viewModel: AppViewModel) {
-    val activities by viewModel.crmActivities.collectAsStateWithLifecycle()
+    val activities by viewModel.crmActivities.collectAsState()
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "Call", "WA", "Meeting", "Email", "Task")
 

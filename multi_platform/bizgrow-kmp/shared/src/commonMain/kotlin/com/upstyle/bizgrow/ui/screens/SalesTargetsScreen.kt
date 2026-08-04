@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.SalesTarget
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.components.*
@@ -23,8 +23,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SalesTargetsScreen(viewModel: AppViewModel) {
-    val salesTargetData by viewModel.salesTargetData.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val salesTargetData by viewModel.salesTargetData.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadSalesTargets() }

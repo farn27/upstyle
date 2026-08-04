@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.MarketingLead
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.components.*
@@ -23,8 +23,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketingScreen(viewModel: AppViewModel) {
-    val marketingData by viewModel.marketingData.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val marketingData by viewModel.marketingData.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Leads", "Kampanye")
     var showCreateDialog by remember { mutableStateOf(false) }

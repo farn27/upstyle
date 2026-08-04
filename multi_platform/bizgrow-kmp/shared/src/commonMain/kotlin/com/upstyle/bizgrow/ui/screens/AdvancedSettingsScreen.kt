@@ -55,7 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.components.BizCard
 import com.upstyle.bizgrow.ui.components.ErrorState
@@ -65,7 +65,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @Composable
 fun AdvancedSettingsScreen(viewModel: AppViewModel) {
     // Use advancedSettingsState which exists in AppViewModel
-    val state by viewModel.advancedSettingsState.collectAsStateWithLifecycle()
+    val state by viewModel.advancedSettingsState.collectAsState()
 
     var profileName by remember { mutableStateOf("") }
     var profileEmail by remember { mutableStateOf("") }

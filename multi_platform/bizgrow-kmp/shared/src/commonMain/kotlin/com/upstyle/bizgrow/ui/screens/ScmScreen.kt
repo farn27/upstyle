@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
@@ -33,8 +33,8 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 fun ScmScreen(viewModel: AppViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Supplier", "Purchase Orders")
-    val scmData by viewModel.scmData.collectAsStateWithLifecycle()
-    val products by viewModel.products.collectAsStateWithLifecycle()
+    val scmData by viewModel.scmData.collectAsState()
+    val products by viewModel.products.collectAsState()
     var showAddSupplier by remember { mutableStateOf(false) }
     var showAddPo by remember { mutableStateOf(false) }
 

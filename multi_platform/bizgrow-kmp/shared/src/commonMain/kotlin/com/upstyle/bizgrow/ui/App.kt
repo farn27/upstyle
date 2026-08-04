@@ -10,15 +10,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.screens.*
 import com.upstyle.bizgrow.ui.theme.BizgrowTheme
 
 @Composable
 fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
     BizgrowTheme {
-        val screen by viewModel.screen.collectAsStateWithLifecycle()
-        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+        val screen by viewModel.screen.collectAsState()
+        val uiState by viewModel.uiState.collectAsState()
 
         // Auth screens need blocking overlay (login/register actions)
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register

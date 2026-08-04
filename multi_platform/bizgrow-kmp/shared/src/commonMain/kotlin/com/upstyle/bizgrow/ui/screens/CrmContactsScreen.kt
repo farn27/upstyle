@@ -17,14 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.data.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmContactsScreen(viewModel: AppViewModel) {
-    val contacts by viewModel.crmContacts.collectAsStateWithLifecycle()
+    val contacts by viewModel.crmContacts.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var showAddContactSheet by remember { mutableStateOf(false) }
 

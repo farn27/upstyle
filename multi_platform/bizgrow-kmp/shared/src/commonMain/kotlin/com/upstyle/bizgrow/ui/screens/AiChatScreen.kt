@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.ChatMessage
 import com.upstyle.bizgrow.ui.AppViewModel
 import kotlinx.coroutines.launch
@@ -30,10 +30,10 @@ enum class AiTab { CHAT, FINANCIAL_ADVISOR, WA_REPORT }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiChatScreen(viewModel: AppViewModel) {
-    val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isChatLoading.collectAsStateWithLifecycle()
-    val units by viewModel.units.collectAsStateWithLifecycle()
-    val activeUnitId by viewModel.activeUnitId.collectAsStateWithLifecycle()
+    val chatHistory by viewModel.chatHistory.collectAsState()
+    val isLoading by viewModel.isChatLoading.collectAsState()
+    val units by viewModel.units.collectAsState()
+    val activeUnitId by viewModel.activeUnitId.collectAsState()
 
     var currentTab by remember { mutableStateOf(AiTab.CHAT) }
     var inputText by remember { mutableStateOf("") }

@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -31,9 +31,9 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
-    val products by viewModel.products.collectAsStateWithLifecycle()
-    val stockLogs by viewModel.stockLogs.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val products by viewModel.products.collectAsState()
+    val stockLogs by viewModel.stockLogs.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val product = products.find { it.id == productId }
 
     var showAdjustSheet by remember { mutableStateOf(false) }

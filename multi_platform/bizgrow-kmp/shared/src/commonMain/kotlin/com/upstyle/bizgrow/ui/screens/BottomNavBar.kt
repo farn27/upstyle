@@ -9,13 +9,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 
 @Composable
 fun BottomNavBar(viewModel: AppViewModel, currentScreen: Screen) {
-    val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
+    val unreadCount by viewModel.unreadCount.collectAsState()
 
     NavigationBar(
         tonalElevation = 4.dp,

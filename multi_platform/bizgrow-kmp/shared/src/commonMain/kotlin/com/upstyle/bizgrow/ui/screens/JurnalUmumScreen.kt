@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.CreateJournalLineBody
 import com.upstyle.bizgrow.data.JournalEntry
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -29,7 +29,7 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JurnalUmumScreen(viewModel: AppViewModel) {
-    val journalEntries by viewModel.journalEntries.collectAsStateWithLifecycle()
+    val journalEntries by viewModel.journalEntries.collectAsState()
     var showAddJurnal by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
@@ -92,7 +92,7 @@ fun AddJurnalSheet(
     onDismiss: () -> Unit,
     onSave: (tanggal: String, memo: String?, lines: List<CreateJournalLineBody>) -> Unit
 ) {
-    val chartOfAccounts by viewModel.chartOfAccounts.collectAsStateWithLifecycle()
+    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState()
     var tanggal by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
 

@@ -12,14 +12,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.BusinessUnit
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnitsScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsStateWithLifecycle()
+    val units by viewModel.units.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
     var nameInput by remember { mutableStateOf("") }

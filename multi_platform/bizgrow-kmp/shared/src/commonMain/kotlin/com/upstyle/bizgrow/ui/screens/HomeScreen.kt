@@ -36,7 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.BusinessUnit
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
@@ -45,7 +45,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsStateWithLifecycle()
+    val units by viewModel.units.collectAsState()
     val user = viewModel.currentUser
     var showDialog by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
@@ -207,7 +207,7 @@ fun HomeScreen(viewModel: AppViewModel) {
                 viewModel.createUnit(name, type)
                 showDialog = false
             },
-            isLoading = viewModel.uiState.collectAsStateWithLifecycle().value.isLoading
+            isLoading = viewModel.uiState.collectAsState().value.isLoading
         )
     }
 }

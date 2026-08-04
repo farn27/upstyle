@@ -19,15 +19,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.Receivable
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PiutangScreen(viewModel: AppViewModel) {
-    val receivables by viewModel.receivables.collectAsStateWithLifecycle()
-    val accountingContacts by viewModel.accountingContacts.collectAsStateWithLifecycle()
+    val receivables by viewModel.receivables.collectAsState()
+    val accountingContacts by viewModel.accountingContacts.collectAsState()
     var selectedReceivable by remember { mutableStateOf<Receivable?>(null) }
     var showPaymentSheet by remember { mutableStateOf(false) }
     var showAddSheet by remember { mutableStateOf(false) }

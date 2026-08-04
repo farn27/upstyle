@@ -24,8 +24,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketingCampaignsScreen(viewModel: AppViewModel) {
-    val marketingCampaigns by viewModel.marketingCampaigns.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val marketingCampaigns by viewModel.marketingCampaigns.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {

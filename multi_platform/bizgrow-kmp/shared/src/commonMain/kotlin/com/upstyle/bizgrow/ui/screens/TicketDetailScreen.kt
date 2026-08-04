@@ -18,15 +18,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.TicketMessage
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
-    val messages by viewModel.ticketMessages.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val messages by viewModel.ticketMessages.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     var replyText by remember { mutableStateOf("") }
     var showStatusMenu by remember { mutableStateOf(false) }

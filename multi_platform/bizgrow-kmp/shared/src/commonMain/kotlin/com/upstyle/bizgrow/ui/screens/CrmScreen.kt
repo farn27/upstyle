@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
@@ -34,9 +34,9 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 fun CrmScreen(viewModel: AppViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Deals", "Kontak", "Aktivitas")
-    val deals by viewModel.crmDeals.collectAsStateWithLifecycle()
-    val contacts by viewModel.crmContacts.collectAsStateWithLifecycle()
-    val activities by viewModel.crmActivities.collectAsStateWithLifecycle()
+    val deals by viewModel.crmDeals.collectAsState()
+    val contacts by viewModel.crmContacts.collectAsState()
+    val activities by viewModel.crmActivities.collectAsState()
     var showAddDeal by remember { mutableStateOf(false) }
     var showAddContact by remember { mutableStateOf(false) }
     var showAddActivity by remember { mutableStateOf(false) }

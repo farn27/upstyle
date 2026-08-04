@@ -33,7 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.BiMetrics
 import com.upstyle.bizgrow.data.FinanceData
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -43,10 +43,10 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: AppViewModel) {
-    val activeUnit by viewModel.activeUnit.collectAsStateWithLifecycle()
-    val financeData by viewModel.financeData.collectAsStateWithLifecycle()
-    val lowStockProducts by viewModel.lowStockProducts.collectAsStateWithLifecycle()
-    val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
+    val activeUnit by viewModel.activeUnit.collectAsState()
+    val financeData by viewModel.financeData.collectAsState()
+    val lowStockProducts by viewModel.lowStockProducts.collectAsState()
+    val unreadCount by viewModel.unreadCount.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
 

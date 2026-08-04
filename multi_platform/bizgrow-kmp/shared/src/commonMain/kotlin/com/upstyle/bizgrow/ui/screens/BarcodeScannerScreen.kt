@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.data.*
 
@@ -28,7 +28,7 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
     var manualBarcode by remember { mutableStateOf("") }
     var searchResultId by remember { mutableStateOf<String?>(null) }
     
-    val products by viewModel.products.collectAsStateWithLifecycle()
+    val products by viewModel.products.collectAsState()
     val searchResult = searchResultId?.let { id -> products.find { it.id == id } }
 
     Scaffold(

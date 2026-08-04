@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.data.*
@@ -47,11 +47,11 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosScreen(viewModel: AppViewModel) {
-    val products by viewModel.products.collectAsStateWithLifecycle()
-    val posData by viewModel.posData.collectAsStateWithLifecycle()
-    val cart by viewModel.cart.collectAsStateWithLifecycle()
-    val cartTotal by viewModel.cartTotal.collectAsStateWithLifecycle()
-    val cartItemCount by viewModel.cartItemCount.collectAsStateWithLifecycle()
+    val products by viewModel.products.collectAsState()
+    val posData by viewModel.posData.collectAsState()
+    val cart by viewModel.cart.collectAsState()
+    val cartTotal by viewModel.cartTotal.collectAsState()
+    val cartItemCount by viewModel.cartItemCount.collectAsState()
 
     var showCartSheet by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Semua") }
@@ -401,12 +401,12 @@ fun CartCheckoutSheetPremium(
     onDismiss: () -> Unit,
     onPrintRequested: () -> Unit
 ) {
-    val posDiskon by viewModel.posDiskon.collectAsStateWithLifecycle()
+    val posDiskon by viewModel.posDiskon.collectAsState()
     var diskonText by remember { mutableStateOf(if (posDiskon == 0.0) "" else posDiskon.toString()) }
     var selectedMethod by remember { mutableStateOf("CASH") }
     val methods = listOf("CASH", "QRIS", "TRANSFER")
     
-    val selectedCustomerId by viewModel.selectedCustomerId.collectAsStateWithLifecycle()
+    val selectedCustomerId by viewModel.selectedCustomerId.collectAsState()
     val selectedCustomer = customers.find { it.id == selectedCustomerId }
     var expandedCustomer by remember { mutableStateOf(false) }
     var selectedOrderType by remember { mutableStateOf("Dine In") }

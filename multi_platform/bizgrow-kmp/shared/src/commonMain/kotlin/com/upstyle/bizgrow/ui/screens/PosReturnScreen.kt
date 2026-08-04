@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.PosReturn
 import com.upstyle.bizgrow.data.ReturnItem
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -25,8 +25,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosReturnScreen(viewModel: AppViewModel) {
-    val posReturns by viewModel.posReturns.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val posReturns by viewModel.posReturns.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     var showReturnDialog by remember { mutableStateOf(false) }
     var orderIdInput by remember { mutableStateOf("") }

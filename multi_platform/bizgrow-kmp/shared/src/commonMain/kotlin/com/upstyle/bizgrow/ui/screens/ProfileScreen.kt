@@ -20,7 +20,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
@@ -28,8 +28,8 @@ import com.upstyle.bizgrow.ui.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsStateWithLifecycle()
-    val activeUnit by viewModel.activeUnit.collectAsStateWithLifecycle()
+    val units by viewModel.units.collectAsState()
+    val activeUnit by viewModel.activeUnit.collectAsState()
     val currentUser = viewModel.currentUser
     var showLogoutDialog by remember { mutableStateOf(false) }
 

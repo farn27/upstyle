@@ -14,16 +14,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.ChartOfAccount
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BukuBesarScreen(viewModel: AppViewModel) {
-    val chartOfAccounts by viewModel.chartOfAccounts.collectAsStateWithLifecycle()
-    val bukuBesarData by viewModel.bukuBesarData.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState()
+    val bukuBesarData by viewModel.bukuBesarData.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     
     var selectedCoa by remember { mutableStateOf<ChartOfAccount?>(null) }
     var expanded by remember { mutableStateOf(false) }

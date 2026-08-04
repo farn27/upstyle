@@ -14,14 +14,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import androidx.compose.animation.animateContentSize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrmPipelineScreen(viewModel: AppViewModel) {
-    val deals by viewModel.crmDeals.collectAsStateWithLifecycle()
+    val deals by viewModel.crmDeals.collectAsState()
     val stages = listOf("PROSPECT", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST")
     var selectedDeal by remember { mutableStateOf<com.upstyle.bizgrow.data.CrmDeal?>(null) }
     var showStageSheet by remember { mutableStateOf(false) }

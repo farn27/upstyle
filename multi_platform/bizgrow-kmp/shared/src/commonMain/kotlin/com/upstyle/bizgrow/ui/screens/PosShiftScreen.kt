@@ -18,16 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.PosShift
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosShiftScreen(viewModel: AppViewModel) {
-    val posShifts by viewModel.posShifts.collectAsStateWithLifecycle()
-    val activeShift by viewModel.activeShift.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val posShifts by viewModel.posShifts.collectAsState()
+    val activeShift by viewModel.activeShift.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     var showOpenShiftDialog by remember { mutableStateOf(false) }
     var showCloseShiftDialog by remember { mutableStateOf(false) }

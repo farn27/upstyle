@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import kotlinx.datetime.*
 
@@ -29,9 +29,9 @@ import kotlinx.datetime.todayIn
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LaporanScreen(viewModel: AppViewModel) {
-    val labaRugiData by viewModel.labaRugiData.collectAsStateWithLifecycle()
-    val arusKasData by viewModel.arusKasData.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val labaRugiData by viewModel.labaRugiData.collectAsState()
+    val arusKasData by viewModel.arusKasData.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Laba Rugi", "Arus Kas")
 

@@ -24,7 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -34,10 +34,10 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsScreen(viewModel: AppViewModel) {
-    val products by viewModel.products.collectAsStateWithLifecycle()
-    val lowStockProducts by viewModel.lowStockProducts.collectAsStateWithLifecycle()
-    val kategoriList by viewModel.kategoriProduk.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val products by viewModel.products.collectAsState()
+    val lowStockProducts by viewModel.lowStockProducts.collectAsState()
+    val kategoriList by viewModel.kategoriProduk.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }

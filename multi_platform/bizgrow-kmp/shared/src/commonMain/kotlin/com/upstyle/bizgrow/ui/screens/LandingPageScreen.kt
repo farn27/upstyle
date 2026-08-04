@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.LandingPage
 import com.upstyle.bizgrow.data.LandingPageTemplate
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -21,7 +21,7 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LandingPageScreen(viewModel: AppViewModel) {
-    val state by viewModel.landingPageState.collectAsStateWithLifecycle()
+    val state by viewModel.landingPageState.collectAsState()
     var showForm by remember { mutableStateOf(false) }
     var editingPage by remember { mutableStateOf<LandingPage?>(null) }
     var showTemplates by remember { mutableStateOf(false) }
