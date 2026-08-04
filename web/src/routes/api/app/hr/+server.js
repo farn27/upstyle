@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi } from '$lib/server/schema';
+import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi, approvalRequests, shifts } from '$lib/server/schema';
 import { eq, and, desc, inArray, like, isNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
@@ -79,6 +79,30 @@ export async function GET({ url, cookies, request }) {
             });
         }
 
+        // Get approval requests for HR module
+        const approvalRequestsList = await db.select()
+            .from(approvalRequests)
+            .where(and(
+                eq(approvalRequests.unitId, Number(unitId)),
+                eq(approvalRequests.module, 'HR')
+            ))
+            .orderBy(desc(approvalRequests.id))
+            .limit(50);
+
+        // Get shifts for this unit
+        const shiftsList = await db.select()
+            .from(shifts)
+            .where(eq(shifts.companyId, Number(unitId)))
+            .orderBy(shifts.id);
+
+        // Get salary components for employees
+        let salaryComponentsList = [];
+        if (employeeIds.length > 0) {
+            salaryComponentsList = await db.select()
+                .from(salaryComponents)
+                .where(inArray(salaryComponents.employeeId, employeeIds));
+        }
+
         // Map to mobile schema
         const mappedEmployees = employeeList.map(e => ({
             id: e.id,
@@ -122,12 +146,41 @@ export async function GET({ url, cookies, request }) {
             status: p.paymentStatus === 'paid' ? "DIBAYAR" : "PENDING"
         }));
 
+        const mappedApprovals = approvalRequestsList.map(a => ({
+            id: a.id,
+            module: a.module,
+            referenceId: a.referenceId,
+            requesterId: a.requesterId,
+            actionType: a.actionType,
+            status: a.status,
+            note: a.note || '',
+            createdAt: a.createdAt || ''
+        }));
+
+        const mappedShifts = shiftsList.map(s => ({
+            id: s.id,
+            shiftName: s.shiftName || '',
+            startTime: s.startTime || '',
+            endTime: s.endTime || ''
+        }));
+
+        const mappedSalaryComponents = salaryComponentsList.map(sc => ({
+            id: sc.id,
+            employeeId: sc.employeeId,
+            name: sc.name || '',
+            amount: Number(sc.amount || 0),
+            type: sc.type || 'addition'
+        }));
+
         return json({
             success: true,
             data: {
                 employees: mappedEmployees,
                 attendance: mappedAttendance,
-                payroll: mappedPayroll
+                payroll: mappedPayroll,
+                approvalRequests: mappedApprovals,
+                shifts: mappedShifts,
+                salaryComponents: mappedSalaryComponents
             },
             pagination: {
                 page: pagination.page,
@@ -220,6 +273,20 @@ export async function POST({ request, cookies }) {
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
                 const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input payroll tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
+            }
+        }
+
+        if (action === 'approve-request' || action === 'reject-request') {
+            const schema = z.object({
+                action: z.enum(['approve-request', 'reject-request']),
+                requestId: z.coerce.number().int().positive(),
+                unitId: z.coerce.number().int().positive(),
+                note: z.string().optional()
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input approval tidak valid';
                 return json({ success: false, message: msg }, { status: 400 });
             }
         }
@@ -327,6 +394,58 @@ export async function POST({ request, cookies }) {
             });
 
             return json({ success: true, message: "Payroll berhasil diproses" });
+        }
+
+        if (action === 'approve-request') {
+            const { requestId, unitId, note } = body;
+
+            const request = await db.query.approvalRequests.findFirst({
+                where: eq(approvalRequests.id, Number(requestId))
+            });
+
+            if (!request) {
+                return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
+            }
+
+            await db.update(approvalRequests)
+                .set({ status: 'APPROVED', note: note || 'Approved' })
+                .where(eq(approvalRequests.id, Number(requestId)));
+
+            await db.insert(riwayatAksi).values({
+                userId,
+                unitId: Number(unitId),
+                pesan: `Approval request #${requestId} disetujui`,
+                tipe: 'success',
+                kategori: 'HR'
+            });
+
+            return json({ success: true, message: 'Request berhasil disetujui' });
+        }
+
+        if (action === 'reject-request') {
+            const { requestId, unitId, note } = body;
+
+            const request = await db.query.approvalRequests.findFirst({
+                where: eq(approvalRequests.id, Number(requestId))
+            });
+
+            if (!request) {
+                return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
+            }
+
+            await db.update(approvalRequests)
+                .set({ status: 'REJECTED', note: note || 'Rejected' })
+                .where(eq(approvalRequests.id, Number(requestId)));
+
+            await db.insert(riwayatAksi).values({
+                userId,
+                unitId: Number(unitId),
+                pesan: `Approval request #${requestId} ditolak`,
+                tipe: 'warning',
+                kategori: 'HR'
+            });
+
+            return json({ success: true, message: 'Request berhasil ditolak' });
         }
 
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });

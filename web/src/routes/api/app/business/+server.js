@@ -35,7 +35,14 @@ export async function GET({ cookies, request }) {
             id: u.id,
             name: u.namaUnit,
             type: u.kategori || 'UMUM',
-            uid: String(u.id)
+            uid: String(u.id),
+            slug: u.slug || '',
+            alamat: u.alamat || '',
+            telepon: u.telepon || '',
+            email: u.email || '',
+            modalAwal: Number(u.modalAwal || 0),
+            isCabang: u.isCabang || 0,
+            posFeatureOverride: u.posFeatureOverride || null
         }));
 
         return json(paginatedResponse(data, total, pagination));
@@ -149,5 +156,168 @@ export async function DELETE({ url, cookies, request }) {
     } catch (err) {
         log.api.error({ err }, 'API DELETE UNIT ERROR');
         return json({ success: false, message: "Gagal menghapus unit bisnis" }, { status: 500 });
+    }
+}
+
+// 4. PUT: Update Business dan Generate Portal Slug
+export async function PUT({ request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+
+    if (!userId) {
+        return json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+        const body = await request.json();
+        const action = body.action;
+
+        if (action === 'updatePortal') {
+            const schema = z.object({
+                action: z.literal('updatePortal'),
+                unitId: z.coerce.number().int().positive(),
+                generateNewSlug: z.boolean().default(false)
+            });
+
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                const msg = parsed.error?.issues?.[0]?.message || 'Input tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
+            }
+
+            const { unitId, generateNewSlug } = body;
+
+            // Verify ownership
+            const unit = await db.query.unitBisnis.findFirst({
+                where: and(
+                    eq(unitBisnis.id, Number(unitId)),
+                    eq(unitBisnis.userId, userId)
+                )
+            });
+
+            if (!unit) {
+                return json({ success: false, message: 'Unit bisnis tidak ditemukan' }, { status: 404 });
+            }
+
+            let newSlug = unit.slug;
+            if (generateNewSlug || !unit.slug) {
+                // Generate new unique slug
+                const baseSlug = unit.namaUnit.toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .slice(0, 50);
+                
+                const timestamp = Date.now().toString().slice(-6);
+                newSlug = `${baseSlug}-${timestamp}`;
+
+                // Ensure uniqueness
+                let counter = 1;
+                let finalSlug = newSlug;
+                while (true) {
+                    const existing = await db.query.unitBisnis.findFirst({
+                        where: eq(unitBisnis.slug, finalSlug)
+                    });
+                    if (!existing) break;
+                    finalSlug = `${newSlug}-${counter}`;
+                    counter++;
+                }
+                newSlug = finalSlug;
+
+                await db.update(unitBisnis)
+                    .set({ slug: newSlug })
+                    .where(eq(unitBisnis.id, Number(unitId)));
+            }
+
+            await db.insert(riwayatAksi).values({
+                userId,
+                unitId: Number(unitId),
+                pesan: generateNewSlug ? `Portal slug diperbarui: ${newSlug}` : 'Portal diaktifkan',
+                kategori: 'PORTAL',
+                tipe: 'success'
+            });
+
+            return json({ 
+                success: true, 
+                message: 'Portal berhasil diperbarui',
+                data: {
+                    slug: newSlug,
+                    portalUrl: `https://portal.bizgrow.id/${newSlug}` // adjust domain as needed
+                }
+            });
+        }
+
+        if (action === 'updateBusiness') {
+            const schema = z.object({
+                action: z.literal('updateBusiness'),
+                unitId: z.coerce.number().int().positive(),
+                namaUnit: z.string().min(2).max(255).optional(),
+                kategori: z.string().optional(),
+                alamat: z.string().optional(),
+                telepon: z.string().optional(),
+                email: z.string().email().optional().or(z.literal('')),
+                modalAwal: z.coerce.number().min(0).optional()
+            });
+
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                const msg = parsed.error?.issues?.[0]?.message || 'Input tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
+            }
+
+            const { unitId, namaUnit, kategori, alamat, telepon, email, modalAwal } = body;
+
+            // Verify ownership
+            const unit = await db.query.unitBisnis.findFirst({
+                where: and(
+                    eq(unitBisnis.id, Number(unitId)),
+                    eq(unitBisnis.userId, userId)
+                )
+            });
+
+            if (!unit) {
+                return json({ success: false, message: 'Unit bisnis tidak ditemukan' }, { status: 404 });
+            }
+
+            // Build update data
+            const updateData = {};
+            if (namaUnit !== undefined) updateData.namaUnit = namaUnit;
+            if (kategori !== undefined) updateData.kategori = kategori;
+            if (alamat !== undefined) updateData.alamat = alamat;
+            if (telepon !== undefined) updateData.telepon = telepon;
+            if (email !== undefined) updateData.email = email || null;
+            if (modalAwal !== undefined) updateData.modalAwal = String(modalAwal);
+
+            if (Object.keys(updateData).length === 0) {
+                return json({ success: false, message: 'Tidak ada data yang diubah' }, { status: 400 });
+            }
+
+            // Update slug if name changed
+            if (namaUnit && namaUnit !== unit.namaUnit) {
+                const newSlug = namaUnit.toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .slice(0, 50);
+                updateData.slug = newSlug;
+            }
+
+            await db.update(unitBisnis)
+                .set(updateData)
+                .where(eq(unitBisnis.id, Number(unitId)));
+
+            await db.insert(riwayatAksi).values({
+                userId,
+                unitId: Number(unitId),
+                pesan: `Data bisnis diperbarui: ${updateData.namaUnit || unit.namaUnit}`,
+                kategori: 'Unit Bisnis',
+                tipe: 'info'
+            });
+
+            return json({ success: true, message: 'Data bisnis berhasil diperbarui' });
+        }
+
+        return json({ success: false, message: 'Action tidak dikenali' }, { status: 400 });
+
+    } catch (err) {
+        log.api.error({ err }, 'API PUT BUSINESS ERROR');
+        return json({ success: false, message: 'Gagal memperbarui data bisnis: ' + err.message }, { status: 500 });
     }
 }

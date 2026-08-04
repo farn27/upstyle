@@ -1251,3 +1251,155 @@ data class StockOpnameItem(
     val notes: String? = null
 )
 
+
+// ─── Sales Targets & Komisi ───────────────────────────────────────────────────
+
+@Serializable
+data class SalesTarget(
+    val id: Int = 0,
+    val unitId: Int,
+    val employeeId: Int? = null,
+    val employeeName: String = "",
+    val periode: String = "", // "2025-08"
+    val targetAmount: Double = 0.0,
+    val actualAmount: Double = 0.0,
+    val achievementPct: Double = 0.0,
+    val status: String = "active" // active, achieved, missed
+)
+
+@Serializable
+data class SalesCommission(
+    val id: Int = 0,
+    val targetId: Int,
+    val employeeId: Int,
+    val commissionPct: Double = 0.0,
+    val commissionAmount: Double = 0.0,
+    val status: String = "pending" // pending, paid
+)
+
+@Serializable
+data class SalesTargetData(
+    val targets: List<SalesTarget> = emptyList(),
+    val commissions: List<SalesCommission> = emptyList(),
+    val summary: SalesTargetSummary = SalesTargetSummary()
+)
+
+@Serializable
+data class SalesTargetSummary(
+    val totalTarget: Double = 0.0,
+    val totalActual: Double = 0.0,
+    val avgAchievement: Double = 0.0
+)
+
+// ─── Approvals (Reimbursement & Loan) ────────────────────────────────────────
+
+@Serializable
+data class ApprovalRequest(
+    val id: Int = 0,
+    val unitId: Int,
+    val employeeId: Int,
+    val employeeName: String = "",
+    val type: String = "reimbursement", // reimbursement | loan
+    val amount: Double = 0.0,
+    val description: String = "",
+    val status: String = "pending", // pending | approved | rejected
+    val approvedBy: Int? = null,
+    val approvedAt: String? = null,
+    val createdAt: String = "",
+    val attachmentUrl: String? = null
+)
+
+@Serializable
+data class ApprovalsData(
+    val pending: List<ApprovalRequest> = emptyList(),
+    val approved: List<ApprovalRequest> = emptyList(),
+    val rejected: List<ApprovalRequest> = emptyList()
+)
+
+// ─── Katalog (Product Catalog) ────────────────────────────────────────────────
+
+@Serializable
+data class KatalogProduct(
+    val id: String,
+    val nama: String,
+    val hargaJual: Double,
+    val foto: String? = null,
+    val deskripsi: String? = null,
+    val kategori: String = "UMUM",
+    val isPublished: Boolean = false,
+    val stok: Int = 0
+)
+
+@Serializable
+data class KatalogSettings(
+    val unitId: Int,
+    val slug: String = "",
+    val namaPortal: String = "",
+    val logoUrl: String? = null,
+    val bannerUrl: String? = null,
+    val isActive: Boolean = false,
+    val totalProducts: Int = 0,
+    val publishedProducts: Int = 0
+)
+
+@Serializable
+data class KatalogData(
+    val settings: KatalogSettings? = null,
+    val products: List<KatalogProduct> = emptyList()
+)
+
+// ─── Marketing (Leads, Ad Tracker) ───────────────────────────────────────────
+
+@Serializable
+data class MarketingLead(
+    val id: Int = 0,
+    val unitId: Int,
+    val nama: String,
+    val email: String = "",
+    val telepon: String = "",
+    val source: String = "organic", // organic | ads | referral | social
+    val status: String = "new", // new | contacted | converted | lost
+    val notes: String? = null,
+    val createdAt: String = ""
+)
+
+@Serializable
+data class AdTracker(
+    val id: Int = 0,
+    val unitId: Int,
+    val platform: String = "meta", // meta | google | tiktok | shopee
+    val campaignName: String = "",
+    val spend: Double = 0.0,
+    val impressions: Int = 0,
+    val clicks: Int = 0,
+    val conversions: Int = 0,
+    val roas: Double = 0.0,
+    val period: String = ""
+)
+
+@Serializable
+data class MarketingData(
+    val campaigns: List<MarketingCampaign> = emptyList(),
+    val leads: List<MarketingLead> = emptyList(),
+    val adTrackers: List<AdTracker> = emptyList(),
+    val summary: MarketingSummary = MarketingSummary()
+)
+
+@Serializable
+data class MarketingSummary(
+    val totalLeads: Int = 0,
+    val convertedLeads: Int = 0,
+    val totalSpend: Double = 0.0,
+    val avgRoas: Double = 0.0
+)
+
+// ─── Dashboard Summary (untuk HomeScreen) ─────────────────────────────────────
+
+@Serializable
+data class UnitDashboardSummary(
+    val unitId: Int,
+    val pendapatanHariIni: Double = 0.0,
+    val totalProduk: Int = 0,
+    val totalKaryawan: Int = 0,
+    val totalTransaksi: Int = 0
+)

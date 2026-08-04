@@ -43,14 +43,12 @@ import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: AppViewModel) {
     val units by viewModel.units.collectAsStateWithLifecycle()
     val user = viewModel.currentUser
     var showDialog by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         viewModel.loadUnits()
@@ -59,57 +57,6 @@ fun HomeScreen(viewModel: AppViewModel) {
 
     Scaffold(
         containerColor = BizgrowColors.Background,
-        bottomBar = {
-            NavigationBar(
-                containerColor = BizgrowColors.Surface,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") },
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = BizgrowColors.Primary,
-                        selectedTextColor = BizgrowColors.Primary,
-                        indicatorColor = BizgrowColors.PrimaryLight
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Business, contentDescription = "Bisnis") },
-                    label = { Text("Bisnis") },
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = BizgrowColors.Primary,
-                        selectedTextColor = BizgrowColors.Primary,
-                        indicatorColor = BizgrowColors.PrimaryLight
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Assessment, contentDescription = "Laporan") },
-                    label = { Text("Laporan") },
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = BizgrowColors.Primary,
-                        selectedTextColor = BizgrowColors.Primary,
-                        indicatorColor = BizgrowColors.PrimaryLight
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Profil") },
-                    label = { Text("Profil") },
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = BizgrowColors.Primary,
-                        selectedTextColor = BizgrowColors.Primary,
-                        indicatorColor = BizgrowColors.PrimaryLight
-                    )
-                )
-            }
-        },
         floatingActionButton = {
             AnimatedVisibility(
                 visible = isVisible,
@@ -349,27 +296,14 @@ fun BusinessUnitCard(unit: BusinessUnit, onClick: () -> Unit) {
             
             HorizontalDivider(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), color = BizgrowColors.Gray100)
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("Pendapatan Hari Ini", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text("Rp 1.250.000", fontSize = 15.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Gray950)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Produk", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-                        Text("32", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Pegawai", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-                        Text("2", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900)
-                    }
-                }
-            }
+            Text(
+                "Klik untuk masuk dashboard",
+                fontSize = 12.sp,
+                color = BizgrowColors.Gray500,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

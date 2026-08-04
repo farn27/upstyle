@@ -603,4 +603,106 @@ class UpstyleApi(private val client: HttpClient) {
         client.put("api/app/products/pricing") {
             setBody(mapOf("items" to items))
         }.body()
+
+    // ─── Sales Targets ────────────────────────────────────────────────────────
+
+    suspend fun getSalesTargets(unitId: Int, periode: String? = null): ApiResponse<SalesTargetData> =
+        client.get("api/app/sales/targets") {
+            parameter("unitId", unitId)
+            periode?.let { parameter("periode", it) }
+        }.body()
+
+    suspend fun createSalesTarget(target: SalesTarget): ApiResponse<Unit> =
+        client.post("api/app/sales/targets") { setBody(target) }.body()
+
+    suspend fun updateSalesTarget(target: SalesTarget): ApiResponse<Unit> =
+        client.put("api/app/sales/targets") { setBody(target) }.body()
+
+    suspend fun deleteSalesTarget(targetId: Int): ApiResponse<Unit> =
+        client.delete("api/app/sales/targets") { parameter("targetId", targetId) }.body()
+
+    // ─── Approvals ────────────────────────────────────────────────────────────
+
+    suspend fun getApprovals(unitId: Int): ApiResponse<ApprovalsData> =
+        client.get("api/app/hr/approvals") { parameter("unitId", unitId) }.body()
+
+    suspend fun approveRequest(requestId: Int, action: String, notes: String? = null): ApiResponse<Unit> =
+        client.put("api/app/hr/approvals") {
+            setBody(mapOf(
+                "requestId" to requestId,
+                "action" to action, // "approve" | "reject"
+                "notes" to (notes ?: "")
+            ))
+        }.body()
+
+    suspend fun createApprovalRequest(request: ApprovalRequest): ApiResponse<Unit> =
+        client.post("api/app/hr/approvals") { setBody(request) }.body()
+
+    // ─── Katalog ──────────────────────────────────────────────────────────────
+
+    suspend fun getKatalog(unitId: Int): ApiResponse<KatalogData> =
+        client.get("api/app/katalog") { parameter("unitId", unitId) }.body()
+
+    suspend fun toggleKatalogPublish(productId: String, isPublished: Boolean): ApiResponse<Unit> =
+        client.put("api/app/katalog") {
+            setBody(mapOf(
+                "action" to "toggle-publish",
+                "productId" to productId,
+                "isPublished" to isPublished
+            ))
+        }.body()
+
+    suspend fun bulkTogglePublish(productIds: List<String>, isPublished: Boolean): ApiResponse<Unit> =
+        client.put("api/app/katalog") {
+            setBody(mapOf(
+                "action" to "bulk-toggle",
+                "productIds" to productIds,
+                "isPublished" to isPublished
+            ))
+        }.body()
+
+    suspend fun updateKatalogSettings(settings: KatalogSettings): ApiResponse<Unit> =
+        client.put("api/app/katalog") {
+            setBody(mapOf("action" to "update-settings", "settings" to settings))
+        }.body()
+
+    // ─── Marketing (full) ─────────────────────────────────────────────────────
+
+    suspend fun getMarketingData(unitId: Int): ApiResponse<MarketingData> =
+        client.get("api/app/marketing") { parameter("unitId", unitId) }.body()
+
+    suspend fun createMarketingLead(lead: MarketingLead): ApiResponse<Unit> =
+        client.post("api/app/marketing") {
+            setBody(mapOf("action" to "create-lead", "lead" to lead))
+        }.body()
+
+    suspend fun updateLeadStatus(leadId: Int, status: String): ApiResponse<Unit> =
+        client.put("api/app/marketing") {
+            setBody(mapOf("action" to "update-lead", "leadId" to leadId, "status" to status))
+        }.body()
+
+    // ─── Unit Dashboard Summary ───────────────────────────────────────────────
+
+    suspend fun getUnitSummary(unitId: Int): ApiResponse<UnitDashboardSummary> =
+        client.get("api/app/business") {
+            parameter("unitId", unitId)
+            parameter("action", "summary")
+        }.body()
+
+    // ─── HR Departments (CRUD) ────────────────────────────────────────────────
+
+    suspend fun updateDepartment(dept: Department): ApiResponse<Unit> =
+        client.put("api/app/hr/departments") { setBody(dept) }.body()
+
+    // ─── HR Payroll (run payroll) ─────────────────────────────────────────────
+
+    suspend fun runPayroll(unitId: Int, periode: String): ApiResponse<Unit> =
+        client.post("api/app/hr/payroll") {
+            setBody(mapOf("action" to "run-payroll", "unitId" to unitId, "periode" to periode))
+        }.body()
+
+    suspend fun markPayrollPaid(payrollId: Int): ApiResponse<Unit> =
+        client.put("api/app/hr/payroll") {
+            setBody(mapOf("action" to "mark-paid", "payrollId" to payrollId))
+        }.body()
 }

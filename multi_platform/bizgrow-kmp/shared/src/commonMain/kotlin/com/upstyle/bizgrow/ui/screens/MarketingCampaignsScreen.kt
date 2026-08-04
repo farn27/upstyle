@@ -24,8 +24,8 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketingCampaignsScreen(viewModel: AppViewModel) {
-    val marketingCampaigns by viewModel.marketingCampaigns.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
+    val marketingCampaigns by viewModel.marketingCampaigns.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -35,7 +35,7 @@ fun MarketingCampaignsScreen(viewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Kampanye CRM", fontWeight = FontWeight.Bold) },
+                title = { Text("Kampanye Marketing", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
@@ -46,7 +46,7 @@ fun MarketingCampaignsScreen(viewModel: AppViewModel) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showCreateDialog = true },
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = MaterialTheme.colorScheme.primary,
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Buat Kampanye", tint = Color.White)

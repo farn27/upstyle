@@ -117,8 +117,18 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.AutoAwesome, "AI", tint = BizgrowColors.Primary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(12.dp))
+                        val insight = remember(financeData) {
+                            val trxs = financeData?.transactions ?: emptyList()
+                            val income = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }.sumOf { it.nominal }
+                            val count = trxs.size
+                            when {
+                                count == 0 -> "Belum ada transaksi hari ini. Mulai catat penjualan Anda!"
+                                income > 0 -> "Total pemasukan saat ini ${formatCurrency(income)} dari $count transaksi."
+                                else -> "Pantau keuangan bisnis Anda secara real-time."
+                            }
+                        }
                         Text(
-                            text = "BizGrow AI: Pendapatan hari ini naik 18% dibanding kemarin. Produk terlaris: Kopi Susu.",
+                            text = "BizGrow AI: $insight",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = BizgrowColors.PrimaryDark,
@@ -140,14 +150,19 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
                     Text("Hari Ini", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
                     Spacer(Modifier.height(12.dp))
+                    val trxs = financeData?.transactions ?: emptyList()
+                    val totalOrders = trxs.count()
+                    val totalPelanggan = (financeData?.kpi?.current?.toInt() ?: 0)
+                    val alertReceivables = financeData?.alerts?.receivables ?: 0
+                    val alertPayables = financeData?.alerts?.payables ?: 0
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiBox(icon = Icons.Default.ShoppingCart, title = "28", subtitle = "Pesanan", color = BizgrowColors.Primary, modifier = Modifier.weight(1f))
-                        KpiBox(icon = Icons.Default.People, title = "19", subtitle = "Pelanggan", color = BizgrowColors.Success, modifier = Modifier.weight(1f))
+                        KpiBox(icon = Icons.Default.ShoppingCart, title = "$totalOrders", subtitle = "Transaksi", color = BizgrowColors.Primary, modifier = Modifier.weight(1f))
+                        KpiBox(icon = Icons.Default.People, title = "${financeData?.biMetrics?.cashRunway?.toInt() ?: 0}", subtitle = "Pelanggan Aktif", color = BizgrowColors.Success, modifier = Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiBox(icon = Icons.Default.Inventory2, title = "4", subtitle = "Order Diproses", color = BizgrowColors.Warning, modifier = Modifier.weight(1f))
-                        KpiBox(icon = Icons.Default.Payment, title = "6", subtitle = "Belum Dibayar", color = BizgrowColors.Danger, modifier = Modifier.weight(1f))
+                        KpiBox(icon = Icons.Default.Inventory2, title = "$alertReceivables", subtitle = "Piutang Jatuh Tempo", color = BizgrowColors.Warning, modifier = Modifier.weight(1f))
+                        KpiBox(icon = Icons.Default.Payment, title = "$alertPayables", subtitle = "Hutang Belum Bayar", color = BizgrowColors.Danger, modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -165,10 +180,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     Text("Quick Action", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        QuickActionCircle(Icons.Default.AddShoppingCart, "Transaksi", BizgrowColors.Primary)
-                        QuickActionCircle(Icons.Default.AddBox, "Produk", BizgrowColors.Success)
-                        QuickActionCircle(Icons.Default.PersonAdd, "Pelanggan", BizgrowColors.Warning)
-                        QuickActionCircle(Icons.Default.Receipt, "Invoice", BizgrowColors.Secondary)
+                        QuickActionCircle(Icons.Default.AddShoppingCart, "Transaksi", BizgrowColors.Primary) { viewModel.navigate(Screen.Pos) }
+                        QuickActionCircle(Icons.Default.AddBox, "Produk", BizgrowColors.Success) { viewModel.navigate(Screen.Products) }
+                        QuickActionCircle(Icons.Default.PersonAdd, "Pelanggan", BizgrowColors.Warning) { viewModel.navigate(Screen.CrmContacts) }
+                        QuickActionCircle(Icons.Default.Receipt, "Invoice", BizgrowColors.Secondary) { viewModel.navigate(Screen.Piutang) }
                     }
                 }
             }
@@ -235,13 +250,13 @@ fun KpiBox(icon: ImageVector, title: String, subtitle: String, color: Color, mod
 }
 
 @Composable
-fun QuickActionCircle(icon: ImageVector, label: String, color: Color) {
+fun QuickActionCircle(icon: ImageVector, label: String, color: Color, onClick: () -> Unit = {}) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(56.dp)
                 .background(color.copy(alpha = 0.1f), CircleShape)
-                .clickable { },
+                .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
@@ -269,8 +284,19 @@ fun DashboardHeroCard(financeData: FinanceData?, viewModel: AppViewModel) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Saldo Bersih", fontSize = 13.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-                Surface(color = BizgrowColors.SuccessLight, shape = RoundedCornerShape(10.dp)) {
-                    Text("↑ +8.2%", color = BizgrowColors.Success, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                val kpiTarget = financeData?.kpi?.target ?: 0.0
+                val kpiCurrent = financeData?.kpi?.current ?: 0.0
+                if (kpiTarget > 0) {
+                    val pct = (kpiCurrent / kpiTarget * 100).toInt()
+                    val isPositive = kpiCurrent >= 0
+                    Surface(color = if (isPositive) BizgrowColors.SuccessLight else BizgrowColors.DangerLight, shape = RoundedCornerShape(10.dp)) {
+                        Text(
+                            "${if (isPositive) "↑" else "↓"} $pct%",
+                            color = if (isPositive) BizgrowColors.Success else BizgrowColors.Danger,
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
             Text(
@@ -470,7 +496,10 @@ fun TransactionItem(trx: com.upstyle.bizgrow.data.Transaction) {
         Column(modifier = Modifier.weight(1f)) {
             Text(trx.keterangan, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(2.dp))
-            Text("2 menit yang lalu", fontSize = 11.sp, color = BizgrowColors.Gray500)
+            Text(
+                trx.tanggal.take(10).ifEmpty { "-" },
+                fontSize = 11.sp, color = BizgrowColors.Gray500
+            )
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(

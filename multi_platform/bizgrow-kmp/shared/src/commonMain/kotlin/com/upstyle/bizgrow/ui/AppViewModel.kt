@@ -94,6 +94,13 @@ sealed class Screen {
     object ClosingPeriod : Screen()
     object MarketingCampaigns : Screen()
     object Pricing : Screen()
+
+    // New Features
+    object SalesTargets : Screen()
+    object Approvals : Screen()
+    object Katalog : Screen()
+    object Marketing : Screen()
+    object Departments : Screen()
 }
 // ─── UI State ─────────────────────────────────────────────────────────────────
 
@@ -1361,5 +1368,159 @@ class AppViewModel(
             else setError(res.message ?: "Gagal pulihkan produk")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+
+    // ─── Sales Targets ────────────────────────────────────────────────────────
+    private val _salesTargetData = MutableStateFlow<SalesTargetData?>(null)
+    val salesTargetData: StateFlow<SalesTargetData?> = _salesTargetData.asStateFlow()
+
+    fun loadSalesTargets(periode: String? = null) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getSalesTargets(unitId, periode)
+            if (res.success) _salesTargetData.value = res.data
+        } catch (e: Exception) { Napier.e("loadSalesTargets error", e) }
+    }
+
+    fun createSalesTarget(employeeId: Int?, employeeName: String, periode: String, targetAmount: Double) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createSalesTarget(SalesTarget(
+                unitId = unitId, employeeId = employeeId, employeeName = employeeName,
+                periode = periode, targetAmount = targetAmount
+            ))
+            if (res.success) { loadSalesTargets(); setSuccess("Target berhasil dibuat!") }
+            else setError(res.message ?: "Gagal buat target")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteSalesTarget(targetId: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.deleteSalesTarget(targetId)
+            if (res.success) { loadSalesTargets(); setSuccess("Target dihapus") }
+            else setError(res.message ?: "Gagal hapus target")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Approvals ────────────────────────────────────────────────────────────
+    private val _approvalsData = MutableStateFlow<ApprovalsData?>(null)
+    val approvalsData: StateFlow<ApprovalsData?> = _approvalsData.asStateFlow()
+
+    fun loadApprovals() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getApprovals(unitId)
+            if (res.success) _approvalsData.value = res.data
+        } catch (e: Exception) { Napier.e("loadApprovals error", e) }
+    }
+
+    fun approveRequest(requestId: Int, action: String, notes: String? = null) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.approveRequest(requestId, action, notes)
+            if (res.success) {
+                loadApprovals()
+                setSuccess(if (action == "approve") "Permintaan disetujui!" else "Permintaan ditolak")
+            } else setError(res.message ?: "Gagal proses approval")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun createApprovalRequest(type: String, amount: Double, description: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        val userId = session.getUserId()
+        try {
+            val res = api.createApprovalRequest(ApprovalRequest(
+                unitId = unitId, employeeId = userId, type = type,
+                amount = amount, description = description
+            ))
+            if (res.success) { loadApprovals(); setSuccess("Pengajuan berhasil dikirim!") }
+            else setError(res.message ?: "Gagal kirim pengajuan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Katalog ──────────────────────────────────────────────────────────────
+    private val _katalogData = MutableStateFlow<KatalogData?>(null)
+    val katalogData: StateFlow<KatalogData?> = _katalogData.asStateFlow()
+
+    fun loadKatalog() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getKatalog(unitId)
+            if (res.success) _katalogData.value = res.data
+        } catch (e: Exception) { Napier.e("loadKatalog error", e) }
+    }
+
+    fun toggleKatalogPublish(productId: String, isPublished: Boolean) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.toggleKatalogPublish(productId, isPublished)
+            if (res.success) {
+                loadKatalog()
+                setSuccess(if (isPublished) "Produk dipublikasi ke katalog" else "Produk disembunyikan dari katalog")
+            } else setError(res.message ?: "Gagal update katalog")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Marketing (full data) ────────────────────────────────────────────────
+    private val _marketingData = MutableStateFlow<MarketingData?>(null)
+    val marketingData: StateFlow<MarketingData?> = _marketingData.asStateFlow()
+
+    fun loadMarketingData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getMarketingData(unitId)
+            if (res.success) _marketingData.value = res.data
+        } catch (e: Exception) { Napier.e("loadMarketingData error", e) }
+    }
+
+    fun createMarketingLead(nama: String, email: String, telepon: String, source: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createMarketingLead(MarketingLead(
+                unitId = unitId, nama = nama, email = email, telepon = telepon, source = source
+            ))
+            if (res.success) { loadMarketingData(); setSuccess("Lead berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah lead")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updateLeadStatus(leadId: Int, status: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            api.updateLeadStatus(leadId, status)
+            loadMarketingData()
+        } catch (e: Exception) { Napier.e("updateLeadStatus error", e) }
+    }
+
+    // ─── Departments CRUD ─────────────────────────────────────────────────────
+    fun createDepartment(name: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createDepartment(Department(unitId = unitId, name = name))
+            if (res.success) { loadDepartments(); setSuccess("Departemen berhasil dibuat!") }
+            else setError(res.message ?: "Gagal buat departemen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteDepartment(departmentId: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.deleteDepartment(departmentId)
+            if (res.success) { loadDepartments(); setSuccess("Departemen dihapus") }
+            else setError(res.message ?: "Gagal hapus departemen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Navigation helper untuk fitur baru ──────────────────────────────────
+    // Navigation screens baru sudah ada di sealed class Screen
+    // SalesTargets, Approvals, Katalog, Marketing sudah bisa diakses
 }
 

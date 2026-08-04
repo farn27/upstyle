@@ -73,3 +73,103 @@ export async function POST({ request, cookies }) {
         return json({ success: false, message: 'Gagal tambah kontak' }, { status: 500 });
     }
 }
+
+// PUT /api/app/finance/contacts - edit kontak akuntansi
+export async function PUT({ request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+
+    try {
+        const body = await request.json();
+        const { contactId, unitId, namaKontak, tipeKontak, email, telepon, alamat, termPembayaran, limitKredit, npwp } = body;
+
+        if (!contactId) {
+            return json({ success: false, message: 'contactId wajib diisi' }, { status: 400 });
+        }
+
+        // Verify contact exists and belongs to user's unit
+        const contact = await db.query.accountingContacts.findFirst({
+            where: eq(accountingContacts.id, Number(contactId))
+        });
+
+        if (!contact) {
+            return json({ success: false, message: 'Kontak tidak ditemukan' }, { status: 404 });
+        }
+
+        // Build update data
+        const updateData = {};
+        if (namaKontak !== undefined) updateData.namaKontak = namaKontak;
+        if (tipeKontak !== undefined) updateData.tipeKontak = tipeKontak;
+        if (email !== undefined) updateData.email = email || null;
+        if (telepon !== undefined) updateData.telepon = telepon || null;
+        if (alamat !== undefined) updateData.alamat = alamat || null;
+        if (termPembayaran !== undefined) updateData.termPembayaran = Number(termPembayaran);
+        if (limitKredit !== undefined) updateData.limitKredit = String(limitKredit);
+        if (npwp !== undefined) updateData.npwp = npwp || null;
+
+        if (Object.keys(updateData).length === 0) {
+            return json({ success: false, message: 'Tidak ada data yang diubah' }, { status: 400 });
+        }
+
+        await db.update(accountingContacts)
+            .set(updateData)
+            .where(eq(accountingContacts.id, Number(contactId)));
+
+        await db.insert(riwayatAksi).values({
+            userId,
+            unitId: Number(unitId || contact.unitId),
+            pesan: `Kontak akuntansi diperbarui: ${updateData.namaKontak || contact.namaKontak}`,
+            kategori: 'FINANCE',
+            tipe: 'info'
+        });
+
+        return json({ success: true, message: 'Kontak berhasil diperbarui' });
+
+    } catch (err) {
+        log.api.error({ err }, 'PUT finance/contacts');
+        return json({ success: false, message: 'Gagal memperbarui kontak: ' + err.message }, { status: 500 });
+    }
+}
+
+// DELETE /api/app/finance/contacts?contactId=X&unitId=Y - hapus kontak akuntansi
+export async function DELETE({ url, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+
+    const contactId = url.searchParams.get('contactId');
+    const unitId = url.searchParams.get('unitId');
+
+    if (!contactId) {
+        return json({ success: false, message: 'contactId wajib diisi' }, { status: 400 });
+    }
+
+    try {
+        // Verify contact exists
+        const contact = await db.query.accountingContacts.findFirst({
+            where: eq(accountingContacts.id, Number(contactId))
+        });
+
+        if (!contact) {
+            return json({ success: false, message: 'Kontak tidak ditemukan' }, { status: 404 });
+        }
+
+        // Soft delete - set isActive to 0
+        await db.update(accountingContacts)
+            .set({ isActive: 0 })
+            .where(eq(accountingContacts.id, Number(contactId)));
+
+        await db.insert(riwayatAksi).values({
+            userId,
+            unitId: Number(unitId || contact.unitId),
+            pesan: `Kontak akuntansi dihapus: ${contact.namaKontak}`,
+            kategori: 'FINANCE',
+            tipe: 'warning'
+        });
+
+        return json({ success: true, message: 'Kontak berhasil dihapus' });
+
+    } catch (err) {
+        log.api.error({ err }, 'DELETE finance/contacts');
+        return json({ success: false, message: 'Gagal menghapus kontak: ' + err.message }, { status: 500 });
+    }
+}

@@ -120,6 +120,66 @@ export async function GET({ url, cookies, request }) {
             });
         }
 
+        if (type === 'neraca') {
+            // Balance Sheet - Assets, Liabilities, Equity
+            const whereConditions = [eq(transaksi.unitId, unitId)];
+            if (start && end) {
+                whereConditions.push(sql`DATE(${transaksi.tanggal}) BETWEEN ${start} AND ${end}`);
+            } else if (start) {
+                whereConditions.push(sql`DATE(${transaksi.tanggal}) >= ${start}`);
+            } else if (end) {
+                whereConditions.push(sql`DATE(${transaksi.tanggal}) <= ${end}`);
+            }
+
+            const [agg] = await db.select({
+                totalPendapatan: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'MASUK' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+                totalPengeluaran: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'KELUAR' THEN ${transaksi.nominal} ELSE 0 END), 0)`
+            })
+            .from(transaksi)
+            .where(and(...whereConditions));
+
+            const totalAset = Number(agg?.totalPendapatan || 0);
+            const totalLiabilitas = Number(agg?.totalPengeluaran || 0);
+            const totalEkuitas = totalAset - totalLiabilitas;
+
+            // Breakdown by category
+            const categoryBreakdown = await db.select({
+                kategori: transaksi.kategori,
+                kategoriTrx: transaksi.kategoriTrx,
+                total: sql`COALESCE(SUM(${transaksi.nominal}), 0)`
+            })
+            .from(transaksi)
+            .where(and(...whereConditions))
+            .groupBy(transaksi.kategori, transaksi.kategoriTrx);
+
+            const aset = [];
+            const liabilitas = [];
+            
+            for (const row of categoryBreakdown) {
+                const item = {
+                    kategori: row.kategori || 'Lain-lain',
+                    total: Number(row.total || 0)
+                };
+                
+                if (row.kategoriTrx === 'MASUK') {
+                    aset.push(item);
+                } else if (row.kategoriTrx === 'KELUAR') {
+                    liabilitas.push(item);
+                }
+            }
+
+            return json({
+                success: true,
+                data: {
+                    totalAset,
+                    totalLiabilitas,
+                    totalEkuitas,
+                    aset,
+                    liabilitas
+                }
+            });
+        }
+
         if (type === 'analytics') {
             const whereConditions = [eq(transaksi.unitId, unitId)];
             let daysCount = 30;

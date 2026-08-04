@@ -154,7 +154,10 @@ fun PosScreen(viewModel: AppViewModel) {
                 placeholder = { Text("Cari produk atau SKU...", color = BizgrowColors.Gray400) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = BizgrowColors.Gray400) },
                 trailingIcon = {
-                    IconButton(onClick = { searchQuery = "SKU-DUMMY-123" }) {
+                    IconButton(onClick = { 
+                        // TODO: Implement barcode scanner
+                        // viewModel.navigate(Screen.BarcodeScanner)
+                    }) {
                         Icon(Icons.Default.QrCodeScanner, null, tint = BizgrowColors.Primary)
                     }
                 },
@@ -232,24 +235,28 @@ fun PosScreen(viewModel: AppViewModel) {
                         scope.launch { snackbarHostState.showSnackbar("Menghubungkan ke printer...") }
                         
                         val receiptText = buildString {
-                            appendLine("===== BIZGROW POS =====")
-                            appendLine("Toko: Upstyle")
+                            appendLine("===== STRUK PEMBAYARAN =====")
+                            appendLine("${viewModel.activeUnit.value?.name ?: "Toko"}")
                             appendLine("-----------------------")
                             cart.forEach { (prod, qty) ->
-                                appendLine("${prod.nama} x$qty  Rp${(prod.hargaJual * qty)}")
+                                appendLine("${prod.nama} x$qty")
+                                appendLine("  Rp${"%,.0f".format(prod.hargaJual * qty)}")
                             }
                             appendLine("-----------------------")
-                            appendLine("Total: Rp$cartTotal")
+                            appendLine("Total: Rp${"%,.0f".format(cartTotal)}")
                             appendLine("Terima Kasih!")
                             appendLine("=======================")
                             appendLine("\n\n")
                         }
                         
+                        // Note: MAC address harus di-configure di settings
+                        val printerMacAddress = "00:00:00:00:00:00" // Placeholder - perlu config
+                        
                         printerManager.connectAndPrint(
-                            macAddress = "00:11:22:33:44:55",
+                            macAddress = printerMacAddress,
                             receiptText = receiptText,
                             onSuccess = { scope.launch { snackbarHostState.showSnackbar("Struk berhasil dicetak!") } },
-                            onError = { err -> scope.launch { snackbarHostState.showSnackbar("Gagal cetak: $err") } }
+                            onError = { err -> scope.launch { snackbarHostState.showSnackbar("Printer belum dikonfigurasi. Set MAC address di Settings.") } }
                         )
                     }
                 )

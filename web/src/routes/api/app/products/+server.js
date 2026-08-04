@@ -229,20 +229,57 @@ export async function PUT({ request, cookies }) {
                 });
             }
 
-            // Sync variants: simple approach, delete old and insert new
-            await tx.delete(productVariants).where(eq(productVariants.productId, id));
-            if (Array.isArray(variants) && variants.length > 0) {
-                for (const v of variants) {
-                    await tx.insert(productVariants).values({
-                        id: v.id || crypto.randomUUID(),
-                        productId: id,
-                        namaVariasi: v.namaVariasi,
-                        sku: v.sku || `${sku || 'SKU'}-${v.namaVariasi.substring(0, 3).toUpperCase()}`,
-                        hargaBeli: String(v.hargaBeli || hargaBeli || 0),
-                        hargaJual: String(v.hargaJual || hargaJual || 0),
-                        stok: v.stok || 0
-                    });
+            // Handle variants update - more intelligent approach
+            if (Array.isArray(variants)) {
+                // Get existing variants
+                const existingVariants = await tx.select()
+                    .from(productVariants)
+                    .where(eq(productVariants.productId, id));
+
+                const existingIds = existingVariants.map(v => v.id);
+                const incomingIds = variants.filter(v => v.id).map(v => v.id);
+
+                // Delete variants that are no longer in the incoming list
+                const toDelete = existingIds.filter(id => !incomingIds.includes(id));
+                if (toDelete.length > 0) {
+                    await tx.delete(productVariants)
+                        .where(and(
+                            eq(productVariants.productId, id),
+                            sql`${productVariants.id} IN (${toDelete.map(id => `'${id}'`).join(',')})`
+                        ));
                 }
+
+                // Insert or update variants
+                for (const v of variants) {
+                    if (v.id && incomingIds.includes(v.id)) {
+                        // Update existing variant
+                        await tx.update(productVariants)
+                            .set({
+                                namaVariasi: v.namaVariasi,
+                                sku: v.sku || `${sku || 'SKU'}-${v.namaVariasi.substring(0, 3).toUpperCase()}`,
+                                hargaBeli: String(v.hargaBeli || hargaBeli || 0),
+                                hargaJual: String(v.hargaJual || hargaJual || 0),
+                                stok: v.stok || 0
+                            })
+                            .where(eq(productVariants.id, v.id));
+                    } else {
+                        // Insert new variant
+                        await tx.insert(productVariants).values({
+                            id: v.id || crypto.randomUUID(),
+                            productId: id,
+                            namaVariasi: v.namaVariasi,
+                            sku: v.sku || `${sku || 'SKU'}-${v.namaVariasi.substring(0, 3).toUpperCase()}`,
+                            hargaBeli: String(v.hargaBeli || hargaBeli || 0),
+                            hargaJual: String(v.hargaJual || hargaJual || 0),
+                            stok: v.stok || 0
+                        });
+                    }
+                }
+
+                // Update product hasVariant flag
+                await tx.update(products)
+                    .set({ hasVariant: variants.length > 0 ? 1 : 0 })
+                    .where(eq(products.id, id));
             }
         });
 

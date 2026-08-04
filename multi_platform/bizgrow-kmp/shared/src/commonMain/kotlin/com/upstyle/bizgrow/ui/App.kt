@@ -110,6 +110,13 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.ClosingPeriod -> ClosingPeriodScreen(viewModel)
                     is Screen.MarketingCampaigns -> MarketingCampaignsScreen(viewModel)
                     is Screen.Pricing       -> PricingScreen(viewModel)
+                    
+                    // New Missing Features
+                    is Screen.SalesTargets  -> SalesTargetsScreen(viewModel)
+                    is Screen.Approvals     -> ApprovalsScreen(viewModel)
+                    is Screen.Katalog       -> KatalogScreen(viewModel)
+                    is Screen.Marketing     -> MarketingScreen(viewModel)
+                    is Screen.Departments   -> DepartmentsScreen(viewModel)
                 }
             }
 

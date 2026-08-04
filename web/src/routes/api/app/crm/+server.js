@@ -41,7 +41,10 @@ export async function GET({ url, cookies, request }) {
             dealValue: Number(d.nilai || 0),
             stage: (d.stage || 'PROSPECT').toUpperCase(),
             phone: d.contact?.telepon || '',
-            unitId: d.unitId
+            unitId: d.unitId,
+            kontakId: d.kontakId || null,
+            status: d.status || 'open',
+            createdAt: d.createdAt || ''
         }));
 
         return json(paginatedResponse(data, total, pagination));

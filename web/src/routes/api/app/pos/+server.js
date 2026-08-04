@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees, posQueue } from '$lib/server/schema';
+import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import crypto from 'crypto';
@@ -30,6 +31,34 @@ export async function GET({ url, cookies, request }) {
                 orderBy: [desc(posShifts.id)]
             });
             return json({ success: true, data: { shifts: shiftsList } });
+        }
+
+        if (action === 'queue') {
+            // Get current queue (orders with queue numbers that are not completed)
+            const queueList = await db.select()
+                .from(posOrders)
+                .where(and(
+                    eq(posOrders.unitId, Number(unitId)),
+                    isNull(posOrders.queueNumber).not(),
+                    sql`${posOrders.fulfillmentStatus} != 'COMPLETED'`
+                ))
+                .orderBy(posOrders.queueNumber);
+
+            return json({ 
+                success: true, 
+                data: { 
+                    queue: queueList.map(q => ({
+                        id: q.id,
+                        orderNumber: q.orderNumber,
+                        queueNumber: q.queueNumber,
+                        fulfillmentStatus: q.fulfillmentStatus,
+                        orderType: q.orderType,
+                        tableNumber: q.tableNumber,
+                        total: Number(q.total || 0),
+                        createdAt: q.createdAt
+                    }))
+                } 
+            });
         }
 
         // Fetch POS orders
@@ -118,6 +147,7 @@ export async function POST({ request, cookies }) {
                     paymentMethod: z.string().default('CASH'),
                     orderType: z.string().default('TAKEAWAY'),
                     tableNumber: z.string().optional(),
+                    queueNumber: z.string().optional(),
                     notes: z.string().optional(),
                     amountPaid: z.coerce.number().optional(),
                     changeAmount: z.coerce.number().optional(),
@@ -171,6 +201,32 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: msg }, { status: 400 });
             }
         }
+
+        if (action === 'verify-pin') {
+            const schema = z.object({
+                action: z.literal('verify-pin'),
+                employeeId: z.coerce.number().int().positive(),
+                pin: z.string().length(4, 'PIN harus 4 digit')
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input PIN tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
+            }
+        }
+
+        if (action === 'update-queue-status') {
+            const schema = z.object({
+                action: z.literal('update-queue-status'),
+                orderId: z.coerce.number().int().positive(),
+                status: z.enum(['PENDING', 'PREPARING', 'READY', 'COMPLETED'])
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) {
+                const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input queue status tidak valid';
+                return json({ success: false, message: msg }, { status: 400 });
+            }
+        }
         // ────────────────────────────────────────────────────────────────────────
 
         if (action === 'create-customer') {
@@ -189,7 +245,7 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, subtotal, total, paymentMethod, items, orderType, tableNumber, notes, amountPaid, changeAmount, voucherCode, payments } = body.order;
+            const { orderNumber, unitId, customerId, subtotal, total, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments } = body.order;
 
             let finalOrderId = null;
             await db.transaction(async (tx) => {
@@ -206,6 +262,8 @@ export async function POST({ request, cookies }) {
                     status: 'PAID',
                     orderType: orderType || 'TAKEAWAY',
                     tableNumber: tableNumber || null,
+                    queueNumber: queueNumber || null,
+                    fulfillmentStatus: queueNumber ? 'PENDING' : 'COMPLETED',
                     notes: notes || null,
                     amountPaid: String(amountPaid !== undefined ? amountPaid : (total || 0)),
                     changeAmount: String(changeAmount || 0),
@@ -362,6 +420,63 @@ export async function POST({ request, cookies }) {
             });
             
             return json({ success: true, message: "Shift berhasil ditutup" });
+        }
+
+        if (action === 'verify-pin') {
+            const { employeeId, pin } = body;
+
+            const employee = await db.query.employees.findFirst({
+                where: eq(employees.id, Number(employeeId))
+            });
+
+            if (!employee) {
+                return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
+            }
+
+            // Verify PIN - assume PIN stored as hash
+            const pinHash = await hashEmployeePassword(pin);
+            const isValidPin = pinHash === employee.pin; // You might need to adjust this based on your PIN storage method
+
+            if (!isValidPin) {
+                return json({ success: false, message: "PIN salah" }, { status: 400 });
+            }
+
+            return json({ 
+                success: true, 
+                message: "PIN benar",
+                employee: {
+                    id: employee.id,
+                    fullName: employee.fullName,
+                    position: employee.position,
+                    role: employee.role
+                }
+            });
+        }
+
+        if (action === 'update-queue-status') {
+            const { orderId, status } = body;
+
+            const order = await db.query.posOrders.findFirst({
+                where: eq(posOrders.id, Number(orderId))
+            });
+
+            if (!order) {
+                return json({ success: false, message: "Order tidak ditemukan" }, { status: 404 });
+            }
+
+            await db.update(posOrders)
+                .set({ fulfillmentStatus: status })
+                .where(eq(posOrders.id, Number(orderId)));
+
+            await db.insert(riwayatAksi).values({
+                userId,
+                unitId: order.unitId,
+                pesan: `Status antrean order ${order.orderNumber} diubah ke ${status}`,
+                kategori: 'POS',
+                tipe: 'info'
+            });
+
+            return json({ success: true, message: `Status order berhasil diubah ke ${status}` });
         }
 
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });
