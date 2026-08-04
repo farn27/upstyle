@@ -82,9 +82,8 @@ class UpstyleApi(private val client: HttpClient) {
         client.delete("api/app/products") { parameter("productId", productId) }.body()
 
     suspend fun getKategoriProduk(unitId: Int): ApiResponse<List<KategoriProduk>> =
-        client.get("api/app/products") {
+        client.get("api/app/products/categories") {
             parameter("unitId", unitId)
-            parameter("action", "categories")
         }.body()
 
     suspend fun getStockLogs(unitId: Int, productId: String? = null): ApiResponse<List<StockLog>> =
@@ -153,8 +152,7 @@ class UpstyleApi(private val client: HttpClient) {
         client.post("api/app/hr") { setBody(req) }.body()
 
     suspend fun getSlipGaji(employeeId: Int, periodMonth: Int, periodYear: Int): ApiResponse<Map<String, Any>> =
-        client.get("api/slip-gaji") {
-            parameter("employeeId", employeeId)
+        client.get("api/slip-gaji/$employeeId") {
             parameter("periodMonth", periodMonth)
             parameter("periodYear", periodYear)
         }.body()
@@ -414,13 +412,12 @@ class UpstyleApi(private val client: HttpClient) {
     // ─── POS Returns ──────────────────────────────────────────────────────────
 
     suspend fun getPosReturns(unitId: Int): ApiResponse<List<PosReturn>> =
-        client.get("api/app/pos") {
+        client.get("api/app/pos/returns") {
             parameter("unitId", unitId)
-            parameter("action", "returns")
         }.body()
 
     suspend fun createReturn(req: CreateReturnRequest): ApiResponse<Unit> =
-        client.post("api/app/pos") { setBody(req) }.body()
+        client.post("api/app/pos/returns") { setBody(req) }.body()
 
     // ─── Fixed Assets ─────────────────────────────────────────────────────────
 
