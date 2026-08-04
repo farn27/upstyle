@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +34,7 @@ fun ShopeeIntegrationScreen(viewModel: AppViewModel) {
                 )
             )
         },
-        bottomBar = { BottomNavBar(viewModel, AppViewModel.Screen.ShopeeIntegrationScreen) }
+        bottomBar = { BottomNavBar(viewModel, Screen.ShopeeIntegrationScreen) }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (state.isLoading) {

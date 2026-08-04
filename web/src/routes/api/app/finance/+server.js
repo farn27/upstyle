@@ -16,6 +16,10 @@ const createTransactionSchema = z.object({
         nominal: z.coerce.number().positive('Nominal harus lebih dari 0'),
         keterangan: z.string().min(1).max(500),
         metodeBayar: z.string().optional().default('KAS'),
+        abcCategoryId: z.coerce.number().int().nullable().optional(),
+        productId: z.string().optional(),
+        qty: z.coerce.number().int().positive().optional().default(1),
+        hppTotal: z.coerce.number().min(0).optional().default(0),
     })
 });
 
@@ -54,7 +58,12 @@ export async function GET({ url, cookies, request }) {
             kategoriTrx: t.kategoriTrx,
             nominal: Number(t.nominal || 0),
             tanggal: t.tanggal ? new Date(t.tanggal).getTime() : Date.now(),
-            keterangan: t.keterangan || ''
+            keterangan: t.keterangan || '',
+            metodeBayar: t.metodeBayar || 'KAS',
+            abcCategoryId: t.abcCategoryId || null,
+            productId: t.productId || '',
+            qty: Number(t.qty || 1),
+            hppTotal: Number(t.hppTotal || 0)
         }));
 
         // Map audit logs to mobile DTO
@@ -132,7 +141,7 @@ export async function POST({ request, cookies }) {
             return json({ success: false, message: msg }, { status: 422 });
         }
 
-        const { unitId, kategoriTrx, nominal, keterangan, metodeBayar } = parsed.data.transaction;
+        const { unitId, kategoriTrx, nominal, keterangan, metodeBayar, abcCategoryId, productId, qty, hppTotal } = parsed.data.transaction;
 
         await db.transaction(async (tx) => {
             // Insert transaction
@@ -143,7 +152,12 @@ export async function POST({ request, cookies }) {
                 nominal: String(nominal),
                 totalHarga: String(nominal),
                 keterangan: keterangan || '',
-                tanggal: nowWIB()
+                tanggal: nowWIB(),
+                metodeBayar: metodeBayar || 'KAS',
+                abcCategoryId: abcCategoryId || null,
+                productId: productId || null,
+                qty: Number(qty || 1),
+                hppTotal: String(hppTotal || 0)
             });
 
             await tx.insert(riwayatAksi).values({

@@ -8,7 +8,6 @@ import { parsePagination, applyPagination, paginatedResponse } from '$lib/server
 import { encryptField, decryptField } from '$lib/server/encryption';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
-import crypto from 'crypto';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -103,17 +102,34 @@ export async function GET({ url, cookies, request }) {
                 .where(inArray(salaryComponents.employeeId, employeeIds));
         }
 
+        // Get employee names for requesters
+        const employeeNames = Object.fromEntries(
+            await db.select({ id: employees.id, fullName: employees.fullName })
+                .from(employees)
+                .where(inArray(employees.id, approvalRequestsList.map(a => Number(a.requesterId)).filter(Boolean)))
+                .then(rows => rows.map(r => [r.id, r.fullName]))
+        );
+
         // Map to mobile schema
         const mappedEmployees = employeeList.map(e => ({
             id: e.id,
             fullName: e.fullName || '',
             position: e.position || '',
             salary: Number(e.salary || 0),
-            pin: decryptField(e.pin || '', true), // Decrypt PIN
+            pin: decryptField(e.pin || '', true),
             role: e.role || 'staff',
             unitId: e.companyId,
-            // Don't expose sensitive fields in API response
-            // taxId, bankAccountNumber, etc are excluded for security
+            email: e.email || '',
+            phone: e.phone || '',
+            joinDate: e.joinDate || '',
+            address: e.address || '',
+            employmentStatus: e.employmentStatus || 'active',
+            placementLocation: e.placementLocation || '',
+            idNumber: e.idNumber || '',
+            emergencyContact: e.emergencyContact || '',
+            emergencyRelation: e.emergencyRelation || '',
+            bloodType: e.bloodType || '',
+            employeeIdCard: e.employeeIdCard || ''
         }));
 
         const mappedAttendance = attendanceList.map(a => {
@@ -139,22 +155,13 @@ export async function GET({ url, cookies, request }) {
             id: p.id,
             employeeId: p.employeeId,
             monthYear: formatMonthYear(p.periodMonth, p.periodYear),
+            periodMonth: p.periodMonth,
+            periodYear: p.periodYear,
             salary: Number(p.basicSalary || 0),
             allowance: Number(p.allowances || 0),
             deduction: Number(p.deductions || 0),
             netSalary: Number(p.netSalary || 0),
             status: p.paymentStatus === 'paid' ? "DIBAYAR" : "PENDING"
-        }));
-
-        const mappedApprovals = approvalRequestsList.map(a => ({
-            id: a.id,
-            module: a.module,
-            referenceId: a.referenceId,
-            requesterId: a.requesterId,
-            actionType: a.actionType,
-            status: a.status,
-            note: a.note || '',
-            createdAt: a.createdAt || ''
         }));
 
         const mappedShifts = shiftsList.map(s => ({
@@ -178,7 +185,6 @@ export async function GET({ url, cookies, request }) {
                 employees: mappedEmployees,
                 attendance: mappedAttendance,
                 payroll: mappedPayroll,
-                approvalRequests: mappedApprovals,
                 shifts: mappedShifts,
                 salaryComponents: mappedSalaryComponents
             },
@@ -263,6 +269,8 @@ export async function POST({ request, cookies }) {
                 payroll: z.object({
                     employeeId: z.coerce.number().int().positive(),
                     monthYear: z.string().min(1),
+                    periodMonth: z.coerce.number().int().min(1).max(12),
+                    periodYear: z.coerce.number().int().positive(),
                     salary: z.coerce.number().min(0),
                     allowance: z.coerce.number().min(0).default(0),
                     deduction: z.coerce.number().min(0).default(0),
@@ -357,14 +365,14 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'process-payroll') {
-            const { employeeId, monthYear, salary, allowance, deduction, netSalary, unitId } = body.payroll;
+            const { employeeId, monthYear, periodMonth, periodYear, salary, allowance, deduction, netSalary, unitId } = body.payroll;
             const { month, year } = parseMonthYear(monthYear);
 
             await db.transaction(async (tx) => {
                 await tx.insert(payrolls).values({
                     employeeId: Number(employeeId),
-                    periodMonth: month,
-                    periodYear: year,
+                    periodMonth: Number(periodMonth || month),
+                    periodYear: Number(periodYear || year),
                     basicSalary: String(salary),
                     allowances: String(allowance),
                     deductions: String(deduction),

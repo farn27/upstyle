@@ -83,7 +83,15 @@ export async function GET({ url, cookies, request }) {
             total: Number(o.total || 0),
             paymentMethod: o.paymentMethod || 'CASH',
             status: o.status || 'COMPLETED',
-            tanggal: o.createdAt ? new Date(o.createdAt).getTime() : Date.now()
+            tanggal: o.createdAt ? new Date(o.createdAt).getTime() : Date.now(),
+            orderType: o.orderType || 'TAKEAWAY',
+            tableNumber: o.tableNumber || '',
+            queueNumber: o.queueNumber || '',
+            fulfillmentStatus: o.fulfillmentStatus || 'COMPLETED',
+            notes: o.notes || '',
+            amountPaid: Number(o.amountPaid || 0),
+            changeAmount: Number(o.changeAmount || 0),
+            voucherCode: o.voucherCode || ''
         }));
 
         const mappedCustomers = customersList.map(c => ({

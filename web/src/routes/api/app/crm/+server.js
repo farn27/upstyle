@@ -44,7 +44,17 @@ export async function GET({ url, cookies, request }) {
             unitId: d.unitId,
             kontakId: d.kontakId || null,
             status: d.status || 'open',
-            createdAt: d.createdAt || ''
+            createdAt: d.createdAt || '',
+            contact: d.contact ? {
+                id: d.contact.id,
+                nama: d.contact.nama || '',
+                telepon: d.contact.telepon || '',
+                email: d.contact.email || '',
+                perusahaan: d.contact.perusahaan || '',
+                stage: d.contact.stage || 'lead',
+                alamat: d.contact.alamat || '',
+                catatan: d.contact.catatan || ''
+            } : null
         }));
 
         return json(paginatedResponse(data, total, pagination));

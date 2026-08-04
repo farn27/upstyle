@@ -153,8 +153,8 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
             }
 
             // Global error snackbar
-            uiState.error?.let { error ->
-                LaunchedEffect(error) {
+            uiState.error?.let { errorMsg ->
+                LaunchedEffect(errorMsg) {
                     kotlinx.coroutines.delay(3500)
                     viewModel.clearMessages()
                 }

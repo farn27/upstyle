@@ -5,6 +5,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import crypto from 'crypto';
+import { json } from '@sveltejs/kit';
 
 // 1. GET: Ambil suppliers dan purchase orders untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -74,13 +75,22 @@ export async function GET({ url, cookies, request }) {
             };
         });
 
-        return json({
-            success: true,
-            data: {
-                suppliers: mappedSuppliers,
-                purchaseOrders: mappedPos
-            }
-        });
+        const data = {
+            suppliers: mappedSuppliers,
+            purchaseOrders: mappedPos.map(po => ({
+                ...po,
+                expectedDate: po.expectedDate ? new Date(po.expectedDate).getTime() : null,
+                createdAt: po.date,
+                items: (po.items || []).map(it => ({
+                    productId: it.productId,
+                    qtyOrdered: Number(it.qtyOrdered || 0),
+                    unitPrice: Number(it.unitPrice || 0),
+                    totalPrice: Number(it.totalPrice || 0)
+                }))
+            }))
+        };
+
+        return json({ success: true, data });
 
     } catch (err) {
         log.scm.error({ err }, 'API GET SCM ERROR');
@@ -225,7 +235,7 @@ export async function PUT({ request, cookies }) {
                     stokAwal: currentStock,
                     perubahan: addQty,
                     stokAkhir: newStock,
-                    alasan: 'RESTOCK',
+                    alasan: 'MASUK',
                     keterangan: `Stok bertambah via penerimaan PO ${po.poNumber}`
                 });
 

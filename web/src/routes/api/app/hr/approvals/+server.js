@@ -59,20 +59,26 @@ export async function GET({ url, cookies, request }) {
             id: a.id,
             module: a.module,
             referenceId: a.referenceId,
-            requesterId: a.requesterId,
+            requesterId: Number(a.requesterId || 0),
             requesterName: employeeNames[a.requesterId] || 'Unknown',
             actionType: a.actionType,
             dataBefore: a.dataBefore || {},
             dataAfter: a.dataAfter || {},
-            currentLevel: a.currentLevel,
-            maxLevel: a.maxLevel,
+            currentLevel: a.currentLevel ?? 0,
+            maxLevel: a.maxLevel ?? 0,
             status: a.status,
             note: a.note || '',
             createdAt: a.createdAt || '',
             updatedAt: a.updatedAt || ''
         }));
 
-        return json({ success: true, approvals: data });
+        const grouped = {
+            pending: data.filter(x => x.status === 'PENDING'),
+            approved: data.filter(x => x.status === 'APPROVED'),
+            rejected: data.filter(x => x.status === 'REJECTED')
+        };
+
+        return json({ success: true, approvals: grouped });
 
     } catch (err) {
         log.api.error({ err }, 'GET hr/approvals error');

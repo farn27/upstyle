@@ -32,7 +32,9 @@ export async function GET({ url, cookies, request }) {
             customerName: t.customer?.nama || 'Customer',
             assignedTo: t.assignedTo,
             createdAt: t.createdAt || '',
-            lastMessage: null
+            updatedAt: t.updatedAt || '',
+            lastMessage: t.lastMessage,
+            lastMessageAt: t.lastMessageAt
         }));
 
         return json({ success: true, data });

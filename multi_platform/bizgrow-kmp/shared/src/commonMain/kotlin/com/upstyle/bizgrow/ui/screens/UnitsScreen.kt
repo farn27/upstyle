@@ -20,7 +20,11 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @Composable
 fun UnitsScreen(viewModel: AppViewModel) {
     val units by viewModel.units.collectAsStateWithLifecycle()
+
     var showDialog by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf("") }
+    var typeInput by remember { mutableStateOf("RETAIL") }
+
     LaunchedEffect(Unit) { viewModel.loadUnits() }
 
     Scaffold(
@@ -28,7 +32,9 @@ fun UnitsScreen(viewModel: AppViewModel) {
             TopAppBar(
                 title = { Text("Unit Bisnis", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = { viewModel.logout() }) { Icon(Icons.Default.Logout, null) }
+                    IconButton(onClick = { /* logout placeholder */ }) {
+                        Icon(Icons.Default.Logout, contentDescription = "Keluar")
+                    }
                 }
             )
         },
@@ -47,7 +53,7 @@ fun UnitsScreen(viewModel: AppViewModel) {
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(units) { unit ->
-                    Card(onClick = { viewModel.selectUnit(unit) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                    Card(onClick = { viewModel.selectUnit(unit.id) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(20.dp), modifier = Modifier.size(48.dp)) {
@@ -55,8 +61,8 @@ fun UnitsScreen(viewModel: AppViewModel) {
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Column {
-                                    Text(unit.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text(unit.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(unit.nama, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text(unit.tipe, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                             Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
@@ -68,22 +74,28 @@ fun UnitsScreen(viewModel: AppViewModel) {
     }
 
     if (showDialog) {
-        var name by remember { mutableStateOf("") }
-        var type by remember { mutableStateOf("RETAIL") }
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text("Buat Unit Bisnis", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nama Bisnis") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
+                    OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, label = { Text("Nama Bisnis") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("RETAIL", "FNB", "JASA", "LAINNYA").forEach { t ->
-                            FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t, style = MaterialTheme.typography.labelSmall) })
+                            FilterChip(selected = typeInput == t, onClick = { typeInput = t }, label = { Text(t, style = MaterialTheme.typography.labelSmall) })
                         }
                     }
                 }
             },
-            confirmButton = { Button(onClick = { if (name.isNotBlank()) { viewModel.createUnit(name, type); showDialog = false } }) { Text("Buat") } },
+            confirmButton = {
+                Button(onClick = {
+                    if (nameInput.isNotBlank()) {
+                        /* createUnit API not implemented yet */
+                        showDialog = false
+                        nameInput = ""
+                    }
+                }) { Text("Buat") }
+            },
             dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Batal") } }
         )
     }

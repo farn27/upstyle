@@ -63,7 +63,7 @@ class SessionRepository(private val settings: Settings) {
     fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
     fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
 
-    // ─── Phase 3: Offline-First Caching ──────────────────────────────────────
+    // ─── Legacy Offline Caching (for backward compatibility) ─────────────────
     private val KEY_OFFLINE_PRODUCTS = "offline_products"
     private val KEY_OFFLINE_CUSTOMERS = "offline_customers"
     private val KEY_PENDING_TX = "pending_transactions"
@@ -76,4 +76,33 @@ class SessionRepository(private val settings: Settings) {
 
     fun savePendingTransactions(jsonString: String) = settings.putString(KEY_PENDING_TX, jsonString)
     fun getPendingTransactions(): String? = settings.getStringOrNull(KEY_PENDING_TX)
+
+    // ─── Task 10: Generic Cache Storage (new cache system) ───────────────────
+    fun saveToCache(key: String, value: String) = settings.putString("cache_$key", value)
+    fun loadFromCache(key: String): String? = settings.getStringOrNull("cache_$key")
+    fun clearCache(key: String) = settings.remove("cache_$key")
+    
+    fun clearAllCache() {
+        // Clear all keys starting with "cache_"
+        // Note: multiplatform-settings doesn't have a way to list all keys,
+        // so we'll clear known cache keys patterns
+        val cacheKeyPatterns = listOf(
+            "cache_units", "cache_dashboard_", "cache_products_", "cache_hr_",
+            "cache_crm_deals_", "cache_crm_contacts_", "cache_finance_", 
+            "cache_orders_", "cache_tickets_", "cache_marketing_", "cache_scm_"
+        )
+        
+        // This is a simplified approach - in production you might want to 
+        // maintain a registry of cache keys
+        for (i in 1..100) { // Clear unit-specific caches up to unit ID 100
+            cacheKeyPatterns.forEach { pattern ->
+                if (pattern.endsWith("_")) {
+                    clearCache("${pattern}$i")
+                }
+            }
+        }
+        
+        // Clear non-unit specific
+        clearCache("units")
+    }
 }

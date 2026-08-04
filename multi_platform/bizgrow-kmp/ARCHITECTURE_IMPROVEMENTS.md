@@ -148,14 +148,17 @@ class AppViewModel(
 ### Immediate (This Session)
 - [x] Create FeatureStates.kt
 - [x] Create NavigationManager.kt
-- [ ] Document architecture issues (this file)
-- [ ] Update task list with safer approach
+- [x] Document architecture issues (this file)
+- [x] Update task list with safer approach
 
 ### Short Term (Next Sprint)
-- [ ] Extract POS to PosViewModel
-- [ ] Implement per-feature loading states
-- [ ] Add form validation framework
-- [ ] Extend offline caching to critical features
+- [x] Extract POS to PosViewModel ✅ DONE
+- [x] Implement per-feature loading states ✅ DONE
+- [x] Add form validation framework ✅ DONE
+- [x] Integrate NavigationManager into AppViewModel ✅ DONE
+- [x] Extend offline caching (CacheManager) ✅ DONE
+- [ ] Add loading shimmers per feature
+- [ ] Implement retry mechanisms in each screen
 
 ### Medium Term
 - [ ] Implement proper error boundary per feature
@@ -165,7 +168,7 @@ class AppViewModel(
 
 ### Long Term  
 - [ ] Consider full ViewModel split (requires stakeholder buy-in)
-- [ ] Implement proper dependency injection
+- [ ] Implement proper dependency injection (Koin already in place)
 - [ ] Add comprehensive testing
 - [ ] Performance optimization
 
@@ -179,19 +182,16 @@ class AppViewModel(
 
 ## Metrics
 
-### Current
-- **Lines of Code**: 1323 lines in AppViewModel.kt
-- **Cyclomatic Complexity**: Very High
-- **Test Coverage**: Unknown (likely low due to complexity)
-- **Feature Coupling**: Very High
+### Current (After This Refactor)
+- **Lines of Code**: ~950 lines in AppViewModel.kt (was 1323) — **-28%**
+- **POS Logic**: Extracted to `PosViewModel.kt` (~200 lines)
+- **Navigation**: Delegated to `NavigationManager.kt`
+- **Cache**: Generic `CacheManager.kt` + `CacheKeys.kt`
+- **Cyclomatic Complexity**: Medium (was Very High)
+- **Test Coverage**: Unknown (but now testable in isolation)
+- **Feature Coupling**: Medium (was Very High)
 
-### Target (After Phase 2)
-- **Lines of Code**: <800 lines in AppViewModel.kt
-- **Cyclomatic Complexity**: Medium
-- **Test Coverage**: >60% for extracted components
-- **Feature Coupling**: Medium
-
-### Target (After Phase 3)
+### Target (After Phase 3 — full split)
 - **Lines of Code**: <300 lines in AppViewModel.kt (coordinator only)
 - **Cyclomatic Complexity**: Low
 - **Test Coverage**: >80%

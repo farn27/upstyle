@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.BizCard
 import com.upstyle.bizgrow.ui.components.EmptyState
 import com.upstyle.bizgrow.ui.components.ErrorState
@@ -94,8 +95,8 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
 
     LaunchedEffect(Unit) { viewModel.loadWebsiteSettings() }
 
-    LaunchedEffect(state.settings) {
-        state.settings?.let { s ->
+    LaunchedEffect(state.value.settings) {
+        state.value.settings?.let { s ->
             slug = s.domainSlug
             theme = s.theme
             primaryColor = s.colorPrimary
@@ -159,7 +160,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                 Icon(Icons.Default.Check, contentDescription = "Simpan")
             }
         },
-        bottomBar = { BottomNavBar(viewModel, AppViewModel.Screen.WebsiteBuilder) }
+        bottomBar = { BottomNavBar(viewModel, Screen.WebsiteBuilder) }
     ) { paddingValues ->
         if (state.isLoading && state.settings == null) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {

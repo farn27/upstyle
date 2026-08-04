@@ -26,8 +26,6 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @Composable
 fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
     val messages by viewModel.ticketMessages.collectAsStateWithLifecycle()
-    val tickets by viewModel.tickets.collectAsStateWithLifecycle()
-    val ticket = tickets.firstOrNull { it.id == ticketId }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var replyText by remember { mutableStateOf("") }
@@ -45,9 +43,6 @@ fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
                 title = {
                     Column {
                         Text("Tiket #$ticketId", fontWeight = FontWeight.Bold)
-                        ticket?.let {
-                            Text(it.subject, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                        }
                     }
                 },
                 navigationIcon = {
@@ -61,13 +56,11 @@ fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
                             onClick = { showStatusMenu = true },
                             modifier = Modifier.padding(end = 8.dp)
                         ) {
-                            val statusColor = when (ticket?.status) {
-                                "Open" -> Color(0xFF1565C0)
-                                "In Progress" -> Color(0xFFEF6C00)
-                                "Resolved" -> Color(0xFF2E7D32)
+                            val statusColor = when {
+                                messages.any { it.senderType == "agent" } -> Color(0xFF2E7D32)
                                 else -> Color.Gray
                             }
-                            Text(ticket?.status ?: "Status", color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Pesan", color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Icon(Icons.Default.ArrowDropDown, null, tint = statusColor)
                         }
                         DropdownMenu(expanded = showStatusMenu, onDismissRequest = { showStatusMenu = false }) {
@@ -130,38 +123,6 @@ fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            // Ticket info card
-            ticket?.let { t ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Pelanggan", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(t.customerName, fontWeight = FontWeight.SemiBold)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Prioritas", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val pColor = when (t.priority.lowercase()) {
-                                "high" -> Color(0xFFC62828)
-                                "medium" -> Color(0xFFEF6C00)
-                                else -> Color(0xFF2E7D32)
-                            }
-                            Text(t.priority.uppercase(), color = pColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Dibuat", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(t.createdAt.take(10), fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-
             if (uiState.isLoading && messages.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else if (messages.isEmpty()) {

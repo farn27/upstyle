@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -214,6 +216,52 @@ fun EmptyState(
         if (actionLabel != null && onAction != null) {
             Spacer(modifier = Modifier.height(20.dp))
             Button(onClick = onAction, shape = RoundedCornerShape(20.dp)) { Text(actionLabel) }
+        }
+    }
+}
+
+// ─── Error State (Task 7: per-feature error handling) ────────────────────────
+@Composable
+fun ErrorState(
+    message: String,
+    onRetry: () -> Unit,
+    icon: ImageVector = Icons.Default.ErrorOutline,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, null, modifier = Modifier.size(64.dp), tint = BizgrowColors.Danger)
+        Spacer(Modifier.height(16.dp))
+        Text("Terjadi Kesalahan", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        Text(message, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(20.dp))
+        Button(onClick = onRetry) {
+            Icon(Icons.Default.Refresh, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Coba Lagi")
+        }
+    }
+}
+
+// ─── Loading Shimmer (Task 7: per-feature loading states) ────────────────────
+@Composable
+fun LoadingShimmer(modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(16.dp), 
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(5) {
+            BizCard {
+                ShimmerBox(Modifier.fillMaxWidth().height(20.dp))
+                Spacer(Modifier.height(8.dp))
+                ShimmerBox(Modifier.fillMaxWidth(0.6f).height(14.dp))
+                Spacer(Modifier.height(4.dp))
+                ShimmerBox(Modifier.fillMaxWidth(0.4f).height(12.dp))
+            }
         }
     }
 }

@@ -42,7 +42,16 @@ export async function GET({ cookies, request }) {
             email: u.email || '',
             modalAwal: Number(u.modalAwal || 0),
             isCabang: u.isCabang || 0,
-            posFeatureOverride: u.posFeatureOverride || null
+            posFeatureOverride: u.posFeatureOverride || null,
+            loginSlug: u.loginSlug || '',
+            settings: {
+                alamat: u.alamat || '',
+                telepon: u.telepon || '',
+                email: u.email || '',
+                modalAwal: Number(u.modalAwal || 0),
+                isCabang: u.isCabang || 0,
+                posFeatureOverride: u.posFeatureOverride || null
+            }
         }));
 
         return json(paginatedResponse(data, total, pagination));

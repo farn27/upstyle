@@ -85,7 +85,7 @@ fun DepartmentsScreen(viewModel: AppViewModel) {
     }
 
     uiState.error?.let { error ->
-        LaunchedEffect(error) {
+        LaunchedEffect(errorMsg) {
             // Show error snackbar or toast
         }
     }
@@ -111,15 +111,12 @@ fun DepartmentCard(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(department.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    if (department.description.isNotEmpty()) {
-                        Text(department.description, fontSize = 12.sp, color = BizgrowColors.Gray500)
-                    }
-                    if (department.manager.isNotEmpty()) {
+                    if (department.employeeCount > 0) {
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Person, null, modifier = Modifier.size(14.dp), tint = BizgrowColors.Gray400)
+                            Icon(Icons.Default.People, null, modifier = Modifier.size(14.dp), tint = BizgrowColors.Gray400)
                             Spacer(Modifier.width(4.dp))
-                            Text("Manager: ${department.manager}", fontSize = 11.sp, color = BizgrowColors.Gray600)
+                            Text("Karyawan: ${department.employeeCount}", fontSize = 11.sp, color = BizgrowColors.Gray600)
                         }
                     }
                 }

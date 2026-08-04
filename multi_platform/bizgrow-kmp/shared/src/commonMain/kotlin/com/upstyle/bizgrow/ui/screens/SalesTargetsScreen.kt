@@ -54,8 +54,8 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
             // Summary Cards
             salesTargetData?.summary?.let { summary ->
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Target Total", formatCurrency(summary.totalTarget), icon = Icons.Default.Flag, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
-                    StatCard("Realisasi", formatCurrency(summary.totalActual), icon = Icons.Default.TrendingUp, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
+                    StatCard("Target Total", "Rp ${"%,.0f".format(summary.totalTarget)}", icon = Icons.Default.Flag, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
+                    StatCard("Realisasi", "Rp ${"%,.0f".format(summary.totalActual)}", icon = Icons.Default.TrendingUp, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
                 }
             }
 
@@ -69,7 +69,7 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(salesTargetData?.targets ?: emptyList(), key = { it.id }) { target ->
-                        SalesTargetCard(target = target, onDelete = { viewModel.deleteSalesTarget(it) })
+                        SalesTargetCard(target = target, onDelete = { viewModel.deleteSalesTarget(target.id) })
                     }
                 }
             }
@@ -106,11 +106,11 @@ fun SalesTargetCard(target: SalesTarget, onDelete: (Int) -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column {
                         Text("Target", fontSize = 11.sp, color = BizgrowColors.Gray500)
-                        Text(target.targetAmount.toRupiah(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Rp ${"%,.0f".format(target.targetAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
                         Text("Realisasi", fontSize = 11.sp, color = BizgrowColors.Gray500)
-                        Text(target.actualAmount.toRupiah(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                            Text("Rp ${"%,.0f".format(target.actualAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor)
                     }
                 }
             }
@@ -191,4 +191,4 @@ fun CreateTargetDialog(
     )
 }
 
-fun formatCurrency(amount: Double): String = "Rp ${"%,.0f".format(amount)}"
+

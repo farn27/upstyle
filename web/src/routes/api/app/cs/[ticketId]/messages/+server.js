@@ -24,6 +24,7 @@ export async function GET({ params, cookies, request }) {
             ticketId: m.ticketId,
             senderId: m.senderId,
             senderType: m.senderType === 'STAFF' ? 'agent' : 'customer',
+            senderName: m.senderName,
             message: m.message,
             createdAt: m.createdAt || ''
         }));

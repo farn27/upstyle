@@ -138,10 +138,10 @@ fun EmployeeTab(
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(emp.fullName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${emp.position} · ${emp.division ?: emp.role}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${emp.position} · ${emp.placementLocation ?: emp.role}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(emp.salary.toRupiah(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
-                    StatusBadge(emp.status)
+                    StatusBadge(emp.employmentStatus ?: "-")
                 }
                 if (expandedId == emp.id) {
                     Spacer(modifier = Modifier.height(12.dp))
