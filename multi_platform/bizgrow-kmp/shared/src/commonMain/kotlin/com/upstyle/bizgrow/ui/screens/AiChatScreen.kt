@@ -388,7 +388,7 @@ fun WaReportTab(viewModel: AppViewModel) {
 
 @Composable
 fun UnitPickerDialog(
-    units: List<com.upstyle.bizgrow.data.Unit>,
+    units: List<BusinessUnit>,
     selectedId: Int,
     onDismiss: () -> Unit,
     onSelect: (Int) -> Unit

@@ -95,8 +95,8 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
 
     LaunchedEffect(Unit) { viewModel.loadWebsiteSettings() }
 
-    LaunchedEffect(state.value.settings) {
-        state.value.settings?.let { s ->
+    LaunchedEffect(state.settings) {
+        state.settings?.let { s ->
             slug = s.domainSlug
             theme = s.theme
             primaryColor = s.colorPrimary
