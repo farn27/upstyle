@@ -566,7 +566,15 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.processPayroll(ProcessPayrollRequest(
-                payroll = ProcessPayrollBody(employeeId, monthYear, salary, allowance, deduction, netSalary, unitId)
+                payroll = ProcessPayrollBody(
+                    employeeId = employeeId,
+                    monthYear = monthYear,
+                    salary = salary,
+                    allowance = allowance,
+                    deduction = deduction,
+                    netSalary = netSalary,
+                    unitId = unitId
+                )
             ))
             if (res.success) { loadHrData(); setSuccess("Payroll berhasil diproses!") }
             else setError(res.message ?: "Gagal proses payroll")
@@ -603,6 +611,12 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     
+    fun clearCart() {
+        _cart.value = emptyMap()
+        _posDiskon.value = 0.0
+        _selectedCustomerId.value = null
+    }
+
     fun addToCart(product: com.upstyle.bizgrow.data.Product, quantity: Int = 1) {
         val current = _cart.value.toMutableMap()
         current[product] = (current[product] ?: 0) + quantity
@@ -1552,7 +1566,7 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.applyBusinessPlan(id, unitId)
-            if (res["success"] == true) { loadBusinessPlans(); setSuccess("Business plan berhasil diterapkan!") }
+            if (res["success"] as? Boolean == true) { loadBusinessPlans(); setSuccess("Business plan berhasil diterapkan!") }
             else setError("Gagal menerapkan business plan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
