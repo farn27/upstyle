@@ -319,6 +319,15 @@ class AppViewModel(
             } else setError(res.message ?: "Gagal hapus bisnis")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+
+    fun updateUnitSettings(unitId: Int, req: com.upstyle.bizgrow.data.UpdateUnitSettingsRequest) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updateUnitSettings(unitId, req)
+            if (res.success) { loadUnits(); setSuccess("Pengaturan bisnis berhasil disimpan!") }
+            else setError(res.message ?: "Gagal simpan pengaturan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     fun deleteEmployee(employeeId: Int) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
