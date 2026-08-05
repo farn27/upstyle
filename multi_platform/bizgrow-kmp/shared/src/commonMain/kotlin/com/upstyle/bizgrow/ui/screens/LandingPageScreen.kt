@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.LandingPage
 import com.upstyle.bizgrow.data.LandingPageTemplate
+import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,7 +48,7 @@ fun LandingPageScreen(viewModel: AppViewModel) {
                 }
             )
         },
-        bottomBar = { BottomNavBar(viewModel, AppViewModel.Screen.LandingPageScreen) },
+        bottomBar = { BottomNavBar(viewModel, Screen.LandingPageScreen) },
         floatingActionButton = {
             FloatingActionButton(onClick = { editingPage = null; showForm = true }) {
                 Icon(Icons.Default.Add, "Create Landing Page")

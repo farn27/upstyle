@@ -160,7 +160,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clickable { viewModel.selectUnit(unit) },
+                        .clickable { viewModel.selectUnit(unit.id) },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface

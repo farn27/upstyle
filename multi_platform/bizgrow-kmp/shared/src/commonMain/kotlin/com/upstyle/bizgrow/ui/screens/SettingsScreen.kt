@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,7 +26,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @Composable
 fun SettingsScreen(viewModel: AppViewModel) {
     val activeUnit by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
-    val session = viewModel.getSession()
+    val session = viewModel.session
 
     var serverUrl by remember { mutableStateOf(session.getServerUrl()) }
     var showServerDialog by remember { mutableStateOf(false) }
@@ -51,7 +51,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     if (activeUnit != null) {
                         InfoRow("Nama", activeUnit!!.name, Icons.Default.Business)
                         InfoRow("Tipe", activeUnit!!.type.uppercase(), Icons.Default.Category)
-                        if (activeUnit!!.alamat != null) InfoRow("Alamat", activeUnit!!.alamat!!, Icons.Default.LocationOn)
+                        // if (activeUnit!!.alamat != null) InfoRow("Alamat", activeUnit!!.alamat!!, Icons.Default.LocationOn)
                     } else {
                         Text("Tidak ada unit aktif", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -76,7 +76,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Tips: Emulator Android → http://10.0.2.2:5173 | Perangkat fisik → gunakan IP LAN komputer | USB Debugging → jalankan: adb reverse tcp:5173 tcp:5173 lalu gunakan http://localhost:5173",
+                        "Tips: Emulator Android â†’ http://10.0.2.2:5173 | Perangkat fisik â†’ gunakan IP LAN komputer | USB Debugging â†’ jalankan: adb reverse tcp:5173 tcp:5173 lalu gunakan http://localhost:5173",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

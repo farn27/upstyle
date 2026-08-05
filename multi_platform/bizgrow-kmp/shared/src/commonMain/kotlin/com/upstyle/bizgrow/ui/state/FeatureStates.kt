@@ -7,7 +7,7 @@ import com.upstyle.bizgrow.data.*
  * This prevents one feature's loading state from blocking the entire UI.
  */
 
-// ─── Auth State ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Auth State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class AuthState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -16,7 +16,7 @@ data class AuthState(
     val currentUser: UserInfo? = null
 )
 
-// ─── Units State ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Units State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class UnitsState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -25,14 +25,14 @@ data class UnitsState(
     val activeUnit: BusinessUnit? = null
 )
 
-// ─── Dashboard/Finance State ─────────────────────────────────────────────────
+// â”€â”€â”€ Dashboard/Finance State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class DashboardState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val financeData: FinanceData? = null
 )
 
-// ─── Products State ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Products State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class ProductsState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -41,7 +41,7 @@ data class ProductsState(
     val kategoriProduk: List<KategoriProduk> = emptyList()
 )
 
-// ─── POS State ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ POS State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class PosState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -61,14 +61,14 @@ data class PosState(
         get() = cartTotal - diskon
 }
 
-// ─── HR State ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ HR State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class HrState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val hrData: HrData? = null
 )
 
-// ─── CRM State ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ CRM State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class CrmState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -77,14 +77,14 @@ data class CrmState(
     val activities: List<CrmActivity> = emptyList()
 )
 
-// ─── SCM State ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ SCM State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class ScmState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val scmData: ScmData? = null
 )
 
-// ─── Finance AR/AP State ──────────────────────────────────────────────────────
+// â”€â”€â”€ Finance AR/AP State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class FinanceArApState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -93,7 +93,7 @@ data class FinanceArApState(
     val accountingContacts: List<AccountingContact> = emptyList()
 )
 
-// ─── CS State ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ CS State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class CsState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -101,7 +101,7 @@ data class CsState(
     val ticketDetail: SupportTicket? = null
 )
 
-// ─── Orders State ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Orders State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class OrdersState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -109,7 +109,7 @@ data class OrdersState(
     val orderDetail: EcommerceOrder? = null
 )
 
-// ─── Marketing State ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Marketing State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class MarketingState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -117,63 +117,63 @@ data class MarketingState(
     val campaigns: List<MarketingCampaign> = emptyList()
 )
 
-// ─── Sales Targets State ──────────────────────────────────────────────────────
+// â”€â”€â”€ Sales Targets State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class SalesTargetsState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val targets: List<SalesTarget> = emptyList()
 )
 
-// ─── Approvals State ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Approvals State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class ApprovalsState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val requests: List<ApprovalRequest> = emptyList()
 )
 
-// ─── Katalog State ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Katalog State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class KatalogState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val products: List<KatalogProduct> = emptyList()
 )
 
-// ─── Departments State ────────────────────────────────────────────────────────
+// â”€â”€â”€ Departments State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class DepartmentsState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val departments: List<Department> = emptyList()
 )
 
-// ─── COA State ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ COA State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class CoaState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val accounts: List<ChartOfAccount> = emptyList()
 )
 
-// ─── Payroll State ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Payroll State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class PayrollState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val payrolls: List<Payroll> = emptyList()
 )
 
-// ─── Business Plan State ──────────────────────────────────────────────────────
+// â”€â”€â”€ Business Plan State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class BusinessPlansState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val plans: List<BusinessPlan> = emptyList()
 )
 
-// ─── Sosmed State ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Sosmed State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class SosmedState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val posts: List<SocialPost> = emptyList()
 )
 
-// ─── Website Builder State ────────────────────────────────────────────────────
+// â”€â”€â”€ Website Builder State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class WebsiteBuilderState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
@@ -181,14 +181,20 @@ data class WebsiteBuilderState(
     val settings: WebsiteSetting? = null
 )
 
-// ─── Help Center State ────────────────────────────────────────────────────────
+// â”€â”€â”€ Help Center State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+data class HelpFaq(
+    val id: Int,
+    val category: String,
+    val question: String,
+    val answer: String
+)
 data class HelpCenterState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val articles: List<HelpArticle> = emptyList()
-)
+    val articles: List<com.upstyle.bizgrow.data.HelpArticle> = emptyList()
 
-// ─── Landing Page State ───────────────────────────────────────────────────────
+)
+// â”€â”€â”€ Landing Page State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class LandingPageState(
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -196,14 +202,14 @@ data class LandingPageState(
     val templates: List<LandingPageTemplate> = emptyList()
 )
 
-// ─── Shopee Integration State ─────────────────────────────────────────────────
+// â”€â”€â”€ Shopee Integration State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class ShopeeState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val integration: ShopeeIntegration? = null
 )
 
-// ─── Advanced Settings State ──────────────────────────────────────────────────
+// â”€â”€â”€ Advanced Settings State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class AdvancedSettingsState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,

@@ -1,88 +1,55 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SentimentDissatisfied
-import androidx.compose.material.icons.filled.SentimentSatisfied
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.upstyle.bizgrow.data.HelpArticle
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.BizCard
+import com.upstyle.bizgrow.ui.components.BottomNavBar
 import com.upstyle.bizgrow.ui.components.EmptyState
 import com.upstyle.bizgrow.ui.components.ErrorState
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HelpCenterScreen(viewModel: AppViewModel) {
-    val state by viewModel.helpState.collectAsState(initial = viewModel.helpState.value)
-
+    val state by viewModel.helpState.collectAsState()
+    
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
-    var expandedFaqId by remember { mutableStateOf<Int?>(null) }
+    var expandedFaqId by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) { viewModel.loadHelpFaqs() }
+    LaunchedEffect(Unit) { viewModel.loadHelpArticles() }
 
-    val categories = state.faqs.map { it.category }.distinct()
-    val filteredFaqs = state.faqs.filter {
-        val matchSearch = it.question.contains(searchQuery, ignoreCase = true) ||
-                it.answer.contains(searchQuery, ignoreCase = true)
+    val categories = state.articles.map { it.category }.distinct()
+    val filteredArticles = state.articles.filter {
+        val matchSearch = it.title.contains(searchQuery, ignoreCase = true) ||
+                it.content.contains(searchQuery, ignoreCase = true)
         val matchCategory = selectedCategory == null || it.category == selectedCategory
         matchSearch && matchCategory
     }
 
     Scaffold(
-        containerColor = BizgrowColors.Background,
         topBar = {
             TopAppBar(
-                title = {
-                    Text("Pusat Bantuan", fontWeight = FontWeight.Black, color = BizgrowColors.Gray950, fontSize = 20.sp)
-                },
+                title = { Text("Pusat Bantuan", fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Kembali", tint = BizgrowColors.Gray900)
@@ -90,7 +57,7 @@ fun HelpCenterScreen(viewModel: AppViewModel) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BizgrowColors.Surface)
             )
-        ),
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.navigate(Screen.Notifications) },
@@ -113,7 +80,7 @@ fun HelpCenterScreen(viewModel: AppViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = BizgrowColors.Primary,
                     unfocusedBorderColor = BizgrowColors.Gray200,
                     focusedContainerColor = BizgrowColors.White,
@@ -135,13 +102,13 @@ fun HelpCenterScreen(viewModel: AppViewModel) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (state.isLoading && state.faqs.isEmpty()) {
+            if (state.isLoading && state.articles.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = BizgrowColors.Primary)
                 }
-            } else if (state.error != null && state.faqs.isEmpty()) {
-                ErrorState(message = state.error ?: "Gagal memuat", onRetry = { viewModel.loadHelpFaqs() })
-            } else if (filteredFaqs.isEmpty()) {
+            } else if (state.error != null && state.articles.isEmpty()) {
+                ErrorState(message = state.error ?: "Gagal memuat", onRetry = { viewModel.loadHelpArticles() })
+            } else if (filteredArticles.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.HelpOutline,
                     title = if (searchQuery.isNotEmpty()) "Tidak ada FAQ" else "Belum ada FAQ",
@@ -153,7 +120,7 @@ fun HelpCenterScreen(viewModel: AppViewModel) {
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(filteredFaqs, key = { it.id }) { faq ->
+                    items(filteredArticles, key = { it.id }) { faq ->
                         FaqItem(
                             faq = faq,
                             isExpanded = expandedFaqId == faq.id,
@@ -174,7 +141,7 @@ fun HelpCenterScreen(viewModel: AppViewModel) {
 
 @Composable
 fun FaqItem(
-    faq: HelpFaq,
+    faq: HelpArticle,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onHelpful: () -> Unit,
@@ -201,7 +168,7 @@ fun FaqItem(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
-                        Text(faq.question, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950)
+                        Text(faq.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950)
                     }
                 }
                 Icon(
@@ -212,7 +179,7 @@ fun FaqItem(
             }
             if (isExpanded) {
                 HorizontalDivider(color = BizgrowColors.Gray200)
-                Text(faq.answer, style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray800)
+                Text(faq.content, style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray800)
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Apakah ini membantu?", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray600)

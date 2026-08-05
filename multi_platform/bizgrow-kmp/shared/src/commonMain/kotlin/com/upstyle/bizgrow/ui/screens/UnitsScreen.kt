@@ -62,8 +62,8 @@ fun UnitsScreen(viewModel: AppViewModel) {
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Column {
-                                    Text(unit.nama, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text(unit.tipe, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(unit.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text(unit.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                             Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)

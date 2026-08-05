@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
+import com.upstyle.bizgrow.data.FixedAsset
 import com.upstyle.bizgrow.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

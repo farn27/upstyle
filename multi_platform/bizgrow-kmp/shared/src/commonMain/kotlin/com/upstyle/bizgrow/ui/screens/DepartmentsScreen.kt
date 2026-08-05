@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -86,7 +86,7 @@ fun DepartmentsScreen(viewModel: AppViewModel) {
     }
 
     uiState.error?.let { error ->
-        LaunchedEffect(errorMsg) {
+        LaunchedEffect(error) {
             // Show error snackbar or toast
         }
     }

@@ -194,7 +194,7 @@ fun HomeScreen(viewModel: AppViewModel) {
                 }
             } else {
                 itemsIndexed(units) { index, unit ->
-                    BusinessUnitCard(unit = unit, onClick = { viewModel.selectUnit(unit) })
+                    BusinessUnitCard(unit = unit, onClick = { viewModel.selectUnit(unit.id) })
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }

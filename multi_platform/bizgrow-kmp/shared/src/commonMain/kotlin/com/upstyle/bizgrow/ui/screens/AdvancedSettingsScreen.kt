@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PaddingValues
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -57,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.BizCard
 import com.upstyle.bizgrow.ui.components.ErrorState
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
@@ -122,7 +122,7 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
                 }
             }
         },
-        bottomBar = { BottomNavBar(viewModel, AppViewModel.Screen.AdvancedSettings) }
+        bottomBar = { BottomNavBar(viewModel, Screen.AdvancedSettings) }
     ) { paddingValues ->
         if (state.isLoading) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {

@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,6 +43,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -269,9 +273,9 @@ fun BusinessPlanCard(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     StatusBadge(plan.status.uppercase())
-                    Text("•", color = BizgrowColors.Gray400, fontSize = 12.sp)
+                    Text("â€¢", color = BizgrowColors.Gray400, fontSize = 12.sp)
                     Text(
-                        plan.updatedAt.takeWhile { !it.startsWith("T") },
+                        plan.updatedAt.takeWhile { it != 'T' },
                         style = MaterialTheme.typography.bodySmall,
                         color = BizgrowColors.Gray500
                     )

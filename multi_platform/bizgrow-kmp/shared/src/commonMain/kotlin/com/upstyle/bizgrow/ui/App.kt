@@ -34,16 +34,16 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                 label = "screen_transition"
             ) { target ->
                 when (target) {
-                    // ─── Auth
+                    // â”€â”€â”€ Auth
                     is Screen.Login    -> LoginScreen(viewModel, onGoogleSignIn = onGoogleSignIn)
                     is Screen.Register -> RegisterScreen(viewModel)
 
-                    // ─── Main Hub
+                    // â”€â”€â”€ Main Hub
                     is Screen.Home     -> HomeScreen(viewModel)
                     is Screen.Units    -> UnitsScreen(viewModel)
                     is Screen.Dashboard -> DashboardScreen(viewModel)
 
-                    // ─── Finance
+                    // â”€â”€â”€ Finance
                     is Screen.Finance    -> FinanceScreen(viewModel)
                     is Screen.Piutang    -> PiutangScreen(viewModel)
                     is Screen.Hutang     -> HutangScreen(viewModel)
@@ -51,49 +51,49 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.BukuBesar  -> BukuBesarScreen(viewModel)
                     is Screen.Laporan    -> LaporanScreen(viewModel)
 
-                    // ─── Products
+                    // â”€â”€â”€ Products
                     is Screen.Products      -> ProductsScreen(viewModel)
                     is Screen.StockLogs     -> StockLogsScreen(viewModel)
                     is Screen.ProdukDetail  -> ProdukDetailScreen(viewModel, target.productId)
                     is Screen.BarcodeScanner -> BarcodeScannerScreen(viewModel)
 
-                    // ─── POS
+                    // â”€â”€â”€ POS
                     is Screen.Pos       -> PosScreen(viewModel)
                     is Screen.PosShift  -> PosShiftScreen(viewModel)
                     is Screen.PosReturn -> PosReturnScreen(viewModel)
 
-                    // ─── HR
+                    // â”€â”€â”€ HR
                     is Screen.Hr       -> HrScreen(viewModel)
                     is Screen.Absensi  -> AbsensiScreen(viewModel)
                     is Screen.Payroll  -> PayrollScreen(viewModel)
 
-                    // ─── CRM
+                    // â”€â”€â”€ CRM
                     is Screen.Crm           -> CrmScreen(viewModel)
                     is Screen.CrmPipeline   -> CrmPipelineScreen(viewModel)
                     is Screen.CrmContacts   -> CrmContactsScreen(viewModel)
                     is Screen.CrmActivities -> CrmActivitiesScreen(viewModel)
 
-                    // ─── CS
+                    // â”€â”€â”€ CS
                     is Screen.CsInbox     -> CsInboxScreen(viewModel)
                     is Screen.TicketDetail -> TicketDetailScreen(viewModel, target.ticketId)
 
-                    // ─── Ecommerce
+                    // â”€â”€â”€ Ecommerce
                     is Screen.Orders      -> OrdersScreen(viewModel)
                     is Screen.OrderDetail -> OrderDetailScreen(viewModel, target.orderId)
 
-                    // ─── SCM
+                    // â”€â”€â”€ SCM
                     is Screen.Scm -> ScmScreen(viewModel)
 
-                    // ─── AI & Reports
+                    // â”€â”€â”€ AI & Reports
                     is Screen.AiChat    -> AiChatScreen(viewModel)
                     is Screen.LaporanWa -> LaporanWaScreen(viewModel)
 
-                    // ─── System
+                    // â”€â”€â”€ System
                     is Screen.Notifications -> NotificationScreen(viewModel)
                     is Screen.Settings      -> SettingsScreen(viewModel)
                     is Screen.Profile       -> ProfileScreen(viewModel)
 
-                    // ─── Advanced Features
+                    // â”€â”€â”€ Advanced Features
                     is Screen.Coa           -> CoaScreen(viewModel)
                     is Screen.FixedAssets   -> FixedAssetsScreen(viewModel)
                     is Screen.StockOpname   -> StockOpnameScreen(viewModel)
@@ -127,10 +127,11 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.AdvancedSettings       -> AdvancedSettingsScreen(viewModel)
                     is Screen.LandingPageScreen      -> LandingPageScreen(viewModel)
                     is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
+                    else -> {}
                 }            }
 
             // Subtle top linear progress indicator for background operations
-            // Does NOT block the UI — just shows activity
+            // Does NOT block the UI â€” just shows activity
             if (uiState.isLoading && !isAuthScreen) {
                 LinearProgressIndicator(
                     modifier = Modifier
@@ -167,7 +168,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                         action = {
                             TextButton(onClick = { viewModel.clearMessages() }) { Text("Tutup") }
                         }
-                    ) { Text(error) }
+                    ) { Text(errorMsg) }
                 }
             }
 
