@@ -1,4 +1,4 @@
-﻿package com.upstyle.bizgrow.ui.screens
+package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -44,7 +44,7 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var isVisible by remember { mutableStateOf(false) }
-    
+
     var showServerDialog by remember { mutableStateOf(false) }
     var serverUrlInput by remember { mutableStateOf(viewModel.session.getServerUrl()) }
 
@@ -58,28 +58,36 @@ fun LoginScreen(
             .background(BizgrowColors.Background)
     ) {
         // Decorative background elements
-        Box(modifier = Modifier
-            .offset(x = (-50).dp, y = (-50).dp)
-            .size(200.dp)
-            .background(BizgrowColors.PrimaryLight.copy(alpha = 0.5f), shape = RoundedCornerShape(100.dp))
+        Box(
+            modifier = Modifier
+                .offset(x = (-50).dp, y = (-50).dp)
+                .size(200.dp)
+                .background(BizgrowColors.PrimaryLight.copy(alpha = 0.5f), shape = RoundedCornerShape(100.dp))
         )
-        Box(modifier = Modifier
-            .align(Alignment.TopEnd)
-            .offset(x = 50.dp, y = 100.dp)
-            .size(150.dp)
-            .background(BizgrowColors.SecondaryContainer.copy(alpha = 0.4f), shape = RoundedCornerShape(75.dp))
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 50.dp, y = 100.dp)
+                .size(150.dp)
+                .background(BizgrowColors.SecondaryContainer.copy(alpha = 0.4f), shape = RoundedCornerShape(75.dp))
         )
-        
+
         IconButton(
             onClick = { showServerDialog = true },
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
         ) {
             Icon(Icons.Default.Settings, contentDescription = "Pengaturan Server", tint = BizgrowColors.PrimaryDark)
         }
 
         AnimatedVisibility(
             visible = isVisible,
-            enter = fadeIn(animationSpec = tween(800)) + slideInVertically(initialOffsetY = { 50 }, animationSpec = tween(800)),
+            enter = fadeIn(animationSpec = tween(800)) + slideInVertically(
+                initialOffsetY = { 50 },
+                animationSpec = tween(800)
+            ),
             modifier = Modifier.align(Alignment.Center)
         ) {
             Column(
@@ -188,7 +196,11 @@ fun LoginScreen(
                     enabled = !uiState.isLoading && email.isNotEmpty() && password.isNotEmpty()
                 ) {
                     if (uiState.isLoading) {
-                        CircularProgressIndicator(color = BizgrowColors.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(
+                            color = BizgrowColors.White,
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
                     } else {
                         Text("Masuk", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
@@ -216,7 +228,7 @@ fun LoginScreen(
 
                 // Biometric Manager instance
                 val biometricManager = com.upstyle.bizgrow.device.rememberBiometricManager()
-                
+
                 // Google & Biometric Sign-In Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -255,11 +267,6 @@ fun LoginScreen(
                                 title = "Login Biometrik",
                                 subtitle = "Gunakan sidik jari atau wajah Anda",
                                 onSuccess = {
-                                    // Normally we would exchange a secure token stored in Keystore, 
-                                    // but for mockup we will auto-login a demo account or use saved credentials.
-                                    // If we had stored credentials:
-                                    // viewModel.login(savedEmail, savedPassword)
-                                    // For now, let's just show an error that credentials must be saved first
                                     errorMsg = "Login Biometrik berhasil. (Namun fitur auto-fill kredensial belum tersedia)"
                                 },
                                 onError = { err -> errorMsg = err }
@@ -311,8 +318,9 @@ fun LoginScreen(
                         modifier = Modifier.clickable { viewModel.navigate(Screen.Register) }
                     )
                 }
-        }
-        
+            } // end Column
+        } // end AnimatedVisibility
+
         if (showServerDialog) {
             AlertDialog(
                 onDismissRequest = { showServerDialog = false },
@@ -332,10 +340,16 @@ fun LoginScreen(
                     Button(onClick = {
                         viewModel.session.setServerUrl(serverUrlInput.trimEnd('/'))
                         showServerDialog = false
-                    }) { Text("Simpan") }
+                    }) {
+                        Text("Simpan")
+                    }
                 },
-                dismissButton = { TextButton(onClick = { showServerDialog = false }) { Text("Batal") } }
+                dismissButton = {
+                    TextButton(onClick = { showServerDialog = false }) {
+                        Text("Batal")
+                    }
+                }
             )
         }
-    }
-}
+    } // end Box
+} // end LoginScreen
