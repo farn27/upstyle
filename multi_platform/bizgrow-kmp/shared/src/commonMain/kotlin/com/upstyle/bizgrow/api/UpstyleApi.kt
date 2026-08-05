@@ -835,6 +835,12 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Shopee ────────────────────────────────────────────────────────────────
 
+    // Aliases for backward compatibility with AppViewModel callers
+    suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> = getSocialPosts(unitId)
+    suspend fun createSosmedPost(post: SocialPost): ApiResponse<SocialPost> = createSocialPost(post)
+    suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> = getAny(unitId)
+    suspend fun saveWebsiteSettings(settings: WebsiteSetting): ApiResponse<WebsiteSetting> = updateAny(settings)
+
     suspend fun getUnits(): ApiResponse<List<BusinessUnit>> = client.get("api/app/business").body()
     suspend fun createUnit(req: CreateUnitRequest): ApiResponse<Unit> = client.post("api/app/business") { setBody(req) }.body()
 

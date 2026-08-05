@@ -276,6 +276,14 @@ class AppViewModel(
             else setError(res.message ?: "Gagal update katalog")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+
+    fun updateKatalogSettings(settings: KatalogSettings) = viewModelScope.launch {
+        try {
+            val res = api.updateKatalogSettings(settings)
+            if (res.success) { loadKatalog(); setSuccess("Pengaturan katalog diperbarui!") }
+            else setError(res.message ?: "Gagal update pengaturan katalog")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
     fun createUnit(nama: String, type: String) = viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true, error = null) }
