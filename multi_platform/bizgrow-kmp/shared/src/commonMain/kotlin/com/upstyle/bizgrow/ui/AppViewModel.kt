@@ -105,7 +105,35 @@ class AppViewModel(
     fun loadLeaveRequests() = viewModelScope.launch {}
     
     fun loginWithGoogle(token: String) = viewModelScope.launch {}
-    fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) = viewModelScope.launch { onResult(true, null) }
+    fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.login(com.upstyle.bizgrow.data.LoginRequest(email, pass))
+            if (res.success && res.data != null) {
+                val data = res.data
+                session.saveSession(
+                    token = data.token,
+                    role = data.user.role,
+                    email = data.user.email,
+                    username = data.user.username,
+                    userId = data.user.id
+                )
+                clearMessages()
+                navigationManager.navigateToRoot(Screen.Home)
+                onResult(true, null)
+            } else {
+                val err = res.message ?: "Login gagal"
+                setError(err)
+                onResult(false, err)
+            }
+        } catch (e: Exception) {
+            val err = "Koneksi gagal: ${e.message}"
+            setError(err)
+            onResult(false, err)
+        } finally {
+            setLoading(false)
+        }
+    }
     
     private val _marketingCampaigns = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.MarketingCampaign>>(emptyList())
     val marketingCampaigns: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.MarketingCampaign>> = _marketingCampaigns.asStateFlow()
