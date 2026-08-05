@@ -217,7 +217,7 @@ fun AddPurchaseOrderSheet(
     val selectedSupplier = suppliers.find { it.id == selectedSupplierId }
     val selectedProduct = products.find { it.id == selectedProductId }
     val total = (qty.toIntOrNull() ?: 0) * (unitCost.toDoubleOrNull() ?: 0.0)
-    val poNumber = "PO-${System.currentTimeMillis().toString().takeLast(6)}"
+    val poNumber = "PO-${currentTimeMillis().toString().takeLast(6)}"
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
