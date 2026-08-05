@@ -424,7 +424,7 @@ class AppViewModel(
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val req = CreateTicketRequest(subject = subject, customer = customer, priority = priority, message = message, unitId = unitId)
+            val req = CreateTicketRequest(subject = subject, customerName = customer, priority = priority, message = message, unitId = unitId)
             val res = api.createTicket(req)
             if (res.success) { loadTickets(); setSuccess("Tiket berhasil dibuat!") }
             else setError(res.message ?: "Gagal buat tiket")
