@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.ui.screens
+﻿package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -43,6 +44,9 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var isVisible by remember { mutableStateOf(false) }
+    
+    var showServerDialog by remember { mutableStateOf(false) }
+    var serverUrlInput by remember { mutableStateOf(viewModel.session.getServerUrl()) }
 
     LaunchedEffect(Unit) {
         isVisible = true
@@ -65,6 +69,13 @@ fun LoginScreen(
             .size(150.dp)
             .background(BizgrowColors.SecondaryContainer.copy(alpha = 0.4f), shape = RoundedCornerShape(75.dp))
         )
+        
+        IconButton(
+            onClick = { showServerDialog = true },
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = "Pengaturan Server", tint = BizgrowColors.PrimaryDark)
+        }
 
         AnimatedVisibility(
             visible = isVisible,
@@ -300,7 +311,31 @@ fun LoginScreen(
                         modifier = Modifier.clickable { viewModel.navigate(Screen.Register) }
                     )
                 }
-            }
+        }
+        
+        if (showServerDialog) {
+            AlertDialog(
+                onDismissRequest = { showServerDialog = false },
+                title = { Text("Ubah URL Server", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = serverUrlInput,
+                            onValueChange = { serverUrlInput = it },
+                            label = { Text("URL Server") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        viewModel.session.setServerUrl(serverUrlInput.trimEnd('/'))
+                        showServerDialog = false
+                    }) { Text("Simpan") }
+                },
+                dismissButton = { TextButton(onClick = { showServerDialog = false }) { Text("Batal") } }
+            )
         }
     }
-}
+}

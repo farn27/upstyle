@@ -1,4 +1,4 @@
-package com.upstyle.bizgrow.data
+﻿package com.upstyle.bizgrow.data
 
 import com.russhwolf.settings.Settings
 
@@ -21,7 +21,7 @@ class SessionRepository(private val settings: Settings) {
         private const val KEY_SERVER_URL = "server_url"
         // Default: 192.168.1.25 is local IP for real device testing via USB
         // 10.0.2.2 was for Android Emulator
-        private const val DEFAULT_SERVER = "http://192.168.1.25:5173"
+        private const val DEFAULT_SERVER = "http://192.168.1.24:5173"
     }
 
     fun saveSession(token: String, role: String, email: String, username: String = "", userId: Int = 0) {
@@ -63,7 +63,7 @@ class SessionRepository(private val settings: Settings) {
     fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
     fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
 
-    // ─── Legacy Offline Caching (for backward compatibility) ─────────────────
+    // â”€â”€â”€ Legacy Offline Caching (for backward compatibility) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private val KEY_OFFLINE_PRODUCTS = "offline_products"
     private val KEY_OFFLINE_CUSTOMERS = "offline_customers"
     private val KEY_PENDING_TX = "pending_transactions"
@@ -77,7 +77,7 @@ class SessionRepository(private val settings: Settings) {
     fun savePendingTransactions(jsonString: String) = settings.putString(KEY_PENDING_TX, jsonString)
     fun getPendingTransactions(): String? = settings.getStringOrNull(KEY_PENDING_TX)
 
-    // ─── Task 10: Generic Cache Storage (new cache system) ───────────────────
+    // â”€â”€â”€ Task 10: Generic Cache Storage (new cache system) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     fun saveToCache(key: String, value: String) = settings.putString("cache_$key", value)
     fun loadFromCache(key: String): String? = settings.getStringOrNull("cache_$key")
     fun clearCache(key: String) = settings.remove("cache_$key")
