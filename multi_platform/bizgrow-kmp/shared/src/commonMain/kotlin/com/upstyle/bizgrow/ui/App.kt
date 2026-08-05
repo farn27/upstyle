@@ -21,7 +21,6 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
-        // Auth screens need blocking overlay (login/register actions)
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register
 
         Box(Modifier.fillMaxSize()) {
@@ -34,16 +33,16 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                 label = "screen_transition"
             ) { target ->
                 when (target) {
-                    // â”€â”€â”€ Auth
+                    // Auth
                     is Screen.Login    -> LoginScreen(viewModel, onGoogleSignIn = onGoogleSignIn)
                     is Screen.Register -> RegisterScreen(viewModel)
 
-                    // â”€â”€â”€ Main Hub
-                    is Screen.Home     -> HomeScreen(viewModel)
-                    is Screen.Units    -> UnitsScreen(viewModel)
+                    // Main Hub
+                    is Screen.Home      -> HomeScreen(viewModel)
+                    is Screen.Units     -> UnitsScreen(viewModel)
                     is Screen.Dashboard -> DashboardScreen(viewModel)
 
-                    // â”€â”€â”€ Finance
+                    // Finance
                     is Screen.Finance    -> FinanceScreen(viewModel)
                     is Screen.Piutang    -> PiutangScreen(viewModel)
                     is Screen.Hutang     -> HutangScreen(viewModel)
@@ -51,101 +50,104 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.BukuBesar  -> BukuBesarScreen(viewModel)
                     is Screen.Laporan    -> LaporanScreen(viewModel)
 
-                    // â”€â”€â”€ Products
-                    is Screen.Products      -> ProductsScreen(viewModel)
-                    is Screen.StockLogs     -> StockLogsScreen(viewModel)
-                    is Screen.ProdukDetail  -> ProdukDetailScreen(viewModel, target.productId)
+                    // Products
+                    is Screen.Products       -> ProductsScreen(viewModel)
+                    is Screen.StockLogs      -> StockLogsScreen(viewModel)
+                    is Screen.ProdukDetail   -> ProdukDetailScreen(viewModel, target.productId)
                     is Screen.BarcodeScanner -> BarcodeScannerScreen(viewModel)
 
-                    // â”€â”€â”€ POS
+                    // POS
                     is Screen.Pos       -> PosScreen(viewModel)
                     is Screen.PosShift  -> PosShiftScreen(viewModel)
                     is Screen.PosReturn -> PosReturnScreen(viewModel)
 
-                    // â”€â”€â”€ HR
-                    is Screen.Hr       -> HrScreen(viewModel)
-                    is Screen.Absensi  -> AbsensiScreen(viewModel)
-                    is Screen.Payroll  -> PayrollScreen(viewModel)
+                    // HR
+                    is Screen.Hr      -> HrScreen(viewModel)
+                    is Screen.Absensi -> AbsensiScreen(viewModel)
+                    is Screen.Payroll -> PayrollScreen(viewModel)
 
-                    // â”€â”€â”€ CRM
+                    // CRM
                     is Screen.Crm           -> CrmScreen(viewModel)
                     is Screen.CrmPipeline   -> CrmPipelineScreen(viewModel)
                     is Screen.CrmContacts   -> CrmContactsScreen(viewModel)
                     is Screen.CrmActivities -> CrmActivitiesScreen(viewModel)
 
-                    // â”€â”€â”€ CS
-                    is Screen.CsInbox     -> CsInboxScreen(viewModel)
+                    // CS - both Screen.Cs and Screen.CsInbox map to the same screen
+                    is Screen.Cs           -> CsInboxScreen(viewModel)
+                    is Screen.CsInbox      -> CsInboxScreen(viewModel)
                     is Screen.TicketDetail -> TicketDetailScreen(viewModel, target.ticketId)
 
-                    // â”€â”€â”€ Ecommerce
+                    // Ecommerce
                     is Screen.Orders      -> OrdersScreen(viewModel)
                     is Screen.OrderDetail -> OrderDetailScreen(viewModel, target.orderId)
 
-                    // â”€â”€â”€ SCM
+                    // SCM
                     is Screen.Scm -> ScmScreen(viewModel)
 
-                    // â”€â”€â”€ AI & Reports
+                    // AI & Reports
                     is Screen.AiChat    -> AiChatScreen(viewModel)
                     is Screen.LaporanWa -> LaporanWaScreen(viewModel)
 
-                    // â”€â”€â”€ System
+                    // System
                     is Screen.Notifications -> NotificationScreen(viewModel)
                     is Screen.Settings      -> SettingsScreen(viewModel)
                     is Screen.Profile       -> ProfileScreen(viewModel)
 
-                    // â”€â”€â”€ Advanced Features
+                    // Advanced Finance
                     is Screen.Coa           -> CoaScreen(viewModel)
                     is Screen.FixedAssets   -> FixedAssetsScreen(viewModel)
-                    is Screen.StockOpname   -> StockOpnameScreen(viewModel)
-                    is Screen.TrashProducts -> TrashProductsScreen(viewModel)
-                    is Screen.Quotations    -> QuotationsScreen(viewModel)
-                    is Screen.SalesOrders   -> SalesOrdersScreen(viewModel)
-                    is Screen.LeaveRequests -> LeaveRequestsScreen(viewModel)
-                    is Screen.PosVouchers   -> PosVouchersScreen(viewModel)
-                    is Screen.CrmTasks      -> CrmTasksScreen(viewModel)
-                    
-                    // Phase 1 New Screens
                     is Screen.Neraca        -> NeracaScreen(viewModel)
                     is Screen.Budget        -> BudgetScreen(viewModel)
                     is Screen.TaxRates      -> TaxRatesScreen(viewModel)
                     is Screen.ClosingPeriod -> ClosingPeriodScreen(viewModel)
-                    is Screen.MarketingCampaigns -> MarketingCampaignsScreen(viewModel)
+
+                    // Advanced Products
+                    is Screen.StockOpname   -> StockOpnameScreen(viewModel)
+                    is Screen.TrashProducts -> TrashProductsScreen(viewModel)
                     is Screen.Pricing       -> PricingScreen(viewModel)
-                    
-                    // New Missing Features
-                    is Screen.SalesTargets  -> SalesTargetsScreen(viewModel)
+
+                    // Advanced CRM / Sales
+                    is Screen.Quotations         -> QuotationsScreen(viewModel)
+                    is Screen.SalesOrders        -> SalesOrdersScreen(viewModel)
+                    is Screen.CrmTasks           -> CrmTasksScreen(viewModel)
+                    is Screen.SalesTargets       -> SalesTargetsScreen(viewModel)
+                    is Screen.MarketingCampaigns -> MarketingCampaignsScreen(viewModel)
+
+                    // Advanced HR
+                    is Screen.LeaveRequests -> LeaveRequestsScreen(viewModel)
                     is Screen.Approvals     -> ApprovalsScreen(viewModel)
-                    is Screen.Katalog       -> KatalogScreen(viewModel)
-                    is Screen.Marketing     -> MarketingScreen(viewModel)
                     is Screen.Departments   -> DepartmentsScreen(viewModel)
 
-                    // Feature Gap Closure
-                    is Screen.BusinessPlan           -> BusinessPlanScreen(viewModel)
-                    is Screen.Sosmed                 -> SosmedScreen(viewModel)
-                    is Screen.WebsiteBuilder         -> WebsiteBuilderScreen(viewModel)
-                    is Screen.HelpCenter             -> HelpCenterScreen(viewModel)
-                    is Screen.AdvancedSettings       -> AdvancedSettingsScreen(viewModel)
-                    is Screen.LandingPageScreen      -> LandingPageScreen(viewModel)
-                    is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
-                    else -> {}
-                }            }
+                    // Advanced POS
+                    is Screen.PosVouchers -> PosVouchersScreen(viewModel)
 
-            // Subtle top linear progress indicator for background operations
-            // Does NOT block the UI â€” just shows activity
+                    // Marketing / Katalog
+                    is Screen.Katalog  -> KatalogScreen(viewModel)
+                    is Screen.Marketing -> MarketingScreen(viewModel)
+
+                    // Feature Gap Closure
+                    is Screen.BusinessPlan            -> BusinessPlanScreen(viewModel)
+                    is Screen.Sosmed                  -> SosmedScreen(viewModel)
+                    is Screen.WebsiteBuilder          -> WebsiteBuilderScreen(viewModel)
+                    is Screen.HelpCenter              -> HelpCenterScreen(viewModel)
+                    is Screen.AdvancedSettings        -> AdvancedSettingsScreen(viewModel)
+                    is Screen.LandingPageScreen       -> LandingPageScreen(viewModel)
+                    is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
+
+                    else -> {}
+                }
+            }
+
+            // Subtle top progress indicator — non-blocking
             if (uiState.isLoading && !isAuthScreen) {
                 LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter)
                 )
             }
 
-            // Full blocking overlay ONLY for auth screens (login/register button presses)
+            // Full blocking overlay ONLY for auth screens
             if (uiState.isLoading && isAuthScreen) {
-                Box(
-                    Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Surface(
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
                         modifier = Modifier.fillMaxSize()
@@ -160,15 +162,10 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     kotlinx.coroutines.delay(3500)
                     viewModel.clearMessages()
                 }
-                Box(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    Snackbar(
-                        action = {
-                            TextButton(onClick = { viewModel.clearMessages() }) { Text("Tutup") }
-                        }
-                    ) { Text(errorMsg) }
+                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomCenter) {
+                    Snackbar(action = { TextButton(onClick = { viewModel.clearMessages() }) { Text("Tutup") } }) {
+                        Text(errorMsg)
+                    }
                 }
             }
 
@@ -178,10 +175,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     kotlinx.coroutines.delay(2500)
                     viewModel.clearMessages()
                 }
-                Box(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
+                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomCenter) {
                     Snackbar(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer

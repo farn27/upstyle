@@ -114,7 +114,7 @@ fun HomeScreen(viewModel: AppViewModel) {
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            IconButton(onClick = { }) {
+                            IconButton(onClick = { viewModel.navigate(Screen.Notifications) }) {
                                 Icon(Icons.Default.Notifications, "Notifikasi", tint = BizgrowColors.Gray500)
                             }
                             IconButton(onClick = { viewModel.navigate(Screen.Settings) }) {
@@ -194,7 +194,10 @@ fun HomeScreen(viewModel: AppViewModel) {
                 }
             } else {
                 itemsIndexed(units) { index, unit ->
-                    BusinessUnitCard(unit = unit, onClick = { viewModel.selectUnit(unit.id) })
+                    BusinessUnitCard(unit = unit, onClick = {
+                        viewModel.selectUnit(unit.id)
+                        viewModel.navigate(Screen.Dashboard)
+                    })
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }

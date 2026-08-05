@@ -155,10 +155,7 @@ fun PosScreen(viewModel: AppViewModel) {
                 placeholder = { Text("Cari produk atau SKU...", color = BizgrowColors.Gray400) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = BizgrowColors.Gray400) },
                 trailingIcon = {
-                    IconButton(onClick = { 
-                        // TODO: Implement barcode scanner
-                        // viewModel.navigate(Screen.BarcodeScanner)
-                    }) {
+                    IconButton(onClick = { viewModel.navigate(Screen.BarcodeScanner) }) {
                         Icon(Icons.Default.QrCodeScanner, null, tint = BizgrowColors.Primary)
                     }
                 },

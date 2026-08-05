@@ -27,17 +27,22 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
     val salesTargetData by viewModel.salesTargetData.collectAsState(initial = viewModel.salesTargetData.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var showCreateDialog by remember { mutableStateOf(false) }
+    var editTarget by remember { mutableStateOf<SalesTarget?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadSalesTargets() }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Column {
                         Text("Target Penjualan", fontWeight = FontWeight.Bold)
-                        salesTargetData?.summary?.let { 
-                            Text("Pencapaian Rata-rata: ${it.avgAchievement.toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        salesTargetData?.summary?.let {
+                            Text(
+                                "Pencapaian Rata-rata: ${it.avgAchievement.toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 },
@@ -52,7 +57,6 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
         bottomBar = { BottomNavBar(viewModel, com.upstyle.bizgrow.ui.Screen.SalesTargets) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Summary Cards
             salesTargetData?.summary?.let { summary ->
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatCard("Target Total", "Rp ${"%,.0f".format(summary.totalTarget)}", icon = Icons.Default.Flag, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
@@ -70,7 +74,11 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(salesTargetData?.targets ?: emptyList(), key = { it.id }) { target ->
-                        SalesTargetCard(target = target, onDelete = { viewModel.deleteSalesTarget(target.id) })
+                        SalesTargetCard(
+                            target = target,
+                            onEdit = { editTarget = it },
+                            onDelete = { viewModel.deleteSalesTarget(target.id) }
+                        )
                     }
                 }
             }
@@ -86,10 +94,22 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
             }
         )
     }
+
+    // Edit dialog — reuses CreateTargetDialog with prefilled values
+    editTarget?.let { target ->
+        EditTargetDialog(
+            target = target,
+            onDismiss = { editTarget = null },
+            onSave = { empId, empName, periode, amount ->
+                viewModel.createSalesTarget(empId, empName, periode, amount)
+                editTarget = null
+            }
+        )
+    }
 }
 
 @Composable
-fun SalesTargetCard(target: SalesTarget, onDelete: (Int) -> Unit) {
+fun SalesTargetCard(target: SalesTarget, onEdit: (SalesTarget) -> Unit, onDelete: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val achievement = if (target.targetAmount > 0) (target.actualAmount / target.targetAmount * 100).toInt() else 0
     val statusColor = when {
@@ -107,11 +127,11 @@ fun SalesTargetCard(target: SalesTarget, onDelete: (Int) -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column {
                         Text("Target", fontSize = 11.sp, color = BizgrowColors.Gray500)
-                            Text("Rp ${"%,.0f".format(target.targetAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Rp ${"%,.0f".format(target.targetAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
                         Text("Realisasi", fontSize = 11.sp, color = BizgrowColors.Gray500)
-                            Text("Rp ${"%,.0f".format(target.actualAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                        Text("Rp ${"%,.0f".format(target.actualAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor)
                     }
                 }
             }
@@ -132,8 +152,11 @@ fun SalesTargetCard(target: SalesTarget, onDelete: (Int) -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = { /* TODO: Edit */ }) { Text("Edit Target") }
-                TextButton(onClick = { onDelete(target.id) }, colors = ButtonDefaults.textButtonColors(contentColor = BizgrowColors.Danger)) { Text("Hapus") }
+                TextButton(onClick = { onEdit(target) }) { Text("Edit Target") }
+                TextButton(
+                    onClick = { onDelete(target.id) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BizgrowColors.Danger)
+                ) { Text("Hapus") }
             }
         }
     }
@@ -153,37 +176,16 @@ fun CreateTargetDialog(
         title = { Text("Target Penjualan Baru", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = employeeName,
-                    onValueChange = { employeeName = it },
-                    label = { Text("Nama Karyawan (opsional)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value = periode,
-                    onValueChange = { periode = it },
-                    label = { Text("Periode (YYYY-MM)") },
-                    placeholder = { Text("2025-08") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value = targetAmount,
-                    onValueChange = { targetAmount = it },
-                    label = { Text("Target (Rp)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                OutlinedTextField(value = employeeName, onValueChange = { employeeName = it }, label = { Text("Nama Karyawan (opsional)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = periode, onValueChange = { periode = it }, label = { Text("Periode (YYYY-MM)") }, placeholder = { Text("2025-08") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = targetAmount, onValueChange = { targetAmount = it }, label = { Text("Target (Rp)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     val amount = targetAmount.toDoubleOrNull() ?: 0.0
-                    if (periode.isNotBlank() && amount > 0) {
-                        onCreate(null, employeeName.ifBlank { "Tim Sales" }, periode, amount)
-                    }
+                    if (periode.isNotBlank() && amount > 0) onCreate(null, employeeName.ifBlank { "Tim Sales" }, periode, amount)
                 },
                 enabled = periode.isNotBlank() && targetAmount.toDoubleOrNull() != null
             ) { Text("Simpan") }
@@ -192,4 +194,35 @@ fun CreateTargetDialog(
     )
 }
 
+@Composable
+fun EditTargetDialog(
+    target: SalesTarget,
+    onDismiss: () -> Unit,
+    onSave: (Int?, String, String, Double) -> Unit
+) {
+    var employeeName by remember { mutableStateOf(target.employeeName) }
+    var periode by remember { mutableStateOf(target.periode) }
+    var targetAmount by remember { mutableStateOf(target.targetAmount.toLong().toString()) }
 
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Target Penjualan", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(value = employeeName, onValueChange = { employeeName = it }, label = { Text("Nama Karyawan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = periode, onValueChange = { periode = it }, label = { Text("Periode (YYYY-MM)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = targetAmount, onValueChange = { targetAmount = it }, label = { Text("Target (Rp)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amount = targetAmount.toDoubleOrNull() ?: 0.0
+                    if (periode.isNotBlank() && amount > 0) onSave(target.employeeId, employeeName, periode, amount)
+                },
+                enabled = periode.isNotBlank() && targetAmount.toDoubleOrNull() != null
+            ) { Text("Simpan") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
+}

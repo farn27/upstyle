@@ -720,13 +720,13 @@ class UpstyleApi(private val client: HttpClient) {
     // ─── Business Plan ─────────────────────────────────────────────────────────
 
     suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> =
-        client.get("api/app/business-plan").body()
+        client.get("api/app/business-plan") { parameter("unitId", unitId) }.body()
 
     suspend fun createBusinessPlan(plan: BusinessPlan): ApiResponse<BusinessPlan> =
         client.post("api/app/business-plan") { setBody(plan) }.body()
 
     suspend fun updateBusinessPlan(plan: BusinessPlan): ApiResponse<BusinessPlan> =
-        client.post("api/app/business-plan") { setBody(plan) }.body()
+        client.put("api/app/business-plan") { setBody(plan) }.body()
 
     suspend fun deleteBusinessPlan(planId: Int, unitId: Int): ApiResponse<Unit> =
         client.delete("api/app/business-plan") { parameter("id", planId) }.body()
@@ -834,14 +834,9 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
 
     // ─── Shopee ────────────────────────────────────────────────────────────────
-    private fun <T> dummy(): ApiResponse<T> = ApiResponse(true, "Stub", null)
+
     suspend fun getUnits(): ApiResponse<List<BusinessUnit>> = client.get("api/app/business").body()
     suspend fun createUnit(req: CreateUnitRequest): ApiResponse<Unit> = client.post("api/app/business") { setBody(req) }.body()
-    suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> = client.get("api/app/sosmed") { parameter("unitId", unitId) }.body()
-    suspend fun createSosmedPost(post: SocialPost): ApiResponse<SocialPost> = client.post("api/app/sosmed") { setBody(post) }.body()
-    suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> = client.get("api/app/website") { parameter("unitId", unitId) }.body()
-    suspend fun saveWebsiteSettings(settings: WebsiteSetting): ApiResponse<WebsiteSetting> = client.post("api/app/website") { setBody(settings) }.body()
-    suspend fun sendChatMessage(message: ChatMessage): ApiResponse<ChatMessage> = client.post("api/chat") { setBody(message) }.body()
 
     suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> =
         client.get("api/app/shopee") { parameter("unitId", unitId) }.body()

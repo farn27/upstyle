@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.KatalogProduct
+import com.upstyle.bizgrow.data.KatalogSettings
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.components.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
@@ -30,23 +31,30 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 fun KatalogScreen(viewModel: AppViewModel) {
     val katalogData by viewModel.katalogData.collectAsState(initial = viewModel.katalogData.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadKatalog() }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Column {
                         Text("Katalog Online", fontWeight = FontWeight.Bold)
                         katalogData?.settings?.let {
-                            Text("${it.publishedProducts} dari ${it.totalProducts} dipublikasi", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "${it.publishedProducts} dari ${it.totalProducts} dipublikasi",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 },
                 navigationIcon = { IconButton(onClick = { viewModel.navigateBack() }) { Icon(Icons.Default.ArrowBack, null) } },
                 actions = {
-                    IconButton(onClick = { /* TODO: Settings */ }) { Icon(Icons.Default.Settings, "Pengaturan Katalog") }
+                    IconButton(onClick = { showSettingsDialog = true }) {
+                        Icon(Icons.Default.Settings, "Pengaturan Katalog")
+                    }
                 }
             )
         },
@@ -73,7 +81,10 @@ fun KatalogScreen(viewModel: AppViewModel) {
                         }
                         Switch(
                             checked = settings.isActive,
-                            onCheckedChange = { /* TODO: Toggle portal */ },
+                            onCheckedChange = { isActive ->
+                                // Toggle portal active state
+                                viewModel.updateKatalogSettings(settings.copy(isActive = isActive))
+                            },
                             colors = SwitchDefaults.colors(checkedTrackColor = BizgrowColors.Success)
                         )
                     }
@@ -83,7 +94,11 @@ fun KatalogScreen(viewModel: AppViewModel) {
             if (uiState.isLoading && katalogData == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else if (katalogData?.products?.isEmpty() == true) {
-                EmptyState(Icons.Default.Storefront, "Belum ada produk", "Tambah produk di menu Produk untuk ditampilkan di katalog")
+                EmptyState(
+                    Icons.Default.Storefront,
+                    "Belum ada produk",
+                    "Tambah produk di menu Produk untuk ditampilkan di katalog"
+                )
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -101,6 +116,55 @@ fun KatalogScreen(viewModel: AppViewModel) {
             }
         }
     }
+
+    // Settings dialog
+    if (showSettingsDialog) {
+        katalogData?.settings?.let { settings ->
+            KatalogSettingsDialog(
+                settings = settings,
+                onDismiss = { showSettingsDialog = false },
+                onSave = { updated ->
+                    viewModel.updateKatalogSettings(updated)
+                    showSettingsDialog = false
+                }
+            )
+        } ?: run { showSettingsDialog = false }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KatalogSettingsDialog(
+    settings: KatalogSettings,
+    onDismiss: () -> Unit,
+    onSave: (KatalogSettings) -> Unit
+) {
+    var namaPortal by remember { mutableStateOf(settings.namaPortal) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pengaturan Katalog", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = namaPortal,
+                    onValueChange = { namaPortal = it },
+                    label = { Text("Nama Portal") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Text(
+                    "URL: katalog.bizgrow.id/${settings.slug.ifEmpty { "(belum diset)" }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = BizgrowColors.Gray500
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(settings.copy(namaPortal = namaPortal)) }) { Text("Simpan") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
 }
 
 @Composable
@@ -120,7 +184,6 @@ fun KatalogProductCard(product: KatalogProduct, onToggle: (String) -> Unit) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(140.dp)
                 )
-                // Published badge
                 if (product.isPublished) {
                     Surface(
                         modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
@@ -164,14 +227,12 @@ fun KatalogProductCard(product: KatalogProduct, onToggle: (String) -> Unit) {
                 ) {
                     Icon(
                         if (product.isPublished) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        null,
-                        Modifier.size(16.dp)
+                        null, Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
                         if (product.isPublished) "Sembunyikan" else "Publikasi",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold
                     )
                 }
             }

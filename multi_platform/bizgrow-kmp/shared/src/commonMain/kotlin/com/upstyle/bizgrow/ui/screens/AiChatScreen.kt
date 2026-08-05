@@ -41,7 +41,6 @@ fun AiChatScreen(viewModel: AppViewModel) {
     var currentTab by remember { mutableStateOf(AiTab.CHAT) }
     var inputText by remember { mutableStateOf("") }
     var showUnitPicker by remember { mutableStateOf(false) }
-    var currentSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -51,10 +50,6 @@ fun AiChatScreen(viewModel: AppViewModel) {
             coroutineScope.launch {
                 listState.animateScrollToItem(chatHistory.lastIndex)
             }
-            // Extract suggestions from last AI response
-            val lastAiMsg = chatHistory.lastOrNull { it.role == "assistant" }
-            // Suggestions would come from API response; for now placeholder
-            currentSuggestions = emptyList()
         }
     }
 
@@ -88,7 +83,6 @@ fun AiChatScreen(viewModel: AppViewModel) {
         bottomBar = { BottomNavBar(viewModel, Screen.AiChat) }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            // Tabs
             TabRow(selectedTabIndex = currentTab.ordinal, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
                 Tab(selected = currentTab == AiTab.CHAT, onClick = { currentTab = AiTab.CHAT }, text = { Text("Chat") })
                 Tab(selected = currentTab == AiTab.FINANCIAL_ADVISOR, onClick = { currentTab = AiTab.FINANCIAL_ADVISOR }, text = { Text("Financial Advisor") })
@@ -107,8 +101,6 @@ fun AiChatScreen(viewModel: AppViewModel) {
                             inputText = ""
                         }
                     },
-                    suggestions = currentSuggestions,
-                    onSuggestionClick = { suggestion -> inputText = suggestion },
                     listState = listState
                 )
                 AiTab.FINANCIAL_ADVISOR -> FinancialAdvisorTab(viewModel)
@@ -134,27 +126,9 @@ fun ChatTabContent(
     inputText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
-    suggestions: List<String>,
-    onSuggestionClick: (String) -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Suggestions row
-        if (suggestions.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(suggestions) { suggestion ->
-                    SuggestionChip(
-                        onClick = { onSuggestionClick(suggestion) },
-                        label = { Text(suggestion, style = MaterialTheme.typography.bodySmall) }
-                    )
-                }
-            }
-        }
-
-        // Chat messages
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp),
             state = listState,
@@ -188,24 +162,19 @@ fun ChatTabContent(
                 }
             }
 
-            items(chatHistory) { msg ->
-                ChatBubble(msg)
-            }
+            items(chatHistory) { msg -> ChatBubble(msg) }
 
             if (isLoading) {
                 item {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         repeat(3) {
-                            Box(
-                                modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)
-                            )
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
                         }
                     }
                 }
             }
         }
 
-        // Input row
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -240,8 +209,7 @@ fun ChatBubble(message: ChatMessage) {
         Card(
             modifier = Modifier.widthIn(max = 280.dp),
             shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
+                topStart = 16.dp, topEnd = 16.dp,
                 bottomStart = if (isUser) 16.dp else 4.dp,
                 bottomEnd = if (isUser) 4.dp else 16.dp
             ),
@@ -264,6 +232,7 @@ fun FinancialAdvisorTab(viewModel: AppViewModel) {
     var period by remember { mutableStateOf("month") }
     var analysisResult by remember { mutableStateOf("") }
     var isAnalyzing by remember { mutableStateOf(false) }
+    val activeUnitId by viewModel.activeUnitId.collectAsState(initial = viewModel.activeUnitId.value)
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -275,32 +244,23 @@ fun FinancialAdvisorTab(viewModel: AppViewModel) {
                 Text("AI akan menganalisis data keuangan Anda dan memberikan insight serta rekomendasi.", style = MaterialTheme.typography.bodySmall)
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = period == "week",
-                        onClick = { period = "week" },
-                        label = { Text("Minggu Ini") }
-                    )
-                    FilterChip(
-                        selected = period == "month",
-                        onClick = { period = "month" },
-                        label = { Text("Bulan Ini") }
-                    )
-                    FilterChip(
-                        selected = period == "year",
-                        onClick = { period = "year" },
-                        label = { Text("Tahun Ini") }
-                    )
+                    FilterChip(selected = period == "week", onClick = { period = "week" }, label = { Text("Minggu Ini") })
+                    FilterChip(selected = period == "month", onClick = { period = "month" }, label = { Text("Bulan Ini") })
+                    FilterChip(selected = period == "year", onClick = { period = "year" }, label = { Text("Tahun Ini") })
                 }
 
                 Button(
                     onClick = {
-                        isAnalyzing = true
-                        // TODO: call viewModel.analyzeFinancial(period) { result -> analysisResult = result; isAnalyzing = false }
-                        analysisResult = "Analisis AI akan ditampilkan di sini.\n\nKeuangan Anda dalam kondisi sehat dengan revenue yang stabil.\n\nRekomendasi: Tingkatkan pemasaran digital untuk meningkatkan penjualan 15%."
-                        isAnalyzing = false
+                        if (activeUnitId > 0) {
+                            isAnalyzing = true
+                            val question = "Analisis keuangan bisnis saya untuk periode $period. Berikan insight mendalam dan rekomendasi strategis."
+                            viewModel.sendChat(question)
+                            analysisResult = "Pertanyaan dikirim ke AI. Lihat jawaban di tab Chat."
+                            isAnalyzing = false
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isAnalyzing
+                    enabled = !isAnalyzing && activeUnitId > 0
                 ) {
                     if (isAnalyzing) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                     else Text("Analisis Sekarang")
@@ -311,7 +271,7 @@ fun FinancialAdvisorTab(viewModel: AppViewModel) {
         if (analysisResult.isNotBlank()) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Hasil Analisis", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Status", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(analysisResult, style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -322,8 +282,11 @@ fun FinancialAdvisorTab(viewModel: AppViewModel) {
 @Composable
 fun WaReportTab(viewModel: AppViewModel) {
     var reportType by remember { mutableStateOf("daily") }
-    var reportResult by remember { mutableStateOf("") }
-    var isGenerating by remember { mutableStateOf(false) }
+    val laporanWa by viewModel.laporanWa.collectAsState(initial = viewModel.laporanWa.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
+    val activeUnitId by viewModel.activeUnitId.collectAsState(initial = viewModel.activeUnitId.value)
+
+    val periodeMap = mapOf("daily" to "hari_ini", "weekly" to "minggu_ini", "monthly" to "bulan_ini")
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -335,50 +298,32 @@ fun WaReportTab(viewModel: AppViewModel) {
                 Text("AI akan membuat laporan otomatis yang siap dikirim ke grup WhatsApp.", style = MaterialTheme.typography.bodySmall)
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = reportType == "daily",
-                        onClick = { reportType = "daily" },
-                        label = { Text("Harian") }
-                    )
-                    FilterChip(
-                        selected = reportType == "weekly",
-                        onClick = { reportType = "weekly" },
-                        label = { Text("Mingguan") }
-                    )
-                    FilterChip(
-                        selected = reportType == "monthly",
-                        onClick = { reportType = "monthly" },
-                        label = { Text("Bulanan") }
-                    )
+                    FilterChip(selected = reportType == "daily", onClick = { reportType = "daily" }, label = { Text("Harian") })
+                    FilterChip(selected = reportType == "weekly", onClick = { reportType = "weekly" }, label = { Text("Mingguan") })
+                    FilterChip(selected = reportType == "monthly", onClick = { reportType = "monthly" }, label = { Text("Bulanan") })
                 }
 
                 Button(
                     onClick = {
-                        isGenerating = true
-                        // TODO: call viewModel.generateWaReport(reportType) { result -> reportResult = result; isGenerating = false }
-                        reportResult = "ðŸ“Š *Laporan Harian Bizgrow*\n\nâœ… Total Penjualan: Rp 2.500.000\nðŸ“¦ Jumlah Transaksi: 15\nðŸ’° Profit Bersih: Rp 800.000\n\nðŸ”¥ Produk Terlaris: Kopi Susu (8 pcs)\n\n_Generated by Bizgrow AI_"
-                        isGenerating = false
+                        if (activeUnitId > 0) {
+                            viewModel.loadLaporanWa(periodeMap[reportType] ?: "hari_ini")
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isGenerating
+                    enabled = !uiState.isLoading && activeUnitId > 0
                 ) {
-                    if (isGenerating) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    if (uiState.isLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                     else Text("Generate Laporan")
                 }
             }
         }
 
-        if (reportResult.isNotBlank()) {
+        laporanWa?.let { laporan ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Laporan Siap Kirim", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { /* TODO: Copy to clipboard */ }) {
-                            Icon(Icons.Default.ContentCopy, "Copy")
-                        }
-                    }
-                    Text(reportResult, style = MaterialTheme.typography.bodyMedium)
-                    Button(onClick = { /* TODO: Share via WhatsApp */ }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Laporan Siap Kirim", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(laporan.teks, style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { /* Share handled by platform */ }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Share, "Share", modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Kirim via WhatsApp")
@@ -423,8 +368,6 @@ fun UnitPickerDialog(
             }
         },
         confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Tutup") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
     )
 }
