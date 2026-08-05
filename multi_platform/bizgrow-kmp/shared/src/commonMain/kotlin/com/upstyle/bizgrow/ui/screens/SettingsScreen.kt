@@ -99,10 +99,19 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
             // Navigasi cepat
             item {
-                SettingsSection("Fitur") {
+                SettingsSection("Fitur Bisnis") {
                     SettingsNavItem("POS Shift", Icons.Default.Schedule, "Kelola buka/tutup shift kasir") { viewModel.navigate(Screen.PosShift) }
                     SettingsNavItem("Laporan WA", Icons.Default.Message, "Generate ringkasan bisnis via WA") { viewModel.navigate(Screen.LaporanWa) }
                     SettingsNavItem("Notifikasi", Icons.Default.Notifications, "Riwayat aktivitas & notifikasi") { viewModel.navigate(Screen.Notifications) }
+                    SettingsNavItem("AI Assistant", Icons.Default.AutoAwesome, "Chat dengan AI bisnis Anda") { viewModel.navigate(Screen.AiChat) }
+                    SettingsNavItem("Business Plan", Icons.Default.Assignment, "Kelola rencana bisnis") { viewModel.navigate(Screen.BusinessPlan) }
+                    SettingsNavItem("Katalog Online", Icons.Default.Store, "Kelola toko online Anda") { viewModel.navigate(Screen.Katalog) }
+                    SettingsNavItem("Sosial Media", Icons.Default.Share, "Jadwalkan & kelola postingan") { viewModel.navigate(Screen.Sosmed) }
+                    SettingsNavItem("Website Builder", Icons.Default.Public, "Kelola website bisnis Anda") { viewModel.navigate(Screen.WebsiteBuilder) }
+                    SettingsNavItem("Landing Page", Icons.Default.WebAsset, "Kelola landing page") { viewModel.navigate(Screen.LandingPageScreen) }
+                    SettingsNavItem("Shopee Integration", Icons.Default.ShoppingCart, "Hubungkan toko Shopee") { viewModel.navigate(Screen.ShopeeIntegrationScreen) }
+                    SettingsNavItem("Pusat Bantuan", Icons.Default.Help, "FAQ & panduan penggunaan") { viewModel.navigate(Screen.HelpCenter) }
+                    SettingsNavItem("Pengaturan Lanjutan", Icons.Default.Settings, "Preferensi & keamanan akun") { viewModel.navigate(Screen.AdvancedSettings) }
                 }
             }
 

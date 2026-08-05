@@ -28,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.Transaction
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,8 +66,8 @@ fun FinanceScreen(viewModel: AppViewModel) {
         },
         bottomBar = { BottomNavBar(viewModel, Screen.Finance) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = MaterialTheme.colorScheme.background, shape = RoundedCornerShape(20.dp)) {
-                Icon(Icons.Default.Add, null, tint = Color.White)
+            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = BizgrowColors.Primary, shape = RoundedCornerShape(20.dp)) {
+                Icon(Icons.Default.Add, null, tint = BizgrowColors.White)
             }
         }
     ) { paddingValues ->
@@ -101,14 +102,27 @@ fun FinanceScreen(viewModel: AppViewModel) {
 
             // Module shortcuts
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { ModuleChip("Piutang", Icons.Default.Receipt) { viewModel.navigate(Screen.Piutang) } }
-                    item { ModuleChip("Hutang", Icons.Default.MoneyOff) { viewModel.navigate(Screen.Hutang) } }
-                    item { ModuleChip("Jurnal Umum", Icons.Default.Book) { viewModel.navigate(Screen.JurnalUmum) } }
-                    item { ModuleChip("Buku Besar", Icons.Default.MenuBook) { viewModel.navigate(Screen.BukuBesar) } }
-                    item { ModuleChip("COA", Icons.Default.ListAlt) { viewModel.navigate(Screen.Coa) } }
-                    item { ModuleChip("Aset Tetap", Icons.Default.Business) { viewModel.navigate(Screen.FixedAssets) } }
-                    item { ModuleChip("Laporan", Icons.Default.Assessment) { viewModel.navigate(Screen.Laporan) } }
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text("Modul Keuangan", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950)
+                    Spacer(Modifier.height(10.dp))
+                    // Row 1: Core modules
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ModuleChip("Piutang", Icons.Default.Receipt) { viewModel.navigate(Screen.Piutang) }
+                        ModuleChip("Hutang", Icons.Default.MoneyOff) { viewModel.navigate(Screen.Hutang) }
+                        ModuleChip("Jurnal", Icons.Default.Book) { viewModel.navigate(Screen.JurnalUmum) }
+                        ModuleChip("Buku Besar", Icons.Default.MenuBook) { viewModel.navigate(Screen.BukuBesar) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    // Row 2: Advanced modules
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item { ModuleChip("COA", Icons.Default.ListAlt) { viewModel.navigate(Screen.Coa) } }
+                        item { ModuleChip("Aset Tetap", Icons.Default.Business) { viewModel.navigate(Screen.FixedAssets) } }
+                        item { ModuleChip("Pajak", Icons.Default.Receipt) { viewModel.navigate(Screen.TaxRates) } }
+                        item { ModuleChip("Budget", Icons.Default.PieChart) { viewModel.navigate(Screen.Budget) } }
+                        item { ModuleChip("Tutup Buku", Icons.Default.Lock) { viewModel.navigate(Screen.ClosingPeriod) } }
+                        item { ModuleChip("Laporan", Icons.Default.Assessment) { viewModel.navigate(Screen.Laporan) } }
+                        item { ModuleChip("Neraca", Icons.Default.Balance) { viewModel.navigate(Screen.Neraca) } }
+                    }
                 }
             }
 

@@ -53,8 +53,10 @@ fun HrScreen(viewModel: AppViewModel) {
                 }},
                 navigationIcon = { IconButton(onClick = { viewModel.navigateBack() }) { Icon(Icons.Default.ArrowBack, null) } },
                 actions = {
+                    IconButton(onClick = { viewModel.navigate(Screen.Approvals) }) { Icon(Icons.Default.HowToVote, contentDescription = "Persetujuan") }
                     IconButton(onClick = { viewModel.navigate(Screen.LeaveRequests) }) { Icon(Icons.Default.DateRange, contentDescription = "Cuti & Izin") }
                     IconButton(onClick = { viewModel.navigate(Screen.Payroll) }) { Icon(Icons.Default.Receipt, contentDescription = "Payroll") }
+                    IconButton(onClick = { viewModel.navigate(Screen.Departments) }) { Icon(Icons.Default.AccountTree, contentDescription = "Departemen") }
                     IconButton(onClick = { viewModel.navigate(Screen.Absensi) }) { Icon(Icons.Default.AccessTime, contentDescription = "Absensi") }
                 }
             )
@@ -76,6 +78,8 @@ fun HrScreen(viewModel: AppViewModel) {
                     gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
                 StatCard("Hadir Hari Ini", "${hrData?.attendance?.count { it.status == "HADIR" } ?: 0}",
                     icon = Icons.Default.CheckCircle, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
+                StatCard("Cuti Pending", "${hrData?.leaveRequests?.count { it.status == "pending" } ?: 0}",
+                    icon = Icons.Default.HourglassEmpty, gradient = BizgrowColors.GradWarning, modifier = Modifier.weight(1f))
             }
 
             ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 16.dp) {

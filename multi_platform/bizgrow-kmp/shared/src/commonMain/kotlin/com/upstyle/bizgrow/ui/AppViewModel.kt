@@ -174,6 +174,11 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadLeaveRequests error", e) }
     }
     
+    fun setGoogleSignInError(msg: String = "Login Google gagal") {
+        setError(msg)
+        setLoading(false)
+    }
+
     fun loginWithGoogle(googleToken: String, callback: ((Boolean, String?) -> Unit)? = null) = viewModelScope.launch {
         setLoading(true)
         try {
@@ -298,6 +303,21 @@ class AppViewModel(
         } catch (e: Exception) {
             setError("Gagal menambah bisnis: ${e.message}")
         }
+    }
+
+    fun deleteUnit(unitId: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.deleteBusinessUnit(unitId)
+            if (res.success) {
+                if (_activeUnitId.value == unitId) {
+                    _activeUnitId.value = 0
+                    _financeData.value = null
+                }
+                loadUnits()
+                setSuccess("Bisnis berhasil dihapus")
+            } else setError(res.message ?: "Gagal hapus bisnis")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun deleteEmployee(employeeId: Int) = viewModelScope.launch {
         setLoading(true)
@@ -963,12 +983,22 @@ class AppViewModel(
         session.setActiveUnit(unitId, unit?.name ?: "", unit?.slug ?: "")
         if (unitId > 0) {
             SocketManager.joinUnit(unitId)
+            // Reset all module data so they reload fresh for the new unit
+            _financeData.value = null
+            _hrData.value = null
+            _scmData.value = null
+            _marketingData.value = null
+            _katalogData.value = null
+            _products.value = emptyList()
+            _orders.value = emptyList()
+            // Load essential data
             loadDashboard()
             loadProducts()
             loadOrders()
             loadReceivables()
             loadPayables()
             loadNotifications()
+            loadLowStock()
         }
     }
 
@@ -979,8 +1009,13 @@ class AppViewModel(
         _dashboardState.update { it.copy(isLoading = true, error = null) }
         try {
             val res = api.getFinanceData(unitId)
-            if (res.success) _dashboardState.update { it.copy(isLoading = false, financeData = res.data) }
-            else _dashboardState.update { it.copy(isLoading = false, error = res.message) }
+            if (res.success) {
+                _dashboardState.update { it.copy(isLoading = false, financeData = res.data) }
+                // Also update the separate financeData flow used by DashboardScreen
+                _financeData.value = res.data
+            } else {
+                _dashboardState.update { it.copy(isLoading = false, error = res.message) }
+            }
         } catch (e: Exception) {
             _dashboardState.update { it.copy(isLoading = false, error = "Gagal memuat dashboard: ${e.message}") }
         }

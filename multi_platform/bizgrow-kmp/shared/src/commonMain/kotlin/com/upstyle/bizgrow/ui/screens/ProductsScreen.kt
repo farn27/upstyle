@@ -87,6 +87,19 @@ fun ProductsScreen(viewModel: AppViewModel) {
                     IconButton(onClick = { viewModel.navigate(Screen.StockLogs) }) {
                         Icon(Icons.Default.History, "Riwayat Stok", tint = BizgrowColors.Gray900)
                     }
+                    // More menu for advanced features
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, null, tint = BizgrowColors.Gray900)
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(text = { Text("Kategori Produk") }, leadingIcon = { Icon(Icons.Default.Category, null) }, onClick = { viewModel.navigate(Screen.Cs); showMenu = false })
+                            DropdownMenuItem(text = { Text("Stok Opname") }, leadingIcon = { Icon(Icons.Default.Inventory2, null) }, onClick = { viewModel.navigate(Screen.StockOpname); showMenu = false })
+                            DropdownMenuItem(text = { Text("Pricing Massal") }, leadingIcon = { Icon(Icons.Default.PriceChange, null) }, onClick = { viewModel.navigate(Screen.Pricing); showMenu = false })
+                            DropdownMenuItem(text = { Text("Sampah Produk") }, leadingIcon = { Icon(Icons.Default.Delete, null) }, onClick = { viewModel.navigate(Screen.TrashProducts); showMenu = false })
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BizgrowColors.Surface)
             )

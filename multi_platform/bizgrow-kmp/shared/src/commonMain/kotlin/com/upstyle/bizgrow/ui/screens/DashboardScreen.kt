@@ -107,7 +107,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
             }
             
-            // AI Insight
+            // AI Insight strip
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
@@ -120,7 +120,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         Spacer(modifier = Modifier.width(12.dp))
                         val insight = remember(financeData) {
                             val trxs = financeData?.transactions ?: emptyList()
-                            val income = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }.sumOf { it.nominal }
+                            val income = trxs.filter { it.kategoriTrx == "MASUK" || it.kategoriTrx == "PEMASUKAN" }.sumOf { it.nominal }
                             val count = trxs.size
                             when {
                                 count == 0 -> "Belum ada transaksi hari ini. Mulai catat penjualan Anda!"
@@ -139,26 +139,47 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
             }
 
-            // Hero Finance Card
+            // 1. Hero Finance Card — saldo utama
             item { 
                 Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
                     DashboardHeroCard(financeData, viewModel) 
                 }
             }
 
-            // KPI Grid
+            // 2. Quick Actions — aksi cepat paling sering dipakai
             item {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
-                    Text("Hari Ini", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
+                    Text("Quick Action", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        QuickActionCircle(Icons.Default.AddShoppingCart, "Kasir", BizgrowColors.Primary) { viewModel.navigate(Screen.Pos) }
+                        QuickActionCircle(Icons.Default.AddBox, "Produk", BizgrowColors.Success) { viewModel.navigate(Screen.Products) }
+                        QuickActionCircle(Icons.Default.PersonAdd, "Pelanggan", BizgrowColors.Warning) { viewModel.navigate(Screen.CrmContacts) }
+                        QuickActionCircle(Icons.Default.Receipt, "Piutang", BizgrowColors.Secondary) { viewModel.navigate(Screen.Piutang) }
+                        QuickActionCircle(Icons.Default.BarChart, "Laporan", BizgrowColors.Secondary) { viewModel.navigate(Screen.Laporan) }
+                    }
+                }
+            }
+
+            // 3. Cash Flow Chart
+            item { 
+                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                    FinanceChart(financeData) 
+                }
+            }
+
+            // 4. KPI Grid
+            item {
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                    Text("Ringkasan Hari Ini", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
                     Spacer(Modifier.height(12.dp))
                     val trxs = financeData?.transactions ?: emptyList()
                     val totalOrders = trxs.count()
-                    val totalPelanggan = (financeData?.kpi?.current?.toInt() ?: 0)
                     val alertReceivables = financeData?.alerts?.receivables ?: 0
                     val alertPayables = financeData?.alerts?.payables ?: 0
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         KpiBox(icon = Icons.Default.ShoppingCart, title = "$totalOrders", subtitle = "Transaksi", color = BizgrowColors.Primary, modifier = Modifier.weight(1f))
-                        KpiBox(icon = Icons.Default.People, title = "${financeData?.biMetrics?.cashRunway?.toInt() ?: 0}", subtitle = "Pelanggan Aktif", color = BizgrowColors.Success, modifier = Modifier.weight(1f))
+                        KpiBox(icon = Icons.Default.TrendingUp, title = formatCurrency(financeData?.biMetrics?.netProfit ?: 0.0), subtitle = "Laba Bersih", color = BizgrowColors.Success, modifier = Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -168,41 +189,21 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
             }
 
-            // Cash flow chart
-            item { 
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                    FinanceChart(financeData) 
-                }
-            }
-
-            // Quick Actions
-            item {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
-                    Text("Quick Action", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        QuickActionCircle(Icons.Default.AddShoppingCart, "Transaksi", BizgrowColors.Primary) { viewModel.navigate(Screen.Pos) }
-                        QuickActionCircle(Icons.Default.AddBox, "Produk", BizgrowColors.Success) { viewModel.navigate(Screen.Products) }
-                        QuickActionCircle(Icons.Default.PersonAdd, "Pelanggan", BizgrowColors.Warning) { viewModel.navigate(Screen.CrmContacts) }
-                        QuickActionCircle(Icons.Default.Receipt, "Invoice", BizgrowColors.Secondary) { viewModel.navigate(Screen.Piutang) }
-                    }
-                }
-            }
-
-            // Alerts
+            // 5. Alerts
             item {
                 Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
                     AlertsSection(financeData = financeData, lowStockProducts = lowStockProducts, viewModel = viewModel)
                 }
             }
             
-            // Recent transactions
+            // 6. Recent transactions
             item {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Aktivitas Terbaru", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
+                        TextButton(onClick = { viewModel.navigate(Screen.Finance) }) { Text("Lihat Semua", fontSize = 12.sp) }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
             }
             financeData?.transactions?.take(5)?.let { transactions ->
@@ -221,7 +222,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
             }
             
-            // BI Metrics
+            // 7. BI Metrics
             financeData?.biMetrics?.let { metrics ->
                 item { 
                     Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
@@ -271,8 +272,8 @@ fun QuickActionCircle(icon: ImageVector, label: String, color: Color, onClick: (
 @Composable
 fun DashboardHeroCard(financeData: FinanceData?, viewModel: AppViewModel) {
     val trxs = financeData?.transactions ?: emptyList()
-    val totalIncome = trxs.filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }.sumOf { it.nominal }
-    val totalExpense = trxs.filter { it.kategoriTrx.equals("PENGELUARAN", ignoreCase = true) }.sumOf { it.nominal }
+    val totalIncome = trxs.filter { it.kategoriTrx == "MASUK" || it.kategoriTrx == "PEMASUKAN" }.sumOf { it.nominal }
+    val totalExpense = trxs.filter { it.kategoriTrx == "KELUAR" || it.kategoriTrx == "PENGELUARAN" }.sumOf { it.nominal }
     val balance = totalIncome - totalExpense
     val isPositive = balance >= 0
 
@@ -330,11 +331,17 @@ fun MiniStatChip(label: String, value: String, valueColor: Color) {
 fun FinanceChart(financeData: FinanceData?) {
     val dataPoints = remember(financeData) {
         val trxs = financeData?.transactions ?: emptyList()
+        // tanggal is epoch millis (Long stored as String) — convert to date key for grouping
         val grouped = trxs
-            .filter { it.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) }
-            .sortedBy { it.tanggal }
-            .groupBy { it.tanggal.take(10) }
-            .entries.sortedBy { it.key }
+            .filter { it.kategoriTrx == "MASUK" || it.kategoriTrx == "PEMASUKAN" }
+            .sortedBy { it.tanggal.toLongOrNull() ?: 0L }
+            .groupBy {
+                // group by day: epoch ms -> "YYYY-MM-DD" approximation
+                val ms = it.tanggal.toLongOrNull() ?: 0L
+                // Use day bucket (ms / 86400000)
+                (ms / 86_400_000L).toString()
+            }
+            .entries.sortedBy { it.key.toLongOrNull() ?: 0L }
             .takeLast(7)
             .map { (_, v) -> v.sumOf { it.nominal }.toFloat() }
         when {
@@ -497,10 +504,12 @@ fun TransactionItem(trx: com.upstyle.bizgrow.data.Transaction) {
         Column(modifier = Modifier.weight(1f)) {
             Text(trx.keterangan, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                trx.tanggal.take(10).ifEmpty { "-" },
-                fontSize = 11.sp, color = BizgrowColors.Gray500
-            )
+            val dateStr = trx.tanggal.toLongOrNull()?.let { ms ->
+                kotlinx.datetime.Instant.fromEpochMilliseconds(ms)
+                    .toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Jakarta"))
+                    .date.toString()
+            } ?: trx.tanggal.take(10).ifEmpty { "-" }
+            Text(dateStr, fontSize = 11.sp, color = BizgrowColors.Gray500)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(

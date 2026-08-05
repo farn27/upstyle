@@ -50,10 +50,11 @@ class MainActivity : FragmentActivity() {
     private fun triggerGoogleSignIn() {
         lifecycleScope.launch {
             GoogleSignInHelper.signIn(this@MainActivity) { token, error ->
-                if (token != null) {
+                if (token != null && token.isNotBlank()) {
                     viewModel.loginWithGoogle(token)
                 } else {
-                    viewModel.loginWithGoogle("")
+                    // Don't call loginWithGoogle with empty token — just show error
+                    viewModel.setGoogleSignInError(error ?: "Google Sign-In dibatalkan")
                 }
             }
         }

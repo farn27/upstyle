@@ -336,24 +336,30 @@ fun PosProductCardPremium(
                     ) {
                         IconButton(
                             onClick = onDecrease,
-                            modifier = Modifier.size(36.dp).background(BizgrowColors.Gray100, CircleShape)
-                        ) { Text("-", fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900) }
+                            modifier = Modifier.size(36.dp).background(BizgrowColors.DangerLight, CircleShape)
+                        ) { Text("-", fontWeight = FontWeight.Bold, color = BizgrowColors.Danger, fontSize = 18.sp) }
                         
-                        Text(cartQty.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
+                        Text(cartQty.toString(), fontWeight = FontWeight.Black, fontSize = 16.sp, color = BizgrowColors.Gray950)
                         
                         IconButton(
                             onClick = onIncrease,
                             modifier = Modifier.size(36.dp).background(BizgrowColors.Primary, CircleShape)
-                        ) { Text("+", color = BizgrowColors.White, fontWeight = FontWeight.Bold) }
+                        ) { Text("+", color = BizgrowColors.White, fontWeight = FontWeight.Black, fontSize = 18.sp) }
                     }
                 } else {
                     OutlinedButton(
-                        onClick = { showVariationDialog = true }, 
+                        onClick = { 
+                            if (product.variants.isEmpty()) {
+                                onAdd()
+                            } else {
+                                showVariationDialog = true
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth().height(40.dp),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, BizgrowColors.Primary)
+                        border = BorderStroke(1.5.dp, BizgrowColors.Primary)
                     ) {
-                        Text("Tambah", fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
+                        Text("+ Tambah", fontWeight = FontWeight.Bold, color = BizgrowColors.Primary, fontSize = 13.sp)
                     }
                 }
             }
