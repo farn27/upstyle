@@ -67,9 +67,35 @@ class AppViewModel(
     val posShifts: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.PosShift>> = _posShifts.asStateFlow()
     private val _activeShift = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.PosShift?>(null)
     val activeShift: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.PosShift?> = _activeShift.asStateFlow()
-    fun loadPosShifts() = viewModelScope.launch {}
-    fun openShift(modalAwal: Double, catatan: String = "") = viewModelScope.launch {}
-    fun closeShift(shiftId: Int, kasAkhirAktual: Double, catatan: String) = viewModelScope.launch {}
+    fun loadPosShifts() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosShifts(unitId)
+            if (res.success) {
+                _posShifts.value = res.data ?: emptyList()
+                _activeShift.value = res.data?.firstOrNull { it.status == "OPEN" }
+            }
+        } catch (e: Exception) { Napier.e("loadPosShifts error", e) }
+    }
+    fun openShift(modalAwal: Double) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.openShift(OpenShiftRequest(unitId = unitId, modalAwal = modalAwal))
+            if (res.success) { loadPosShifts(); setSuccess("Shift berhasil dibuka!") }
+            else setError(res.message ?: "Gagal buka shift")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun closeShift(shiftId: Int, kasAkhirAktual: Double, catatan: String = "") = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.closeShift(CloseShiftRequest(shiftId = shiftId, kasAkhirAktual = kasAkhirAktual, catatan = catatan, unitId = unitId))
+            if (res.success) { loadPosShifts(); _activeShift.value = null; setSuccess("Shift berhasil ditutup!") }
+            else setError(res.message ?: "Gagal tutup shift")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
 
 
     private val _posVouchers = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.PosVoucher>>(emptyList())
@@ -82,29 +108,95 @@ class AppViewModel(
     fun setCustomer(customerId: Int?) { _selectedCustomerId.value = customerId }
     private val _posData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.PosData?>(null)
     val posData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.PosData?> = _posData.asStateFlow()
-    fun loadPosData() = viewModelScope.launch {}
+    fun loadPosData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosData(unitId)
+            if (res.success) _posData.value = res.data
+        } catch (e: Exception) {
+            Napier.e("loadPosData error", e)
+        }
+    }
     
     private val _cart = kotlinx.coroutines.flow.MutableStateFlow<Map<com.upstyle.bizgrow.data.Product, Int>>(emptyMap())
     val cart: kotlinx.coroutines.flow.StateFlow<Map<com.upstyle.bizgrow.data.Product, Int>> = _cart.asStateFlow()
     
     val cartTotal: kotlinx.coroutines.flow.StateFlow<Double> = _cart.map { c -> c.entries.sumOf { it.key.hargaJual * it.value } }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Lazily, 0.0)
     val cartItemCount: kotlinx.coroutines.flow.StateFlow<Int> = _cart.map { c -> c.values.sum() }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Lazily, 0)
-    fun updateLeadStatus(leadId: Int, status: String) = viewModelScope.launch {}
+    fun updateLeadStatus(leadId: Int, status: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateLeadStatus(leadId, status)
+            if (res.success) loadMarketingData()
+        } catch (e: Exception) { Napier.e("updateLeadStatus error", e) }
+    }
     
     private val _notifications = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>>(emptyList())
     val notifications: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>> = _notifications.asStateFlow()
-    fun markAllRead() = viewModelScope.launch {}
+    fun markAllRead() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            api.markAllNotificationsRead(unitId)
+            loadNotifications()
+        } catch (e: Exception) { Napier.e("markAllRead error", e) }
+    }
     
-    fun updateOrderStatus(orderId: Int, status: String) = viewModelScope.launch {}
+    fun updateOrderStatus(orderId: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updateOrderStatus(orderId, status)
+            if (res.success) { loadOrders(); loadOrderDetail(orderId); setSuccess("Status pesanan diperbarui") }
+            else setError(res.message ?: "Gagal update status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
     private val _hrData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.HrData?>(null)
     val hrData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.HrData?> = _hrData.asStateFlow()
-    fun loadHrData() = viewModelScope.launch {}
+    fun loadHrData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getHrData(unitId)
+            if (res.success) _hrData.value = res.data
+        } catch (e: Exception) {
+            Napier.e("loadHrData error", e)
+        }
+    }
     private val _leaveRequests = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.LeaveRequest>>(emptyList())
     val leaveRequests: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.LeaveRequest>> = _leaveRequests.asStateFlow()
-    fun loadLeaveRequests() = viewModelScope.launch {}
+    fun loadLeaveRequests() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getLeaveRequests(unitId)
+            if (res.success) _leaveRequests.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadLeaveRequests error", e) }
+    }
     
-    fun loginWithGoogle(token: String) = viewModelScope.launch {}
+    fun loginWithGoogle(googleToken: String, callback: ((Boolean, String?) -> Unit)? = null) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.loginWithGoogle(GoogleAuthRequest(googleToken))
+            if (res.success && res.data != null) {
+                session.saveSession(res.data.token, res.data.user.role, res.data.user.email, res.data.user.username, res.data.user.id)
+                clearMessages()
+                setupSocket()
+                loadUnits()
+                callback?.invoke(true, null)
+                navigationManager.navigateToRoot(Screen.Home)
+            } else {
+                val err = res.message ?: "Login Google gagal"
+                setError(err)
+                callback?.invoke(false, err)
+            }
+        } catch (e: Exception) {
+            val err = "Koneksi gagal: ${e.message}"
+            setError(err)
+            callback?.invoke(false, err)
+        }
+    }
+
     fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) = viewModelScope.launch {
         setLoading(true)
         try {
@@ -137,17 +229,53 @@ class AppViewModel(
     
     private val _marketingCampaigns = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.MarketingCampaign>>(emptyList())
     val marketingCampaigns: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.MarketingCampaign>> = _marketingCampaigns.asStateFlow()
-    fun loadMarketingCampaigns() = viewModelScope.launch {}
-    fun createMarketingCampaign(name: String, type: String, budget: Double, scheduledAt: String?) = viewModelScope.launch {}
+    fun loadMarketingCampaigns() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getMarketingCampaigns(unitId)
+            if (res.success) _marketingCampaigns.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadMarketingCampaigns error", e) }
+    }
+    fun createMarketingCampaign(name: String, type: String, budget: Double, scheduledAt: String?) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val camp = MarketingCampaign(name = name, type = type, budget = budget, scheduledAt = scheduledAt, unitId = unitId)
+            val res = api.createMarketingCampaign(camp)
+            if (res.success) { loadMarketingCampaigns(); setSuccess("Kampanye berhasil dibuat!") }
+            else setError(res.message ?: "Gagal buat kampanye")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
     private val _labaRugiData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.LabaRugiData?>(null)
     val labaRugiData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.LabaRugiData?> = _labaRugiData.asStateFlow()
-    fun loadLabaRugi(start: String, end: String) = viewModelScope.launch {}
+    fun loadLabaRugi(startDate: String, endDate: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getLabaRugi(unitId, startDate, endDate)
+            if (res.success) _labaRugiData.value = res.data
+        } catch (e: Exception) { Napier.e("loadLabaRugi error", e) }
+    }
     
     private val _katalogData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.KatalogData?>(null)
     val katalogData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.KatalogData?> = _katalogData.asStateFlow()
-    fun loadKatalog() = viewModelScope.launch {}
-    fun toggleKatalogPublish(id: String, isPublished: Boolean) = viewModelScope.launch {}
+    fun loadKatalog() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getKatalog(unitId)
+            if (res.success) _katalogData.value = res.data
+        } catch (e: Exception) { Napier.e("loadKatalog error", e) }
+    }
+    fun toggleKatalogPublish(id: String, isPublished: Boolean) = viewModelScope.launch {
+        try {
+            val res = api.toggleKatalogPublish(id, isPublished)
+            if (res.success) { loadKatalog(); setSuccess(if (isPublished) "Produk dipublikasikan" else "Produk disembunyikan") }
+            else setError(res.message ?: "Gagal update katalog")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
     fun createUnit(nama: String, type: String) = viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true, error = null) }
@@ -163,14 +291,58 @@ class AppViewModel(
             setError("Gagal menambah bisnis: ${e.message}")
         }
     }
-    fun deleteEmployee(empId: Int) = viewModelScope.launch {}
-    fun checkIn(empId: Int, date: String, time: String) = viewModelScope.launch {}
-    fun checkOut(empId: Int, date: String, time: String) = viewModelScope.launch {}
+    fun deleteEmployee(employeeId: Int) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteEmployee(employeeId, unitId)
+            if (res.success) { loadHrData(); setSuccess("Karyawan berhasil dihapus") }
+            else setError(res.message ?: "Gagal hapus karyawan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun checkIn(employeeId: Int, date: String, time: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            api.checkIn(CheckInRequest(employeeId = employeeId, unitId = unitId, date = date, time = time))
+            loadHrData()
+            setSuccess("Check-in berhasil!")
+        } catch (e: Exception) { setError("Check-in gagal: ${e.message}") }
+    }
+    fun checkOut(employeeId: Int, date: String, time: String) = viewModelScope.launch {
+        try {
+            api.checkOut(CheckOutRequest(employeeId = employeeId, date = date, time = time))
+            loadHrData()
+            setSuccess("Check-out berhasil!")
+        } catch (e: Exception) { setError("Check-out gagal: ${e.message}") }
+    }
     private val _departments = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.Department>>(emptyList())
     val departments: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.Department>> = _departments.asStateFlow()
-    fun loadDepartments() = viewModelScope.launch {}
-    fun deleteDepartment(id: Int) = viewModelScope.launch {}
-    fun createDepartment(name: String, description: String, manager: String, budget: Double) = viewModelScope.launch {}
+    fun loadDepartments() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getDepartments(unitId)
+            if (res.success) _departments.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadDepartments error", e) }
+    }
+    fun deleteDepartment(id: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteDepartment(id)
+            if (res.success) { loadDepartments(); setSuccess("Departemen berhasil dihapus") }
+            else setError(res.message ?: "Gagal hapus departemen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun createDepartment(name: String, description: String, manager: String, budget: Double) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val dept = Department(name = name, description = description, manager = manager, budget = budget, unitId = unitId)
+            val res = api.createDepartment(dept)
+            if (res.success) { loadDepartments(); setSuccess("Departemen berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah departemen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     private val _unreadCount = kotlinx.coroutines.flow.MutableStateFlow(0)
     val unreadCount: kotlinx.coroutines.flow.StateFlow<Int> = _unreadCount.asStateFlow()
     
@@ -188,47 +360,248 @@ class AppViewModel(
 
 
     
-    fun loadCrmData() = viewModelScope.launch {}
-    fun loadCrmActivities() = viewModelScope.launch {}
-    fun updateDealStage(id: Int, stage: String) = viewModelScope.launch {}
-    fun deleteDeal(id: Int) = viewModelScope.launch {}
-    fun createDeal(name: String, company: String, value: Double, stage: String, phone: String) = viewModelScope.launch {}
-    fun createContact(name: String, phone: String, email: String, company: String, stage: String) = viewModelScope.launch {}
-    fun loadCrmTasks() = viewModelScope.launch {}
-    fun createTicket(subject: String, customer: String, priority: String, message: String) = viewModelScope.launch {}
+    fun loadCrmData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val dealsRes = api.getCrmDeals(unitId)
+            if (dealsRes.success) _crmDeals.value = dealsRes.data
+            val contactsRes = api.getCrmContacts(unitId)
+            if (contactsRes.success) _crmContacts.value = contactsRes.data
+        } catch (e: Exception) { Napier.e("loadCrmData error", e) }
+    }
+    fun loadCrmActivities() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getCrmActivities(unitId)
+            if (res.success) _crmActivities.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadCrmActivities error", e) }
+    }
+    fun updateDealStage(dealId: Int, stage: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            api.updateDealStage(UpdateDealStageRequest(dealId, stage, unitId))
+            loadCrmData()
+        } catch (e: Exception) { Napier.e("updateDealStage error", e) }
+    }
+    fun deleteDeal(dealId: Int) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteDeal(dealId, unitId)
+            if (res.success) { loadCrmData(); setSuccess("Deal dihapus") }
+            else setError(res.message ?: "Gagal hapus deal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun createDeal(contactName: String, companyName: String, dealValue: Double, stage: String, phone: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createDeal(CreateDealRequest(CreateDealBody(contactName, companyName, dealValue, stage, phone, unitId)))
+            if (res.success) { loadCrmData(); setSuccess("Deal berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah deal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun createContact(nama: String, telepon: String, email: String, perusahaan: String, stage: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createContact(CreateContactRequest(contact = CreateContactBody(nama, telepon, email, perusahaan, stage, unitId = unitId)))
+            if (res.success) { loadCrmData(); setSuccess("Kontak berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun loadCrmTasks() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getCrmTasks(unitId)
+            if (res.success) _crmTasks.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadCrmTasks error", e) }
+    }
+    fun createTicket(subject: String, customer: String, priority: String, message: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val req = CreateTicketRequest(subject = subject, customer = customer, priority = priority, message = message, unitId = unitId)
+            val res = api.createTicket(req)
+            if (res.success) { loadTickets(); setSuccess("Tiket berhasil dibuat!") }
+            else setError(res.message ?: "Gagal buat tiket")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
 
-    fun markFaqViewed(id: String) = viewModelScope.launch {}
-    fun submitFaqFeedback(id: String, helpful: Boolean) = viewModelScope.launch {}
+    fun markFaqViewed(id: String) = viewModelScope.launch {
+        try { api.sendHelpFeedback(id, true) } catch (_: Exception) {}
+    }
+    fun submitFaqFeedback(id: String, helpful: Boolean) = viewModelScope.launch {
+        try { api.sendHelpFeedback(id, helpful) } catch (_: Exception) {}
+    }
     private val _financeData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
     val financeData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _financeData.asStateFlow()
-    fun loadFinanceData() = viewModelScope.launch {}
-    fun createTransaction(kategori: String, nominal: Double, keterangan: String, metodeBayar: String) = viewModelScope.launch {}
-    fun deleteTransaction(id: Int) = viewModelScope.launch {}
+    fun loadFinanceData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getFinanceData(unitId)
+            if (res.success) _financeData.value = res.data
+        } catch (e: Exception) { Napier.e("loadFinanceData error", e) }
+    }
+    fun createTransaction(
+        kategoriTrx: String, nominal: Double, keterangan: String,
+        metodeBayar: String = "KAS", productId: String? = null, qty: Int = 1
+    ) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createTransaction(
+                CreateTransactionRequest(TransactionBody(unitId, kategoriTrx, nominal, keterangan, metodeBayar, null, productId, qty))
+            )
+            if (res.success) {
+                loadDashboard()
+                setSuccess("Transaksi berhasil disimpan!")
+            } else setError(res.message ?: "Gagal simpan transaksi")
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        }
+    }
+    fun deleteTransaction(transactionId: Int) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteTransaction(transactionId, unitId)
+            if (res.success) {
+                loadDashboard()
+                setSuccess("Transaksi berhasil dihapus")
+            } else setError(res.message ?: "Gagal hapus transaksi")
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        }
+    }
     private val _fixedAssets = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.FixedAsset>>(emptyList())
     val fixedAssets: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.FixedAsset>> = _fixedAssets.asStateFlow()
-    fun loadFixedAssets() = viewModelScope.launch {}
-    fun createEmployee(fullName: String, position: String, salary: Double, pin: String, role: String, email: String, phone: String, division: String) = viewModelScope.launch {}
-    fun createPayable(contactId: Int, nomorFaktur: String, tanggal: String, jatuhTempo: String, nominal: Double, keterangan: String) = viewModelScope.launch {}
-    fun createJournalEntry(tanggal: String, memo: String?, lines: List<com.upstyle.bizgrow.data.CreateJournalLineBody>) = viewModelScope.launch {}
+    fun loadFixedAssets() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getFixedAssets(unitId)
+            if (res.success) _fixedAssets.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadFixedAssets error", e) }
+    }
+    fun createEmployee(fullName: String, position: String, salary: Double, pin: String, role: String,
+                       email: String = "", phone: String = "", division: String = "") = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createEmployee(CreateEmployeeRequest(
+                employee = CreateEmployeeBody(fullName, position, salary, pin, role, unitId, email, phone, division)
+            ))
+            if (res.success) { loadHrData(); setSuccess("Karyawan berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah karyawan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun createPayable(contactId: Int, nomorFaktur: String?, tanggal: String, jatuhTempo: String, nominal: Double, keterangan: String?) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createPayable(unitId, CreatePayableRequest(contactId, nomorFaktur, tanggal, jatuhTempo, nominal, keterangan))
+            if (res.success) { loadPayables(); loadAccountingContacts(); setSuccess("Hutang berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah hutang")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun createJournalEntry(tanggal: String, memo: String?, lines: List<CreateJournalLineBody>) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createJournalEntry(unitId, CreateJournalRequest(tanggal, null, memo, lines))
+            if (res.success) { loadJournalEntries(); setSuccess("Jurnal berhasil disimpan!") }
+            else setError(res.message ?: "Gagal simpan jurnal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     private val _arusKasData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.ArusKasData?>(null)
     val arusKasData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.ArusKasData?> = _arusKasData.asStateFlow()
-    fun loadArusKas(start: String, end: String) = viewModelScope.launch {}
+    fun loadArusKas(startDate: String, endDate: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getArusKas(unitId, startDate, endDate)
+            if (res.success) _arusKasData.value = res.data
+        } catch (e: Exception) { Napier.e("loadArusKas error", e) }
+    }
     
     private val _laporanWa = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.LaporanWaData?>(null)
     val laporanWa: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.LaporanWaData?> = _laporanWa.asStateFlow()
-    fun loadLaporanWa(periode: String) = viewModelScope.launch {}
+    fun loadLaporanWa(periode: String = "hari_ini") = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.getLaporanWa(LaporanWaRequest(unitId, periode))
+            if (res.success) { _laporanWa.value = res.data; _uiState.update { it.copy(isLoading = false) } }
+            else setError(res.message ?: "Gagal load laporan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     private val _marketingData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.MarketingData?>(null)
     val marketingData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.MarketingData?> = _marketingData.asStateFlow()
-    fun loadMarketingData() = viewModelScope.launch {}
-    fun createMarketingLead(nama: String, email: String, telepon: String, source: String) = viewModelScope.launch {}
-    fun processPayroll(empId: Int, monthYear: String, salary: Double, allowance: Double, deduction: Double, net: Double) = viewModelScope.launch {}
+    fun loadMarketingData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getMarketingData(unitId)
+            if (res.success) _marketingData.value = res.data
+        } catch (e: Exception) { Napier.e("loadMarketingData error", e) }
+    }
+    fun createMarketingLead(nama: String, email: String, telepon: String, source: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val lead = MarketingLead(nama = nama, email = email, telepon = telepon, source = source, unitId = unitId)
+            val res = api.createMarketingLead(lead)
+            if (res.success) { loadMarketingData(); setSuccess("Lead berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah lead")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun processPayroll(employeeId: Int, monthYear: String, salary: Double, allowance: Double,
+                       deduction: Double, netSalary: Double) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.processPayroll(ProcessPayrollRequest(
+                payroll = ProcessPayrollBody(employeeId, monthYear, salary, allowance, deduction, netSalary, unitId)
+            ))
+            if (res.success) { loadHrData(); setSuccess("Payroll berhasil diproses!") }
+            else setError(res.message ?: "Gagal proses payroll")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
-    fun createReceivable(contactId: Int, tanggal: String, jatuhTempo: String, nominal: Double, keterangan: String) = viewModelScope.launch {}
+    fun createReceivable(contactId: Int, tanggal: String, jatuhTempo: String, nominal: Double, keterangan: String?) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createReceivable(unitId, CreateReceivableRequest(contactId, tanggal, jatuhTempo, nominal, keterangan))
+            if (res.success) { loadReceivables(); loadAccountingContacts(); setSuccess("Piutang berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah piutang")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
     private val _posReturns = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.PosReturn>>(emptyList())
     val posReturns: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.PosReturn>> = _posReturns.asStateFlow()
-    fun loadPosReturns() = viewModelScope.launch {}
-    fun createReturn(orderId: String, items: List<com.upstyle.bizgrow.data.ReturnItem>, reason: String) = viewModelScope.launch {}
+    fun loadPosReturns() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosReturns(unitId)
+            if (res.success) _posReturns.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadPosReturns error", e) }
+    }
+    fun createReturn(orderId: String, items: List<ReturnItem>, reason: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createReturn(CreateReturnRequest(orderId = orderId, items = items, reason = reason, unitId = unitId))
+            if (res.success) { loadPosReturns(); loadPosData(); setSuccess("Retur berhasil diproses!") }
+            else setError(res.message ?: "Gagal proses retur")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     
     fun addToCart(product: com.upstyle.bizgrow.data.Product, quantity: Int = 1) {
         val current = _cart.value.toMutableMap()
@@ -247,22 +620,151 @@ class AppViewModel(
         _cart.value = current
     }
     
-    fun checkout(metode: String, onSuccess: (Boolean) -> Unit) = viewModelScope.launch { onSuccess(true) }
+    fun checkout(metode: String, onSuccess: (Boolean) -> Unit) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        val cartItems = _cart.value
+        if (cartItems.isEmpty()) { setError("Keranjang kosong"); onSuccess(false); return@launch }
+
+        val subtotal = cartItems.entries.sumOf { e -> e.key.hargaJual * e.value }
+        val diskon = _posDiskon.value
+        val total = subtotal - diskon
+        val items = cartItems.entries.map { (p, qty) ->
+            PosOrderItem(productId = p.id, productName = p.nama, qty = qty, price = p.hargaJual)
+        }
+
+        try {
+            val req = CheckoutRequest(order = CheckoutBody(
+                orderNumber = "ORD-${currentTimeMillis()}",
+                unitId = unitId,
+                customerId = _selectedCustomerId.value,
+                subtotal = subtotal,
+                diskon = diskon,
+                total = total,
+                paymentMethod = metode,
+                items = items
+            ))
+            val res = api.checkout(req)
+            if (res.success) {
+                clearCart()
+                loadProducts()
+                loadDashboard()
+                setSuccess("Transaksi berhasil! Total: Rp ${"%,.0f".format(total)}")
+                onSuccess(true)
+            } else {
+                setError(res.message ?: "Checkout gagal")
+                onSuccess(false)
+            }
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+            onSuccess(false)
+        }
+    }
     val posVouchers: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.PosVoucher>> = _posVouchers.asStateFlow()
-    fun loadPosVouchers() = viewModelScope.launch {}
+    fun loadPosVouchers() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosVouchers(unitId)
+            if (res.success) _posVouchers.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadPosVouchers error", e) }
+    }
     
     val currentUser: com.upstyle.bizgrow.data.UserInfo? get() = if (session.isLoggedIn()) com.upstyle.bizgrow.data.UserInfo(session.getUserId(), session.getUsername(), session.getEmail(), session.getRole()) else null
 
 
-    fun addProduct(nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, minStok: Int, sku: String, barcode: String?, kategoriId: Int?, fotoUri: String?, onResult: (Boolean) -> Unit) = viewModelScope.launch { onResult(true) }
-    fun adjustStock(productId: String, jumlah: Int, alasan: String, keterangan: String?) = viewModelScope.launch {}
-    fun register(name: String, email: String, pass: String, phone: String = "", company: String = "", onResult: (Boolean, String) -> Unit) = viewModelScope.launch { onResult(true, "Sukses") }
+    fun addProduct(nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, minStok: Int, sku: String, barcode: String?, kategoriId: Int?, fotoUri: String?, onResult: (Boolean) -> Unit) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val product = Product(
+                id = "0",
+                nama = nama,
+                hargaBeli = hargaBeli,
+                hargaJual = hargaJual,
+                stok = stok,
+                minStok = minStok,
+                sku = sku,
+                barcode = barcode,
+                foto = fotoUri,
+                kategoriId = kategoriId,
+                unitId = unitId
+            )
+            val res = api.createProduct(product)
+            if (res.success) {
+                loadProducts()
+                setSuccess("Produk berhasil ditambahkan")
+                onResult(true)
+            } else {
+                setError(res.message ?: "Gagal menambahkan produk")
+                onResult(false)
+            }
+        } catch (e: Exception) {
+            setError("Gagal menambah produk: ${e.message}")
+            onResult(false)
+        }
+    }
+    fun adjustStock(productId: String, perubahan: Int, alasan: String, keterangan: String? = null) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.adjustStock(productId, unitId, perubahan, alasan, keterangan)
+            if (res.success) {
+                loadProducts()
+                loadStockLogs(productId)
+                setSuccess("Stok berhasil diperbarui")
+            } else setError(res.message ?: "Gagal update stok")
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        }
+    }
+    fun register(name: String, email: String, pass: String, phone: String = "", company: String = "", onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.register(RegisterRequest(name.trim(), email.trim(), pass))
+            if (res.success) {
+                setSuccess("Registrasi berhasil! Silakan login.")
+                onResult(true, "Registrasi berhasil!")
+            } else {
+                val err = res.message ?: "Registrasi gagal"
+                setError(err)
+                onResult(false, err)
+            }
+        } catch (e: Exception) {
+            val err = "Koneksi gagal: ${e.message}"
+            setError(err)
+            onResult(false, err)
+        } finally {
+            setLoading(false)
+        }
+    }
     
     private val _scmData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.ScmData?>(null)
     val scmData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.ScmData?> = _scmData.asStateFlow()
-    fun loadScmData() = viewModelScope.launch {}
-    fun updatePoStatus(id: String, status: String) = viewModelScope.launch {}
-    fun createSupplier(name: String, contact: String, phone: String, email: String, category: String, address: String) = viewModelScope.launch {}
+    fun loadScmData() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getScmData(unitId)
+            if (res.success) _scmData.value = res.data
+        } catch (e: Exception) { Napier.e("loadScmData error", e) }
+    }
+    fun updatePoStatus(poId: String, status: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            api.updatePoStatus(UpdatePoStatusRequest(poId, status, unitId))
+            loadScmData()
+        } catch (e: Exception) { Napier.e("updatePoStatus error", e) }
+    }
+    fun createSupplier(name: String, contactName: String, phone: String, email: String, category: String, address: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createSupplier(CreateSupplierRequest(supplier = CreateSupplierBody(name, contactName, phone, email, category, address, unitId)))
+            if (res.success) { loadScmData(); setSuccess("Supplier berhasil ditambahkan!") }
+            else setError(res.message ?: "Gagal tambah supplier")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     private val _dashboardState = MutableStateFlow(DashboardState())
     val dashboardState: StateFlow<DashboardState> = _dashboardState.asStateFlow()
 
@@ -435,7 +937,8 @@ class AppViewModel(
 
     fun selectUnit(unitId: Int) = viewModelScope.launch {
         _activeUnitId.value = unitId
-        session.setActiveUnit(unitId, "", "")
+        val unit = _units.value.find { it.id == unitId }
+        session.setActiveUnit(unitId, unit?.name ?: "", unit?.slug ?: "")
         if (unitId > 0) {
             SocketManager.joinUnit(unitId)
             loadDashboard()
@@ -501,9 +1004,11 @@ class AppViewModel(
 
     // original addProduct removed
     fun updateProduct(product: Product) = viewModelScope.launch {
+        setLoading(true)
         try {
-            setSuccess("Produk berhasil diperbarui")
-            loadProducts()
+            val res = api.updateProduct(product)
+            if (res.success) { loadProducts(); setSuccess("Produk berhasil diperbarui") }
+            else setError(res.message ?: "Gagal update produk")
         } catch (e: Exception) { setError("Gagal: ${e.message}") }
     }
 
@@ -658,7 +1163,9 @@ class AppViewModel(
 
     fun updateTicketStatus(ticketId: Int, status: String) = viewModelScope.launch {
         try {
-            setSuccess("Status tiket diperbarui")
+            val res = api.updateTicketStatus(ticketId, status)
+            if (res.success) { loadTickets(); setSuccess("Status tiket diperbarui") }
+            else setError(res.message ?: "Gagal update status tiket")
         } catch (e: Exception) { setError("Gagal: ${e.message}") }
     }
 
@@ -869,14 +1376,14 @@ class AppViewModel(
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Chat & AI Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun sendChat(message: String) = viewModelScope.launch {
         _isChatLoading.value = true
+        val userMsg = ChatMessage(role = "user", content = message)
+        _chatHistory.value = _chatHistory.value + userMsg
         try {
-            val res = api.sendChatMessage(ChatMessage(role = "user", content = message))
-            if (res.success) {
-                _chatHistory.value = _chatHistory.value + ChatMessage(role = "user", content = message)
-                _chatHistory.value = _chatHistory.value + ChatMessage(role = "assistant", content = res.message ?: "OK")
-            } else {
-                setError(res.message ?: "Gagal mengirim chat")
-            }
+            val slug = activeUnit.value?.slug ?: ""
+            val history = _chatHistory.value.takeLast(10)
+            val res = api.chat(ChatRequest(message = message, activeUnitSlug = slug, history = history))
+            val reply = ChatMessage(role = "assistant", content = res.reply ?: "OK")
+            _chatHistory.value = _chatHistory.value + reply
         } catch (e: Exception) {
             setError("Koneksi gagal: ${e.message}")
         }
@@ -904,37 +1411,50 @@ class AppViewModel(
     }
 
     fun createSalesTarget(empId: Int?, empName: String, period: String, target: Double) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
         try {
-            loadSalesTargets(period)
-            setSuccess("Target berhasil dibuat!")
-        } catch (e: Exception) { setError("Gagal: ${e.message}") }
+            val res = api.createSalesTarget(SalesTarget(employeeId = empId, employeeName = empName, periode = period, targetAmount = target, unitId = unitId))
+            if (res.success) { loadSalesTargets(period); setSuccess("Target berhasil dibuat!") }
+            else setError(res.message ?: "Gagal buat target")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
     fun deleteSalesTarget(targetId: Int) = viewModelScope.launch {
         try {
-            loadSalesTargets()
-            setSuccess("Target berhasil dihapus!")
-        } catch (e: Exception) { setError("Gagal: ${e.message}") }
+            val res = api.deleteSalesTarget(targetId)
+            if (res.success) { loadSalesTargets(); setSuccess("Target berhasil dihapus!") }
+            else setError(res.message ?: "Gagal hapus target")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Tax Rates Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun loadTaxRates() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
         try {
-            _taxRates.value = emptyList()
+            val res = api.getTaxRates(unitId)
+            if (res.success) _taxRates.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadTaxRates error", e) }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Stock Opname Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun loadStockOpnameList() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
         try {
-            _stockOpnameSessions.value = emptyList()
+            val res = api.getStockOpnameList(unitId)
+            if (res.success) _stockOpnameSessions.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadStockOpnameList error", e) }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Trash Products Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun loadTrashProducts() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
         try {
-            _trashProducts.value = emptyList()
+            val res = api.getTrashProducts(unitId)
+            if (res.success) _trashProducts.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadTrashProducts error", e) }
     }
 
@@ -948,15 +1468,21 @@ class AppViewModel(
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Quotations Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun loadQuotations() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
         try {
-            _quotations.value = emptyList()
+            val res = api.getQuotations(unitId)
+            if (res.success) _quotations.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadQuotations error", e) }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Sales Orders Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun loadSalesOrders() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
         try {
-            _salesOrders.value = emptyList()
+            val res = api.getSalesOrders(unitId)
+            if (res.success) _salesOrders.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadSalesOrders error", e) }
     }
 
@@ -976,7 +1502,8 @@ class AppViewModel(
         try {
             val res = api.getNotifications(unitId)
             if (res.success) {
-                // Optional notification state if exists
+                _notifications.value = res.data ?: emptyList()
+                _unreadCount.value = res.data?.count { it.isRead == 0 } ?: 0
             }
         } catch (e: Exception) { Napier.e("loadNotifications error", e) }
     }
@@ -984,31 +1511,145 @@ class AppViewModel(
         session.clearSession()
         navigationManager.navigateToRoot(Screen.Login)
     }
-    fun generateAiCaption(description: String, platform: String, onResult: (String) -> Unit) = viewModelScope.launch { onResult("Generated caption for $description on $platform") }
-    fun loadStockLogs(productId: String? = null) = viewModelScope.launch {}
-    fun updateSosmedPost(id: Int, platform: String, caption: String, imageUrl: String, scheduledAt: String?, status: String) = viewModelScope.launch {}
-    fun deleteSosmedPost(postId: Int) = viewModelScope.launch {}
+    fun generateAiCaption(description: String, platform: String, onResult: (String) -> Unit) = viewModelScope.launch {
+        try {
+            val res = api.generateAiCaption(platform = platform, productName = description)
+            if (res.success) onResult(res.data?.get("caption") ?: "")
+            else onResult("")
+        } catch (e: Exception) { onResult("") }
+    }
+    fun loadStockLogs(productId: String? = null) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getStockLogs(unitId, productId)
+            if (res.success) _stockLogs.value = res.data ?: emptyList()
+        } catch (e: Exception) {
+            Napier.e("loadStockLogs error", e)
+        }
+    }
+    fun updateSosmedPost(id: Int, platform: String, caption: String, imageUrl: String, scheduledAt: String?, status: String) = viewModelScope.launch {
+        _sosmedState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateSocialPost(SocialPost(id = id, unitId = unitId, platform = platform, caption = caption, imageUrl = imageUrl, scheduledAt = scheduledAt ?: "", status = status))
+            if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil diperbarui!") }
+            else { _sosmedState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
 
-    fun applyBusinessPlan(id: Int) = viewModelScope.launch {}
-    fun createBusinessPlan(title: String, description: String, status: String) = viewModelScope.launch {}
-    fun updateBusinessPlan(id: Int, title: String, description: String, status: String) = viewModelScope.launch {}
-    fun deleteBusinessPlan(id: Int) = viewModelScope.launch {}
+    fun deleteSosmedPost(postId: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteSocialPost(postId, unitId)
+            if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil dihapus!") }
+            else setError(res.message ?: "Gagal hapus postingan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun applyBusinessPlan(id: Int) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.applyBusinessPlan(id, unitId)
+            if (res["success"] == true) { loadBusinessPlans(); setSuccess("Business plan berhasil diterapkan!") }
+            else setError("Gagal menerapkan business plan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun createBusinessPlan(title: String, description: String, status: String) = viewModelScope.launch {
+        _businessPlansState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val plan = BusinessPlan(title = title, description = description, status = status, unitId = unitId)
+            val res = api.createBusinessPlan(plan)
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil dibuat!") }
+            else { _businessPlansState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun updateBusinessPlan(id: Int, title: String, description: String, status: String) = viewModelScope.launch {
+        _businessPlansState.update { it.copy(isLoading = true) }
+        val unitId = _activeUnitId.value
+        try {
+            val plan = BusinessPlan(id = id, title = title, description = description, status = status, unitId = unitId)
+            val res = api.updateBusinessPlan(plan)
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil diperbarui!") }
+            else { _businessPlansState.update { it.copy(isLoading = false, error = res.message) }; setError(res.message ?: "Gagal") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteBusinessPlan(id: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.deleteBusinessPlan(id, unitId)
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil dihapus!") }
+            else setError(res.message ?: "Gagal hapus business plan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
 
     private val _closingPeriods = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.ClosingPeriod>>(emptyList())
     val closingPeriods: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.ClosingPeriod>> = _closingPeriods.asStateFlow()
-    fun loadClosingPeriods() = viewModelScope.launch {}
+    fun loadClosingPeriods() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getClosingPeriods(unitId)
+            if (res.success) _closingPeriods.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadClosingPeriods error", e) }
+    }
 
     private val _bukuBesarData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.BukuBesarData?>(null)
     val bukuBesarData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.BukuBesarData?> = _bukuBesarData.asStateFlow()
-    fun loadBukuBesar(coaId: Int, year: Int = 2026) = viewModelScope.launch {}
+    fun loadBukuBesar(coaId: Int, tahun: Int? = null) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getBukuBesar(unitId, coaId, tahun)
+            if (res.success) _bukuBesarData.value = res.data
+        } catch (e: Exception) { Napier.e("loadBukuBesar error", e) }
+    }
 
     private val _approvalsData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.ApprovalsData?>(null)
     val approvalsData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.ApprovalsData?> = _approvalsData.asStateFlow()
-    fun loadApprovals() = viewModelScope.launch {}
-    fun approveRequest(id: Int, status: String) = viewModelScope.launch {}
-    fun createApprovalRequest(type: String, amount: Double, desc: String) = viewModelScope.launch {}
+    fun loadApprovals() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getApprovals(unitId)
+            if (res.success) _approvalsData.value = res.data
+        } catch (e: Exception) { Napier.e("loadApprovals error", e) }
+    }
+
+    fun approveRequest(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.approveRequest(id, status)
+            if (res.success) { loadApprovals(); setSuccess("Permintaan berhasil ${if (status == "approve") "disetujui" else "ditolak"}") }
+            else setError(res.message ?: "Gagal update persetujuan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun createApprovalRequest(type: String, amount: Double, desc: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val empId = session.getUserId()
+            val req = ApprovalRequest(type = type, amount = amount, description = desc, unitId = unitId, employeeId = empId)
+            val res = api.createApprovalRequest(req)
+            if (res.success) { loadApprovals(); setSuccess("Permintaan berhasil diajukan!") }
+            else setError(res.message ?: "Gagal buat permintaan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
 
     private val _budgetItems = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.BudgetItem>>(emptyList())
     val budgetItems: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.BudgetItem>> = _budgetItems.asStateFlow()
-    fun loadBudgetItems(year: Int) = viewModelScope.launch {}
+    fun loadBudgetItems(year: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getBudgetItems(unitId, year)
+            if (res.success) _budgetItems.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadBudgetItems error", e) }
+    }
 }

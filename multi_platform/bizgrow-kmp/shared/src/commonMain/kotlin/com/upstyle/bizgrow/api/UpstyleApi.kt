@@ -837,11 +837,11 @@ class UpstyleApi(private val client: HttpClient) {
     private fun <T> dummy(): ApiResponse<T> = ApiResponse(true, "Stub", null)
     suspend fun getUnits(): ApiResponse<List<BusinessUnit>> = client.get("api/app/business").body()
     suspend fun createUnit(req: CreateUnitRequest): ApiResponse<Unit> = client.post("api/app/business") { setBody(req) }.body()
-    suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> = dummy()
-    suspend fun createSosmedPost(post: SocialPost): ApiResponse<SocialPost> = dummy()
-    suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> = dummy()
-    suspend fun saveWebsiteSettings(settings: WebsiteSetting): ApiResponse<WebsiteSetting> = dummy()
-    suspend fun sendChatMessage(message: ChatMessage): ApiResponse<ChatMessage> = dummy()
+    suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> = client.get("api/app/sosmed") { parameter("unitId", unitId) }.body()
+    suspend fun createSosmedPost(post: SocialPost): ApiResponse<SocialPost> = client.post("api/app/sosmed") { setBody(post) }.body()
+    suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> = client.get("api/app/website") { parameter("unitId", unitId) }.body()
+    suspend fun saveWebsiteSettings(settings: WebsiteSetting): ApiResponse<WebsiteSetting> = client.post("api/app/website") { setBody(settings) }.body()
+    suspend fun sendChatMessage(message: ChatMessage): ApiResponse<ChatMessage> = client.post("api/chat") { setBody(message) }.body()
 
     suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> =
         client.get("api/app/shopee") { parameter("unitId", unitId) }.body()
