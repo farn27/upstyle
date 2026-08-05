@@ -1566,3 +1566,11 @@ data class ShopeeIntegration(
 )
 
 
+
+@Serializable
+data class CreateUnitRequest(
+    val name: String,
+    val type: String,
+    val is_cabang: Boolean = false,
+    val cabang_dari: Int? = null
+)

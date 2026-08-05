@@ -1,4 +1,4 @@
-﻿package com.upstyle.bizgrow.api
+package com.upstyle.bizgrow.api
 
 import com.upstyle.bizgrow.data.*
 import io.ktor.client.*
@@ -8,7 +8,7 @@ import io.ktor.http.*
 
 class UpstyleApi(private val client: HttpClient) {
 
-    // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Auth ─────────────────────────────────────────────────────────────────
 
     suspend fun login(req: LoginRequest): ApiResponse<LoginData> =
         client.post("api/auth/login") { setBody(req) }.body()
@@ -28,7 +28,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun logout(): ApiResponse<Unit> =
         client.post("api/auth/logout").body()
 
-    // â”€â”€â”€ Business Units â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Business Units ───────────────────────────────────────────────────────
 
     suspend fun getBusinessUnits(): PaginatedResponse<BusinessUnit> =
         client.get("api/app/business") { parameter("limit", 50) }.body()
@@ -45,7 +45,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(req)
         }.body()
 
-    // â”€â”€â”€ Finance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Finance ──────────────────────────────────────────────────────────────
 
     suspend fun getFinanceData(unitId: Int, startDate: String? = null, endDate: String? = null): ApiResponse<FinanceData> =
         client.get("api/app/finance") {
@@ -63,7 +63,7 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
         }.body()
 
-    // â”€â”€â”€ Products â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Products ─────────────────────────────────────────────────────────────
 
     suspend fun getProducts(unitId: Int, page: Int = 1): PaginatedResponse<Product> =
         client.get("api/app/products") {
@@ -111,7 +111,7 @@ class UpstyleApi(private val client: HttpClient) {
             ))
         }.body()
 
-    // â”€â”€â”€ POS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── POS ──────────────────────────────────────────────────────────────────
 
     suspend fun getPosData(unitId: Int): ApiResponse<PosData> =
         client.get("api/app/pos") { parameter("unitId", unitId) }.body()
@@ -122,7 +122,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun createPosCustomer(req: CreateCustomerRequest): ApiResponse<Unit> =
         client.post("api/app/pos") { setBody(req) }.body()
 
-    // â”€â”€â”€ HR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── HR ───────────────────────────────────────────────────────────────────
 
     suspend fun getHrData(unitId: Int): ApiResponse<HrData> =
         client.get("api/app/hr") { parameter("unitId", unitId) }.body()
@@ -157,7 +157,7 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("periodYear", periodYear)
         }.body()
 
-    // â”€â”€â”€ CRM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── CRM ──────────────────────────────────────────────────────────────────
 
     suspend fun getCrmContacts(unitId: Int): PaginatedResponse<CrmContact> =
         client.get("api/app/crm") {
@@ -192,7 +192,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun createActivity(req: CreateActivityRequest): ApiResponse<Unit> =
         client.post("api/app/crm") { setBody(req) }.body()
 
-    // â”€â”€â”€ SCM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── SCM ──────────────────────────────────────────────────────────────────
 
     suspend fun getScmData(unitId: Int): ApiResponse<ScmData> =
         client.get("api/app/scm") { parameter("unitId", unitId) }.body()
@@ -212,7 +212,7 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
         }.body()
 
-    // â”€â”€â”€ Finance AR (Piutang) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Finance AR (Piutang) ─────────────────────────────────────────────────
 
     suspend fun getReceivables(unitId: Int): ApiResponse<List<Receivable>> =
         client.get("api/app/finance/receivables") {
@@ -230,7 +230,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("action" to "pay", "invoiceId" to req.invoiceId, "nominalBayar" to req.nominalBayar))
         }.body()
 
-    // â”€â”€â”€ Finance AP (Hutang) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Finance AP (Hutang) ──────────────────────────────────────────────────
 
     suspend fun getPayables(unitId: Int): ApiResponse<List<Payable>> =
         client.get("api/app/finance/payables") {
@@ -248,7 +248,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("action" to "pay", "invoiceId" to req.invoiceId, "nominalBayar" to req.nominalBayar))
         }.body()
 
-    // â”€â”€â”€ Accounting Contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Accounting Contacts ──────────────────────────────────────────────────
 
     suspend fun getAccountingContacts(unitId: Int): ApiResponse<List<AccountingContact>> =
         client.get("api/app/finance/contacts") {
@@ -261,7 +261,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(contact)
         }.body()
 
-    // â”€â”€â”€ Journal / Jurnal Umum â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Journal / Jurnal Umum ────────────────────────────────────────────────
 
     suspend fun getJournalEntries(unitId: Int, tahun: Int? = null, bulan: String? = null): ApiResponse<List<JournalEntry>> =
         client.get("api/app/finance/journal") {
@@ -276,14 +276,14 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(req)
         }.body()
 
-    // â”€â”€â”€ Chart of Accounts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Chart of Accounts ────────────────────────────────────────────────────
 
     suspend fun getChartOfAccounts(unitId: Int): ApiResponse<List<ChartOfAccount>> =
         client.get("api/app/finance/coa") {
             parameter("unitId", unitId)
         }.body()
 
-    // â”€â”€â”€ Buku Besar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Buku Besar ───────────────────────────────────────────────────────────
 
     suspend fun getBukuBesar(unitId: Int, coaId: Int, tahun: Int? = null): ApiResponse<BukuBesarData> =
         client.get("api/app/finance/buku-besar") {
@@ -292,7 +292,7 @@ class UpstyleApi(private val client: HttpClient) {
             tahun?.let { parameter("tahun", it) }
         }.body()
 
-    // â”€â”€â”€ Laporan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Laporan ──────────────────────────────────────────────────────────────
 
     suspend fun getLabaRugi(unitId: Int, startDate: String, endDate: String): ApiResponse<LabaRugiData> =
         client.get("api/app/finance/laporan") {
@@ -310,7 +310,7 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("end", endDate)
         }.body()
 
-    // â”€â”€â”€ Ecommerce Orders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Ecommerce Orders ─────────────────────────────────────────────────────
 
     suspend fun getOrders(unitId: Int, page: Int = 1): PaginatedResponse<EcommerceOrder> =
         client.get("api/app/orders") {
@@ -327,7 +327,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("status" to status))
         }.body()
 
-    // â”€â”€â”€ CS / Support Tickets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── CS / Support Tickets ─────────────────────────────────────────────────
 
     suspend fun getTickets(unitId: Int): ApiResponse<List<SupportTicket>> =
         client.get("api/app/cs") {
@@ -350,7 +350,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("status" to status))
         }.body()
 
-    // â”€â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Notifications ────────────────────────────────────────────────────────
 
     suspend fun getNotifications(unitId: Int, limit: Int = 30): ApiResponse<List<RiwayatAksi>> =
         client.get("api/app/notifications") {
@@ -366,7 +366,7 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
         }.body()
 
-    // â”€â”€â”€ AI Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── AI Chat ──────────────────────────────────────────────────────────────
 
     suspend fun chat(req: ChatRequest): ChatResponse =
         client.post("api/chat") { setBody(req) }.body()
@@ -374,7 +374,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun aiAdvisor(req: AiAdvisorRequest): ApiResponse<AiAdvisorData> =
         client.post("api/ai-advisor") { setBody(req) }.body()
 
-    // â”€â”€â”€ Reports & Exports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Reports & Exports ────────────────────────────────────────────────────
 
     suspend fun getLaporanWa(req: LaporanWaRequest): ApiResponse<LaporanWaData> =
         client.post("api/laporan-wa") { setBody(req) }.body()
@@ -388,14 +388,14 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("lastUpdate", lastUpdate)
         }.body()
 
-    // â”€â”€â”€ QR Code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── QR Code ─────────────────────────────────────────────────────────────
 
     suspend fun generateQrCode(data: String): ApiResponse<Map<String, String>> =
         client.get("api/qr") {
             parameter("data", data)
         }.body()
 
-    // â”€â”€â”€ POS Shifts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── POS Shifts ───────────────────────────────────────────────────────────
 
     suspend fun getPosShifts(unitId: Int): ApiResponse<List<PosShift>> =
         client.get("api/app/pos") {
@@ -409,7 +409,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun closeShift(req: CloseShiftRequest): ApiResponse<Unit> =
         client.post("api/app/pos") { setBody(req) }.body()
 
-    // â”€â”€â”€ POS Returns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── POS Returns ──────────────────────────────────────────────────────────
 
     suspend fun getPosReturns(unitId: Int): ApiResponse<List<PosReturn>> =
         client.get("api/app/pos/returns") {
@@ -419,7 +419,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun createReturn(req: CreateReturnRequest): ApiResponse<Unit> =
         client.post("api/app/pos/returns") { setBody(req) }.body()
 
-    // â”€â”€â”€ Fixed Assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Fixed Assets ─────────────────────────────────────────────────────────
 
     suspend fun getFixedAssets(unitId: Int): ApiResponse<List<FixedAsset>> =
         client.get("api/app/finance/fixed-assets") { parameter("unitId", unitId) }.body()
@@ -433,7 +433,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun deleteFixedAsset(assetId: Int): ApiResponse<Unit> =
         client.delete("api/app/finance/fixed-assets") { parameter("assetId", assetId) }.body()
 
-    // â”€â”€â”€ Tax Rates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Tax Rates ────────────────────────────────────────────────────────────
 
     suspend fun getTaxRates(unitId: Int): ApiResponse<List<TaxRate>> =
         client.get("api/app/finance/tax-rates") { parameter("unitId", unitId) }.body()
@@ -447,7 +447,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun deleteTaxRate(taxId: Int): ApiResponse<Unit> =
         client.delete("api/app/finance/tax-rates") { parameter("taxId", taxId) }.body()
 
-    // â”€â”€â”€ Budgeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Budgeting ────────────────────────────────────────────────────────────
 
     suspend fun getBudgetItems(unitId: Int, tahun: Int): ApiResponse<List<BudgetItem>> =
         client.get("api/app/finance/budget") {
@@ -461,7 +461,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun deleteBudgetItem(budgetId: Int): ApiResponse<Unit> =
         client.delete("api/app/finance/budget") { parameter("budgetId", budgetId) }.body()
 
-    // â”€â”€â”€ Closing Periods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Closing Periods ──────────────────────────────────────────────────────
 
     suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
         client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()
@@ -469,7 +469,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun closePeriod(req: ClosingPeriod): ApiResponse<Unit> =
         client.post("api/app/finance/close-period") { setBody(req) }.body()
 
-    // â”€â”€â”€ POS Cash Transactions & Vouchers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── POS Cash Transactions & Vouchers ─────────────────────────────────────
 
     suspend fun getPosReports(unitId: Int, shiftId: Int? = null): ApiResponse<Map<String, Any>> =
         client.get("api/app/pos/reports") {
@@ -495,7 +495,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun deletePosVoucher(voucherId: Int): ApiResponse<Unit> =
         client.delete("api/app/pos/vouchers") { parameter("voucherId", voucherId) }.body()
 
-    // â”€â”€â”€ HR Leave & Departments & Employee Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── HR Leave & Departments & Employee Detail ────────────────────────────
 
     suspend fun getLeaveRequests(unitId: Int, employeeId: Int? = null): ApiResponse<List<LeaveRequest>> =
         client.get("api/app/hr/leave") {
@@ -523,7 +523,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getEmployeeDetail(employeeId: Int): ApiResponse<EmployeeDetail> =
         client.get("api/app/hr/$employeeId").body()
 
-    // â”€â”€â”€ CRM Tasks, Quotations, Sales Orders, Campaigns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── CRM Tasks, Quotations, Sales Orders, Campaigns ─────────────────────
 
     suspend fun getCrmTasks(unitId: Int, contactId: Int? = null, dealId: Int? = null): ApiResponse<List<CrmTask>> =
         client.get("api/app/crm/tasks") {
@@ -575,7 +575,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun updateMarketingCampaign(camp: MarketingCampaign): ApiResponse<Unit> =
         client.put("api/app/crm/campaigns") { setBody(camp) }.body()
 
-    // â”€â”€â”€ Products Advanced (Stock Opname, Trash, Pricing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Products Advanced (Stock Opname, Trash, Pricing) ────────────────────
 
     suspend fun getStockOpnameList(unitId: Int): ApiResponse<List<StockOpnameSession>> =
         client.get("api/app/products/stock-opname") { parameter("unitId", unitId) }.body()
@@ -607,7 +607,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("items" to items))
         }.body()
 
-    // â”€â”€â”€ Sales Targets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Sales Targets ────────────────────────────────────────────────────────
 
     suspend fun getSalesTargets(unitId: Int, periode: String? = null): ApiResponse<SalesTargetData> =
         client.get("api/app/sales/targets") {
@@ -624,7 +624,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun deleteSalesTarget(targetId: Int): ApiResponse<Unit> =
         client.delete("api/app/sales/targets") { parameter("targetId", targetId) }.body()
 
-    // â”€â”€â”€ Approvals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Approvals ────────────────────────────────────────────────────────────
 
     suspend fun getApprovals(unitId: Int): ApiResponse<ApprovalsData> =
         client.get("api/app/hr/approvals") { parameter("unitId", unitId) }.body()
@@ -641,7 +641,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun createApprovalRequest(request: ApprovalRequest): ApiResponse<Unit> =
         client.post("api/app/hr/approvals") { setBody(request) }.body()
 
-    // â”€â”€â”€ Katalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Katalog ──────────────────────────────────────────────────────────────
 
     suspend fun getKatalog(unitId: Int): ApiResponse<KatalogData> =
         client.get("api/app/katalog") { parameter("unitId", unitId) }.body()
@@ -669,7 +669,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("action" to "update-settings", "settings" to settings))
         }.body()
 
-    // â”€â”€â”€ Marketing (full) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Marketing (full) ─────────────────────────────────────────────────────
 
     suspend fun getMarketingData(unitId: Int): ApiResponse<MarketingData> =
         client.get("api/app/marketing") { parameter("unitId", unitId) }.body()
@@ -684,7 +684,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("action" to "update-lead", "leadId" to leadId, "status" to status))
         }.body()
 
-    // â”€â”€â”€ Unit Dashboard Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Unit Dashboard Summary ───────────────────────────────────────────────
 
     suspend fun getUnitSummary(unitId: Int): ApiResponse<UnitDashboardSummary> =
         client.get("api/app/business") {
@@ -692,12 +692,12 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("action", "summary")
         }.body()
 
-    // â”€â”€â”€ HR Departments (CRUD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── HR Departments (CRUD) ────────────────────────────────────────────────
 
     suspend fun updateDepartment(dept: Department): ApiResponse<Unit> =
         client.put("api/app/hr/departments") { setBody(dept) }.body()
 
-    // â”€â”€â”€ HR Payroll (run payroll) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── HR Payroll (run payroll) ─────────────────────────────────────────────
 
     suspend fun runPayroll(unitId: Int, periode: String): ApiResponse<Unit> =
         client.post("api/app/hr/payroll") {
@@ -709,7 +709,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("action" to "mark-paid", "payrollId" to payrollId))
         }.body()
 
-    // â”€â”€â”€ AI Advisor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── AI Advisor ────────────────────────────────────────────────────────────
 
     suspend fun getAiAdvice(unitId: Int, question: String): ApiResponse<AiAdvisorData> =
         client.get("api/ai-advisor") {
@@ -717,7 +717,7 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("question", question)
         }.body()
 
-    // â”€â”€â”€ Business Plan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Business Plan ─────────────────────────────────────────────────────────
 
     suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> =
         client.get("api/app/business-plan").body()
@@ -736,7 +736,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("planId" to planId, "unitId" to unitId))
         }.body()
 
-    // â”€â”€â”€ Sosmed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Sosmed ────────────────────────────────────────────────────────────────
 
     suspend fun getSocialPosts(unitId: Int): ApiResponse<List<SocialPost>> =
         client.get("api/app/sosmed") { parameter("unitId", unitId) }.body()
@@ -758,7 +758,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("platform" to platform, "productName" to productName, "tone" to tone))
         }.body()
 
-    // â”€â”€â”€ Website â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Website ───────────────────────────────────────────────────────────────
 
     suspend fun getAny(unitId: Int): ApiResponse<WebsiteSetting> =
         client.get("api/app/website") { parameter("unitId", unitId) }.body()
@@ -766,7 +766,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun updateAny(settings: WebsiteSetting): ApiResponse<WebsiteSetting> =
         client.put("api/app/website") { setBody(settings) }.body()
 
-    // â”€â”€â”€ Help â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Help ──────────────────────────────────────────────────────────────────
 
     suspend fun getHelpArticles(
         category: String? = null,
@@ -782,7 +782,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("articleId" to articleId, "helpful" to helpful))
         }.body()
 
-    // â”€â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Settings ──────────────────────────────────────────────────────────────
 
     suspend fun getProfileSettings(): ApiResponse<Map<String, String>> =
         client.get("api/app/settings") { parameter("mode", "profile") }.body()
@@ -802,7 +802,7 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(data + mapOf("mode" to "preferences"))
         }.body()
 
-    // â”€â”€â”€ Landing Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Landing Page ──────────────────────────────────────────────────────────
 
     suspend fun getLandingPages(unitId: Int): ApiResponse<List<LandingPage>> =
         client.get("api/app/landing-page") { parameter("unitId", unitId) }.body()
@@ -833,9 +833,10 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("id" to pageId, "unitId" to unitId, "isActive" to isActive))
         }.body()
 
-    // â”€â”€â”€ Shopee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Shopee ────────────────────────────────────────────────────────────────
     private fun <T> dummy(): ApiResponse<T> = ApiResponse(true, "Stub", null)
-    suspend fun getUnits(): ApiResponse<List<BusinessUnit>> = dummy()
+    suspend fun getUnits(): ApiResponse<List<BusinessUnit>> = client.get("api/app/business").body()
+    suspend fun createUnit(req: CreateUnitRequest): ApiResponse<Unit> = client.post("api/app/business") { setBody(req) }.body()
     suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> = dummy()
     suspend fun createSosmedPost(post: SocialPost): ApiResponse<SocialPost> = dummy()
     suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> = dummy()

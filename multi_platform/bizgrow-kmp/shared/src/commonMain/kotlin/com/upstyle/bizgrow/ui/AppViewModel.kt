@@ -149,7 +149,20 @@ class AppViewModel(
     fun loadKatalog() = viewModelScope.launch {}
     fun toggleKatalogPublish(id: String, isPublished: Boolean) = viewModelScope.launch {}
     
-    fun createUnit(nama: String, type: String) = viewModelScope.launch {}
+    fun createUnit(nama: String, type: String) = viewModelScope.launch {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val res = api.createUnit(com.upstyle.bizgrow.data.CreateUnitRequest(name = nama, type = type))
+            if (res.success) {
+                setSuccess("Bisnis berhasil ditambahkan")
+                loadUnits()
+            } else {
+                setError(res.message ?: "Gagal menambah bisnis")
+            }
+        } catch (e: Exception) {
+            setError("Gagal menambah bisnis: ${e.message}")
+        }
+    }
     fun deleteEmployee(empId: Int) = viewModelScope.launch {}
     fun checkIn(empId: Int, date: String, time: String) = viewModelScope.launch {}
     fun checkOut(empId: Int, date: String, time: String) = viewModelScope.launch {}
