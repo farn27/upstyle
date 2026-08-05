@@ -1566,8 +1566,8 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.applyBusinessPlan(id, unitId)
-            if (res["success"] as? Boolean == true) { loadBusinessPlans(); setSuccess("Business plan berhasil diterapkan!") }
-            else setError("Gagal menerapkan business plan")
+            if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil diterapkan!") }
+            else setError(res.message ?: "Gagal menerapkan business plan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
