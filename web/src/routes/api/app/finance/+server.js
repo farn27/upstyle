@@ -186,6 +186,16 @@ export async function POST({ request, cookies }) {
                 tipe: 'success',
                 waktu: new Date()
             });
+            // Also trigger on correct unit room for mobile notifications
+            triggerEvent(`unit-${unitId}`, 'notification', {
+                id: Date.now(),
+                unitId: Number(unitId),
+                pesan: `Transaksi ${kategoriTrx}: Rp ${String(nominal)}`,
+                kategori: 'FINANCE',
+                tipe: 'success',
+                waktu: new Date().toISOString()
+            });
+            triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId: Number(unitId) });
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
             try {
@@ -238,6 +248,15 @@ export async function DELETE({ url, cookies, request }) {
                 tipe: 'warning',
                 waktu: new Date()
             });
+            triggerEvent(`unit-${unitId}`, 'notification', {
+                id: Date.now(),
+                unitId: Number(unitId),
+                pesan: 'Transaksi dihapus',
+                kategori: 'FINANCE',
+                tipe: 'warning',
+                waktu: new Date().toISOString()
+            });
+            triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId: Number(unitId) });
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
             try {

@@ -108,7 +108,7 @@ export async function POST({ request, cookies }) {
 
         const { id, sku, nama, hargaBeli, hargaJual, stok, kategori, unitId, variants } = body;
 
-        const newId = id || crypto.randomUUID();
+        const newId = (id && id !== "0" && id !== 0) ? String(id) : crypto.randomUUID();
         const slug = `${nama.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}-${newId.slice(0, 5)}`;
         
         await db.transaction(async (tx) => {
@@ -165,7 +165,8 @@ export async function POST({ request, cookies }) {
             }
         });
 
-        triggerEvent(`private-unit-${unitId}`, 'product-added', { message: 'Produk ditambahkan dari HP' });
+        triggerEvent(`unit-${unitId}`, 'stock-updated', { message: 'Produk ditambahkan dari HP', unitId: Number(unitId) });
+        triggerEvent(`unit-${unitId}`, 'notification', { id: Date.now(), unitId: Number(unitId), pesan: `Produk baru ditambahkan: ${nama}`, kategori: 'PRODUK', tipe: 'success', waktu: new Date().toISOString() });
         return json({ success: true, message: "Produk berhasil disimpan", id: newId });
     } catch (err) {
         log.api.error({ err }, 'API POST PRODUCT ERROR');
@@ -290,9 +291,10 @@ export async function PUT({ request, cookies }) {
             }
         });
 
-        triggerEvent(`private-unit-${unitId}`, 'product-added', { message: 'Produk diperbarui dari HP' });
+        triggerEvent(`unit-${unitId}`, 'stock-updated', { message: 'Produk diperbarui dari HP', unitId: Number(unitId) });
+        triggerEvent(`unit-${unitId}`, 'notification', { id: Date.now(), unitId: Number(unitId), pesan: `Produk diperbarui: ${nama}`, kategori: 'PRODUK', tipe: 'info', waktu: new Date().toISOString() });
         if (selisih !== 0) {
-            triggerEvent(`private-unit-${unitId}`, 'stock-updated', { message: 'Stok diperbarui dari HP' });
+            triggerEvent(`unit-${unitId}`, 'stock-updated', { message: 'Stok diperbarui dari HP', unitId: Number(unitId) });
         }
         return json({ success: true, message: "Produk berhasil diperbarui" });
     } catch (err) {
@@ -322,7 +324,8 @@ export async function DELETE({ url, cookies, request }) {
             .set({ deletedAt: nowWIB().toISOString(), status: 'archived' })
             .where(eq(products.id, productId));
 
-        triggerEvent(`private-unit-${unitId}`, 'product-added', { message: 'Produk dihapus dari HP' });
+        triggerEvent(`unit-${unitId}`, 'stock-updated', { message: 'Produk dihapus dari HP', unitId: Number(unitId) });
+        triggerEvent(`unit-${unitId}`, 'notification', { id: Date.now(), unitId: Number(unitId), pesan: 'Produk dipindahkan ke sampah', kategori: 'PRODUK', tipe: 'warning', waktu: new Date().toISOString() });
         return json({ success: true, message: "Produk berhasil dipindahkan ke Sampah" });
     } catch (err) {
         log.api.error({ err }, 'API DELETE PRODUCT ERROR');

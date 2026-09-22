@@ -18,15 +18,20 @@ const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'http://localhost:13338';
  */
 export async function triggerSocketEvent(room, event, data) {
     try {
-        // Try HTTP API first
+        // Try HTTP API first with a short timeout (1 second)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1000);
+
         const response = await fetch(`${SOCKET_SERVER_URL}/emit`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${env.SOCKET_API_KEY || 'internal'}`
             },
-            body: JSON.stringify({ room, event, data })
+            body: JSON.stringify({ room, event, data }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
             console.log(`📡 Socket.io event sent: ${room} -> ${event}`);
@@ -35,7 +40,10 @@ export async function triggerSocketEvent(room, event, data) {
             throw new Error(`HTTP API failed: ${response.status}`);
         }
     } catch (httpError) {
-        console.warn('[Socket Trigger] HTTP API failed, trying Redis pub/sub:', httpError.message);
+        // Don't log AbortError as a warning — it's expected fallback
+        if (httpError.name !== 'AbortError') {
+            console.warn('[Socket Trigger] HTTP API failed, trying Redis pub/sub:', httpError.message);
+        }
         
         // Fallback to Redis pub/sub
         try {

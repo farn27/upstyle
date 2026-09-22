@@ -25,12 +25,26 @@ export async function GET({ url, cookies, request }) {
         if (action === 'shifts') {
             const shiftsList = await db.query.posShifts.findMany({
                 where: and(
-                    eq(posShifts.unitId, Number(unitId)),
-                    eq(posShifts.status, 'OPEN')
+                    eq(posShifts.unitId, Number(unitId))
                 ),
-                orderBy: [desc(posShifts.id)]
+                orderBy: [desc(posShifts.id)],
+                limit: 20
             });
-            return json({ success: true, data: { shifts: shiftsList } });
+            // Map to mobile-compatible format
+            const mapped = shiftsList.map(s => ({
+                id: s.id,
+                unitId: s.unitId,
+                userId: s.userId || 0,
+                waktuBuka: s.waktuBuka || '',
+                waktuTutup: s.waktuTutup || null,
+                modalAwal: Number(s.modalAwal || 0),
+                kasAkhir: Number(s.kasAkhir || 0),
+                kasAkhirAktual: Number(s.kasAkhirAktual || 0),
+                selisih: Number(s.selisih || 0),
+                status: s.status || 'CLOSED',
+                catatan: s.catatan || null
+            }));
+            return json({ success: true, data: mapped });
         }
 
         if (action === 'queue') {
@@ -376,6 +390,21 @@ export async function POST({ request, cookies }) {
                     id: Date.now(),
                     unitId: Number(unitId),
                     pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(total)}`,
+                    kategori: 'POS',
+                    tipe: 'success',
+                    waktu: nowWIB()
+                });
+                // Trigger on correct unit room for web notifications
+                triggerEvent(`unit-${unitId}`, 'pos-transaction', {
+                    orderNumber,
+                    total: Number(total),
+                    unitId: Number(unitId),
+                    timestamp: nowWIB()
+                });
+                triggerEvent(`unit-${unitId}`, 'notification', {
+                    id: Date.now(),
+                    unitId: Number(unitId),
+                    pesan: `POS: Transaksi #${orderNumber} - Rp ${String(total)}`,
                     kategori: 'POS',
                     tipe: 'success',
                     waktu: nowWIB()

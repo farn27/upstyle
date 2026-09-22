@@ -1,9 +1,11 @@
-// DEPRECATED: This file is replaced by socketTrigger.js
-// Kept for backward compatibility during migration
 import { triggerEvent as socketTriggerEvent } from './socketTrigger.js';
 
-// Legacy export for backward compatibility
-export const triggerEvent = socketTriggerEvent;
+// Expose a dummy pusherServer object that wraps socketTriggerEvent 
+// so that existing `pusherServer.trigger` calls don't crash
+export const pusherServer = {
+    trigger: async (channel, event, data) => {
+        return socketTriggerEvent(channel, event, data);
+    }
+};
 
-// Pusher server is deprecated - returning null
-export const pusherServer = null;
+export const triggerEvent = socketTriggerEvent;

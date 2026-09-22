@@ -1,98 +1,81 @@
-import { db } from '$lib/server/db';
-import { json, error } from '@sveltejs/kit';
-import { getUserBySession } from '$lib/server/session';
+import { json } from '@sveltejs/kit';
+import { db } from '$lib/server/drizzle';
+import { getCurrentUserId } from '$lib/server/getUser';
 import { ecommerceOrders, ecommerceOrderItems, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
+import { log } from '$lib/server/logger';
 
-/** @type {import('./$types').RequestHandler} */
-export async function GET({ request, params }) {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-        throw error(401, 'Unauthorized');
-    }
-    const token = authHeader.slice(7);
-    const user = await getUserBySession(token);
-    if (!user) throw error(401, 'Invalid session');
+// GET /api/app/orders/:orderId
+export async function GET({ params, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     const orderId = parseInt(params.orderId);
+    if (!orderId) return json({ success: false, message: 'orderId tidak valid' }, { status: 400 });
 
     try {
-        // Get order with unit verification
-        const [order] = await db.select()
+        const [order] = await db.select({
+                order: ecommerceOrders,
+                unitOwnerId: unitBisnis.userId
+            })
             .from(ecommerceOrders)
             .innerJoin(unitBisnis, eq(ecommerceOrders.unitId, unitBisnis.id))
-            .where(and(
-                eq(ecommerceOrders.id, orderId),
-                eq(unitBisnis.ownerUserId, user.id)
-            ))
+            .where(eq(ecommerceOrders.id, orderId))
             .limit(1);
 
-        if (!order) {
-            throw error(404, 'Order not found');
-        }
+        if (!order) return json({ success: false, message: 'Pesanan tidak ditemukan' }, { status: 404 });
+        if (order.unitOwnerId !== userId) return json({ success: false, message: 'Access denied' }, { status: 403 });
 
-        // Get order items
         const items = await db.select()
             .from(ecommerceOrderItems)
             .where(eq(ecommerceOrderItems.ecommerceOrderId, orderId));
 
-        return json({ 
-            success: true, 
-            order: order.ecommerce_orders,
-            items 
-        });
-    } catch (e) {
-        console.error('Get order detail error:', e);
-        throw error(500, 'Failed to fetch order detail');
+        return json({ success: true, data: { ...order.order, items } });
+    } catch (err) {
+        log.api.error({ err }, 'GET order detail');
+        return json({ success: false, message: 'Gagal memuat detail pesanan' }, { status: 500 });
     }
 }
 
-/** @type {import('./$types').RequestHandler} */
-export async function PUT({ request, params }) {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-        throw error(401, 'Unauthorized');
-    }
-    const token = authHeader.slice(7);
-    const user = await getUserBySession(token);
-    if (!user) throw error(401, 'Invalid session');
+// PUT /api/app/orders/:orderId  — update status
+export async function PUT({ params, request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     const orderId = parseInt(params.orderId);
+    if (!orderId) return json({ success: false, message: 'orderId tidak valid' }, { status: 400 });
+
     const body = await request.json();
-    const { paymentStatus, shippingStatus, transactionId } = body;
+    const { status, paymentStatus, shippingStatus } = body;
 
     try {
         // Verify ownership
-        const [order] = await db.select()
+        const [order] = await db.select({
+                id: ecommerceOrders.id,
+                unitOwnerId: unitBisnis.userId
+            })
             .from(ecommerceOrders)
             .innerJoin(unitBisnis, eq(ecommerceOrders.unitId, unitBisnis.id))
-            .where(and(
-                eq(ecommerceOrders.id, orderId),
-                eq(unitBisnis.ownerUserId, user.id)
-            ))
+            .where(eq(ecommerceOrders.id, orderId))
             .limit(1);
 
-        if (!order) {
-            throw error(404, 'Order not found');
-        }
+        if (!order) return json({ success: false, message: 'Pesanan tidak ditemukan' }, { status: 404 });
+        if (order.unitOwnerId !== userId) return json({ success: false, message: 'Access denied' }, { status: 403 });
 
-        // Update order
         const updates = {};
+        if (status) { updates.paymentStatus = status; updates.shippingStatus = status; }
         if (paymentStatus) updates.paymentStatus = paymentStatus;
         if (shippingStatus) updates.shippingStatus = shippingStatus;
-        if (transactionId) updates.transactionId = transactionId;
 
         if (Object.keys(updates).length === 0) {
-            throw error(400, 'No fields to update');
+            return json({ success: false, message: 'Tidak ada field untuk diupdate' }, { status: 400 });
         }
 
-        await db.update(ecommerceOrders)
-            .set(updates)
-            .where(eq(ecommerceOrders.id, orderId));
+        await db.update(ecommerceOrders).set(updates).where(eq(ecommerceOrders.id, orderId));
 
-        return json({ success: true, message: 'Order updated' });
-    } catch (e) {
-        console.error('Update order error:', e);
-        throw error(500, 'Failed to update order');
+        return json({ success: true, message: 'Status pesanan diperbarui' });
+    } catch (err) {
+        log.api.error({ err }, 'PUT order status');
+        return json({ success: false, message: 'Gagal update pesanan' }, { status: 500 });
     }
 }

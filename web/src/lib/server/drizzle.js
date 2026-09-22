@@ -22,7 +22,9 @@ export const pool = mysql.createPool({
     queueLimit: 0,               // Unlimited queue for pending connection requests
     waitForConnections: true,    // Wait for available connection
     enableKeepAlive: true,       // Enable TCP keep-alive
-    keepAliveInitialDelay: 0     // Initial delay before keep-alive (ms)
+    keepAliveInitialDelay: 10000, // 10 second delay before keep-alive packets
+    connectTimeout: 10000,       // 10 second connection timeout
+    idleTimeout: 60000           // Release idle connections after 60s
 });
 
 export const db = drizzle(pool, { 
