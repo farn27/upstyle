@@ -104,7 +104,11 @@ actual object SocketManager {
     actual fun isConnected(): Boolean = socket?.connected() == true
 
     private fun deriveSocketUrl(serverUrl: String): String = try {
-        val uri = URI.create(serverUrl.trimEnd('/'))
-        "${uri.scheme}://${uri.host}:13337"
+        if (serverUrl.contains("vercel.app") || serverUrl.startsWith("https://")) {
+            "https://203.194.113.29.sslip.io"
+        } else {
+            val uri = URI.create(serverUrl.trimEnd('/'))
+            "${uri.scheme}://${uri.host}:13337"
+        }
     } catch (_: Exception) { "" }
 }

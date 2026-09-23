@@ -1,4 +1,4 @@
-﻿package com.upstyle.bizgrow.data
+package com.upstyle.bizgrow.data
 
 import com.russhwolf.settings.Settings
 
@@ -19,9 +19,8 @@ class SessionRepository(private val settings: Settings) {
         private const val KEY_UNIT_NAME = "active_unit_name"
         private const val KEY_UNIT_SLUG = "active_unit_slug"
         private const val KEY_SERVER_URL = "server_url"
-        // Default: 192.168.1.25 is local IP for real device testing via USB
-        // 10.0.2.2 was for Android Emulator
-        private const val DEFAULT_SERVER = "http://192.168.1.24:5173"
+        // Production Server URL (Vercel)
+        private const val DEFAULT_SERVER = "https://bizgrows-ten.vercel.app"
     }
 
     fun saveSession(token: String, role: String, email: String, username: String = "", userId: Int = 0) {
