@@ -27,7 +27,7 @@ jobs:
       run: chmod +x ./gradlew
       working-directory: ./multi_platform/bizgrow-kmp
 
-    - name: Override gradle.properties for CI (RAM 7GB di GitHub)
+    - name: Override gradle.properties untuk CI
       run: |
         cat > multi_platform/bizgrow-kmp/gradle.properties << 'EOF'
         android.useAndroidX=true
@@ -43,41 +43,76 @@ jobs:
       run: ./gradlew :androidApp:assembleDebug --no-daemon
       working-directory: ./multi_platform/bizgrow-kmp
 
+    - name: Cek APK ada
+      run: |
+        APK_PATH="multi_platform/bizgrow-kmp/androidApp/build/outputs/apk/debug/androidApp-debug.apk"
+        if [ -f "$APK_PATH" ]; then
+          echo "✅ APK ditemukan: $(du -h $APK_PATH | cut -f1)"
+        else
+          echo "❌ APK tidak ditemukan!"
+          find multi_platform/bizgrow-kmp/androidApp/build/outputs -name "*.apk" 2>/dev/null || echo "Tidak ada APK di folder outputs"
+          exit 1
+        fi
+
     - name: Upload APK ke Appetize.io
       id: appetize
       run: |
         APK_PATH="multi_platform/bizgrow-kmp/androidApp/build/outputs/apk/debug/androidApp-debug.apk"
-        echo "Mengupload APK ke Appetize.io..."
 
-        RESPONSE=$(curl --silent --http1.1 \
-          -H "Authorization: Token ${{ secrets.APPETIZE_API_TOKEN }}" \
+        echo "📤 Mengupload APK ke Appetize.io..."
+
+        # Gunakan basic auth: -u "TOKEN:" (token sebagai username, password kosong)
+        RESPONSE=$(curl --silent \
+          -u "${{ secrets.APPETIZE_API_TOKEN }}:" \
           -F "file=@${APK_PATH}" \
           -F "platform=android" \
-          https://api.appetize.io/v1/apps)
+          "https://api.appetize.io/v1/apps")
 
-        echo "Response: $RESPONSE"
+        echo "📋 Raw API Response:"
+        echo "$RESPONSE"
 
-        PUBLIC_KEY=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin).get('publicKey',''))")
-        APP_URL="https://appetize.io/app/${PUBLIC_KEY}"
+        # Parse publicKey dengan jq
+        PUBLIC_KEY=$(echo "$RESPONSE" | jq -r '.publicKey // .appKey // ""')
+        echo "🔑 Public Key: $PUBLIC_KEY"
+
+        if [ -z "$PUBLIC_KEY" ] || [ "$PUBLIC_KEY" = "null" ]; then
+          echo "⚠️ Gagal dapat publicKey dari Appetize API"
+          echo "Error dari API: $(echo $RESPONSE | jq -r '.message // .error // "unknown"')"
+          APP_URL="UPLOAD_FAILED"
+        else
+          APP_URL="https://appetize.io/app/${PUBLIC_KEY}"
+          echo "✅ App URL: $APP_URL"
+        fi
 
         echo "public_key=${PUBLIC_KEY}" >> $GITHUB_OUTPUT
         echo "app_url=${APP_URL}" >> $GITHUB_OUTPUT
 
     - name: Tampilkan Link Appetize di Summary
       run: |
-        echo "## ✅ Build Berhasil!" >> $GITHUB_STEP_SUMMARY
+        APP_URL="${{ steps.appetize.outputs.app_url }}"
+        PUBLIC_KEY="${{ steps.appetize.outputs.public_key }}"
+
+        echo "## ✅ Build Berhasil! #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📱 Jalankan App di Browser:" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "🔗 **[${{ steps.appetize.outputs.app_url }}](${{ steps.appetize.outputs.app_url }})**" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$APP_URL" != "UPLOAD_FAILED" ] && [ -n "$PUBLIC_KEY" ] && [ "$PUBLIC_KEY" != "null" ]; then
+          echo "### 📱 Buka App di Browser:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 👉 [Klik di sini untuk buka app]($APP_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$APP_URL" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### ⚠️ Upload ke Appetize gagal — cek log step 'Upload APK ke Appetize.io'" >> $GITHUB_STEP_SUMMARY
+        fi
+
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Info | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
         echo "| Build | #${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "> Buka link di atas → app langsung jalan di browser tanpa install!" >> $GITHUB_STEP_SUMMARY
+        echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
 
     - name: Upload APK sebagai Artifact (backup)
       uses: actions/upload-artifact@v4
