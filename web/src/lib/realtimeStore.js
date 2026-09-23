@@ -14,7 +14,7 @@
 import { writable, derived } from 'svelte/store';
 import { getSocketClient, onSocketEvent, offSocketEvent, disconnectSocket, joinTicketRoom, leaveTicketRoom } from '$lib/socket';
 import { PollingManager } from '$lib/polling';
-import { invalidate } from '$app/navigation';
+import { invalidate, invalidateAll } from '$app/navigation';
 import { addNotif } from '$lib/notifStore';
 
 // ─── Global stores yang bisa di-subscribe dari mana saja ──────────────────────
@@ -163,6 +163,7 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
         addNotif(data.message || '📦 Stok diperbarui');
         emit('stockUpdate', stockUpdate, { ...data, action: 'stock-updated' });
         invalidate('app:pos:products').catch(() => {});
+        invalidateAll().catch(() => {});
     };
 
     // Stock Alerts (CRITICAL)
@@ -174,7 +175,6 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
     // CS Ticket Messages (CRITICAL)
     const handleTicketMessage = (data) => {
         emit('csTicketUpdate', csTicketUpdate, { action: 'new-message', ...data });
-        // Sound notification could be added here
     };
 
     // POS Cash Alerts (CRITICAL)
@@ -183,11 +183,30 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
         emit('financeUpdate', financeUpdate, { action: 'pos-cash-alert', ...data });
     };
 
+    // Finance Transactions / Stats Updates (CRITICAL REALTIME)
+    const handleStatsUpdated = (data) => {
+        console.log('⚡ [Realtime] Stats updated received:', data);
+        emit('financeUpdate', financeUpdate, { action: 'stats-updated', ...data });
+        invalidate('app:finance').catch(() => {});
+        invalidateAll().catch(() => {});
+    };
+
+    const handleNewTransaction = (data) => {
+        console.log('⚡ [Realtime] New transaction received:', data);
+        emit('financeUpdate', financeUpdate, { action: 'stats-updated', ...data });
+        invalidate('app:finance').catch(() => {});
+        invalidateAll().catch(() => {});
+    };
+
     // Notifications (IMPORTANT)
     const handleNotification = (data) => {
         addNotif(data.pesan || data.message || 'Notifikasi baru');
         emit('notifUpdate', notifUpdate, data);
         invalidate('app:notifications').catch(() => {});
+        if (data.kategori === 'FINANCE' || data.kategori === 'PRODUK') {
+            invalidate('app:finance').catch(() => {});
+            invalidateAll().catch(() => {});
+        }
     };
 
     // Order Status Changes (IMPORTANT)
@@ -195,6 +214,7 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
         emit('salesOrderUpdate', salesOrderUpdate, data);
         addNotif(`📋 Order #${data.orderId} → ${data.status}`);
         invalidate('sales:orders').catch(() => {});
+        invalidateAll().catch(() => {});
     };
 
     // Register event handlers
@@ -206,6 +226,8 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
     eventHandlers.set('pos-cash-alert', handlePOSAlert);
     eventHandlers.set('notification', handleNotification);
     eventHandlers.set('order-status-changed', handleOrderStatusChanged);
+    eventHandlers.set('stats-updated', handleStatsUpdated);
+    eventHandlers.set('new-transaction', handleNewTransaction);
 
     // Subscribe to events
     for (const [event, handler] of eventHandlers) {
@@ -215,7 +237,7 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
 
     // ─── NON-CRITICAL: Polling for Finance, Marketing, Sales Pipeline ─────
     pollingManager = new PollingManager({
-        interval: 60000, // 60 seconds untuk non-critical
+        interval: 15000, // 15 seconds fast fallback
         callback: pollingCallback,
         lastUpdate: lastUpdate
     });

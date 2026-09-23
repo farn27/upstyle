@@ -22,6 +22,13 @@
 
   export let data;
 
+  // --- REALTIME UPDATE ---
+  $: if ($financeUpdate) {
+    if ($financeUpdate.action === 'stats-updated' || $financeUpdate.action === 'pos-transaction') {
+      invalidate('app:finance');
+    }
+  }
+
   // --- 1. STATE UI ---
   let showKasDetail = false;     
   let showLabaRugiDetail = false;

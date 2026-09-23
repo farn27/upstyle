@@ -8,7 +8,8 @@
 import { redis } from '$lib/server/redis';
 import { env } from '$env/dynamic/private';
 
-const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'http://localhost:13338';
+const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'https://203.194.113.29.sslip.io';
+const SOCKET_API_KEY = env.SOCKET_API_KEY || '3801d6c3911bbba091ac8e9dc95b9e20add0aab827af5cfb65f5758781bfc3af';
 
 /**
  * Trigger Socket.io event via HTTP API
@@ -18,15 +19,15 @@ const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'http://localhost:13338';
  */
 export async function triggerSocketEvent(room, event, data) {
     try {
-        // Try HTTP API first with a short timeout (1 second)
+        // Try HTTP API with 3-second timeout for serverless-to-VPS communication
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
         const response = await fetch(`${SOCKET_SERVER_URL}/emit`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${env.SOCKET_API_KEY || 'internal'}`
+                'Authorization': `Bearer ${SOCKET_API_KEY}`
             },
             body: JSON.stringify({ room, event, data }),
             signal: controller.signal
