@@ -1,5 +1,10 @@
 import { env } from '$env/dynamic/private';
 
+const MODEL_MAP = {
+	'llama-3.3-70b-versatile': 'openai/gpt-oss-120b',
+	'llama-3.1-8b-instant': 'openai/gpt-oss-20b'
+};
+
 /**
  * @param {object} options
  * @param {Array<{ role: string, content: string }>} options.messages
@@ -10,7 +15,7 @@ import { env } from '$env/dynamic/private';
  */
 export async function groqChatCompletion({
 	messages,
-	model = 'llama-3.1-8b-instant',
+	model = 'openai/gpt-oss-20b',
 	temperature = 0.7,
 	max_tokens = 1024,
 	response_format
@@ -20,20 +25,32 @@ export async function groqChatCompletion({
 		throw new Error('GROQ_API_KEY is not configured');
 	}
 
-	/** @type {Record<string, unknown>} */
-	const body = { model, messages, temperature, max_tokens };
-	if (response_format) {
-		body.response_format = response_format;
-	}
+	let targetModel = env.GROQ_MODEL || MODEL_MAP[model] || model;
 
-	const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${apiKey}`
-		},
-		body: JSON.stringify(body)
-	});
+	const callGroq = async (m) => {
+		/** @type {Record<string, unknown>} */
+		const body = { model: m, messages, temperature, max_tokens };
+		if (response_format) {
+			body.response_format = response_format;
+		}
+
+		return fetch('https://api.groq.com/openai/v1/chat/completions', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${apiKey}`
+			},
+			body: JSON.stringify(body)
+		});
+	};
+
+	let response = await callGroq(targetModel);
+
+	// If the model does not exist or user doesn't have access (404 model_not_found), fallback gracefully
+	if (response.status === 404 && targetModel !== 'openai/gpt-oss-120b') {
+		console.warn(`[Groq] Model "${targetModel}" not found. Retrying with fallback "openai/gpt-oss-120b"...`);
+		response = await callGroq('openai/gpt-oss-120b');
+	}
 
 	if (!response.ok) {
 		const text = await response.text();
@@ -42,3 +59,4 @@ export async function groqChatCompletion({
 
 	return response.json();
 }
+
