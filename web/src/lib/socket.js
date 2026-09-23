@@ -13,7 +13,7 @@
  */
 
 import { io } from 'socket.io-client';
-import { PUBLIC_SOCKET_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 let socketInstance = null;
 let connectionPromise = null;
@@ -39,7 +39,7 @@ export const getSocketClient = async (auth = {}) => {
   // Create new connection
   connectionPromise = new Promise((resolve, reject) => {
     try {
-      const socketUrl = PUBLIC_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
+      const socketUrl = env.PUBLIC_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
       
       socketInstance = io(socketUrl, {
         auth,

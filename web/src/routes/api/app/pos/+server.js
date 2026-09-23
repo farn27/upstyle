@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees, posQueue } from '$lib/server/schema';
+import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees } from '$lib/server/schema';
 import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
