@@ -176,26 +176,28 @@ export async function POST({ request, cookies }) {
         const slug = unit?.slug || '';
 
         if (slug) {
-            triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Update dari HP' });
-            triggerEvent('finance-channel', 'new-transaction', { message: 'Update dari HP' });
-            triggerEvent('channel-bizgrow', 'notif-baru', {
-                id: Date.now(),
-                unitId: Number(unitId),
-                pesan: `Transaksi baru ditambahkan dari HP: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
-                kategori: 'FINANCE',
-                tipe: 'success',
-                waktu: new Date()
-            });
-            // Also trigger on correct unit room for mobile notifications
-            triggerEvent(`unit-${unitId}`, 'notification', {
-                id: Date.now(),
-                unitId: Number(unitId),
-                pesan: `Transaksi ${kategoriTrx}: Rp ${String(nominal)}`,
-                kategori: 'FINANCE',
-                tipe: 'success',
-                waktu: new Date().toISOString()
-            });
-            triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId: Number(unitId) });
+            // Await is critical on Vercel to prevent process freezing before the fetch completes
+            await Promise.allSettled([
+                triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Update dari HP' }),
+                triggerEvent('finance-channel', 'new-transaction', { message: 'Update dari HP' }),
+                triggerEvent('channel-bizgrow', 'notif-baru', {
+                    id: Date.now(),
+                    unitId: Number(unitId),
+                    pesan: `Transaksi baru ditambahkan dari HP: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
+                    kategori: 'FINANCE',
+                    tipe: 'success',
+                    waktu: new Date()
+                }),
+                triggerEvent(`unit-${unitId}`, 'notification', {
+                    id: Date.now(),
+                    unitId: Number(unitId),
+                    pesan: `Transaksi ${kategoriTrx}: Rp ${String(nominal)}`,
+                    kategori: 'FINANCE',
+                    tipe: 'success',
+                    waktu: new Date().toISOString()
+                }),
+                triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId: Number(unitId) })
+            ]);
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
             try {
@@ -203,6 +205,10 @@ export async function POST({ request, cookies }) {
                 if (keys.length > 0) await redis.del(...keys);
                 const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
                 if (historyKeys.length > 0) await redis.del(...historyKeys);
+                
+                // Hapus juga cache beranda dan layout
+                await redis.del(`home_dash_v2:${userId}`);
+                await redis.del(`layout_session_v2:${userId}`);
             } catch (err) {
                 log.finance.warn({ err }, 'Gagal menghapus cache Redis (POST)');
             }
@@ -238,25 +244,27 @@ export async function DELETE({ url, cookies, request }) {
         const slug = unit?.slug || '';
 
         if (slug) {
-            triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Hapus dari HP' });
-            triggerEvent('finance-channel', 'new-transaction', { message: 'Hapus dari HP' });
-            triggerEvent('channel-bizgrow', 'notif-baru', {
-                id: Date.now(),
-                unitId: Number(unitId),
-                pesan: `Transaksi dihapus dari HP`,
-                kategori: 'FINANCE',
-                tipe: 'warning',
-                waktu: new Date()
-            });
-            triggerEvent(`unit-${unitId}`, 'notification', {
-                id: Date.now(),
-                unitId: Number(unitId),
-                pesan: 'Transaksi dihapus',
-                kategori: 'FINANCE',
-                tipe: 'warning',
-                waktu: new Date().toISOString()
-            });
-            triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId: Number(unitId) });
+            await Promise.allSettled([
+                triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Hapus dari HP' }),
+                triggerEvent('finance-channel', 'new-transaction', { message: 'Hapus dari HP' }),
+                triggerEvent('channel-bizgrow', 'notif-baru', {
+                    id: Date.now(),
+                    unitId: Number(unitId),
+                    pesan: `Transaksi dihapus dari HP`,
+                    kategori: 'FINANCE',
+                    tipe: 'warning',
+                    waktu: new Date()
+                }),
+                triggerEvent(`unit-${unitId}`, 'notification', {
+                    id: Date.now(),
+                    unitId: Number(unitId),
+                    pesan: 'Transaksi dihapus',
+                    kategori: 'FINANCE',
+                    tipe: 'warning',
+                    waktu: new Date().toISOString()
+                }),
+                triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId: Number(unitId) })
+            ]);
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
             try {
@@ -264,6 +272,9 @@ export async function DELETE({ url, cookies, request }) {
                 if (keys.length > 0) await redis.del(...keys);
                 const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
                 if (historyKeys.length > 0) await redis.del(...historyKeys);
+                
+                await redis.del(`home_dash_v2:${userId}`);
+                await redis.del(`layout_session_v2:${userId}`);
             } catch (err) {
                 log.finance.warn({ err }, 'Gagal menghapus cache Redis (DELETE)');
             }

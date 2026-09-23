@@ -137,8 +137,10 @@
 						{#each items as item}
 							{@const isActive = isPathActive(item.path)}
 							<div class="w-full flex flex-col">
-								<button
-									on:click={() => navigateTo(item.path)}
+								<a
+									href={item.path}
+									on:click={() => (isOpen = false)}
+									data-sveltekit-preload-data="hover"
 									class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group
 										{isActive
 										? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 shadow-sm border border-indigo-100 dark:border-indigo-800/50'
@@ -156,7 +158,7 @@
 										<p class="text-sm font-semibold truncate leading-tight">{item.name}</p>
 										<p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5 leading-snug line-clamp-2">{item.desc}</p>
 									</div>
-								</button>
+								</a>
 
 								{#if item.subItems?.length}
 									<div class="ml-10 mt-1 mb-2 space-y-0.5 border-l-2 border-slate-100 dark:border-slate-800 pl-2">

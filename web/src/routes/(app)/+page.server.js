@@ -11,7 +11,25 @@ export async function load({ cookies }) {
 
 	if (!userId) return { user: null, stats: {} };
 
+	// --- STRATEGI CACHE: Hyper-Fast Home Dashboard ---
+	const cacheKey = `home_dash_v2:${userId}`;
+
 	try {
+		let cachedData = null;
+		// eslint-disable-next-line no-undef
+		if (typeof redis !== 'undefined' && redis) {
+			try {
+				const { redis: redisClient } = await import('$lib/server/redis');
+				cachedData = await redisClient.get(cacheKey);
+			} catch (redisErr) {
+				log.api.warn({ err: redisErr.message }, '[Redis] Gagal get cache beranda');
+			}
+		}
+
+		if (cachedData) {
+			return typeof cachedData === 'string' ? JSON.parse(cachedData) : cachedData;
+		}
+
 		const [userData, businessCount, productCount, employeeCount, transactionCount] = await Promise.all([
 			db.query.users.findFirst({
 				where: eq(users.id, userId),
@@ -43,7 +61,7 @@ export async function load({ cookies }) {
 		const { unitLimit, storageLimitGB, planName } = getPlanLimits(userData?.role);
 		const storageUsedGB = estimateStorageGB(counts);
 
-		return {
+		const finalData = {
 			user: userData,
 			stats: {
 				totalUnit: businessCount[0]?.jumlahUnit || 0,
@@ -108,6 +126,18 @@ export async function load({ cookies }) {
 				}
 			]
 		};
+
+		// eslint-disable-next-line no-undef
+		if (typeof redis !== 'undefined' && redis) {
+			try {
+				const { redis: redisClient } = await import('$lib/server/redis');
+				await redisClient.set(cacheKey, finalData, { ex: 300 }); // Cache 5 menit
+			} catch (redisErr) {
+				log.api.warn({ err: redisErr.message }, '[Redis] Gagal set cache beranda');
+			}
+		}
+
+		return finalData;
 	} catch (err) {
 		log.api.error({ err }, 'GAGAL LOAD BERANDA');
 		return { user: null, stats: {} };
