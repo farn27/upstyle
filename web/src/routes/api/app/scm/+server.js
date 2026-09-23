@@ -5,7 +5,6 @@ import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import crypto from 'crypto';
-import { json } from '@sveltejs/kit';
 
 // 1. GET: Ambil suppliers dan purchase orders untuk unitId
 export async function GET({ url, cookies, request }) {
