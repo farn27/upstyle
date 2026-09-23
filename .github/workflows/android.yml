@@ -1,15 +1,15 @@
-name: KMP Android Build
+name: KMP Android Build & Appetize
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:  # bisa trigger manual dari GitHub UI
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build APK & Deploy ke Appetize.io
     runs-on: ubuntu-latest
 
     steps:
@@ -27,7 +27,7 @@ jobs:
       run: chmod +x ./gradlew
       working-directory: ./multi_platform/bizgrow-kmp
 
-    - name: Set Gradle properties for CI
+    - name: Override gradle.properties for CI (RAM 7GB di GitHub)
       run: |
         cat > multi_platform/bizgrow-kmp/gradle.properties << 'EOF'
         android.useAndroidX=true
@@ -40,19 +40,48 @@ jobs:
         EOF
 
     - name: Build Debug APK
-      run: ./gradlew :androidApp:assembleDebug --no-daemon --stacktrace
+      run: ./gradlew :androidApp:assembleDebug --no-daemon
       working-directory: ./multi_platform/bizgrow-kmp
-      env:
-        GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
 
-    - name: Upload APK
+    - name: Upload APK ke Appetize.io
+      id: appetize
+      run: |
+        APK_PATH="multi_platform/bizgrow-kmp/androidApp/build/outputs/apk/debug/androidApp-debug.apk"
+        echo "Mengupload APK ke Appetize.io..."
+
+        RESPONSE=$(curl --silent --http1.1 \
+          -H "Authorization: Token ${{ secrets.APPETIZE_API_TOKEN }}" \
+          -F "file=@${APK_PATH}" \
+          -F "platform=android" \
+          https://api.appetize.io/v1/apps)
+
+        echo "Response: $RESPONSE"
+
+        PUBLIC_KEY=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin).get('publicKey',''))")
+        APP_URL="https://appetize.io/app/${PUBLIC_KEY}"
+
+        echo "public_key=${PUBLIC_KEY}" >> $GITHUB_OUTPUT
+        echo "app_url=${APP_URL}" >> $GITHUB_OUTPUT
+
+    - name: Tampilkan Link Appetize di Summary
+      run: |
+        echo "## ✅ Build Berhasil!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📱 Jalankan App di Browser:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 **[${{ steps.appetize.outputs.app_url }}](${{ steps.appetize.outputs.app_url }})**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Info | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Build | #${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "> Buka link di atas → app langsung jalan di browser tanpa install!" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload APK sebagai Artifact (backup)
       uses: actions/upload-artifact@v4
       with:
         name: BizgrowApp-debug-${{ github.run_number }}
         path: multi_platform/bizgrow-kmp/androidApp/build/outputs/apk/debug/androidApp-debug.apk
         retention-days: 7
-
-    - name: Show APK info
-      run: |
-        echo "✅ APK berhasil dibuild!"
-        ls -lh multi_platform/bizgrow-kmp/androidApp/build/outputs/apk/debug/
