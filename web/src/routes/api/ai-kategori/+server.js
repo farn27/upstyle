@@ -17,7 +17,7 @@ const schema = z.object({
 });
 
 export async function POST({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies);
+	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	let body;
@@ -47,3 +47,4 @@ export async function POST({ request, cookies }) {
 		return apiError('Gagal menyarankan kategori', 500);
 	}
 }
+

@@ -24,7 +24,7 @@ const pct = (now, prev) => {
 };
 
 export async function POST({ request, cookies }) {
-	const userId = await getCurrentUserId(cookies);
+	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	let body;
@@ -170,3 +170,4 @@ export async function POST({ request, cookies }) {
 		}
 	}, 'Laporan berhasil dibuat');
 }
+

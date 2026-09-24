@@ -9,7 +9,7 @@ import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 import { exportProdukExcel } from '$lib/server/excelExport.js';
 
 export async function GET({ url, cookies }) {
-  const userId = await getCurrentUserId(cookies);
+  const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 
   const unitId = parseInt(url.searchParams.get('unitId') || '0');
@@ -40,3 +40,4 @@ export async function GET({ url, cookies }) {
     },
   });
 }
+

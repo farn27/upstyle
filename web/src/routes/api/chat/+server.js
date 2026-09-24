@@ -569,7 +569,7 @@ async function loadDynamicContext(intent, userId, targetUnitId) {
 export async function POST({ request, cookies }) {
 	try {
 		// 1. Auth
-		const userId = await getCurrentUserId(cookies);
+		const userId = await getCurrentUserId(cookies, request);
 		if (!userId) {
 			return json({ reply: 'Sesi tidak valid, silakan login ulang ya kak.' }, { status: 401 });
 		}
@@ -838,3 +838,4 @@ Aksi hapus/bulk/tutup buku: wajib konfirmasi dulu.`;
 		return json({ reply: 'Terjadi kesalahan server. Silakan coba lagi ya kak.' }, { status: 500 });
 	}
 }
+

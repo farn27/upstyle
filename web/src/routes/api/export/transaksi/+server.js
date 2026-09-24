@@ -12,7 +12,7 @@ import { generateLaporanPDF } from '$lib/server/pdfGenerator.js';
 import { checkRateLimit, getClientIP, EXPORT_LIMIT } from '$lib/server/rateLimit';
 
 export async function GET({ url, cookies }) {
-  const userId = await getCurrentUserId(cookies);
+  const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 
   const ip = getClientIP({ headers: new Headers() });
@@ -80,3 +80,4 @@ export async function GET({ url, cookies }) {
     },
   });
 }
+

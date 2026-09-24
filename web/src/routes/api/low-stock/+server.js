@@ -10,7 +10,7 @@ import { unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 
 export async function GET({ url, cookies }) {
-	const userId = await getCurrentUserId(cookies);
+	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	const unitId = parseInt(url.searchParams.get('unitId') || '0');
@@ -26,3 +26,4 @@ export async function GET({ url, cookies }) {
 	const products = await getLowStockProducts(unitId);
 	return apiSuccess(products, 'OK');
 }
+

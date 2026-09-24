@@ -10,7 +10,7 @@ import { log } from '$lib/server/logger';
  * Returns recent transactions and product changes since lastUpdate timestamp
  */
 export async function GET({ url, cookies }) {
-    const userId = await getCurrentUserId(cookies);
+    const userId = await getCurrentUserId(cookies, request);
     if (!userId) {
         return json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -92,3 +92,4 @@ export async function GET({ url, cookies }) {
         return json({ error: 'Failed to fetch updates' }, { status: 500 });
     }
 }
+

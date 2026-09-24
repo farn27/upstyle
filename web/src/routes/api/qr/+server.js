@@ -8,7 +8,7 @@ import { generateQRBuffer, posProductQRPayload, staffPortalQRPayload, invoiceQRP
 import { env } from '$env/dynamic/private';
 
 export async function GET({ url, cookies }) {
-  const userId = await getCurrentUserId(cookies);
+  const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 
   const type = url.searchParams.get('type') || 'product';
@@ -48,3 +48,4 @@ export async function GET({ url, cookies }) {
     },
   });
 }
+

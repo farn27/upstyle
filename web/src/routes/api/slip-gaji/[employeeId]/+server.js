@@ -12,7 +12,7 @@ import { log } from '$lib/server/logger';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
 export async function GET({ params, url, cookies }) {
-	const userId = await getCurrentUserId(cookies);
+	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	const { employeeId } = params;
