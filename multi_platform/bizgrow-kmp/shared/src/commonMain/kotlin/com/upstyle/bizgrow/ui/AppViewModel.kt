@@ -1046,6 +1046,20 @@ class AppViewModel(
         viewModelScope.launch {
             setupSocket()
         }
+        
+        // Restore session — jika sudah login sebelumnya, langsung ke Home
+        if (session.isLoggedIn()) {
+            // Restore active unit dari storage SEBELUM navigate
+            val savedUnitId = session.getActiveUnitId()
+            if (savedUnitId > 0) {
+                _activeUnitId.value = savedUnitId
+            }
+            navigationManager.navigateToRoot(Screen.Home)
+            // Load units setelah navigate agar tidak block
+            viewModelScope.launch {
+                loadUnits()
+            }
+        }
         // Debounce AI Kategori: setiap kali keterangan berubah, tunggu 800ms lalu panggil API
         viewModelScope.launch {
             _keteranganFlow.debounce(800L).collect { teks ->
