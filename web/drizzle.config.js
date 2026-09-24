@@ -45,7 +45,7 @@ if (isTiDB) {
 
 export default defineConfig({
   dialect: "mysql",
-  schema: "./src/lib/server/schema.js",
+  schema: ["./src/lib/server/schema.js", "./src/lib/server/businessPlanSchema.js"],
   out: "./drizzle/migrations",
   dbCredentials,
   breakpoints: true,
