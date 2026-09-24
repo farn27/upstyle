@@ -52,6 +52,12 @@ export async function groqChatCompletion({
 		response = await callGroq('openai/gpt-oss-120b');
 	}
 
+	// Fallback untuk Rate Limit (429) ke model yang lebih ringan
+	if (response.status === 429 && targetModel !== 'openai/gpt-oss-20b') {
+		console.warn(`[Groq] Rate limit reached for "${targetModel}". Retrying with fallback "openai/gpt-oss-20b"...`);
+		response = await callGroq('openai/gpt-oss-20b');
+	}
+
 	if (!response.ok) {
 		const text = await response.text();
 		throw new Error(`Groq API error: ${response.status} ${text}`);

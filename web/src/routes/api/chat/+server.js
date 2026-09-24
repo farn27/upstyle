@@ -79,6 +79,7 @@ const INTENTS = [
 	{ key: 'penggajian',      pattern: /komponen.?gaji|tunjangan|potongan|slip|bpjs/ },
 	{ key: 'akuntansi',       pattern: /akun|coa|chart.?of.?account|rekening/ },
 	{ key: 'audit',           pattern: /log|riwayat|audit|hapus|aktivitas|jejak/ },
+	{ key: 'transaction_input', pattern: /\b(beli|bayar|bayarin|jual|jualan|belanja|keluar|masuk|dapat|terima|dapet|kirim|transfer|bayarkan|habis|abis|borong|restock|kulakan|traktir|sponsor|sponsoran|kiriman|cicil|cicilan|angsuran|dp|down.?payment|setor|setorin|tarik|fee|komisi|upah|gaji.?kasih|kasih|kasih uang|bayar.?uang|uang masuk|uang keluar|pemasukan|pengeluaran|bayar.?tagihan|tagihan masuk|tagihan keluar|profit|hasil|pendapatan|diterima|dibayar|lunas|bayar.?lunas|bayar.?dp|transaksi)\b/ },
 	{ key: 'help',            pattern: /bantuan|cara|bagaimana|fitur|menu|aplikasi|dimana|link|halaman|help|tolong|bingung/ },
 ];
 
@@ -564,6 +565,73 @@ async function loadDynamicContext(intent, userId, targetUnitId) {
 	return { ctx, suggestions };
 }
 
+// ─── Transaction NL Parser ────────────────────────────────────────────────────
+
+function parseTransactionNL(text) {
+	const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+	const todayWIB = new Date(Date.now() + WIB_OFFSET_MS).toISOString().split('T')[0];
+	const lower = text.toLowerCase();
+
+	// ── 1. MUST have a nominal to be a transaction ──────────────────────────
+	// Accept: 10rb, 10 rb, 10ribu, 10k, 1jt, 1.5jt, 500000, 1.500.000, dll
+	const hasNominal = /(\d[\d.,]*)\s*(rb|ribu|k\b|jt|juta|ratus\.?ribu|ratus|jt\.?an)?/i.test(text)
+		&& /\d{3,}|\d+\s*(rb|ribu|jt|juta|k\b)/i.test(text); // min 3 digit or explicit unit
+	if (!hasNominal) return null;
+
+	// ── 2. Determine KATEGORI with wide vocabulary ──────────────────────────
+	// Keluar: pengeluaran, expense words
+	const isKeluar = /\b(beli|bayar|bayarin|belanja|keluar|abis|habis|borong|restock|kulakan|bayarkan|traktir|bayar.?tagihan|cicil|cicilan|angsuran|dp|down.?payment|setor|beli.?in|beli.?kan|bayar.?dp|bayar.?lunas|biaya|pengeluaran|expense|beban|modal|investasi|sewa|bayar.?sewa|bayar.?listrik|bayar.?air|bayar.?internet|langganan|iuran|denda|pajak|ongkir|kirim.?barang|ongkos|beli.?stok|ambil.?dari.?kas|keluar.?uang|uang.?keluar|pesan|order|gaji|gajian|honor|upah|bonus|thr|pesangon|kasbon)\b/i.test(lower);
+
+	// Masuk: pemasukan, income words
+	const isMasuk  = /\b(jual|jualan|dapat|terima|dapet|masuk|pendapatan|pemasukan|income|profit|hasil|laba|penjualan|diterima|kiriman|transfer.?masuk|bayaran|fee|komisi|sponsorship|sponsor|donasi|hibah|penerimaan|bayar.?customer|customer.?bayar|pelanggan.?bayar|bayar.?dari|uang.?masuk|setoran|tarik.?dari|untung|revenue)\b/i.test(lower);
+
+	// If neither detected, check context clues (standalone "masuk"/"keluar" as verb + amount)
+	const hasKonteks = isMasuk || isKeluar;
+	if (!hasKonteks) return null;
+
+	const kategori = isKeluar ? 'Keluar' : 'Masuk';
+
+	// ── 3. Extract nominal ──────────────────────────────────────────────────
+	const nomMatches = [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(rb|ribu|k\b|jt|juta|ratus\.?ribu|ratus)?/gi)];
+	if (!nomMatches.length) return null;
+	
+	// Jika terdeteksi lebih dari 1 angka, serahkan ke AI untuk multiple input
+	if (nomMatches.length > 1) return null;
+
+	let bestNominal = 0;
+	for (const m of nomMatches) {
+		let val = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+		const unit = (m[2] || '').toLowerCase();
+		if (/jt|juta/.test(unit))          val *= 1_000_000;
+		else if (/rb|ribu/.test(unit))      val *= 1_000;
+		else if (/\bk\b/.test(unit))        val *= 1_000;
+		else if (/ratus.?ribu/.test(unit))  val *= 100_000;
+		else if (/ratus/.test(unit))        val *= 100;
+		// If no unit and less than 1000, might be thousands written without unit (e.g. "500" in casual speech often means 500rb)
+		// Only apply this if there's a unit keyword nearby in the original text
+		if (val > 0 && val <= 1_000_000_000 && val > bestNominal) bestNominal = val;
+	}
+	if (bestNominal <= 0) return null;
+
+	// ── 4. Build keterangan from remaining text ─────────────────────────────
+	// Strip numbers (with units), action words, stop words
+	const cleaned = text
+		.replace(/(\d+(?:[.,]\d+)?)\s*(rb|ribu|k\b|jt|juta|ratus\.?ribu|ratus)?/gi, ' ')
+		.replace(/\b(beli|bayar|bayarin|jual|dapat|terima|dapet|masuk|keluar|habis|abis|tadi|barusan|udah|udh|buat|untuk|dengan|dari|ke|di|yang|dan|atau|ini|itu|sih|deh|dong|ya|kak|nih|aja|tuh|banget|lagi|sudah|sudah|memang|mau|ada|hari|ini|kemarin|tadi|malam|pagi|siang|sore|sekarang|transfer|setor|tarik|kirim|kasih|kasih|ngasih|ngasih|kirimin|bayar|bayarin|beli|beliin)\b/gi, ' ')
+		.replace(/\s+/g, ' ').trim().toUpperCase();
+
+	const keterangan = cleaned || (isKeluar ? 'PENGELUARAN' : 'PEMASUKAN');
+
+	// Detect metode from text
+	const metode = /\b(transfer|tf|bank|bca|bri|bni|mandiri|gopay|ovo|dana|shopeepay|qris|debit|kartu)\b/i.test(lower)
+		? 'Transfer'
+		: /\b(qris|scan|barcode)\b/i.test(lower)
+		? 'QRIS'
+		: 'Tunai';
+
+	return [{ kategori, nominal: bestNominal, keterangan, tanggal: todayWIB, metode }];
+}
+
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
 export async function POST({ request, cookies }) {
@@ -612,242 +680,200 @@ export async function POST({ request, cookies }) {
 		const lastMonthStart = `${lastMonthYear}-${pad(lastMonth)}-01`;
 		const lastMonthEnd   = `${thisYear}-${pad(thisMonth)}-01`; // exclusive (< thisMonthStart)
 		
-		const queryTrxCondition = targetUnitId ? eq(transaksi.unitId, targetUnitId) : eq(transaksi.userId, userId);
-
-		// 4a. Summary ALL TIME
-		const allTimeRows = await db.select({
-			masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-			keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-			hpp: sql`SUM(COALESCE(${transaksi.hppTotal}, 0))`
-		}).from(transaksi)
-		  .where(queryTrxCondition);
-
-		const totalMasuk  = Number(allTimeRows[0]?.masuk  || 0);
-		const totalKeluar = Number(allTimeRows[0]?.keluar || 0);
-		const totalHpp    = Number(allTimeRows[0]?.hpp    || 0);
-		const saldoBersih = totalMasuk - totalKeluar;
-
-		// 4b. Summary BULAN INI
-		const bulanIniRows = await db.select({
-			masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-			keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-			jumlah: sql`COUNT(*)`
-		}).from(transaksi)
-		  .where(and(
-			queryTrxCondition,
-			sql`DATE(${transaksi.tanggal}) >= ${thisMonthStart}`
-		  ));
-		const bulanIniMasuk  = Number(bulanIniRows[0]?.masuk  || 0);
-		const bulanIniKeluar = Number(bulanIniRows[0]?.keluar || 0);
-
-		// 4c. Summary BULAN LALU
-		const bulanLaluRows = await db.select({
-			masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-			keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-			jumlah: sql`COUNT(*)`
-		}).from(transaksi)
-		  .where(and(
-			queryTrxCondition,
-			sql`DATE(${transaksi.tanggal}) >= ${lastMonthStart}`,
-			sql`DATE(${transaksi.tanggal}) < ${lastMonthEnd}`
-		  ));
-		const bulanLaluMasuk  = Number(bulanLaluRows[0]?.masuk  || 0);
-		const bulanLaluKeluar = Number(bulanLaluRows[0]?.keluar || 0);
-		const bulanLaluJumlah = Number(bulanLaluRows[0]?.jumlah || 0);
-
-		// 4d. Tren 6 bulan (untuk pertanyaan tren/grafik)
-		const trenRows = await db.select({
-			tahun: sql`YEAR(${transaksi.tanggal})`,
-			bulan: sql`MONTH(${transaksi.tanggal})`,
-			masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-			keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`
-		}).from(transaksi)
-		  .where(and(
-			queryTrxCondition,
-			sql`${transaksi.tanggal} >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
-		  ))
-		  .groupBy(sql`YEAR(${transaksi.tanggal})`, sql`MONTH(${transaksi.tanggal})`)
-		  .orderBy(sql`YEAR(${transaksi.tanggal})`, sql`MONTH(${transaksi.tanggal})`);
-
-		const bulanNames = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-		const trenText = trenRows.length
-			? trenRows.map(r => `${bulanNames[r.bulan]} ${r.tahun}: Masuk ${fmtRp(r.masuk)} | Keluar ${fmtRp(r.keluar)}`).join(' | ')
-			: 'Belum ada data tren';
-
-		// 4e. Snippet 20 transaksi terbaru (referensi kontekstual saja)
-		const freshTrx = await db.select({
-			kategori_trx: transaksi.kategoriTrx,
-			nominal: transaksi.nominal,
-			keterangan: transaksi.keterangan,
-			tanggal: transaksi.tanggal,
-			metode_bayar: transaksi.metodeBayar
-		}).from(transaksi)
-		  .where(queryTrxCondition)
-		  .orderBy(desc(transaksi.tanggal))
-		  .limit(20);
-
-		// 5. Produk (stok rendah dulu)
-		const queryProdCondition = targetUnitId ? eq(productsTable.unitId, targetUnitId) : eq(productsTable.userId, userId);
-		const products = await db.select({
-			nama: productsTable.nama,
-			harga_jual: productsTable.hargaJual,
-			stok: productsTable.stok,
-			min_stok: productsTable.minStok
-		}).from(productsTable)
-		  .where(and(
-			queryProdCondition,
-			sql`${productsTable.deletedAt} IS NULL`
-		  ))
-		  .orderBy(asc(productsTable.stok))
-		  .limit(20);
-
-		// 7. Deteksi intent & load konteks dinamis
+		// 5. Deteksi intent awal
 		const intent = detectIntent(message);
-		const { ctx: dynamicContext, suggestions: dynamicSuggestions } = await loadDynamicContext(intent, userId, targetUnitId);
+		const isTransactionParse = intent === 'transaction_input';
 
-		// 8. Bangun prompt
-		const businessCtx = units
-			.map(u => `  • ${u.nama_unit} [${u.slug}] | Modal: ${fmtRp(u.modal_awal)} | Industri: ${u.kategori || 'Umum'}`)
-			.join('\n');
+		// 6. Transaction NL detection — RUNS FIRST
+		if (targetUnitId) {
+			const trxDataList = parseTransactionNL(message);
+			if (trxDataList && trxDataList.length > 0) {
+				const isMultiple = trxDataList.length > 1;
+				const emoji = trxDataList[0].kategori === 'Masuk' ? '💰' : '💸';
+				const previewReply = isMultiple
+					? `✅ **${trxDataList.length} Transaksi** terdeteksi kak!\nSilakan lengkapi akun di masing-masing card di bawah, lalu simpan ya 👇`
+					: `${emoji} **${trxDataList[0].kategori === 'Masuk' ? 'Pemasukan' : 'Pengeluaran'} Rp${Number(trxDataList[0].nominal).toLocaleString('id-ID')}** terdeteksi kak!\nSilakan lengkapi akun COA dan kas di card di bawah, lalu simpan ya 👇`;
 
-		const financeSummary = [
-			`• ALL TIME  : Masuk ${fmtRp(totalMasuk)} | Keluar ${fmtRp(totalKeluar)} | Saldo ${fmtRp(saldoBersih)} | HPP ${fmtRp(totalHpp)} | Gross Profit ${fmtRp(totalMasuk - totalHpp)}`,
-			`• BULAN INI (${bulanNames[thisMonth]} ${thisYear}): Masuk ${fmtRp(bulanIniMasuk)} | Keluar ${fmtRp(bulanIniKeluar)} | Saldo ${fmtRp(bulanIniMasuk - bulanIniKeluar)}`,
-			`• BULAN LALU (${bulanNames[lastMonth]} ${lastMonthYear}): Masuk ${fmtRp(bulanLaluMasuk)} | Keluar ${fmtRp(bulanLaluKeluar)} | Saldo ${fmtRp(bulanLaluMasuk - bulanLaluKeluar)} | ${bulanLaluJumlah} transaksi`,
-		].join('\n');
+				return json({
+					reply: previewReply,
+					transactionPreviews: trxDataList,
+					suggestions: ['Input transaksi lain', 'Lihat riwayat transaksi']
+				});
+			}
+		}
 
-		const trxSnippet = freshTrx.length
-			? freshTrx.map(t => `[${fmtDate(t.tanggal)}] ${t.kategori_trx} ${fmtRp(t.nominal)} - ${t.keterangan || t.metode_bayar || '-'}`).join('\n  ')
-			: 'Belum ada transaksi';
+		// 7. Optimasi DB Fetching (Lazy Load Context)
+		const queryTrxCondition = targetUnitId ? eq(transaksi.unitId, targetUnitId) : eq(transaksi.userId, userId);
+		const msgLower = message.toLowerCase();
+		const bulanNames = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+		
+		let financeSummary = '';
+		let trxSnippet = '';
+		let prodSnippet = '';
+		let trenText = '';
 
-		const prodSnippet = products.length
-			? products.map(p => `${p.nama} | Jual: ${fmtRp(p.harga_jual)} | Stok: ${p.stok}${p.stok <= p.min_stok ? ' ⚠️MENIPIS' : ''}`).join('\n  ')
-			: 'Belum ada produk';
+		const isFinance = intent === 'finance' || intent === 'general';
+		const isTren = /tren|grafik|chart|perkembangan|bulan/i.test(msgLower);
+		const isHistory = /transaksi|terakhir|riwayat|kemarin/i.test(msgLower);
+		const isInventory = intent === 'inventory' || /stok|produk|barang|jual|harga/i.test(msgLower);
 
-		// Unit context helpers
-		const hasActiveUnit = Boolean(activeUnitSlug && units.length > 0);
-		const activeUnit = hasActiveUnit ? units[0] : null;
-		const slug = activeUnit?.slug ?? null;
+		if (!isTransactionParse) {
+			if (isFinance) {
+				// 7a. Summary
+				const allTimeRows = await db.select({
+					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
+					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
+					hpp: sql`SUM(COALESCE(${transaksi.hppTotal}, 0))`
+				}).from(transaksi).where(queryTrxCondition);
 
-		const navInstructions = hasActiveUnit && slug
-			? `## INSTRUKSI NAVIGASI (Unit: ${activeUnit.nama_unit})
+				const bulanIniRows = await db.select({
+					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
+					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`
+				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${thisMonthStart}`));
+
+				const bulanLaluRows = await db.select({
+					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
+					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
+					jumlah: sql`COUNT(*)`
+				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${lastMonthStart}`, sql`DATE(${transaksi.tanggal}) < ${lastMonthEnd}`));
+
+				const totalMasuk  = Number(allTimeRows[0]?.masuk  || 0);
+				const totalKeluar = Number(allTimeRows[0]?.keluar || 0);
+				const totalHpp    = Number(allTimeRows[0]?.hpp    || 0);
+				const saldoBersih = totalMasuk - totalKeluar;
+				const bulanIniMasuk  = Number(bulanIniRows[0]?.masuk  || 0);
+				const bulanIniKeluar = Number(bulanIniRows[0]?.keluar || 0);
+				const bulanLaluMasuk  = Number(bulanLaluRows[0]?.masuk  || 0);
+				const bulanLaluKeluar = Number(bulanLaluRows[0]?.keluar || 0);
+				const bulanLaluJumlah = Number(bulanLaluRows[0]?.jumlah || 0);
+
+				financeSummary = [
+					`• ALL TIME  : Masuk ${fmtRp(totalMasuk)} | Keluar ${fmtRp(totalKeluar)} | Saldo ${fmtRp(saldoBersih)} | HPP ${fmtRp(totalHpp)} | Gross Profit ${fmtRp(totalMasuk - totalHpp)}`,
+					`• BULAN INI (${bulanNames[thisMonth]} ${thisYear}): Masuk ${fmtRp(bulanIniMasuk)} | Keluar ${fmtRp(bulanIniKeluar)} | Saldo ${fmtRp(bulanIniMasuk - bulanIniKeluar)}`,
+					`• BULAN LALU (${bulanNames[lastMonth]} ${lastMonthYear}): Masuk ${fmtRp(bulanLaluMasuk)} | Keluar ${fmtRp(bulanLaluKeluar)} | Saldo ${fmtRp(bulanLaluMasuk - bulanLaluKeluar)} | ${bulanLaluJumlah} transaksi`,
+				].join('\n');
+			}
+
+			if (isTren) {
+				const trenRows = await db.select({
+					tahun: sql`YEAR(${transaksi.tanggal})`,
+					bulan: sql`MONTH(${transaksi.tanggal})`,
+					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
+					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`
+				}).from(transaksi).where(and(queryTrxCondition, sql`${transaksi.tanggal} >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`)).groupBy(sql`YEAR(${transaksi.tanggal})`, sql`MONTH(${transaksi.tanggal})`).orderBy(sql`YEAR(${transaksi.tanggal})`, sql`MONTH(${transaksi.tanggal})`);
+				
+				trenText = trenRows.length ? trenRows.map(r => `${bulanNames[r.bulan]} ${r.tahun}: Masuk ${fmtRp(r.masuk)} | Keluar ${fmtRp(r.keluar)}`).join(' | ') : 'Belum ada data tren';
+			}
+
+			if (isFinance || isHistory) {
+				const freshTrx = await db.select({
+					kategori_trx: transaksi.kategoriTrx,
+					nominal: transaksi.nominal,
+					keterangan: transaksi.keterangan,
+					tanggal: transaksi.tanggal,
+					metode_bayar: transaksi.metodeBayar
+				}).from(transaksi).where(queryTrxCondition).orderBy(desc(transaksi.tanggal)).limit(20);
+				trxSnippet = freshTrx.length ? freshTrx.map(t => `[${fmtDate(t.tanggal)}] ${t.kategori_trx} ${fmtRp(t.nominal)} - ${t.keterangan || t.metode_bayar || '-'}`).join('\n  ') : 'Belum ada transaksi';
+			}
+
+			if (isInventory) {
+				const queryProdCondition = targetUnitId ? eq(productsTable.unitId, targetUnitId) : eq(productsTable.userId, userId);
+				const products = await db.select({
+					nama: productsTable.nama,
+					harga_jual: productsTable.hargaJual,
+					stok: productsTable.stok,
+					min_stok: productsTable.minStok
+				}).from(productsTable).where(and(queryProdCondition, sql`${productsTable.deletedAt} IS NULL`)).orderBy(asc(productsTable.stok)).limit(20);
+				prodSnippet = products.length ? products.map(p => `${p.nama} | Jual: ${fmtRp(p.harga_jual)} | Stok: ${p.stok}${p.stok <= p.min_stok ? ' ⚠️MENIPIS' : ''}`).join('\n  ') : 'Belum ada produk';
+			}
+		}
+
+		// 8. Muat konteks dinamis tambahan (CRM, HR, dll)
+		const { ctx: dynamicContext, suggestions: dynamicSuggestions } = isTransactionParse ? { ctx: '', suggestions: [] } : await loadDynamicContext(intent, userId, targetUnitId);
+
+
+		// 9. Bangun prompt
+		let systemPrompt = '';
+
+		if (isTransactionParse) {
+			systemPrompt = `Kamu adalah **Bizgrow AI** pengurai transaksi.
+User mengetikkan beberapa transaksi. Ekstrak menjadi ARRAY JSON dalam blok code \`\`\`transaction\`\`\`.
+
+\`\`\`transaction
+[
+  {
+    "kategori": "Keluar", // Masuk atau Keluar
+    "nominal": 10000,
+    "keterangan": "Beli sesuatu",
+    "tanggal": "${fmtDate(nowWIBDate).split(' ')[0]}",
+    "metode": "Tunai"
+  }
+]
+\`\`\`
+Hanya balas dengan blok code tersebut tanpa basa-basi!`;
+		} else {
+			const businessCtx = units
+				.map(u => `  • ${u.nama_unit} [${u.slug}] | Modal: ${fmtRp(u.modal_awal)} | Industri: ${u.kategori || 'Umum'}`)
+				.join('\n');
+
+			const hasActiveUnit = Boolean(activeUnitSlug && units.length > 0);
+			const activeUnit = hasActiveUnit ? units[0] : null;
+			const slug = activeUnit?.slug ?? null;
+
+			const navInstructions = hasActiveUnit && slug
+				? `## INSTRUKSI NAVIGASI (Unit: ${activeUnit.nama_unit})
 Akhiri jawaban dengan TEPAT 1-2 tombol aksi. Format: [Label Tombol](/path/halaman)
-Halaman yang ADA dan VALID (jangan mengarang):
-**Operasional:**
-- /finance/${slug}/history | /finance/${slug}/laporan | /finance/${slug}/produk
-- /finance/${slug}/pos | /finance/${slug}/hr | /finance/${slug}/crm
-- /finance/${slug}/piutang | /finance/${slug}/hutang | /finance/${slug}/jurnal-umum
-- /finance/${slug}/buku-besar | /finance/${slug}/master-data
-- /finance/${slug}/settings
-**Penjualan:**
-- /sales/${slug} | /sales/${slug}/pipeline | /sales/${slug}/quotation
-- /sales/${slug}/order | /sales/${slug}/target
-**Pemasaran:**
-- /marketing/${slug} | /marketing/${slug}/campaign | /marketing/[slug]/leads | /marketing/[slug]/voucher
-**Customer Service:**
-- /customer-service/${slug} | /customer-service/${slug}/tickets
-**E-Commerce:**
-- /ecommerce/${slug} | /ecommerce/${slug}/katalog | /ecommerce/${slug}/integrasi | /ecommerce/${slug}/landing-page`
-			: `## INSTRUKSI NAVIGASI (Tanpa Unit Aktif)
+Halaman VALID: /finance/${slug}/history, /finance/${slug}/laporan, dll.`
+				: `## INSTRUKSI NAVIGASI (Tanpa Unit Aktif)
 JANGAN buat link /finance/[slug]/... karena unit belum dipilih.
-Gunakan hanya: [Pilih Unit Bisnis](/finance) atau [Beranda](/beranda)
-Untuk panduan navigasi: jelaskan nama menu saja, tanpa link.`;
+Gunakan hanya: [Pilih Unit Bisnis](/finance) atau [Beranda](/beranda)`;
 
-		const systemPrompt = `Kamu adalah **Bizgrow AI** — asisten ERP cerdas untuk UMKM Indonesia.
+			systemPrompt = `Kamu adalah **Bizgrow AI** — asisten ERP cerdas untuk UMKM Indonesia.
 Gaya bicara: ramah, analitis, padat, gunakan sapaan "kak". Bahasa Indonesia natural.
 PENTING: Jawab SATU KALI SAJA. Jangan ulangi jawaban yang sama.
 
 ## TANGGAL HARI INI
 ${bulanNames[thisMonth]} ${thisYear} (${thisMonthStart} hingga sekarang)
-Bulan lalu: ${bulanNames[lastMonth]} ${lastMonthYear}
 
 ## UNIT BISNIS AKTIF
-${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}] | Industri: ${activeUnit.kategori || 'Umum'}` : 'Belum dipilih'}
+${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}]` : 'Belum dipilih'}
 Semua unit: ${units.map(u => u.nama_unit).join(', ')}
 
-## DATA KEUANGAN${hasActiveUnit ? ` — ${activeUnit.nama_unit}` : ' — Semua Unit'}
-${financeSummary}
-
-## TREN 6 BULAN TERAKHIR
-${trenText}
-
-## 20 TRANSAKSI TERAKHIR (referensi kontekstual)
-  ${trxSnippet}
-
-## PRODUK & STOK
-  ${prodSnippet}
-${dynamicContext}
+${financeSummary ? `## DATA KEUANGAN\n${financeSummary}\n` : ''}${trenText ? `## TREN 6 BULAN TERAKHIR\n${trenText}\n` : ''}${trxSnippet ? `## 20 TRANSAKSI TERAKHIR\n  ${trxSnippet}\n` : ''}${prodSnippet ? `## PRODUK & STOK\n  ${prodSnippet}\n` : ''}${dynamicContext}
 ${navInstructions}
 
 ## ATURAN PENTING
-- Data keuangan di atas SUDAH AKURAT dari database langsung — gunakan angka ini, jangan mengarang
-- Untuk pertanyaan bulan lalu/ini → gunakan data BULAN LALU / BULAN INI di atas, bukan all time
-- Untuk pertanyaan tren → gunakan data TREN 6 BULAN
-- Jika ditanya filter tanggal spesifik yang tidak ada di data → arahkan ke [Riwayat Transaksi](/finance/${slug || '...'}/history) atau [Laporan](/finance/${slug || '...'}/laporan)
-- JANGAN mengarang route/URL selain yang ada di daftar halaman valid di atas
-- JANGAN menulis jawaban dua kali
-
-## GRAFIK
-Jika diminta grafik, gunakan data tren di atas. Format:
-\`\`\`chart
-{"type":"bar","data":{"labels":[...],"datasets":[{"label":"...","data":[...]}]},"options":{"responsive":true}}
-\`\`\`
+- Data di atas SUDAH AKURAT dari database — jangan mengarang angka.
+- JANGAN mengarang route/URL selain yang valid.
 
 ## FORMAT KAYA — GUNAKAN SESUAI KONTEKS
-
-### Metric Card — untuk angka penting/KPI:
-:::metric{label:"Omzet Bulan Ini",value:"Rp12.500.000",trend:"+8%",color:"green"}:::
-Warna: green=positif/naik, red=negatif/turun, amber=netral/warning, indigo=default, blue=informasi
-Gunakan untuk: omzet, laba, saldo, jumlah transaksi, target pencapaian
-
-### Alert Box — untuk peringatan atau info penting:
-:::alert{type:"warning",title:"Stok Menipis",msg:"3 produk di bawah minimum stok"}:::
-:::alert{type:"success",title:"Target Tercapai",msg:"Omzet sudah melampaui target bulan ini"}:::
-:::alert{type:"danger",title:"Piutang Overdue",msg:"Ada 5 invoice yang sudah melewati jatuh tempo"}:::
-:::alert{type:"info",title:"Info",msg:"Data diambil dari transaksi 3 bulan terakhir"}:::
-type: warning/success/danger/info
-Gunakan untuk: peringatan stok, overdue, anomali, konfirmasi
-
-### Badge Status — inline di dalam teks:
-:::badge{text:"LUNAS",color:"green"}:::  :::badge{text:"OVERDUE",color:"red"}:::  :::badge{text:"MENIPIS",color:"amber"}:::
-Warna: green/red/amber/indigo/blue/slate
-Gunakan untuk: status invoice, status stok, status karyawan
-
-### Progress Bar — untuk pencapaian target:
+:::metric{label:"Omzet",value:"Rp12.5M",trend:"+8%",color:"green"}:::
+:::alert{type:"warning",title:"Info",msg:"Pesan"}:::
+:::badge{text:"LUNAS",color:"green"}:::
 :::progress{label:"Target Omzet",value:75,color:"indigo"}:::
-:::progress{label:"Stok Tersisa",value:20,color:"amber"}:::
-value: 0-100 (persentase)
-Gunakan untuk: target penjualan, stok tersisa, pencapaian KPI
+:::grid:::\n- Poin 1\n- Poin 2\n:::endgrid:::
+:::steps:::\n1. Langkah 1\n2. Langkah 2\n:::endsteps:::
 
-### Grid Cards — untuk perbandingan atau ringkasan beberapa poin:
-:::grid:::
-- **Penjualan**: Naik 12% dari bulan lalu
-- **Pengeluaran**: Turun 5% berkat efisiensi
-- **Margin**: 32%, di atas rata-rata industri
-- **Stok**: 3 produk perlu restock segera
-:::endgrid:::
-Gunakan untuk: ringkasan 4 area bisnis, perbandingan bulan, SWOT singkat
+## 💡 INPUT TRANSAKSI NATURAL LANGUAGE
+Jika pesan user menceritakan transaksi keuangan, ekstrak datanya dalam blok code \`\`\`transaction\`\`\`. 
+Jika ada BANYAK transaksi (multiple input), buat ARRAY JSON.
 
-### Steps — untuk langkah-langkah aksi:
-:::steps:::
-1. Cek laporan piutang yang overdue
-2. Hubungi pelanggan untuk konfirmasi pembayaran
-3. Update status di menu Piutang
-:::endsteps:::
-Gunakan untuk: rekomendasi aksi berurutan, panduan cara pakai
+\`\`\`transaction
+[
+  {
+    "kategori": "Keluar", // Masuk atau Keluar
+    "nominal": 10000,
+    "keterangan": "BELI ARANG",
+    "tanggal": "2026-09-24", // gunakan hari ini
+    "metode": "Tunai"
+  }
+]
+\`\`\`
 
-### PANDUAN PENGGUNAAN FORMAT:
-- Pertanyaan ringkasan keuangan → pakai 2-4 metric card + tabel/list
-- Ada anomali/masalah → pakai alert danger/warning
-- Ada pencapaian positif → pakai alert success + metric green
-- Rekomendasi langkah → pakai steps
-- Perbandingan beberapa aspek → pakai grid
-- Status data → pakai badge inline
-- JANGAN pakai semua format sekaligus dalam satu jawaban — pilih yang paling relevan
-- Teks biasa dan format markdown tetap bisa dipakai bersamaan dengan format kaya ini
-
-## GUARDRAIL
-Aksi hapus/bulk/tutup buku: wajib konfirmasi dulu.`;
+## ⚠️ GUARDRAIL KRITIS
+- **JANGAN pernah mengarang info produk**.
+- Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.`;
+		}
 
 		// Batasi history max 16 pesan (8 turn)
 		const cleanHistory = history
@@ -879,10 +905,22 @@ Aksi hapus/bulk/tutup buku: wajib konfirmasi dulu.`;
 			} catch { /* biarkan teks apa adanya */ }
 		}
 
+		// 11. Ekstrak transaction JSON (Fallback jika parseTransactionNL regex gagal)
+		let transactionPreviews = null;
+		const trxMatch = aiReply.match(/```transaction\s*([\[\{][\s\S]*?[\]\}])\s*```/);
+		if (trxMatch) {
+			try {
+				const parsed = JSON.parse(trxMatch[1]);
+				transactionPreviews = Array.isArray(parsed) ? parsed : [parsed];
+				aiReply = aiReply.replace(/```transaction[\s\S]*?```/, '').trim();
+			} catch { /* ignore */ }
+		}
+
 		return json({
 			reply: aiReply,
 			suggestions: dynamicSuggestions,
 			chartData,
+			transactionPreviews,
 			intent // untuk debugging di dev
 		});
 

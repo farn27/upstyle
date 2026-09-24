@@ -3,6 +3,7 @@
 	import { fade, fly, scale, slide } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
+	import AITransactionWizard from '$lib/components/AITransactionWizard.svelte';
 
 	export let isOpen = false;
 	export let userId = '';
@@ -33,6 +34,217 @@
 	let selectedUnitSlug = '';
 	let selectedUnitName = '';
 	let userClearedUnit = false;
+
+	// ─── AI Transaction Wizard ─────────────────────────────────────────────────
+	let showTransactionWizard = false;
+
+	// ─── Quick Actions (Aksi Cepat) ────────────────────────────────────────────
+	let showQuickActions = false;
+
+	const QUICK_ACTIONS = [
+		{
+			id: 'input_transaksi',
+			label: 'Input Transaksi',
+			icon: '💳',
+			desc: 'Catat pemasukan atau pengeluaran',
+			color: 'indigo',
+			requiresUnit: true,
+			mode: 'wizard'   // buka AITransactionWizard, TANPA AI
+		},
+		{
+			id: 'input_produk',
+			label: 'Tambah Produk',
+			icon: '📦',
+			desc: 'Daftarkan produk baru ke katalog',
+			color: 'emerald',
+			requiresUnit: true,
+			mode: 'link',
+			linkFn: (slug) => `/finance/${slug}/produk`
+		},
+		{
+			id: 'input_piutang',
+			label: 'Tambah Piutang',
+			icon: '🧾',
+			desc: 'Catat tagihan ke pelanggan',
+			color: 'amber',
+			requiresUnit: true,
+			mode: 'link',
+			linkFn: (slug) => `/finance/${slug}/piutang`
+		},
+		{
+			id: 'input_hutang',
+			label: 'Tambah Hutang',
+			icon: '📋',
+			desc: 'Catat tagihan dari supplier',
+			color: 'rose',
+			requiresUnit: true,
+			mode: 'link',
+			linkFn: (slug) => `/finance/${slug}/hutang`
+		},
+		{
+			id: 'input_karyawan',
+			label: 'Tambah Karyawan',
+			icon: '👤',
+			desc: 'Daftarkan karyawan baru ke HR',
+			color: 'violet',
+			requiresUnit: false,
+			mode: 'link',
+			linkFn: () => `/hr`
+		},
+		{
+			id: 'input_jurnal',
+			label: 'Input Jurnal Umum',
+			icon: '📒',
+			desc: 'Buat entri jurnal akuntansi',
+			color: 'blue',
+			requiresUnit: true,
+			mode: 'link',
+			linkFn: (slug) => `/finance/${slug}/jurnal-umum`
+		},
+	];
+
+	/** Svelte action: tutup panel ketika klik di luar elemen */
+	function clickOutside(node, callback) {
+		const handle = (e) => { if (!node.contains(e.target)) callback(); };
+		document.addEventListener('mousedown', handle, true);
+		return { destroy: () => document.removeEventListener('mousedown', handle, true) };
+	}
+
+	function startQuickAction(action) {
+		showQuickActions = false;
+
+		const doAction = () => {
+			if (action.mode === 'wizard') {
+				showTransactionWizard = true;
+			} else if (action.mode === 'link') {
+				const url = action.linkFn?.(selectedUnitSlug);
+				if (url) window.location.href = url;
+			}
+		};
+
+		if (action.requiresUnit && !selectedUnitSlug) {
+			if (userUnits.length === 1) {
+				selectedUnitSlug = userUnits[0].slug;
+				selectedUnitName = userUnits[0].nama_unit;
+				doAction();
+			} else if (userUnits.length > 1) {
+				pendingMessage = '__QUICKACTION__' + action.id;
+				showUnitPicker = true;
+			}
+		} else {
+			doAction();
+		}
+	}
+
+	// ─── Master Data for NL Confirmation Card ──────────────────────────────────
+	/** Master data kas & COA untuk confirmation card NL input */
+	let nlMasterData = { kasAccounts: [], coaAccounts: [], loaded: false, loading: false };
+
+	async function loadNLMasterData() {
+		if (!selectedUnitSlug || nlMasterData.loaded || nlMasterData.loading) return;
+		nlMasterData = { ...nlMasterData, loading: true };
+		try {
+			const res = await fetch(`/api/transaction/master-data?unit=${encodeURIComponent(selectedUnitSlug)}`);
+			const data = await res.json();
+			if (data.success) {
+				nlMasterData = {
+					kasAccounts: data.kasAccounts || [],
+					coaAccounts: data.coaAccounts || [],
+					loaded: true,
+					loading: false
+				};
+			} else {
+				nlMasterData = { ...nlMasterData, loading: false };
+			}
+		} catch {
+			nlMasterData = { ...nlMasterData, loading: false };
+		}
+	}
+
+	/** State konfirmasi NL per-message (key: msg index) */
+	let nlConfirm = {}; // { [msgIdx]: { kas_coa_id, coa_id, tanggal, metode, isSaving } }
+
+	function initNLConfirm(idx, trxData) {
+		if (nlConfirm[idx]) return;
+		const defaultKas = nlMasterData.kasAccounts[0]?.id ? String(nlMasterData.kasAccounts[0].id) : '';
+		const kategori = trxData.kategori;
+		const coaTypes = kategori === 'Masuk'
+			? ['PENDAPATAN', 'PENDAPATAN_LAINNYA']
+			: ['BEBAN_OPERASIONAL', 'BEBAN_LAINNYA', 'HPP'];
+		const firstCoa = nlMasterData.coaAccounts.find(c => coaTypes.includes(c.tipeAkun));
+		nlConfirm = {
+			...nlConfirm,
+			[idx]: {
+				kas_coa_id: defaultKas,
+				coa_id: firstCoa ? String(firstCoa.id) : '',
+				tanggal: trxData.tanggal || new Date().toISOString().split('T')[0],
+				metode: trxData.metode || 'Tunai',
+				isSaving: false,
+				error: ''
+			}
+		};
+	}
+
+	function getFilteredCoa(kategori) {
+		const types = kategori === 'Masuk'
+			? ['PENDAPATAN', 'PENDAPATAN_LAINNYA']
+			: ['BEBAN_OPERASIONAL', 'BEBAN_LAINNYA', 'HPP'];
+		return nlMasterData.coaAccounts.filter(c => types.includes(c.tipeAkun));
+	}
+
+	async function saveTransactionFull(msgIdx, trxIdx, trxData) {
+		const key = `${msgIdx}-${trxIdx}`;
+		const conf = nlConfirm[key];
+		if (!conf || !selectedUnitSlug || conf.isSaving) return;
+		if (!conf.kas_coa_id || !conf.coa_id) {
+			nlConfirm = { ...nlConfirm, [key]: { ...conf, error: 'Pilih akun kas dan COA terlebih dahulu.' } };
+			return;
+		}
+		nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: true, error: '' } };
+		try {
+			const fd = new FormData();
+			fd.append('kategori_trx', trxData.kategori);
+			fd.append('kas_coa_id', conf.kas_coa_id);
+			fd.append('coa_id', conf.coa_id);
+			fd.append('nominal', String(trxData.nominal));
+			fd.append('keterangan', (trxData.keterangan || '').toUpperCase());
+			fd.append('qty', '1');
+
+			const res = await fetch(`/finance/${selectedUnitSlug}/entry?/addTransaction`, {
+				method: 'POST', body: fd, headers: { 'x-sveltekit-action': 'true' }
+			});
+			if (res.ok) {
+				// Tandai transaksi spesifik ini sukses
+				nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, success: true } };
+				currentSuggestions = ['Input transaksi lain', 'Lihat ringkasan keuangan'];
+				scrollToBottom();
+			} else {
+				nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, error: 'Gagal menyimpan. Coba lagi.' } };
+			}
+		} catch {
+			nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, error: 'Koneksi gagal.' } };
+		}
+	}
+
+	// ─── File Upload ───────────────────────────────────────────────────────────
+	let fileInput;
+	let showFileUploadModal = false;
+	let uploadedFile = null;
+	let uploadResult = null;
+	let isUploadingFile = false;
+	let uploadError = '';
+	let isDraggingFile = false;
+
+	// ─── Transaction Preview ───────────────────────────────────────────────────
+	let isSavingTransaction = false;
+
+
+	// ─── Detail Modal ──────────────────────────────────────────────────────────
+	/** @type {string|null} */
+	let modalContent = null;
+	/** @type {any} */
+	let modalChartData = null;
+	let modalCopied = false;
 
 	/** @type {Array} */
 	let chatHistory = [];
@@ -254,6 +466,34 @@
 		return GENERAL_PATTERN.test(msg) || /cara|langkah|tutorial|panduan|petunjuk/i.test(msg);
 	}
 
+	/** Deteksi apakah jawaban AI "kompleks" → perlu auto-expand & tombol detail */
+	function isComplexReply(text) {
+		if (!text) return false;
+		return text.length > 400 ||
+			text.includes('|---') ||
+			text.includes(':::metric') ||
+			text.includes(':::grid') ||
+			text.includes(':::steps') ||
+			(text.match(/\n/g) || []).length > 8;
+	}
+
+	function openModal(reply, chartData) {
+		modalContent = reply;
+		modalChartData = chartData ?? null;
+		modalCopied = false;
+	}
+
+	function closeModal() {
+		modalContent = null;
+		modalChartData = null;
+	}
+
+	async function copyModal() {
+		await navigator.clipboard?.writeText(modalContent || '').catch(() => {});
+		modalCopied = true;
+		setTimeout(() => modalCopied = false, 1500);
+	}
+
 	function clearUnit() {
 		selectedUnitSlug = '';
 		selectedUnitName = '';
@@ -264,7 +504,26 @@
 		selectedUnitSlug = slug; selectedUnitName = name;
 		userClearedUnit = false; // reset flag
 		showUnitPicker = false;
-		if (pendingMessage) { const m = pendingMessage; pendingMessage = ''; sendChat(m); }
+		if (pendingMessage === '__WIZARD__') {
+			pendingMessage = '';
+			showTransactionWizard = true;
+		} else if (pendingMessage.startsWith('__QUICKACTION__')) {
+			const actionId = pendingMessage.replace('__QUICKACTION__', '');
+			pendingMessage = '';
+			const action = QUICK_ACTIONS.find(a => a.id === actionId);
+			if (action) {
+				if (action.mode === 'wizard') {
+					showTransactionWizard = true;
+				} else if (action.mode === 'link') {
+					const url = action.linkFn?.(selectedUnitSlug);
+					if (url) window.location.href = url;
+				}
+			}
+		} else if (pendingMessage) {
+			const m = pendingMessage;
+			pendingMessage = '';
+			sendChat(m);
+		}
 	}
 
 	function cancelPicker() { showUnitPicker = false; pendingMessage = ''; }
@@ -313,6 +572,20 @@
 			});
 			if (!res.ok) throw new Error(`${res.status}`);
 			const data = await res.json();
+
+			// Handle transaction preview response — show card, skip typewriter
+			if (data.transactionPreviews) {
+				const fp = data.reply || '';
+				chatHistory = [...chatHistory, {
+					role: 'assistant', content: fp, fullReply: fp,
+					transactionPreviews: data.transactionPreviews, ts: Date.now()
+				}];
+				currentSuggestions = data.suggestions || [];
+				await scrollToBottom();
+				isLoading = false;
+				return;
+			}
+
 			const fullReply = data.reply || 'Maaf kak, terjadi kesalahan.';
 			const chartData = data.chartData ?? null;
 			chatHistory = [...chatHistory, { role: 'assistant', content: '', fullReply, chartData, ts: Date.now() }];
@@ -335,10 +608,173 @@
 
 			currentSuggestions = data.suggestions?.length ? data.suggestions : ['Ringkasan keuangan', 'Bantuan fitur'];
 			if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+			// Auto-expand widget jika jawaban kompleks
+			if (isComplexReply(fullReply) && !isExpanded) {
+				isExpanded = true;
+			}
 			await scrollToBottom();
 		} catch {
 			chatHistory = [...chatHistory, { role: 'assistant', content: 'Koneksi terputus. Coba lagi ya kak 🙏', ts: Date.now() }];
 		} finally { isLoading = false; }
+	}
+
+	// ─── Transaction Wizard Handlers ───────────────────────────────────────────
+	function openTransactionWizard() {
+		if (!selectedUnitSlug) {
+			// Need a unit selected first
+			if (userUnits.length === 1) {
+				selectedUnitSlug = userUnits[0].slug;
+				selectedUnitName = userUnits[0].nama_unit;
+			} else if (userUnits.length > 1) {
+				pendingMessage = '__WIZARD__';
+				showUnitPicker = true;
+				return;
+			}
+		}
+		showTransactionWizard = true;
+	}
+
+	function handleTransactionSuccess(detail) {
+		showTransactionWizard = false;
+		// Add success message to chat
+		const successMsg = `✅ Transaksi berhasil disimpan melalui AI Wizard!\n\n**Detail:**\n- Tipe: ${detail.data?.kategori_trx || '-'}\n- Nominal: Rp${Number(detail.data?.nominal || 0).toLocaleString('id-ID')}\n- Keterangan: ${detail.data?.keterangan || '-'}`;
+		chatHistory = [...chatHistory, {
+			role: 'assistant',
+			content: successMsg,
+			fullReply: successMsg,
+			ts: Date.now()
+		}];
+		scrollToBottom();
+	}
+
+	// ─── Save Transaction from NL Preview ─────────────────────────────────────
+	async function saveTransaction(trxData) {
+		if (!selectedUnitSlug || !trxData || isSavingTransaction) return;
+		isSavingTransaction = true;
+		try {
+			const fd = new FormData();
+			fd.append('tglTrx', trxData.tanggal);
+			fd.append('kategoriTrx', trxData.kategori);
+			fd.append('nominal', String(trxData.nominal));
+			fd.append('keterangan', trxData.keterangan);
+			fd.append('metodeBayar', trxData.metode || 'Tunai');
+
+			const res = await fetch(`/finance/${selectedUnitSlug}/entry?/simpanTrx`, {
+				method: 'POST',
+				body: fd,
+				headers: { 'x-sveltekit-action': 'true' }
+			});
+			const resultText = await res.text();
+			const ok = res.ok && (resultText.includes('"success":true') || res.status === 200);
+
+			const msg = ok
+				? `✅ **Transaksi berhasil disimpan!**\n\n${trxData.kategori === 'Masuk' ? '💰' : '💸'} **${trxData.kategori}:** Rp${Number(trxData.nominal).toLocaleString('id-ID')}\n📝 ${trxData.keterangan}`
+				: `❌ Gagal menyimpan transaksi. Coba input manual via [Halaman Entry](/finance/${selectedUnitSlug}/entry) ya kak.`;
+
+			chatHistory = [...chatHistory, { role: 'assistant', content: msg, fullReply: msg, ts: Date.now() }];
+			currentSuggestions = ok
+				? ['Input transaksi lain', 'Lihat ringkasan keuangan']
+				: ['Coba lagi', 'Input manual'];
+			await scrollToBottom();
+		} catch {
+			const msg = `❌ Koneksi gagal. Coba input manual via [Halaman Entry](/finance/${selectedUnitSlug}/entry).`;
+			chatHistory = [...chatHistory, { role: 'assistant', content: msg, fullReply: msg, ts: Date.now() }];
+		} finally {
+			isSavingTransaction = false;
+		}
+	}
+
+	// ─── File Upload Handlers ──────────────────────────────────────────────────
+	function triggerFileUpload() {
+		fileInput?.click();
+	}
+
+	function handleFileSelect(e) {
+		const file = e.target.files?.[0];
+		if (file) openFileUpload(file);
+		// Reset input to allow same file re-selection
+		e.target.value = '';
+	}
+
+	function openFileUpload(file) {
+		uploadedFile = file;
+		uploadResult = null;
+		uploadError = '';
+		showFileUploadModal = true;
+	}
+
+	function closeFileUpload() {
+		showFileUploadModal = false;
+		uploadedFile = null;
+		uploadResult = null;
+		uploadError = '';
+		isDraggingFile = false;
+	}
+
+	async function processUploadedFile() {
+		if (!uploadedFile || isUploadingFile) return;
+		isUploadingFile = true;
+		uploadError = '';
+
+		try {
+			const fd = new FormData();
+			fd.append('file', uploadedFile);
+			if (selectedUnitSlug) fd.append('unit', selectedUnitSlug);
+
+			const res = await fetch('/api/chat/upload', { method: 'POST', body: fd });
+			const data = await res.json();
+
+			if (data.success) {
+				uploadResult = data;
+				// Auto-compose chat message summarizing the file content
+				let summary = '';
+				if (data.fileType === 'csv') {
+					summary = `📂 **File CSV diunggah:** ${data.fileName}\n\n${data.data?.summary || ''}\n\nSaya menemukan ${data.data?.transactions?.length || 0} transaksi valid. Ketik pertanyaan untuk menganalisis data ini, atau gunakan tombol Input Transaksi untuk input satu per satu.`;
+				} else if (data.fileType === 'image') {
+					summary = `🖼️ **Gambar diunggah:** ${data.fileName}\n\n${data.data?.message || ''}\n\n${data.data?.suggestion || ''}`;
+				} else {
+					summary = `📄 **File diunggah:** ${data.fileName}\n\n${data.data?.message || ''}`;
+				}
+
+				// Add to chat
+				chatHistory = [...chatHistory, {
+					role: 'assistant',
+					content: summary,
+					fullReply: summary,
+					ts: Date.now()
+				}];
+				scrollToBottom();
+				closeFileUpload();
+			} else {
+				uploadError = data.message || 'Gagal memproses file';
+			}
+		} catch {
+			uploadError = 'Koneksi gagal. Silakan coba lagi.';
+		} finally {
+			isUploadingFile = false;
+		}
+	}
+
+	function handleDragOver(e) {
+		e.preventDefault();
+		isDraggingFile = true;
+	}
+
+	function handleDragLeave() {
+		isDraggingFile = false;
+	}
+
+	function handleDrop(e) {
+		e.preventDefault();
+		isDraggingFile = false;
+		const file = e.dataTransfer?.files?.[0];
+		if (file) openFileUpload(file);
+	}
+
+	function fmtBytes(bytes) {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
 	function formatAI(text) {
@@ -1089,6 +1525,209 @@
                 <canvas use:renderChart={chat.chartData}></canvas>
               </div>
             {/if}
+            <!-- Tombol Lihat Selengkapnya untuk jawaban kompleks -->
+            {#if chat.fullReply && chat.content === chat.fullReply && isComplexReply(chat.fullReply)}
+              <button
+                on:click={() => openModal(chat.fullReply, chat.chartData)}
+                class="mt-2.5 flex items-center justify-center gap-1.5 w-full
+                       text-[10px] font-semibold text-indigo-600 dark:text-indigo-400
+                       bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700
+                       px-3 py-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-800
+                       transition-colors"
+                transition:fade={{ duration: 150 }}>
+                <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                </svg>
+                Lihat Selengkapnya
+              </button>
+            {/if}
+            {#if chat.transactionPreviews && chat.transactionPreviews.length > 0}
+            <!-- Load master data when this card appears -->
+            {#if !nlMasterData.loaded && !nlMasterData.loading}
+              {loadNLMasterData()}
+            {/if}
+            <div class="space-y-4">
+            {#each chat.transactionPreviews as trx, j}
+            {@const key = `${i}-${j}`}
+            {@const isIn = trx.kategori === 'Masuk'}
+            {#if !nlConfirm[key] && nlMasterData.loaded}
+              {initNLConfirm(key, trx)}
+              <span class="hidden"></span>
+            {/if}
+
+            {#if nlConfirm[key]?.success}
+              <div class="mt-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all">
+                <p class="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">✅ Transaksi tersimpan!</p>
+                <p class="text-[10px] text-emerald-600 dark:text-emerald-500 mt-1 font-medium">{isIn ? '💰 Pemasukan' : '💸 Pengeluaran'}: Rp{Number(trx.nominal).toLocaleString('id-ID')}<br>{trx.keterangan}</p>
+              </div>
+            {:else}
+            <div class="mt-3 rounded-xl overflow-hidden border
+                         {isIn ? 'border-emerald-200 dark:border-emerald-700/50' : 'border-rose-200 dark:border-rose-700/50'}"
+                 transition:fade={{ duration: 200 }}>
+
+              <!-- Card Header -->
+              <div class="flex items-center justify-between px-3 py-2
+                          {isIn ? 'bg-emerald-600' : 'bg-rose-600'}">
+                <div class="flex items-center gap-2">
+                  <span class="text-base">{isIn ? '💰' : '💸'}</span>
+                  <div>
+                    <p class="text-[10px] font-bold text-white leading-none">{isIn ? 'Pemasukan Terdeteksi' : 'Pengeluaran Terdeteksi'}</p>
+                    <p class="text-[9px] text-white/70 mt-0.5">Lengkapi field di bawah lalu simpan</p>
+                  </div>
+                </div>
+                <span class="text-[11px] font-black text-white">Rp{Number(trx.nominal).toLocaleString('id-ID')}</span>
+              </div>
+
+              <div class="bg-white dark:bg-slate-900 p-3 space-y-2.5">
+
+                <!-- Field yang sudah diketahui (read-only) -->
+                <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                  <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
+                    <p class="text-slate-400 text-[8.5px] font-semibold uppercase tracking-wide">Nominal</p>
+                    <p class="font-bold text-slate-800 dark:text-white mt-0.5">Rp{Number(trx.nominal).toLocaleString('id-ID')}</p>
+                  </div>
+                  <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
+                    <p class="text-slate-400 text-[8.5px] font-semibold uppercase tracking-wide">Tipe</p>
+                    <p class="font-bold mt-0.5 {isIn ? 'text-emerald-600' : 'text-rose-600'}">{trx.kategori}</p>
+                  </div>
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[10px]">
+                  <p class="text-slate-400 text-[8.5px] font-semibold uppercase tracking-wide">Keterangan</p>
+                  <p class="font-medium text-slate-700 dark:text-slate-200 mt-0.5">{trx.keterangan}</p>
+                </div>
+
+                <!-- Divider: Field yang perlu dilengkapi -->
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-px bg-slate-100 dark:bg-slate-700"></div>
+                  <span class="text-[8.5px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Lengkapi data berikut</span>
+                  <div class="flex-1 h-px bg-slate-100 dark:bg-slate-700"></div>
+                </div>
+
+                {#if nlMasterData.loading}
+                  <!-- Loading state -->
+                  <div class="flex items-center gap-2 py-2">
+                    <div class="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin shrink-0"></div>
+                    <p class="text-[10px] text-slate-400">Memuat akun COA & Kas...</p>
+                  </div>
+                {:else if nlConfirm[key]}
+                  {@const conf = nlConfirm[key]}
+                  {@const filteredCoa = getFilteredCoa(trx.kategori)}
+
+                  <!-- Tanggal -->
+                  <div>
+                    <label class="block text-[9px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">📅 Tanggal</label>
+                    <input type="date" value={conf.tanggal}
+                      on:change={(e) => nlConfirm = { ...nlConfirm, [key]: { ...conf, tanggal: e.target.value } }}
+                      class="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600
+                             bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200
+                             focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                    >
+                  </div>
+
+                  <!-- Metode Bayar -->
+                  <div>
+                    <label class="block text-[9px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">💳 Metode Pembayaran</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                      {#each ['Tunai', 'Transfer', 'QRIS', 'Kartu Debit'] as m}
+                        <button on:click={() => nlConfirm = { ...nlConfirm, [key]: { ...conf, metode: m } }}
+                          class="text-[9.5px] font-semibold px-2 py-1 rounded-lg border transition-colors
+                                 {conf.metode === m
+                                   ? 'bg-indigo-600 text-white border-indigo-600'
+                                   : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-indigo-400'}">
+                          {m}
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+
+                  <!-- Akun Kas (Metode Bayar) -->
+                  {#if nlMasterData.kasAccounts.length > 0}
+                  <div>
+                    <label class="block text-[9px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">🏦 Akun Kas / Bank</label>
+                    <select value={conf.kas_coa_id}
+                      on:change={(e) => nlConfirm = { ...nlConfirm, [key]: { ...conf, kas_coa_id: e.target.value } }}
+                      class="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600
+                             bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200
+                             focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400">
+                      <option value="">-- Pilih akun kas --</option>
+                      {#each nlMasterData.kasAccounts as kas}
+                        <option value={String(kas.id)}>{kas.namaAkun} {kas.kodeAkun ? `(${kas.kodeAkun})` : ''}</option>
+                      {/each}
+                    </select>
+                  </div>
+                  {/if}
+
+                  <!-- Akun COA -->
+                  <div>
+                    <label class="block text-[9px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">📂 Akun COA {isIn ? '(Pendapatan)' : '(Beban)'}</label>
+                    {#if filteredCoa.length > 0}
+                      <select value={conf.coa_id}
+                        on:change={(e) => nlConfirm = { ...nlConfirm, [key]: { ...conf, coa_id: e.target.value } }}
+                        class="w-full text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600
+                               bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200
+                               focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400">
+                        <option value="">-- Pilih akun COA --</option>
+                        {#each filteredCoa as coa}
+                          <option value={String(coa.id)}>{coa.namaAkun} {coa.kodeAkun ? `(${coa.kodeAkun})` : ''}</option>
+                        {/each}
+                      </select>
+                    {:else}
+                      <p class="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-2 rounded-lg border border-amber-200 dark:border-amber-700">
+                        ⚠️ Belum ada akun COA untuk {isIn ? 'pendapatan' : 'beban'}.
+                        <a href="/finance/{selectedUnitSlug}/entry" class="font-bold underline">Setup COA →</a>
+                      </p>
+                    {/if}
+                  </div>
+
+                  <!-- Error -->
+                  {#if conf.error}
+                    <p class="text-[10px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 px-2.5 py-1.5 rounded-lg border border-rose-200 dark:border-rose-700">
+                      ⚠️ {conf.error}
+                    </p>
+                  {/if}
+
+                  {#if !selectedUnitSlug}
+                    <p class="text-[10px] text-amber-600 dark:text-amber-400">⚠️ Pilih unit bisnis dulu.</p>
+                  {/if}
+
+                  <!-- Simpan Button -->
+                  <button
+                    on:click={() => saveTransactionFull(i, j, trx)}
+                    disabled={conf.isSaving || !selectedUnitSlug || !conf.kas_coa_id || !conf.coa_id}
+                    class="w-full py-2 px-3 rounded-lg text-[10.5px] font-bold uppercase tracking-wide
+                           {isIn ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}
+                           text-white transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           flex items-center justify-center gap-1.5"
+                  >
+                    {#if conf.isSaving}
+                      <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/>
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"/>
+                      </svg>
+                      Menyimpan...
+                    {:else}
+                      💾 Simpan Transaksi
+                    {/if}
+                  </button>
+
+                {:else if !nlMasterData.loaded}
+                  <!-- Master data belum dimuat -->
+                  <button on:click={loadNLMasterData}
+                    class="w-full text-[10px] font-semibold text-indigo-600 dark:text-indigo-400
+                           bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700
+                           py-2 rounded-lg hover:bg-indigo-100 transition-colors">
+                    ↺ Muat data akun COA & Kas
+                  </button>
+                {/if}
+              </div>
+            </div>
+            {/if}
+            {/each}
+            </div>
+            {/if}
+
           {/if}
 
           <!-- Copy btn -->
@@ -1210,6 +1849,125 @@
       </div>
       {/if}
 
+      <!-- ⚡ Action Buttons Row (Aksi Cepat) -->
+      <div class="relative flex items-center gap-1.5 mb-2">
+
+        <!-- ⚡ AKSI CEPAT BUTTON -->
+        <button
+          id="quick-action-btn"
+          on:click={() => showQuickActions = !showQuickActions}
+          title="Aksi Cepat: input transaksi, produk, piutang, dan lainnya"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all shrink-0
+                 {showQuickActions
+                   ? 'bg-indigo-600 text-white border border-indigo-600 shadow-md shadow-indigo-500/20'
+                   : 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700/50 hover:bg-indigo-100 dark:hover:bg-indigo-800'}"
+        >
+          <svg class="w-3 h-3 shrink-0 transition-transform {showQuickActions ? 'rotate-45' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span>Aksi Cepat</span>
+          {#if !showQuickActions}
+            <svg class="w-2.5 h-2.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+            </svg>
+          {/if}
+        </button>
+
+        <!-- Upload File Button -->
+        <button on:click={triggerFileUpload}
+          title="Upload CSV atau gambar untuk AI processing"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-colors shrink-0
+                 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800
+                 border border-slate-200 dark:border-slate-700
+                 hover:bg-slate-200 dark:hover:bg-slate-700">
+          <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+          <span class="hidden sm:inline">Upload File</span>
+          <span class="sm:hidden">File</span>
+        </button>
+
+        <!-- Hidden file input -->
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept=".csv,.txt,.jpg,.jpeg,.png,.webp,.xlsx,.xls"
+          class="hidden"
+          on:change={handleFileSelect}
+        >
+
+        <!-- ⚡ QUICK ACTIONS POPUP PANEL -->
+        {#if showQuickActions}
+        <div
+          class="absolute bottom-full left-0 mb-2 w-[268px] z-50
+                 bg-white dark:bg-slate-900 rounded-2xl
+                 border border-slate-200 dark:border-slate-700
+                 shadow-[0_8px_40px_rgba(0,0,0,0.14)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.55)]
+                 overflow-hidden"
+          transition:scale={{ start: 0.93, duration: 160, opacity: 0 }}
+          use:clickOutside={() => showQuickActions = false}
+        >
+          <!-- Panel Header -->
+          <div class="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 px-3.5 py-3">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="w-5 h-5 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+              </div>
+              <p class="text-[12px] font-bold text-white leading-none">Aksi Cepat</p>
+            </div>
+            <p class="text-[9.5px] text-indigo-200 leading-relaxed">
+              Pilih aksi di bawah — AI akan memandu kamu step by step dan minta konfirmasi sebelum menyimpan.
+            </p>
+          </div>
+
+          <!-- Action Grid -->
+          <div class="p-2 grid grid-cols-2 gap-1.5">
+            {#each QUICK_ACTIONS as action}
+            {@const colorMap = {
+              indigo: { bg: 'bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 border-indigo-100 dark:border-indigo-800/60', text: 'text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
+              emerald: { bg: 'bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border-emerald-100 dark:border-emerald-800/60', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
+              amber: { bg: 'bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 border-amber-100 dark:border-amber-800/60', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
+              rose: { bg: 'bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 border-rose-100 dark:border-rose-800/60', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
+              violet: { bg: 'bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 border-violet-100 dark:border-violet-800/60', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
+              blue: { bg: 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 border-blue-100 dark:border-blue-800/60', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
+            }}
+            <button
+              on:click={() => startQuickAction(action)}
+              class="flex flex-col items-start gap-1 p-2.5 rounded-xl border transition-all text-left group
+                     {colorMap[action.color].bg}"
+            >
+              <div class="flex items-center gap-1.5 w-full">
+                <span class="text-[15px] leading-none">{action.icon}</span>
+                <span class="text-[10px] font-bold {colorMap[action.color].text} leading-tight flex-1">{action.label}</span>
+                <svg class="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity {colorMap[action.color].text}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </div>
+              <p class="text-[9px] opacity-60 {colorMap[action.color].text} leading-snug">{action.desc}</p>
+            </button>
+            {/each}
+          </div>
+
+          <!-- Footer Hint -->
+          <div class="px-3.5 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30">
+            <div class="flex items-start gap-1.5">
+              <svg class="w-3 h-3 text-slate-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p class="text-[9px] text-slate-400 leading-relaxed">
+                Atau ketik langsung, contoh:
+                <button on:click={() => { showQuickActions = false; query = 'beli gula 25rb'; }} class="font-semibold text-indigo-500 hover:underline">"beli gula 25rb"</button>
+              </p>
+            </div>
+          </div>
+        </div>
+        {/if}
+      </div>
+
+
+      <!-- Chat Input Form -->
       <form on:submit|preventDefault={handleSend} class="flex items-end gap-2">
         <textarea bind:this={inputEl} bind:value={query} on:keydown={handleKeydown} use:autoResize
           placeholder="Tanya apa saja… (Enter kirim, Shift+Enter baris baru)"
@@ -1248,6 +2006,94 @@
 {/if}
 </div>
 {/if}
+
+<!-- ══ DETAIL MODAL ═══════════════════════════════════════════════════════ -->
+{#if modalContent}
+<div class="fixed inset-0 z-[300] flex items-center justify-center p-3 sm:p-6"
+     on:click|self={closeModal}
+     role="dialog" aria-modal="true" aria-label="Detail jawaban AI"
+     transition:fade={{ duration: 200 }}>
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" on:click={closeModal} role="presentation"></div>
+
+  <!-- Modal box -->
+  <div class="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl
+              border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col z-10"
+       style="max-height: min(92vh, 820px);"
+       transition:scale={{ start: 0.95, duration: 200 }}>
+
+    <!-- Modal header -->
+    <div class="shrink-0 flex items-center justify-between px-5 py-3.5
+                bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900
+                border-b border-slate-700/50">
+      <div class="flex items-center gap-2.5">
+        <div class="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg
+                    flex items-center justify-center shadow-sm">
+          <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <span class="text-[13px] font-bold text-white">Bizgrow AI</span>
+          <span class="text-[9px] text-slate-400 ml-2 uppercase tracking-widest">Detail Jawaban</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button on:click={copyModal}
+          class="flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-lg border transition-colors
+                 {modalCopied
+                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                   : 'text-slate-400 hover:text-white hover:bg-slate-700 border-slate-700'}">
+          {#if modalCopied}
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>Tersalin
+          {:else}
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>Salin
+          {/if}
+        </button>
+        <button on:click={closeModal} aria-label="Tutup"
+          class="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal scrollable content -->
+    <div class="flex-1 overflow-y-auto px-6 py-5
+                scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
+      <div class="ai-msg ai-modal-content">{@html formatAI(modalContent)}</div>
+      {#if modalChartData}
+        <div class="mt-4 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700
+                    bg-white dark:bg-slate-900 p-3">
+          <canvas use:renderChart={modalChartData}></canvas>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Modal footer -->
+    <div class="shrink-0 flex items-center justify-between px-5 py-3
+                border-t border-slate-100 dark:border-slate-800
+                bg-slate-50/60 dark:bg-slate-900/60">
+      <p class="text-[9px] text-slate-400 uppercase tracking-widest select-none">
+        Bizgrow AI · LLaMA 3.3 70B via Groq
+      </p>
+      <button on:click={closeModal}
+        class="text-[11px] font-semibold px-4 py-1.5 rounded-xl border transition-colors
+               text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800
+               border-slate-200 dark:border-slate-700
+               hover:bg-slate-100 dark:hover:bg-slate-700">
+        Tutup
+      </button>
+    </div>
+  </div>
+</div>
+{/if}
+
 <!-- ══ FAB ══════════════════════════════════════════════════════════════════ -->
 {#if !isOpen}
 <button type="button" on:click={() => isOpen = !isOpen}
@@ -1263,6 +2109,130 @@
     <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white dark:border-slate-900"></span>
   {/if}
 </button>
+{/if}
+
+<!-- ══ AI TRANSACTION WIZARD ═══════════════════════════════════════════════ -->
+<AITransactionWizard
+  bind:isOpen={showTransactionWizard}
+  selectedUnitSlug={selectedUnitSlug}
+  selectedUnitName={selectedUnitName}
+  onSuccess={handleTransactionSuccess}
+/>
+
+<!-- ══ FILE UPLOAD MODAL ════════════════════════════════════════════════════ -->
+{#if showFileUploadModal}
+<div class="fixed inset-0 z-[270] flex items-center justify-center p-4"
+     on:click|self={closeFileUpload}
+     role="dialog" aria-modal="true" aria-label="Upload File"
+     transition:fade={{ duration: 180 }}>
+
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" on:click={closeFileUpload} role="presentation"></div>
+
+  <div class="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-10"
+       transition:scale={{ start: 0.93, duration: 220 }}>
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 bg-white/10 rounded-lg flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+        </div>
+        <span class="text-sm font-bold text-white">Upload File ke AI</span>
+      </div>
+      <button on:click={closeFileUpload}
+        class="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="p-5">
+      {#if uploadedFile && !uploadResult}
+      <!-- File Preview -->
+      <div class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-4 flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-xl shrink-0">
+          {uploadedFile.name.endsWith('.csv') ? '📊' :
+           uploadedFile.type.startsWith('image/') ? '🖼️' : '📄'}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{uploadedFile.name}</p>
+          <p class="text-xs text-slate-400">{fmtBytes(uploadedFile.size)} · {uploadedFile.type || 'Unknown type'}</p>
+        </div>
+      </div>
+
+      <!-- Supported types info -->
+      <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4">
+        <p class="text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1">📋 Format yang didukung:</p>
+        <ul class="text-[10px] text-blue-600 dark:text-blue-400 space-y-0.5">
+          <li>• <strong>CSV</strong> — Import transaksi bulk (max 100 baris)</li>
+          <li>• <strong>Gambar (JPG, PNG)</strong> — Upload struk/nota</li>
+          <li>• <strong>TXT</strong> — File teks untuk dianalisis AI</li>
+        </ul>
+      </div>
+
+      {#if uploadError}
+      <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4 flex items-center gap-2">
+        <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-xs font-medium text-red-700 dark:text-red-300">{uploadError}</p>
+      </div>
+      {/if}
+
+      <!-- Action Buttons -->
+      <div class="flex gap-2">
+        <button on:click={closeFileUpload}
+          class="flex-1 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+          Batal
+        </button>
+        <button on:click={processUploadedFile} disabled={isUploadingFile}
+          class="flex-1 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition-colors flex items-center justify-center gap-2">
+          {#if isUploadingFile}
+          <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          <span>Memproses...</span>
+          {:else}
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <span>Proses dengan AI</span>
+          {/if}
+        </button>
+      </div>
+
+      {:else if !uploadedFile}
+      <!-- Drop Zone -->
+      <div
+        on:dragover={handleDragOver}
+        on:dragleave={handleDragLeave}
+        on:drop={handleDrop}
+        class="border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer
+               {isDraggingFile
+                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                 : 'border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-600'}"
+        role="button"
+        tabindex="0"
+        aria-label="Drop zone untuk upload file"
+        on:click={triggerFileUpload}
+        on:keydown={(e) => e.key === 'Enter' && triggerFileUpload()}
+      >
+        <div class="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-3">
+          <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          {isDraggingFile ? 'Lepaskan file di sini' : 'Drag & drop file atau klik untuk pilih'}
+        </p>
+        <p class="text-xs text-slate-400">CSV, gambar (JPG, PNG), atau file teks · Maks 5MB</p>
+      </div>
+      {/if}
+    </div>
+  </div>
+</div>
 {/if}
 
 </div>
@@ -1495,6 +2465,18 @@
   }
   :global(.ai-msg .ai-step-text) { font-size: 11.5px; color: #475569; line-height: 1.5; padding-top: 2px; }
   :global(.dark .ai-msg .ai-step-text) { color: #94a3b8; }
+
+  /* ── Detail Modal content ───────────────────────────────────────────── */
+  :global(.ai-modal-content) { font-size: 13.5px !important; line-height: 1.75 !important; }
+  :global(.ai-modal-content .ai-table) { font-size: 12.5px !important; }
+  :global(.ai-modal-content .ai-h2) { font-size: 14.5px !important; margin: 12px 0 6px !important; }
+  :global(.ai-modal-content .ai-h3) { font-size: 13.5px !important; }
+  :global(.ai-modal-content .ai-metric-value) { font-size: 22px !important; }
+  :global(.ai-modal-content .ai-grid) { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important; gap: 8px !important; }
+  :global(.ai-modal-content .ai-table td) { padding: 8px 12px !important; font-size: 12px !important; }
+  :global(.ai-modal-content .ai-table th) { padding: 9px 12px !important; font-size: 11px !important; }
+  :global(.ai-modal-content ul li, .ai-modal-content ol li) { margin-bottom: 5px !important; font-size: 13px !important; }
+  :global(.ai-modal-content .ai-action-btn) { font-size: 12px !important; padding: 7px 14px !important; }
 
   /* ── Typing plain text (before render completes) ───────────────────── */
   :global(.ai-msg .ai-typing-plain) {
