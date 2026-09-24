@@ -13,7 +13,17 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
-fun createHttpClient(session: SessionRepository): HttpClient {
+/**
+ * Creates a new Ktor HTTP client configured with:
+ * - Bearer token from [session] on every request
+ * - 401 detection via [onUnauthorized] callback so callers can react (e.g. redirect to login)
+ *
+ * Call this function after login to get a client with the latest token.
+ */
+fun createHttpClient(
+    session: SessionRepository,
+    onUnauthorized: (() -> Unit)? = null
+): HttpClient {
     return HttpClient {
         install(ContentNegotiation) {
             json(Json {
@@ -34,6 +44,8 @@ fun createHttpClient(session: SessionRepository): HttpClient {
             val baseUrl = session.getServerUrl().trimEnd('/')
             url(baseUrl)
             header(HttpHeaders.ContentType, ContentType.Application.Json)
+            // Token dibaca ulang setiap kali DefaultRequest dieksekusi — memastikan
+            // token terbaru selalu dikirim setelah client di-recreate post-login.
             val token = session.getToken()
             if (!token.isNullOrEmpty()) {
                 header(HttpHeaders.Authorization, "Bearer $token")
@@ -44,6 +56,16 @@ fun createHttpClient(session: SessionRepository): HttpClient {
             requestTimeoutMillis = 30_000
             connectTimeoutMillis = 15_000
             socketTimeoutMillis = 30_000
+        }
+
+        // Deteksi HTTP 401 dan panggil callback agar AppViewModel bisa redirect ke Login
+        HttpResponseValidator {
+            validateResponse { response ->
+                if (response.status == HttpStatusCode.Unauthorized) {
+                    Napier.w("HTTP 401 detected — triggering session invalidation", tag = "ApiClient")
+                    onUnauthorized?.invoke()
+                }
+            }
         }
     }
 }

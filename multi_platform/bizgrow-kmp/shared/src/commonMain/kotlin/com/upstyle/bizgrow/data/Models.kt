@@ -921,6 +921,54 @@ data class AiAdvisorRequest(val unitId: Int, val question: String)
 @Serializable
 data class AiAdvisorData(val analysis: String)
 
+// ─── AI Entry (NLP Transaction Parsing) ──────────────────────────────────────
+
+@Serializable
+data class AiEntryRequest(
+    val unitId: Int,
+    val teksInput: String
+)
+
+@Serializable
+data class AiEntryHasil(
+    val product_id: String? = null,
+    val qty: Int = 1,
+    val kategori: String = "Masuk",   // "Masuk" | "Keluar"
+    val coa_id: Int? = null,
+    val kas_coa_id: Int? = null,
+    val nominal: Double = 0.0,
+    val catatan: String = ""
+)
+
+@Serializable
+data class AiEntryData(val hasil: AiEntryHasil)
+
+/** UI-level model — non-serializable, diisi dari AiEntryHasil */
+data class AiEntryResult(
+    val productId: String? = null,
+    val qty: Int = 1,
+    val kategori: String = "Masuk",
+    val coaId: Int? = null,
+    val kasCoaId: Int? = null,
+    val nominal: Double = 0.0,
+    val catatan: String = ""
+)
+
+// ─── AI Kategori ─────────────────────────────────────────────────────────────
+
+@Serializable
+data class AiKategoriRequest(
+    val teks: String,
+    val unitId: Int
+)
+
+@Serializable
+data class AiKategoriResult(
+    val abc_id: Int? = null,
+    val confidence: Int = 0,
+    val reason: String = ""
+)
+
 // â”€â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Serializable

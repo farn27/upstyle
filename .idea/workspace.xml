@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="1bf797f4-5341-4f48-820f-494f7291b50b" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main (1).zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/.env.example" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/proguard-rules.pro" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/androidTest/java/com/example/ExampleInstrumentedTest.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/AndroidManifest.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/BizgrowApp.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/api/ApiClient.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/api/UpstyleApi.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/data/Models.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/data/SessionManager.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/socket/SocketManager.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/MainActivity.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/MainViewModel.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/screens/AuthScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/screens/DashboardScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/screens/FinanceScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/screens/PosScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/screens/SimpleScreens.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/screens/UnitsScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/java/com/upstyle/ui/theme/Theme.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/drawable/ic_launcher_background.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/drawable/ic_launcher_foreground.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-hdpi/ic_launcher.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-mdpi/ic_launcher.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-mdpi/ic_launcher_round.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-xhdpi/ic_launcher.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/values/colors.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/values/strings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/values/themes.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/xml/backup_rules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/main/res/xml/data_extraction_rules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/test/java/com/example/ExampleRobolectricTest.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/test/java/com/example/ExampleUnitTest.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/test/java/com/example/GreetingScreenshotTest.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/app/src/test/screenshots/greeting.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/gradle.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/gradle/libs.versions.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/gradlew" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/gradlew.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/metadata.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgro-app-new-main/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/ARCHITECTURE_IMPROVEMENTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/DESIGN_SYSTEM_GUIDE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/IMPROVEMENTS_SUMMARY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/NEXT_STEPS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/androidApp/src/androidMain/kotlin/com/upstyle/bizgrow/android/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/androidApp/src/androidMain/kotlin/com/upstyle/bizgrow/android/MainActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/gradle.properties" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/gradle.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/gradle/libs.versions.toml" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/gradle/libs.versions.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/api/UpstyleApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/api/UpstyleApi.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/data/Models.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/data/Models.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/data/SessionRepository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/data/SessionRepository.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/di/Modules.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/di/Modules.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/App.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/App.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/AppViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/AppViewModel.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/components/BizComponents.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/components/BizComponents.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/components/BottomNav.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/components/BottomNav.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/AbsensiScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/AbsensiScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/AiChatScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/AiChatScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ApprovalsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ApprovalsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/AuthScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/AuthScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BarcodeScannerScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BarcodeScannerScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BottomNavBar.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BottomNavBar.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BudgetScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BudgetScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BukuBesarScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/BukuBesarScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ClosingPeriodScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ClosingPeriodScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CoaScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CoaScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmActivitiesScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmActivitiesScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmContactsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmContactsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmPipelineScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmPipelineScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmTasksScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CrmTasksScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CsInboxScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/CsInboxScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/DashboardScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/DashboardScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/DepartmentsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/DepartmentsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/FinanceScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/FinanceScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/FixedAssetsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/FixedAssetsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/HomeScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/HomeScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/HrScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/HrScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/HutangScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/HutangScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/JurnalUmumScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/JurnalUmumScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/KatalogScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/KatalogScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LaporanScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LaporanScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LaporanWaScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LaporanWaScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LeaveRequestsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LeaveRequestsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LoginScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/LoginScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/MarketingCampaignsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/MarketingCampaignsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/MarketingScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/MarketingScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/NeracaScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/NeracaScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/NotificationScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/NotificationScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/OrderDetailScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/OrderDetailScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/OrdersScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/OrdersScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PayrollScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PayrollScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PiutangScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PiutangScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosReturnScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosReturnScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosShiftScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosShiftScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosVouchersScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PosVouchersScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PricingScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/PricingScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ProductsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ProductsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ProdukDetailScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ProdukDetailScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ProfileScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ProfileScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/QuotationsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/QuotationsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/RegisterScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/RegisterScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/SalesOrdersScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/SalesOrdersScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/SalesTargetsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/SalesTargetsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ScmScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/ScmScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/SettingsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/SettingsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/StockLogsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/StockLogsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/StockOpnameScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/StockOpnameScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/TaxRatesScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/TaxRatesScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/TicketDetailScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/TicketDetailScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/TrashProductsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/TrashProductsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/UnitsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/screens/UnitsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/state/FeatureStates.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/state/FeatureStates.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/theme/Theme.kt" beforeDir="false" afterPath="$PROJECT_DIR$/multi_platform/bizgrow-kmp/shared/src/commonMain/kotlin/com/upstyle/bizgrow/ui/theme/Theme.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/web/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/web/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/lib/server/drizzle.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/lib/server/drizzle.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/lib/server/pusher.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/lib/server/pusher.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/lib/server/schema.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/lib/server/schema.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/lib/server/socketTrigger.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/lib/server/socketTrigger.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/lib/server/stockAlert.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/lib/server/stockAlert.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/(app)/finance/[slug]/pos/+page.server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/(app)/finance/[slug]/pos/+page.server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/(app)/finance/[slug]/produk/+page.server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/(app)/finance/[slug]/produk/+page.server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/(app)/finance/[slug]/produk/[productSlug]/update/+page.server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/(app)/finance/[slug]/produk/[productSlug]/update/+page.server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/+layout.svelte" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/+layout.svelte" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/business/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/business/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/crm/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/crm/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/cs/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/cs/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/cs/[ticketId]/messages/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/cs/[ticketId]/messages/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/finance/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/finance/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/hr/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/hr/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/hr/approvals/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/hr/approvals/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/orders/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/orders/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/orders/[orderId]/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/orders/[orderId]/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/pos/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/pos/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/products/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/products/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/products/trash/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/products/trash/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/app/scm/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/app/scm/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/migrate/pos-feature/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/migrate/pos-feature/+server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/routes/api/updates/+server.js" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/routes/api/updates/+server.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 2
+}]]></component>
+  <component name="ProjectId" id="3JghbVy38RIJLXiGrHR0IopuTwP" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "D:/bizgrow-project/upstyle"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="1bf797f4-5341-4f48-820f-494f7291b50b" name="Changes" comment="" />
+      <created>1790088695588</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1790088695588</updated>
+    </task>
+    <servers />
+  </component>
+</project>

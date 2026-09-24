@@ -3,6 +3,7 @@ package com.upstyle.bizgrow.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.upstyle.bizgrow.api.UpstyleApi
+import com.upstyle.bizgrow.api.createHttpClient
 import com.upstyle.bizgrow.data.*
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,18 +16,55 @@ import com.upstyle.bizgrow.socket.SocketManager
 import com.upstyle.bizgrow.socket.RealtimeEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import com.upstyle.bizgrow.cache.CacheManager
 import com.upstyle.bizgrow.ui.state.*
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.debounce
 import io.github.aakira.napier.Napier
 
+/**
+ * AppViewModel memegang semua state aplikasi.
+ *
+ * [session] diinjeksi dari DI — AppViewModel membuat dan me-recreate
+ * UpstyleApi-nya sendiri agar token terbaru selalu digunakan setelah login.
+ */
 class AppViewModel(
-    private val api: UpstyleApi,
-    val session: SessionRepository
+    val session: SessionRepository,
+    private val cacheManagerExternal: CacheManager? = null
 ) : ViewModel() {
+
+    // ─── Internal API client management ───────────────────────────────────────
+    /**
+     * Mutable API instance — diganti ulang setelah login berhasil.
+     * Akses melalui [api] property agar semua fungsi tetap pakai instance terbaru.
+     */
+    @Volatile private var _api: UpstyleApi = buildApi()
+
+    private val api: UpstyleApi get() = _api
+
+    private fun buildApi(): UpstyleApi {
+        val client = createHttpClient(session) {
+            // Callback 401: emit event ke authEvent flow
+            viewModelScope.launch { _authEvent.emit(Unit) }
+        }
+        return UpstyleApi(client)
+    }
+
+    /** Dipanggil setelah session.saveSession() agar request berikutnya pakai token baru */
+    fun refreshApiClient() {
+        _api = buildApi()
+        Napier.d("ApiClient refreshed with new token", tag = "AppViewModel")
+    }
+
+    // ─── Auth event (401 handler) ─────────────────────────────────────────────
+    private val _authEvent = MutableSharedFlow<Unit>()
+    val authEvent: SharedFlow<Unit> = _authEvent.asSharedFlow()
 
     // Navigation
     private val navigationManager = NavigationManager()
@@ -38,7 +76,7 @@ class AppViewModel(
     fun navigateToRoot(s: Screen) = navigationManager.navigateToRoot(s)
 
     // Cache
-    private val cacheManager = CacheManager(session)
+    private val cacheManager = cacheManagerExternal ?: CacheManager(session)
 
     // Global UI state
     private val _uiState = MutableStateFlow(UiState())
@@ -185,6 +223,7 @@ class AppViewModel(
             val res = api.loginWithGoogle(GoogleAuthRequest(googleToken))
             if (res.success && res.data != null) {
                 session.saveSession(res.data.token, res.data.user.role, res.data.user.email, res.data.user.username, res.data.user.id)
+                refreshApiClient()
                 clearMessages()
                 setupSocket()
                 loadUnits()
@@ -215,6 +254,8 @@ class AppViewModel(
                     username = data.user.username,
                     userId = data.user.id
                 )
+                // Recreate HTTP client dengan token baru agar semua request berikutnya terautentikasi
+                refreshApiClient()
                 clearMessages()
                 navigationManager.navigateToRoot(Screen.Home)
                 onResult(true, null)
@@ -497,6 +538,48 @@ class AppViewModel(
             if (res.success) {
                 loadDashboard()
                 setSuccess("Transaksi berhasil disimpan!")
+            } else setError(res.message ?: "Gagal simpan transaksi")
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        }
+    }
+
+    /**
+     * Simpan transaksi dengan data akuntansi double-entry (COA + akun kas).
+     * Digunakan oleh TransactionEntryScreen.
+     */
+    fun createTransactionWithCoa(
+        kategoriTrx: String,
+        nominal: Double,
+        keterangan: String,
+        coaId: Int,
+        kasCoaId: Int,
+        productId: String? = null,
+        qty: Int = 1,
+        abcCategoryId: Int? = null
+    ) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createTransaction(
+                CreateTransactionRequest(
+                    TransactionBody(
+                        unitId = unitId,
+                        kategoriTrx = kategoriTrx.uppercase(),
+                        nominal = nominal,
+                        keterangan = keterangan,
+                        metodeBayar = "COA:$kasCoaId",   // encode kas COA id di metodeBayar
+                        abcCategoryId = abcCategoryId,
+                        productId = productId,
+                        qty = qty
+                    )
+                )
+            )
+            if (res.success) {
+                loadDashboard()
+                loadFinanceData()
+                setSuccess("Transaksi berhasil disimpan!")
+                navigateBack()
             } else setError(res.message ?: "Gagal simpan transaksi")
         } catch (e: Exception) {
             setError("Koneksi gagal: ${e.message}")
@@ -907,6 +990,27 @@ class AppViewModel(
     private val _isChatLoading = MutableStateFlow(false)
     val isChatLoading: StateFlow<Boolean> = _isChatLoading.asStateFlow()
 
+    // ─── AI Entry (NLP Transaction) ───────────────────────────────────────────
+    private val _isAiEntryLoading = MutableStateFlow(false)
+    val isAiEntryLoading: StateFlow<Boolean> = _isAiEntryLoading.asStateFlow()
+
+    private val _aiEntryResult = MutableStateFlow<AiEntryResult?>(null)
+    val aiEntryResult: StateFlow<AiEntryResult?> = _aiEntryResult.asStateFlow()
+
+    // ─── AI Kategori Suggestion ───────────────────────────────────────────────
+    private val _aiKategoriSuggestion = MutableStateFlow<AiKategoriResult?>(null)
+    val aiKategoriSuggestion: StateFlow<AiKategoriResult?> = _aiKategoriSuggestion.asStateFlow()
+
+    // Internal flow untuk debounce AI kategori
+    private val _keteranganFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    // ─── AI Advisor (Financial) ───────────────────────────────────────────────
+    private val _aiAdvisorResult = MutableStateFlow<String?>(null)
+    val aiAdvisorResult: StateFlow<String?> = _aiAdvisorResult.asStateFlow()
+
+    private val _isAiAdvisorLoading = MutableStateFlow(false)
+    val isAiAdvisorLoading: StateFlow<Boolean> = _isAiAdvisorLoading.asStateFlow()
+
     // Sales Target
     private val _salesTargetData = MutableStateFlow<SalesTargetData?>(null)
     val salesTargetData: StateFlow<SalesTargetData?> = _salesTargetData.asStateFlow()
@@ -941,6 +1045,29 @@ class AppViewModel(
     init {
         viewModelScope.launch {
             setupSocket()
+        }
+        // Debounce AI Kategori: setiap kali keterangan berubah, tunggu 800ms lalu panggil API
+        viewModelScope.launch {
+            _keteranganFlow.debounce(800L).collect { teks ->
+                if (teks.length >= 3) {
+                    val unitId = _activeUnitId.value
+                    if (unitId == 0) return@collect
+                    try {
+                        val res = api.aiKategori(AiKategoriRequest(teks = teks, unitId = unitId))
+                        if (res.success && res.data != null && (res.data.confidence) >= 60) {
+                            _aiKategoriSuggestion.value = res.data
+                        } else {
+                            _aiKategoriSuggestion.value = null
+                        }
+                    } catch (e: Exception) {
+                        // Diam — jangan interrupt user jika AI kategori gagal
+                        Napier.w("aiKategori error (silent): ${e.message}", tag = "AppViewModel")
+                        _aiKategoriSuggestion.value = null
+                    }
+                } else {
+                    _aiKategoriSuggestion.value = null
+                }
+            }
         }
     }
 
@@ -1000,6 +1127,10 @@ class AppViewModel(
             _katalogData.value = null
             _products.value = emptyList()
             _orders.value = emptyList()
+            // Reset AI state untuk unit baru
+            _aiAdvisorResult.value = null
+            _aiKategoriSuggestion.value = null
+            _aiEntryResult.value = null
             // Load essential data
             loadDashboard()
             loadProducts()
@@ -1008,6 +1139,8 @@ class AppViewModel(
             loadPayables()
             loadNotifications()
             loadLowStock()
+            // Load COA untuk unit baru
+            loadChartOfAccounts()
         }
     }
 
@@ -1173,6 +1306,23 @@ class AppViewModel(
 
     private val _chartOfAccounts = MutableStateFlow<List<ChartOfAccount>>(emptyList())
     val chartOfAccounts: StateFlow<List<ChartOfAccount>> = _chartOfAccounts.asStateFlow()
+
+    /** true jika COA sudah di-setup untuk unit aktif */
+    val hasCoa: StateFlow<Boolean> = _chartOfAccounts
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+
+    /** Akun kas/bank — filter dari COA tipe ASET_LANCAR dengan nama kas/bank/transfer */
+    val kasAccounts: StateFlow<List<ChartOfAccount>> = _chartOfAccounts
+        .map { list ->
+            list.filter { coa ->
+                coa.tipeAkun.equals("ASET_LANCAR", ignoreCase = true) &&
+                    (coa.namaAkun.contains("kas", ignoreCase = true) ||
+                     coa.namaAkun.contains("bank", ignoreCase = true) ||
+                     coa.namaAkun.contains("transfer", ignoreCase = true))
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     fun loadJournalEntries(tahun: Int? = null, bulan: String? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
@@ -1477,6 +1627,79 @@ class AppViewModel(
 
     fun clearChat() {
         _chatHistory.value = emptyList()
+    }
+
+    // ─── AI Entry (NLP Transaction) ───────────────────────────────────────────
+
+    /**
+     * Proses teks natural language menjadi field transaksi via AI.
+     * Guard: teksInput harus >= 5 karakter.
+     */
+    fun prosesAI(teksInput: String) = viewModelScope.launch {
+        if (teksInput.length < 5) return@launch
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { setError("Pilih unit bisnis terlebih dahulu"); return@launch }
+        _isAiEntryLoading.value = true
+        try {
+            val res = api.aiEntry(AiEntryRequest(unitId = unitId, teksInput = teksInput))
+            if (res.success && res.data != null) {
+                val h = res.data.hasil
+                _aiEntryResult.value = AiEntryResult(
+                    productId = h.product_id,
+                    qty = h.qty.takeIf { it > 0 } ?: 1,
+                    kategori = h.kategori,
+                    coaId = h.coa_id,
+                    kasCoaId = h.kas_coa_id,
+                    nominal = h.nominal,
+                    catatan = h.catatan
+                )
+            } else {
+                setError(res.message ?: "Gagal memproses AI")
+                // Jangan ubah _aiEntryResult agar data user sebelumnya tidak hilang
+            }
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        }
+        _isAiEntryLoading.value = false
+    }
+
+    fun clearAiEntryResult() {
+        _aiEntryResult.value = null
+    }
+
+    /**
+     * Dipanggil saat keterangan transaksi berubah.
+     * Debounce 800ms di init{} akan memanggil AI kategori otomatis.
+     */
+    fun onKeteranganChanged(teks: String) = viewModelScope.launch {
+        _keteranganFlow.emit(teks)
+    }
+
+    // ─── AI Financial Advisor ─────────────────────────────────────────────────
+
+    /**
+     * Panggil AI Financial Advisor.
+     * Hasil disimpan dalam sesi (sampai ganti unit).
+     */
+    fun aiAdvisor(question: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) { setError("Pilih unit bisnis terlebih dahulu"); return@launch }
+        _isAiAdvisorLoading.value = true
+        try {
+            val res = api.aiAdvisor(AiAdvisorRequest(unitId = unitId, question = question))
+            if (res.success && res.data != null) {
+                _aiAdvisorResult.value = res.data.analysis
+            } else {
+                setError(res.message ?: "Gagal mendapatkan analisis")
+            }
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        }
+        _isAiAdvisorLoading.value = false
+    }
+
+    fun clearAiAdvisorResult() {
+        _aiAdvisorResult.value = null
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Sales Target Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬

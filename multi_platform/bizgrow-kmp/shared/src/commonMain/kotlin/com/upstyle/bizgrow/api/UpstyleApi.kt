@@ -374,6 +374,14 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun aiAdvisor(req: AiAdvisorRequest): ApiResponse<AiAdvisorData> =
         client.post("api/ai-advisor") { setBody(req) }.body()
 
+    /** NLP transaction entry — POST /api/app/ai-entry */
+    suspend fun aiEntry(req: AiEntryRequest): ApiResponse<AiEntryData> =
+        client.post("api/app/ai-entry") { setBody(req) }.body()
+
+    /** AI kategori suggestion — POST /api/ai-kategori */
+    suspend fun aiKategori(req: AiKategoriRequest): ApiResponse<AiKategoriResult> =
+        client.post("api/ai-kategori") { setBody(req) }.body()
+
     // ─── Reports & Exports ────────────────────────────────────────────────────
 
     suspend fun getLaporanWa(req: LaporanWaRequest): ApiResponse<LaporanWaData> =

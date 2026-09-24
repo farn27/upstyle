@@ -1,0 +1,162 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "2. Tambah data models AI di KMP": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207459419
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207480268
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207538468
+      }
+    ],
+    "4. Checkpoint — verifikasi auth fix dan endpoint baru": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207460777
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207749195
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207755202
+      }
+    ],
+    "7. Tambahkan Screen.TransactionEntry ke navigasi": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207460858
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207767979
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208162091
+      }
+    ],
+    "9. Extend AppViewModel: createTransactionWithCoa": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207461041
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208170198
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208410312
+      }
+    ],
+    "11. Checkpoint final — pastikan semua fitur terintegrasi": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207461179
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208431025
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208437904
+      }
+    ],
+    "1. Fix ApiClient: pastikan token selalu dikirim dan 401 di-handle": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207558285
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207730360
+      }
+    ],
+    "3. Buat backend endpoint `/api/app/ai-entry`": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207558570
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207730834
+      }
+    ],
+    "5. Extend AppViewModel: COA loading dan kas accounts": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207766717
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208160983
+      }
+    ],
+    "6. Extend AppViewModel: prosesAI, aiKategori, aiAdvisor": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790207767465
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208161536
+      }
+    ],
+    "8. Buat TransactionEntryScreen": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208169570
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208409969
+      }
+    ],
+    "10. Fix FinancialAdvisorTab di AiChatScreen": [
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208170568
+      },
+      {
+        "executionId": "67615d28-d09e-4e0e-bdd5-7e651908469c",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1790208409471
+      }
+    ]
+  }
+}

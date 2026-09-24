@@ -13,8 +13,8 @@ val sharedModule = module {
     single { Settings() }
     single { SessionRepository(get()) }
     single { CacheManager(get()) }
-    single { createHttpClient(get()) }
-    single { UpstyleApi(get()) }
+    // AppViewModel membuat dan mengelola UpstyleApi-nya sendiri
+    // agar bisa di-recreate dengan token terbaru setelah login
     single { AppViewModel(get(), get()) }
     // Task 8: PosViewModel as separate injectable ViewModel
     factory { PosViewModel(get()) { get<AppViewModel>().activeUnitId.value } }

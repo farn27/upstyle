@@ -35,7 +35,6 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 fun FinanceScreen(viewModel: AppViewModel) {
     val financeData by viewModel.financeData.collectAsState(initial = viewModel.financeData.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
-    var showAddDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Semua") }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -66,7 +65,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
         },
         bottomBar = { BottomNavBar(viewModel, Screen.Finance) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = BizgrowColors.Primary, shape = RoundedCornerShape(20.dp)) {
+            FloatingActionButton(onClick = { viewModel.navigate(Screen.TransactionEntry) }, containerColor = BizgrowColors.Primary, shape = RoundedCornerShape(20.dp)) {
                 Icon(Icons.Default.Add, null, tint = BizgrowColors.White)
             }
         }
@@ -162,16 +161,6 @@ fun FinanceScreen(viewModel: AppViewModel) {
             }
 
             item { Spacer(Modifier.height(80.dp)) }
-        }
-
-        if (showAddDialog) {
-            AddTransactionSheet(
-                onDismiss = { showAddDialog = false },
-                onSave = { kat, nom, ket, met ->
-                    viewModel.createTransaction(kat, nom, ket, met)
-                    showAddDialog = false
-                }
-            )
         }
     }
 }

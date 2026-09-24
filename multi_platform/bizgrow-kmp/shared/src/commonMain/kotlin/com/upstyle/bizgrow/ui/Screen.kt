@@ -65,4 +65,5 @@ sealed class Screen {
     object BarcodeScanner : Screen()
     object AiChat : Screen()
     object SalesTargets : Screen()
+    object TransactionEntry : Screen()
 }

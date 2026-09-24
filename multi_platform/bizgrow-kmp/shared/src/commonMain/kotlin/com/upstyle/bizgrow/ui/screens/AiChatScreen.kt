@@ -7,8 +7,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -229,50 +231,173 @@ fun ChatBubble(message: ChatMessage) {
 
 @Composable
 fun FinancialAdvisorTab(viewModel: AppViewModel) {
-    var period by remember { mutableStateOf("month") }
-    var analysisResult by remember { mutableStateOf("") }
-    var isAnalyzing by remember { mutableStateOf(false) }
+    var customQuestion by remember { mutableStateOf("") }
+    val aiAdvisorResult by viewModel.aiAdvisorResult.collectAsState(initial = viewModel.aiAdvisorResult.value)
+    val isAiAdvisorLoading by viewModel.isAiAdvisorLoading.collectAsState(initial = viewModel.isAiAdvisorLoading.value)
     val activeUnitId by viewModel.activeUnitId.collectAsState(initial = viewModel.activeUnitId.value)
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
+
+    val scrollState = androidx.compose.foundation.rememberScrollState()
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ─── Input Card ───────────────────────────────────────────────────────
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Analisis Keuangan AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("AI akan menganalisis data keuangan Anda dan memberikan insight serta rekomendasi.", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Analisis Keuangan AI",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "AI akan menganalisis data keuangan bisnis Anda dan memberikan insight serta rekomendasi aksi.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = period == "week", onClick = { period = "week" }, label = { Text("Minggu Ini") })
-                    FilterChip(selected = period == "month", onClick = { period = "month" }, label = { Text("Bulan Ini") })
-                    FilterChip(selected = period == "year", onClick = { period = "year" }, label = { Text("Tahun Ini") })
+                // Guard: unit belum dipilih
+                if (activeUnitId == 0) {
+                    Text(
+                        "Pilih unit bisnis terlebih dahulu",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
+
+                // Field pertanyaan custom (opsional)
+                OutlinedTextField(
+                    value = customQuestion,
+                    onValueChange = { customQuestion = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Pertanyaan custom (opsional)") },
+                    placeholder = { Text("Contoh: Apa produk terlaris bulan ini?") },
+                    minLines = 2,
+                    maxLines = 4,
+                    enabled = activeUnitId != 0 && !isAiAdvisorLoading
+                )
 
                 Button(
                     onClick = {
-                        if (activeUnitId > 0) {
-                            isAnalyzing = true
-                            val question = "Analisis keuangan bisnis saya untuk periode $period. Berikan insight mendalam dan rekomendasi strategis."
-                            viewModel.sendChat(question)
-                            analysisResult = "Pertanyaan dikirim ke AI. Lihat jawaban di tab Chat."
-                            isAnalyzing = false
+                        val question = customQuestion.ifBlank {
+                            "Analisis keuangan bisnis saya untuk 3 bulan terakhir, berikan insights dan rekomendasi aksi."
                         }
+                        viewModel.aiAdvisor(question)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isAnalyzing && activeUnitId > 0
+                    enabled = activeUnitId != 0 && !isAiAdvisorLoading
                 ) {
-                    if (isAnalyzing) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
-                    else Text("Analisis Sekarang")
+                    if (isAiAdvisorLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Menganalisis...")
+                    } else {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Analisis Sekarang")
+                    }
                 }
             }
         }
 
-        if (analysisResult.isNotBlank()) {
+        // ─── Loading indicator ────────────────────────────────────────────────
+        if (isAiAdvisorLoading) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("AI sedang menganalisis data keuangan Anda...", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+
+        // ─── Error + Retry ────────────────────────────────────────────────────
+        if (!isAiAdvisorLoading && uiState.error != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        uiState.error ?: "Terjadi kesalahan",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.clearMessages()
+                            val question = customQuestion.ifBlank {
+                                "Analisis keuangan bisnis saya untuk 3 bulan terakhir, berikan insights dan rekomendasi aksi."
+                            }
+                            viewModel.aiAdvisor(question)
+                        },
+                        enabled = activeUnitId != 0,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Coba Lagi")
+                    }
+                }
+            }
+        }
+
+        // ─── Hasil Analisis ───────────────────────────────────────────────────
+        if (aiAdvisorResult != null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Status", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(analysisResult, style = MaterialTheme.typography.bodyMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                "Hasil Analisis",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        IconButton(onClick = { viewModel.clearAiAdvisorResult() }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Tutup hasil",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+                    Text(
+                        text = aiAdvisorResult!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
+                    )
                 }
             }
         }

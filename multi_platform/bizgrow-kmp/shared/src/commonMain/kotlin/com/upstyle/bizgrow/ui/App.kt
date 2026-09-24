@@ -23,6 +23,14 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
 
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register
 
+        // Handle 401 — redirect ke Login dan hapus sesi
+        LaunchedEffect(Unit) {
+            viewModel.authEvent.collect {
+                viewModel.session.clearSession()
+                viewModel.navigateToRoot(Screen.Login)
+            }
+        }
+
         Box(Modifier.fillMaxSize()) {
             AnimatedContent(
                 targetState = screen,
@@ -133,6 +141,9 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.AdvancedSettings        -> AdvancedSettingsScreen(viewModel)
                     is Screen.LandingPageScreen       -> LandingPageScreen(viewModel)
                     is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
+
+                    // AI Features
+                    is Screen.TransactionEntry -> TransactionEntryScreen(viewModel)
 
                     else -> {}
                 }
