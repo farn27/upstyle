@@ -24,11 +24,12 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register
 
         // Handle 401 — redirect ke Login dan hapus sesi
-        // Guard: jangan redirect jika sudah di Login/Register (hindari redirect loop)
+        // Guard: jangan redirect jika sudah di Login/Register atau sedang loading (login in progress)
         LaunchedEffect(Unit) {
             viewModel.authEvent.collect {
                 val currentScreen = viewModel.screen.value
-                if (currentScreen !is Screen.Login && currentScreen !is Screen.Register) {
+                val isLoading = viewModel.uiState.value.isLoading
+                if (currentScreen !is Screen.Login && currentScreen !is Screen.Register && !isLoading) {
                     viewModel.session.clearSession()
                     viewModel.navigateToRoot(Screen.Login)
                 }

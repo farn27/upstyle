@@ -48,10 +48,18 @@ class AppViewModel(
 
     private val api: UpstyleApi get() = _api
 
+    // Flag: suppress 401 redirect selama proses login/session-restore
+    // Mencegah false-positive logout saat token baru disimpan atau saat app start
+    @Volatile private var _suppress401 = false
+
     private fun buildApi(): UpstyleApi {
         val client = createHttpClient(session) {
-            // Callback 401: emit event ke authEvent flow
-            viewModelScope.launch { _authEvent.emit(Unit) }
+            // Callback 401: hanya emit jika tidak sedang dalam proses login/restore
+            if (!_suppress401) {
+                viewModelScope.launch { _authEvent.emit(Unit) }
+            } else {
+                Napier.w("401 suppressed (login/restore in progress)", tag = "AppViewModel")
+            }
         }
         return UpstyleApi(client)
     }
@@ -218,6 +226,7 @@ class AppViewModel(
     }
 
     fun loginWithGoogle(googleToken: String, callback: ((Boolean, String?) -> Unit)? = null) = viewModelScope.launch {
+        _suppress401 = true
         setLoading(true)
         try {
             val res = api.loginWithGoogle(GoogleAuthRequest(googleToken))
@@ -238,10 +247,13 @@ class AppViewModel(
             val err = "Koneksi gagal: ${e.message}"
             setError(err)
             callback?.invoke(false, err)
+        } finally {
+            _suppress401 = false
         }
     }
 
     fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) = viewModelScope.launch {
+        _suppress401 = true
         setLoading(true)
         try {
             val res = api.login(com.upstyle.bizgrow.data.LoginRequest(email, pass))
@@ -270,6 +282,7 @@ class AppViewModel(
             onResult(false, err)
         } finally {
             setLoading(false)
+            _suppress401 = false
         }
     }
     
@@ -1049,6 +1062,7 @@ class AppViewModel(
         
         // Restore session — jika sudah login sebelumnya, langsung ke Home
         if (session.isLoggedIn()) {
+            _suppress401 = true
             // Restore active unit dari storage SEBELUM navigate
             val savedUnitId = session.getActiveUnitId()
             if (savedUnitId > 0) {
@@ -1058,6 +1072,7 @@ class AppViewModel(
             // Load units setelah navigate agar tidak block
             viewModelScope.launch {
                 loadUnits()
+                _suppress401 = false
             }
         }
         // Debounce AI Kategori: setiap kali keterangan berubah, tunggu 800ms lalu panggil API
