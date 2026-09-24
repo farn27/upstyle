@@ -2,7 +2,7 @@ import { redis } from '$lib/server/redis';
 import { log } from '$lib/server/logger';
 import crypto from 'crypto';
 
-const SESSION_TTL = 60 * 60 * 24; // 24 jam
+const SESSION_TTL = 60 * 60 * 24 * 30; // 30 hari
 const memorySessions = new Map();
 
 /**
@@ -26,17 +26,22 @@ export async function createSession(userId) {
 }
 
 /**
- * Ambil userId dari session token
+ * Ambil userId dari session token.
+ * Sliding TTL: setiap request valid memperpanjang TTL session.
  * @param {string | undefined} token
  * @returns {Promise<number | null>}
  */
 export async function getUserIdFromSession(token) {
 	if (!token) return null;
-	
+
 	if (redis) {
 		try {
 			const userId = await redis.get(`session:${token}`);
-			if (userId) return Number(userId);
+			if (userId) {
+				// Sliding TTL: perpanjang setiap kali dipakai agar tidak expired saat aktif
+				await redis.expire(`session:${token}`, SESSION_TTL).catch(() => {});
+				return Number(userId);
+			}
 		} catch (e) {
 			log.auth.warn({ err: e?.message }, '⚠️ Redis session get failed, checking memory fallback');
 		}
@@ -48,6 +53,8 @@ export async function getUserIdFromSession(token) {
 			memorySessions.delete(token);
 			return null;
 		}
+		// Sliding TTL untuk memory fallback juga
+		mem.expiresAt = Date.now() + SESSION_TTL * 1000;
 		return mem.userId;
 	}
 
