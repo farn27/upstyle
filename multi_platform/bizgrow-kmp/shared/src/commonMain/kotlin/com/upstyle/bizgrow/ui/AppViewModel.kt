@@ -54,8 +54,18 @@ class AppViewModel(
     private val _suppressCount = java.util.concurrent.atomic.AtomicInteger(0)
     private val _suppress401: Boolean get() = _suppressCount.get() > 0
 
-    private fun suppressAuth() { _suppressCount.incrementAndGet() }
-    private fun releaseAuth() { _suppressCount.decrementAndGet() }
+    // Expose suppress state ke UI agar App.kt bisa guard authEvent collection
+    private val _isSuppressingAuth = MutableStateFlow(false)
+    val isSuppressingAuth: StateFlow<Boolean> = _isSuppressingAuth.asStateFlow()
+
+    private fun suppressAuth() {
+        _suppressCount.incrementAndGet()
+        _isSuppressingAuth.value = true
+    }
+    private fun releaseAuth() {
+        val remaining = _suppressCount.decrementAndGet()
+        if (remaining <= 0) _isSuppressingAuth.value = false
+    }
 
     private fun buildApi(): UpstyleApi {
         val client = createHttpClient(session) {
@@ -1163,9 +1173,9 @@ class AppViewModel(
     }
 
     fun selectUnit(unitId: Int) = viewModelScope.launch {
-        // Suppress 401-redirect selama proses inisialisasi unit agar request-request
-        // awal (loadDashboard, loadProducts, dll.) tidak menyebabkan false-positive logout.
-        // Menggunakan counter suppressCount agar concurrent suppress tidak override satu sama lain.
+        // Suppress 401-redirect selama proses inisialisasi unit.
+        // Guard dipertahankan sampai SEMUA request (dashboard, products, orders, dll.)
+        // benar-benar selesai — bukan hanya sampai dashboard selesai.
         suppressAuth()
         try {
             _activeUnitId.value = unitId
@@ -1185,20 +1195,25 @@ class AppViewModel(
                 _aiAdvisorResult.value = null
                 _aiKategoriSuggestion.value = null
                 _aiEntryResult.value = null
-                // Tunggu loadDashboard selesai sebelum melepas guard,
-                // agar 401 dari response dashboard tidak redirect ke login.
-                loadDashboard().join()
-                // Load modul lain secara paralel (non-blocking)
-                loadProducts()
-                loadOrders()
-                loadReceivables()
-                loadPayables()
-                loadNotifications()
-                loadLowStock()
-                loadChartOfAccounts()
+                // Jalankan semua request SECARA PARALEL dan tunggu semuanya selesai
+                // sebelum melepas guard. Ini memastikan tidak ada satu pun request
+                // yang masih jalan saat counter di-decrement ke 0.
+                kotlinx.coroutines.coroutineScope {
+                    val jobs = listOf(
+                        loadDashboard(),
+                        loadProducts(),
+                        loadOrders(),
+                        loadReceivables(),
+                        loadPayables(),
+                        loadNotifications(),
+                        loadLowStock(),
+                        loadChartOfAccounts()
+                    )
+                    jobs.forEach { it.join() }
+                }
             }
         } finally {
-            releaseAuth()  // Decrement counter — bukan set false, aman untuk concurrent call
+            releaseAuth()  // Decrement counter — SETELAH semua request benar-benar selesai
         }
     }
 

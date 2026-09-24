@@ -24,12 +24,15 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register
 
         // Handle 401 — redirect ke Login dan hapus sesi
-        // Guard: jangan redirect jika sudah di Login/Register atau sedang loading (login in progress)
+        // Guard berlapis:
+        //   1. currentScreen: jangan redirect jika sudah di halaman auth
+        //   2. isSuppressingAuth: jangan redirect jika login/selectUnit masih suppress aktif
+        //      (ini lebih reliable dari isLoading karena pakai AtomicInt counter)
         LaunchedEffect(Unit) {
             viewModel.authEvent.collect {
                 val currentScreen = viewModel.screen.value
-                val isLoading = viewModel.uiState.value.isLoading
-                if (currentScreen !is Screen.Login && currentScreen !is Screen.Register && !isLoading) {
+                val isSuppressing = viewModel.isSuppressingAuth.value
+                if (currentScreen !is Screen.Login && currentScreen !is Screen.Register && !isSuppressing) {
                     viewModel.session.clearSession()
                     viewModel.navigateToRoot(Screen.Login)
                 }
