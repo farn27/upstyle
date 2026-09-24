@@ -49,8 +49,13 @@ class AppViewModel(
     private val api: UpstyleApi get() = _api
 
     // Flag: suppress 401 redirect selama proses login/session-restore
-    // Mencegah false-positive logout saat token baru disimpan atau saat app start
-    @Volatile private var _suppress401 = false
+    // Menggunakan counter agar concurrent suppress (login + selectUnit) tidak saling override.
+    // 401 hanya di-forward ke authEvent jika counter == 0.
+    private val _suppressCount = java.util.concurrent.atomic.AtomicInteger(0)
+    private val _suppress401: Boolean get() = _suppressCount.get() > 0
+
+    private fun suppressAuth() { _suppressCount.incrementAndGet() }
+    private fun releaseAuth() { _suppressCount.decrementAndGet() }
 
     private fun buildApi(): UpstyleApi {
         val client = createHttpClient(session) {
@@ -58,7 +63,7 @@ class AppViewModel(
             if (!_suppress401) {
                 viewModelScope.launch { _authEvent.emit(Unit) }
             } else {
-                Napier.w("401 suppressed (login/restore in progress)", tag = "AppViewModel")
+                Napier.w("401 suppressed (login/restore in progress), count=${_suppressCount.get()}", tag = "AppViewModel")
             }
         }
         return UpstyleApi(client)
@@ -226,7 +231,7 @@ class AppViewModel(
     }
 
     fun loginWithGoogle(googleToken: String, callback: ((Boolean, String?) -> Unit)? = null) = viewModelScope.launch {
-        _suppress401 = true
+        suppressAuth()
         setLoading(true)
         try {
             val res = api.loginWithGoogle(GoogleAuthRequest(googleToken))
@@ -235,7 +240,7 @@ class AppViewModel(
                 refreshApiClient()
                 clearMessages()
                 setupSocket()
-                loadUnits()
+                loadUnits().join()
                 callback?.invoke(true, null)
                 navigationManager.navigateToRoot(Screen.Home)
             } else {
@@ -248,12 +253,13 @@ class AppViewModel(
             setError(err)
             callback?.invoke(false, err)
         } finally {
-            _suppress401 = false
+            setLoading(false)
+            releaseAuth()
         }
     }
 
     fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) = viewModelScope.launch {
-        _suppress401 = true
+        suppressAuth()
         setLoading(true)
         try {
             val res = api.login(com.upstyle.bizgrow.data.LoginRequest(email, pass))
@@ -269,7 +275,7 @@ class AppViewModel(
                 // Recreate HTTP client dengan token baru agar semua request berikutnya terautentikasi
                 refreshApiClient()
                 clearMessages()
-                // Load units dulu sebelum navigate — supaya _suppress401 masih aktif
+                // Load units dulu sebelum navigate — suppress masih aktif (counter > 0)
                 // saat request pertama keluar, mencegah false-positive 401 redirect.
                 loadUnits().join()
                 navigationManager.navigateToRoot(Screen.Home)
@@ -285,10 +291,7 @@ class AppViewModel(
             onResult(false, err)
         } finally {
             setLoading(false)
-            // Beri sedikit delay sebelum melepas suppress agar coroutine-coroutine
-            // yang di-launch oleh selectUnit() sempat melihat flag ini masih true.
-            kotlinx.coroutines.delay(500)
-            _suppress401 = false
+            releaseAuth()
         }
     }
     
@@ -1068,7 +1071,7 @@ class AppViewModel(
         
         // Restore session — jika sudah login sebelumnya, langsung ke Home
         if (session.isLoggedIn()) {
-            _suppress401 = true
+            suppressAuth()  // Increment counter — ditahan sampai loadUnits selesai
             // Restore active unit dari storage SEBELUM navigate
             val savedUnitId = session.getActiveUnitId()
             if (savedUnitId > 0) {
@@ -1077,8 +1080,11 @@ class AppViewModel(
             navigationManager.navigateToRoot(Screen.Home)
             // Load units setelah navigate agar tidak block
             viewModelScope.launch {
-                loadUnits()
-                _suppress401 = false
+                try {
+                    loadUnits().join()  // Tunggu sampai loadUnits benar-benar selesai
+                } finally {
+                    releaseAuth()  // Decrement counter — baru lepas guard setelah selesai
+                }
             }
         }
         // Debounce AI Kategori: setiap kali keterangan berubah, tunggu 800ms lalu panggil API
@@ -1151,7 +1157,8 @@ class AppViewModel(
     fun selectUnit(unitId: Int) = viewModelScope.launch {
         // Suppress 401-redirect selama proses inisialisasi unit agar request-request
         // awal (loadDashboard, loadProducts, dll.) tidak menyebabkan false-positive logout.
-        _suppress401 = true
+        // Menggunakan counter suppressCount agar concurrent suppress tidak override satu sama lain.
+        suppressAuth()
         try {
             _activeUnitId.value = unitId
             val unit = _units.value.find { it.id == unitId }
@@ -1170,21 +1177,20 @@ class AppViewModel(
                 _aiAdvisorResult.value = null
                 _aiKategoriSuggestion.value = null
                 _aiEntryResult.value = null
-                // Load essential data
-                loadDashboard()
+                // Tunggu loadDashboard selesai sebelum melepas guard,
+                // agar 401 dari response dashboard tidak redirect ke login.
+                loadDashboard().join()
+                // Load modul lain secara paralel (non-blocking)
                 loadProducts()
                 loadOrders()
                 loadReceivables()
                 loadPayables()
                 loadNotifications()
                 loadLowStock()
-                // Load COA untuk unit baru
                 loadChartOfAccounts()
             }
         } finally {
-            // Beri waktu request-request di atas mulai terkirim sebelum lepas guard
-            kotlinx.coroutines.delay(500)
-            _suppress401 = false
+            releaseAuth()  // Decrement counter — bukan set false, aman untuk concurrent call
         }
     }
 
