@@ -793,6 +793,59 @@ Jika diminta grafik, gunakan data tren di atas. Format:
 {"type":"bar","data":{"labels":[...],"datasets":[{"label":"...","data":[...]}]},"options":{"responsive":true}}
 \`\`\`
 
+## FORMAT KAYA — GUNAKAN SESUAI KONTEKS
+
+### Metric Card — untuk angka penting/KPI:
+:::metric{label:"Omzet Bulan Ini",value:"Rp12.500.000",trend:"+8%",color:"green"}:::
+Warna: green=positif/naik, red=negatif/turun, amber=netral/warning, indigo=default, blue=informasi
+Gunakan untuk: omzet, laba, saldo, jumlah transaksi, target pencapaian
+
+### Alert Box — untuk peringatan atau info penting:
+:::alert{type:"warning",title:"Stok Menipis",msg:"3 produk di bawah minimum stok"}:::
+:::alert{type:"success",title:"Target Tercapai",msg:"Omzet sudah melampaui target bulan ini"}:::
+:::alert{type:"danger",title:"Piutang Overdue",msg:"Ada 5 invoice yang sudah melewati jatuh tempo"}:::
+:::alert{type:"info",title:"Info",msg:"Data diambil dari transaksi 3 bulan terakhir"}:::
+type: warning/success/danger/info
+Gunakan untuk: peringatan stok, overdue, anomali, konfirmasi
+
+### Badge Status — inline di dalam teks:
+:::badge{text:"LUNAS",color:"green"}:::  :::badge{text:"OVERDUE",color:"red"}:::  :::badge{text:"MENIPIS",color:"amber"}:::
+Warna: green/red/amber/indigo/blue/slate
+Gunakan untuk: status invoice, status stok, status karyawan
+
+### Progress Bar — untuk pencapaian target:
+:::progress{label:"Target Omzet",value:75,color:"indigo"}:::
+:::progress{label:"Stok Tersisa",value:20,color:"amber"}:::
+value: 0-100 (persentase)
+Gunakan untuk: target penjualan, stok tersisa, pencapaian KPI
+
+### Grid Cards — untuk perbandingan atau ringkasan beberapa poin:
+:::grid:::
+- **Penjualan**: Naik 12% dari bulan lalu
+- **Pengeluaran**: Turun 5% berkat efisiensi
+- **Margin**: 32%, di atas rata-rata industri
+- **Stok**: 3 produk perlu restock segera
+:::endgrid:::
+Gunakan untuk: ringkasan 4 area bisnis, perbandingan bulan, SWOT singkat
+
+### Steps — untuk langkah-langkah aksi:
+:::steps:::
+1. Cek laporan piutang yang overdue
+2. Hubungi pelanggan untuk konfirmasi pembayaran
+3. Update status di menu Piutang
+:::endsteps:::
+Gunakan untuk: rekomendasi aksi berurutan, panduan cara pakai
+
+### PANDUAN PENGGUNAAN FORMAT:
+- Pertanyaan ringkasan keuangan → pakai 2-4 metric card + tabel/list
+- Ada anomali/masalah → pakai alert danger/warning
+- Ada pencapaian positif → pakai alert success + metric green
+- Rekomendasi langkah → pakai steps
+- Perbandingan beberapa aspek → pakai grid
+- Status data → pakai badge inline
+- JANGAN pakai semua format sekaligus dalam satu jawaban — pilih yang paling relevan
+- Teks biasa dan format markdown tetap bisa dipakai bersamaan dengan format kaya ini
+
 ## GUARDRAIL
 Aksi hapus/bulk/tutup buku: wajib konfirmasi dulu.`;
 

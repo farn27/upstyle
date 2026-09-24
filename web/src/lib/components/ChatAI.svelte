@@ -343,19 +343,168 @@
 
 	function formatAI(text) {
 		if (!text) return '';
-		return text
-			.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-			.replace(/```([\s\S]*?)```/g, '<pre class="ai-code"><code>$1</code></pre>')
-			.replace(/`([^`]+)`/g, '<code class="ai-ic">$1</code>')
-			.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-			.replace(/^#{1,2} (.+)$/gm, '<p class="ai-h2">$1</p>')
-			.replace(/^### (.+)$/gm, '<p class="ai-h3">$1</p>')
-			.replace(/^- (.+)$/gm, '<li>$1</li>')
-			.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) =>
-				url.startsWith('/')
-					? `<a href="${url}" class="ai-action-btn">→ ${label}</a>`
-					: `<a href="${url}" target="_blank" rel="noopener" class="ai-link">${label}</a>`
-			);
+
+		// 1. Escape HTML (but preserve &lt; etc from existing escapes)
+		let out = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+		// 2. Fenced code blocks (protect them from further processing)
+		const codeBlocks = [];
+		out = out.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+			const idx = codeBlocks.length;
+			codeBlocks.push(`<pre class="ai-code"><code>${code.trim()}</code></pre>`);
+			return `\x00CODE${idx}\x00`;
+		});
+
+		// 3. Inline code
+		out = out.replace(/`([^`]+)`/g, '<code class="ai-ic">$1</code>');
+
+		// 4. Markdown tables
+		// Find blocks of lines where first row looks like a table (has |)
+		out = out.replace(/(\|.+\|[ \t]*\n)((?:\|[-: ]+\|[ \t]*\n))((?:\|.+\|[ \t]*\n?)+)/g, (match) => {
+			const rows = match.trim().split('\n').filter(Boolean);
+			if (rows.length < 2) return match;
+
+			// Header row
+			const headerRow = rows[0];
+			// Separator row (row[1]) — skip it
+			const bodyRows = rows.slice(2);
+
+			const parseRow = (row) =>
+				row.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+
+			const headers = parseRow(headerRow);
+			const thCells = headers.map(h => `<th>${h}</th>`).join('');
+
+			const tbodyRows = bodyRows.map(row => {
+				const cells = parseRow(row);
+				const tdCells = cells.map(c => `<td>${c}</td>`).join('');
+				return `<tr>${tdCells}</tr>`;
+			}).join('');
+
+			return `<div class="ai-table-wrap"><table class="ai-table"><thead><tr>${thCells}</tr></thead><tbody>${tbodyRows}</tbody></table></div>`;
+		});
+
+		// 4b. Custom rich components — :::type{...}::: syntax
+		// METRIC card: :::metric{label:"Label",value:"Rp1.000.000",trend:"+12%",color:"green"}:::
+		out = out.replace(/:::metric\{([^}]+)\}:::/g, (_, attrs) => {
+			const get = (k) => { const m = attrs.match(new RegExp(k + ':\\s*"([^"]*)"')); return m ? m[1] : ''; };
+			const label = get('label'); const value = get('value');
+			const trend = get('trend'); const color = get('color') || 'indigo';
+			const colorMap = {
+				green:  { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d', badge: '#dcfce7', badgeText: '#166534' },
+				red:    { bg: '#fff1f2', border: '#fecdd3', text: '#be123c', badge: '#ffe4e6', badgeText: '#9f1239' },
+				indigo: { bg: '#eef2ff', border: '#c7d2fe', text: '#4338ca', badge: '#e0e7ff', badgeText: '#3730a3' },
+				amber:  { bg: '#fffbeb', border: '#fde68a', text: '#b45309', badge: '#fef3c7', badgeText: '#92400e' },
+				blue:   { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', badge: '#dbeafe', badgeText: '#1e40af' },
+			};
+			const c = colorMap[color] || colorMap.indigo;
+			const trendHtml = trend ? `<span style="background:${c.badge};color:${c.badgeText};font-size:9px;font-weight:700;padding:2px 6px;border-radius:9999px;margin-left:6px;">${trend}</span>` : '';
+			return `<div class="ai-metric-card" style="background:${c.bg};border-color:${c.border};">
+				<div class="ai-metric-label">${label}</div>
+				<div class="ai-metric-value" style="color:${c.text};">${value}${trendHtml}</div>
+			</div>`;
+		});
+
+		// ALERT box: :::alert{type:"warning",title:"Judul",msg:"Pesan"}:::
+		out = out.replace(/:::alert\{([^}]+)\}:::/g, (_, attrs) => {
+			const get = (k) => { const m = attrs.match(new RegExp(k + ':\\s*"([^"]*)"')); return m ? m[1] : ''; };
+			const type = get('type') || 'info';
+			const title = get('title'); const msg = get('msg');
+			const icons = { warning: '⚠️', info: 'ℹ️', success: '✅', danger: '🚨' };
+			const typeClass = `ai-alert-${type}`;
+			return `<div class="ai-alert ${typeClass}"><span class="ai-alert-icon">${icons[type] || 'ℹ️'}</span><div class="ai-alert-body">${title ? `<strong>${title}</strong><br>` : ''}${msg}</div></div>`;
+		});
+
+		// BADGE: :::badge{text:"LUNAS",color:"green"}:::
+		out = out.replace(/:::badge\{([^}]+)\}:::/g, (_, attrs) => {
+			const get = (k) => { const m = attrs.match(new RegExp(k + ':\\s*"([^"]*)"')); return m ? m[1] : ''; };
+			const text = get('text'); const color = get('color') || 'indigo';
+			return `<span class="ai-badge ai-badge-${color}">${text}</span>`;
+		});
+
+		// PROGRESS bar: :::progress{label:"Target",value:75,color:"indigo"}:::
+		out = out.replace(/:::progress\{([^}]+)\}:::/g, (_, attrs) => {
+			const getStr = (k) => { const m = attrs.match(new RegExp(k + ':\\s*"([^"]*)"')); return m ? m[1] : ''; };
+			const getNum = (k) => { const m = attrs.match(new RegExp(k + ':\\s*(\\d+)')); return m ? Number(m[1]) : 0; };
+			const label = getStr('label'); const value = Math.min(100, Math.max(0, getNum('value')));
+			const color = getStr('color') || 'indigo';
+			const colorMap = { indigo: '#6366f1', green: '#22c55e', amber: '#f59e0b', red: '#ef4444', blue: '#3b82f6' };
+			const barColor = colorMap[color] || colorMap.indigo;
+			return `<div class="ai-progress-wrap">
+				<div class="ai-progress-header"><span class="ai-progress-label">${label}</span><span class="ai-progress-pct" style="color:${barColor};">${value}%</span></div>
+				<div class="ai-progress-track"><div class="ai-progress-bar" style="width:${value}%;background:${barColor};"></div></div>
+			</div>`;
+		});
+
+		// GRID cards: :::grid:::  ...items...  :::endgrid:::
+		// Each item line: - **Title**: Description
+		out = out.replace(/:::grid:::\n([\s\S]*?):::endgrid:::/g, (_, content) => {
+			const items = content.trim().split('\n').filter(l => l.trim().startsWith('-'));
+			const cards = items.map(item => {
+				const clean = item.replace(/^-\s*/, '');
+				const match = clean.match(/^\*\*(.+?)\*\*[:\s]*(.*)/);
+				if (match) return `<div class="ai-grid-card"><div class="ai-grid-card-title">${match[1]}</div><div class="ai-grid-card-desc">${match[2]}</div></div>`;
+				return `<div class="ai-grid-card"><div class="ai-grid-card-desc">${clean}</div></div>`;
+			}).join('');
+			return `<div class="ai-grid">${cards}</div>`;
+		});
+
+		// STEPS: :::steps:::  ...numbered items...  :::endsteps:::
+		out = out.replace(/:::steps:::\n([\s\S]*?):::endsteps:::/g, (_, content) => {
+			const items = content.trim().split('\n').filter(Boolean);
+			const steps = items.map((item, idx) => {
+				const clean = item.replace(/^\d+\.\s*/, '').replace(/^-\s*/, '');
+				return `<div class="ai-step"><div class="ai-step-num">${idx + 1}</div><div class="ai-step-text">${clean}</div></div>`;
+			}).join('');
+			return `<div class="ai-steps">${steps}</div>`;
+		});
+
+		// 5. Horizontal rule
+		out = out.replace(/^---+$/gm, '<hr class="ai-hr">');
+
+		// 6. Blockquote (> text)
+		out = out.replace(/^&gt; (.+)$/gm, '<div class="ai-callout">$1</div>');
+
+		// 7. Bold + italic
+		out = out.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+		out = out.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+		out = out.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+		// 8. Headings
+		out = out.replace(/^#{1,2} (.+)$/gm, '<p class="ai-h2">$1</p>');
+		out = out.replace(/^### (.+)$/gm, '<p class="ai-h3">$1</p>');
+		out = out.replace(/^#### (.+)$/gm, '<p class="ai-h4">$1</p>');
+
+		// 9. Links
+		out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) =>
+			url.startsWith('/')
+				? `<a href="${url}" class="ai-action-btn">→ ${label}</a>`
+				: `<a href="${url}" target="_blank" rel="noopener" class="ai-link">${label}</a>`
+		);
+
+		// 10. Lists — collect consecutive bullet/numbered lines and wrap in ul/ol
+		// Unordered lists (- item or * item)
+		out = out.replace(/((?:^[-*] .+\n?)+)/gm, (block) => {
+			const items = block.trim().split('\n')
+				.filter(Boolean)
+				.map(l => `<li>${l.replace(/^[-*] /, '')}</li>`)
+				.join('');
+			return `<ul>${items}</ul>`;
+		});
+
+		// Ordered lists (1. item, 2. item, ...)
+		out = out.replace(/((?:^\d+\. .+\n?)+)/gm, (block) => {
+			const items = block.trim().split('\n')
+				.filter(Boolean)
+				.map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`)
+				.join('');
+			return `<ol>${items}</ol>`;
+		});
+
+		// 11. Restore code blocks
+		out = out.replace(/\x00CODE(\d+)\x00/g, (_, idx) => codeBlocks[Number(idx)]);
+
+		return out;
 	}
 
 	async function renderChart(node, data) {
@@ -1163,6 +1312,169 @@
     font-weight: 500; transition: opacity 0.15s;
   }
   :global(.dark .ai-msg .ai-link) { color: #a5b4fc; border-bottom-color: #3730a3; }
+
+  /* ── Table ──────────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-table-wrap) {
+    overflow-x: auto; margin: 8px 0; border-radius: 10px;
+    border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch;
+  }
+  :global(.dark .ai-msg .ai-table-wrap) { border-color: #334155; }
+  :global(.ai-msg .ai-table) {
+    width: 100%; border-collapse: collapse; font-size: 11.5px;
+    min-width: 280px;
+  }
+  :global(.ai-msg .ai-table thead tr) {
+    background: #f1f5f9;
+  }
+  :global(.dark .ai-msg .ai-table thead tr) { background: #1e293b; }
+  :global(.ai-msg .ai-table th) {
+    padding: 7px 10px; text-align: left; font-weight: 700;
+    color: #334155; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.04em; border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  :global(.dark .ai-msg .ai-table th) { color: #94a3b8; border-bottom-color: #334155; }
+  :global(.ai-msg .ai-table td) {
+    padding: 6px 10px; vertical-align: top;
+    border-bottom: 1px solid #f1f5f9; color: #475569;
+    line-height: 1.5;
+  }
+  :global(.dark .ai-msg .ai-table td) { border-bottom-color: #1e293b; color: #94a3b8; }
+  :global(.ai-msg .ai-table tbody tr:last-child td) { border-bottom: none; }
+  :global(.ai-msg .ai-table tbody tr:hover td) { background: #f8fafc; }
+  :global(.dark .ai-msg .ai-table tbody tr:hover td) { background: #0f172a; }
+
+  /* ── Lists ──────────────────────────────────────────────────────────── */
+  :global(.ai-msg ul) { margin: 6px 0; padding-left: 0; list-style: none; }
+  :global(.ai-msg ul li) {
+    position: relative; padding-left: 14px; margin-bottom: 3px;
+    list-style: none;
+  }
+  :global(.ai-msg ul li::before) {
+    content: '•'; position: absolute; left: 2px;
+    color: #6366f1; font-weight: 700;
+  }
+  :global(.ai-msg ol) { margin: 6px 0; padding-left: 18px; }
+  :global(.ai-msg ol li) { margin-bottom: 3px; list-style: decimal; }
+
+  /* ── Callout / Blockquote ───────────────────────────────────────────── */
+  :global(.ai-msg .ai-callout) {
+    background: #eff6ff; border-left: 3px solid #6366f1;
+    padding: 6px 10px; border-radius: 0 8px 8px 0;
+    font-size: 11.5px; color: #3730a3; margin: 6px 0;
+  }
+  :global(.dark .ai-msg .ai-callout) {
+    background: rgba(99,102,241,0.08); border-left-color: #818cf8;
+    color: #a5b4fc;
+  }
+
+  /* ── Horizontal rule ───────────────────────────────────────────────── */
+  :global(.ai-msg .ai-hr) {
+    border: none; border-top: 1px solid #e2e8f0; margin: 8px 0;
+  }
+  :global(.dark .ai-msg .ai-hr) { border-top-color: #334155; }
+
+  /* ── h4 ─────────────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-h4) { font-weight: 600; font-size: 11.5px; color: #475569; margin: 4px 0 2px; }
+  :global(.dark .ai-msg .ai-h4) { color: #94a3b8; }
+
+  /* ── Metric Card ────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-metric-card) {
+    border: 1px solid; border-radius: 10px; padding: 10px 12px;
+    margin: 6px 0; display: inline-flex; flex-direction: column; gap: 2px;
+    min-width: 120px; max-width: 100%;
+  }
+  :global(.ai-msg .ai-metric-label) {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: #64748b;
+  }
+  :global(.dark .ai-msg .ai-metric-label) { color: #94a3b8; }
+  :global(.ai-msg .ai-metric-value) {
+    font-size: 18px; font-weight: 800; line-height: 1.2;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* ── Alert Box ──────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-alert) {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px 10px; border-radius: 10px; margin: 6px 0;
+    border: 1px solid; font-size: 11.5px; line-height: 1.5;
+  }
+  :global(.ai-msg .ai-alert-icon) { font-size: 13px; line-height: 1.4; shrink: 0; }
+  :global(.ai-msg .ai-alert-body) { flex: 1; }
+  :global(.ai-msg .ai-alert-info)    { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
+  :global(.ai-msg .ai-alert-warning) { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  :global(.ai-msg .ai-alert-success) { background:#f0fdf4; border-color:#bbf7d0; color:#15803d; }
+  :global(.ai-msg .ai-alert-danger)  { background:#fff1f2; border-color:#fecdd3; color:#9f1239; }
+  :global(.dark .ai-msg .ai-alert-info)    { background:rgba(59,130,246,0.08); border-color:rgba(59,130,246,0.3); color:#93c5fd; }
+  :global(.dark .ai-msg .ai-alert-warning) { background:rgba(245,158,11,0.08); border-color:rgba(245,158,11,0.3); color:#fcd34d; }
+  :global(.dark .ai-msg .ai-alert-success) { background:rgba(34,197,94,0.08);  border-color:rgba(34,197,94,0.3);  color:#86efac; }
+  :global(.dark .ai-msg .ai-alert-danger)  { background:rgba(239,68,68,0.08);  border-color:rgba(239,68,68,0.3);  color:#fca5a5; }
+
+  /* ── Badge ──────────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-badge) {
+    display: inline-flex; align-items: center; font-size: 9px; font-weight: 800;
+    padding: 2px 7px; border-radius: 9999px; text-transform: uppercase;
+    letter-spacing: 0.05em; border: 1px solid;
+  }
+  :global(.ai-msg .ai-badge-green)  { background:#dcfce7; color:#15803d; border-color:#bbf7d0; }
+  :global(.ai-msg .ai-badge-red)    { background:#ffe4e6; color:#be123c; border-color:#fecdd3; }
+  :global(.ai-msg .ai-badge-amber)  { background:#fef3c7; color:#b45309; border-color:#fde68a; }
+  :global(.ai-msg .ai-badge-indigo) { background:#e0e7ff; color:#4338ca; border-color:#c7d2fe; }
+  :global(.ai-msg .ai-badge-blue)   { background:#dbeafe; color:#1d4ed8; border-color:#bfdbfe; }
+  :global(.ai-msg .ai-badge-slate)  { background:#f1f5f9; color:#475569; border-color:#e2e8f0; }
+  :global(.dark .ai-msg .ai-badge-green)  { background:rgba(34,197,94,0.12);  color:#86efac; border-color:rgba(34,197,94,0.3);  }
+  :global(.dark .ai-msg .ai-badge-red)    { background:rgba(239,68,68,0.12);  color:#fca5a5; border-color:rgba(239,68,68,0.3);  }
+  :global(.dark .ai-msg .ai-badge-amber)  { background:rgba(245,158,11,0.12); color:#fcd34d; border-color:rgba(245,158,11,0.3); }
+  :global(.dark .ai-msg .ai-badge-indigo) { background:rgba(99,102,241,0.12); color:#a5b4fc; border-color:rgba(99,102,241,0.3); }
+  :global(.dark .ai-msg .ai-badge-blue)   { background:rgba(59,130,246,0.12); color:#93c5fd; border-color:rgba(59,130,246,0.3); }
+  :global(.dark .ai-msg .ai-badge-slate)  { background:rgba(71,85,105,0.15);  color:#94a3b8; border-color:rgba(100,116,139,0.3); }
+
+  /* ── Progress Bar ───────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-progress-wrap) { margin: 6px 0; }
+  :global(.ai-msg .ai-progress-header) {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
+  }
+  :global(.ai-msg .ai-progress-label) { font-size: 11px; font-weight: 600; color: #475569; }
+  :global(.dark .ai-msg .ai-progress-label) { color: #94a3b8; }
+  :global(.ai-msg .ai-progress-pct) { font-size: 11px; font-weight: 800; }
+  :global(.ai-msg .ai-progress-track) {
+    height: 7px; background: #e2e8f0; border-radius: 9999px; overflow: hidden;
+  }
+  :global(.dark .ai-msg .ai-progress-track) { background: #334155; }
+  :global(.ai-msg .ai-progress-bar) {
+    height: 100%; border-radius: 9999px; transition: width 0.6s ease;
+  }
+
+  /* ── Grid Cards ─────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-grid) {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 6px 0;
+  }
+  :global(.ai-msg .ai-grid-card) {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 8px 10px;
+  }
+  :global(.dark .ai-msg .ai-grid-card) { background: #1e293b; border-color: #334155; }
+  :global(.ai-msg .ai-grid-card-title) {
+    font-size: 10.5px; font-weight: 700; color: #1e293b; margin-bottom: 2px;
+  }
+  :global(.dark .ai-msg .ai-grid-card-title) { color: #f1f5f9; }
+  :global(.ai-msg .ai-grid-card-desc) { font-size: 10.5px; color: #64748b; line-height: 1.5; }
+  :global(.dark .ai-msg .ai-grid-card-desc) { color: #94a3b8; }
+
+  /* ── Steps ──────────────────────────────────────────────────────────── */
+  :global(.ai-msg .ai-steps) { margin: 6px 0; display: flex; flex-direction: column; gap: 6px; }
+  :global(.ai-msg .ai-step) {
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  :global(.ai-msg .ai-step-num) {
+    width: 20px; height: 20px; border-radius: 9999px; background: #6366f1;
+    color: white; font-size: 10px; font-weight: 800; display: flex;
+    align-items: center; justify-content: center; shrink: 0; flex-shrink: 0;
+    margin-top: 1px;
+  }
+  :global(.ai-msg .ai-step-text) { font-size: 11.5px; color: #475569; line-height: 1.5; padding-top: 2px; }
+  :global(.dark .ai-msg .ai-step-text) { color: #94a3b8; }
 
   /* ── Cursor blink ────────────────────────────────────────────────────── */
   :global(.cursor-blink) {
