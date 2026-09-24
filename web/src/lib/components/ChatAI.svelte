@@ -1061,8 +1061,12 @@
                 <span class="text-[9px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Panduan Umum</span>
               </div>
             {/if}
-            <div class="ai-msg">{@html formatAI(chat.content)}
-              {#if !chat.content && !instantResponse}<span class="cursor-blink"></span>{/if}
+            <div class="ai-msg">
+              {#if chat.fullReply && chat.content === chat.fullReply}
+                {@html formatAI(chat.fullReply)}
+              {:else}
+                <span class="ai-typing-plain">{chat.content}</span>{#if !chat.content && !instantResponse}<span class="cursor-blink"></span>{/if}
+              {/if}
             </div>
             {#if chat.chartData && (chat.content?.length > 5 || instantResponse)}
               <div class="mt-2 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2" transition:fade>
@@ -1475,6 +1479,12 @@
   }
   :global(.ai-msg .ai-step-text) { font-size: 11.5px; color: #475569; line-height: 1.5; padding-top: 2px; }
   :global(.dark .ai-msg .ai-step-text) { color: #94a3b8; }
+
+  /* ── Typing plain text (before render completes) ───────────────────── */
+  :global(.ai-msg .ai-typing-plain) {
+    white-space: pre-wrap; font-size: 12.5px; line-height: 1.65;
+    color: inherit; word-break: break-word;
+  }
 
   /* ── Cursor blink ────────────────────────────────────────────────────── */
   :global(.cursor-blink) {
