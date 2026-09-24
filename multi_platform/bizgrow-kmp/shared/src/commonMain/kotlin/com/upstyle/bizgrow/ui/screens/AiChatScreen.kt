@@ -1,4 +1,4 @@
-﻿package com.upstyle.bizgrow.ui.screens
+package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -234,8 +234,8 @@ fun FinancialAdvisorTab(viewModel: AppViewModel) {
     var customQuestion by remember { mutableStateOf("") }
     val aiAdvisorResult by viewModel.aiAdvisorResult.collectAsState(initial = viewModel.aiAdvisorResult.value)
     val isAiAdvisorLoading by viewModel.isAiAdvisorLoading.collectAsState(initial = viewModel.isAiAdvisorLoading.value)
+    val aiAdvisorError by viewModel.aiAdvisorError.collectAsState(initial = viewModel.aiAdvisorError.value)
     val activeUnitId by viewModel.activeUnitId.collectAsState(initial = viewModel.activeUnitId.value)
-    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
     val scrollState = androidx.compose.foundation.rememberScrollState()
 
@@ -328,20 +328,21 @@ fun FinancialAdvisorTab(viewModel: AppViewModel) {
         }
 
         // ─── Error + Retry ────────────────────────────────────────────────────
-        if (!isAiAdvisorLoading && uiState.error != null) {
+        // Gunakan aiAdvisorError (dedicated state) bukan uiState.error global
+        if (!isAiAdvisorLoading && aiAdvisorError != null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        uiState.error ?: "Terjadi kesalahan",
+                        aiAdvisorError ?: "Terjadi kesalahan",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Button(
                         onClick = {
-                            viewModel.clearMessages()
+                            viewModel.clearAiAdvisorResult()
                             val question = customQuestion.ifBlank {
                                 "Analisis keuangan bisnis saya untuk 3 bulan terakhir, berikan insights dan rekomendasi aksi."
                             }
@@ -448,10 +449,57 @@ fun WaReportTab(viewModel: AppViewModel) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Laporan Siap Kirim", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(laporan.teks, style = MaterialTheme.typography.bodyMedium)
-                    Button(onClick = { /* Share handled by platform */ }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Share, "Share", modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Kirim via WhatsApp")
+
+                    // Tombol share: copy ke clipboard, lalu buka WhatsApp
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Tombol Copy
+                        OutlinedButton(
+                            onClick = {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                    as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText("Laporan WhatsApp", laporan.teks)
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, "Salin", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Salin")
+                        }
+
+                        // Tombol Kirim ke WhatsApp
+                        Button(
+                            onClick = {
+                                try {
+                                    val encoded = java.net.URLEncoder.encode(laporan.teks, "UTF-8")
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse("https://wa.me/?text=$encoded")
+                                    )
+                                    intent.setPackage("com.whatsapp")
+                                    // Fallback ke browser jika WhatsApp tidak terpasang
+                                    val chooser = android.content.Intent.createChooser(intent, "Kirim via")
+                                    context.startActivity(chooser)
+                                } catch (e: Exception) {
+                                    // WhatsApp tidak terpasang, fallback ke share biasa
+                                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(android.content.Intent.EXTRA_TEXT, laporan.teks)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(shareIntent, "Bagikan laporan"))
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Share, "Kirim", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("WhatsApp")
+                        }
                     }
                 }
             }

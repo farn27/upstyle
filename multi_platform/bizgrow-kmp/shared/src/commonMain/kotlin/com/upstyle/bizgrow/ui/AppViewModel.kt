@@ -1033,6 +1033,11 @@ class AppViewModel(
     private val _isAiAdvisorLoading = MutableStateFlow(false)
     val isAiAdvisorLoading: StateFlow<Boolean> = _isAiAdvisorLoading.asStateFlow()
 
+    // Error khusus AI Advisor — terpisah dari uiState.error global
+    // agar error dari modul lain tidak muncul di tab Financial Advisor.
+    private val _aiAdvisorError = MutableStateFlow<String?>(null)
+    val aiAdvisorError: StateFlow<String?> = _aiAdvisorError.asStateFlow()
+
     // Sales Target
     private val _salesTargetData = MutableStateFlow<SalesTargetData?>(null)
     val salesTargetData: StateFlow<SalesTargetData?> = _salesTargetData.asStateFlow()
@@ -1090,15 +1095,18 @@ class AppViewModel(
         // Debounce AI Kategori: setiap kali keterangan berubah, tunggu 800ms lalu panggil API
         viewModelScope.launch {
             _keteranganFlow.debounce(800L).collect { teks ->
-                if (teks.length >= 3) {
-                    val unitId = _activeUnitId.value
-                    if (unitId == 0) return@collect
+                // Baca unitId SAAT ini (bukan saat coroutine dibuat) agar tidak pakai unit lama
+                val unitId = _activeUnitId.value
+                if (teks.length >= 3 && unitId != 0) {
                     try {
                         val res = api.aiKategori(AiKategoriRequest(teks = teks, unitId = unitId))
-                        if (res.success && res.data != null && (res.data.confidence) >= 60) {
-                            _aiKategoriSuggestion.value = res.data
-                        } else {
-                            _aiKategoriSuggestion.value = null
+                        // Validasi ulang unitId setelah response — cegah race saat ganti unit
+                        if (_activeUnitId.value == unitId) {
+                            if (res.success && res.data != null && (res.data.confidence) >= 60) {
+                                _aiKategoriSuggestion.value = res.data
+                            } else {
+                                _aiKategoriSuggestion.value = null
+                            }
                         }
                     } catch (e: Exception) {
                         // Diam — jangan interrupt user jika AI kategori gagal
@@ -1654,25 +1662,28 @@ class AppViewModel(
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Chat & AI Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun sendChat(message: String) = viewModelScope.launch {
-        _isChatLoading.value = true
         val userMsg = ChatMessage(role = "user", content = message)
         _chatHistory.value = _chatHistory.value + userMsg
         try {
+            _isChatLoading.value = true
             val slug = activeUnit.value?.slug ?: ""
             val history = _chatHistory.value.takeLast(10)
             val res = api.chat(ChatRequest(message = message, activeUnitSlug = slug, history = history))
-            val reply = ChatMessage(role = "assistant", content = res.reply ?: "OK")
+            val reply = ChatMessage(role = "assistant", content = res.reply ?: "Maaf, tidak ada respons.")
             _chatHistory.value = _chatHistory.value + reply
         } catch (e: Exception) {
-            setError("Koneksi gagal: ${e.message}")
+            // Tambahkan pesan error sebagai bubble AI agar konteks chat tetap jelas
+            val errMsg = ChatMessage(role = "assistant", content = "Koneksi gagal. Coba lagi. (${e.message})")
+            _chatHistory.value = _chatHistory.value + errMsg
+        } finally {
+            _isChatLoading.value = false
         }
-        _isChatLoading.value = false
     }
 
     fun loadChatHistory() = viewModelScope.launch {
-        try {
-            _chatHistory.value = emptyList()
-        } catch (e: Exception) { Napier.e("loadChatHistory error", e) }
+        // Chat history bersifat in-session — kosongkan saat screen baru dibuka
+        // Jika di masa depan ada endpoint history, ganti ini dengan API call
+        _chatHistory.value = emptyList()
     }
 
     fun clearChat() {
@@ -1689,8 +1700,8 @@ class AppViewModel(
         if (teksInput.length < 5) return@launch
         val unitId = _activeUnitId.value
         if (unitId == 0) { setError("Pilih unit bisnis terlebih dahulu"); return@launch }
-        _isAiEntryLoading.value = true
         try {
+            _isAiEntryLoading.value = true
             val res = api.aiEntry(AiEntryRequest(unitId = unitId, teksInput = teksInput))
             if (res.success && res.data != null) {
                 val h = res.data.hasil
@@ -1709,8 +1720,9 @@ class AppViewModel(
             }
         } catch (e: Exception) {
             setError("Koneksi gagal: ${e.message}")
+        } finally {
+            _isAiEntryLoading.value = false
         }
-        _isAiEntryLoading.value = false
     }
 
     fun clearAiEntryResult() {
@@ -1733,23 +1745,26 @@ class AppViewModel(
      */
     fun aiAdvisor(question: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
-        if (unitId == 0) { setError("Pilih unit bisnis terlebih dahulu"); return@launch }
-        _isAiAdvisorLoading.value = true
+        if (unitId == 0) { _aiAdvisorError.value = "Pilih unit bisnis terlebih dahulu"; return@launch }
         try {
+            _isAiAdvisorLoading.value = true
+            _aiAdvisorError.value = null  // reset error sebelum request baru
             val res = api.aiAdvisor(AiAdvisorRequest(unitId = unitId, question = question))
             if (res.success && res.data != null) {
                 _aiAdvisorResult.value = res.data.analysis
             } else {
-                setError(res.message ?: "Gagal mendapatkan analisis")
+                _aiAdvisorError.value = res.message ?: "Gagal mendapatkan analisis"
             }
         } catch (e: Exception) {
-            setError("Koneksi gagal: ${e.message}")
+            _aiAdvisorError.value = "Koneksi gagal: ${e.message}"
+        } finally {
+            _isAiAdvisorLoading.value = false
         }
-        _isAiAdvisorLoading.value = false
     }
 
     fun clearAiAdvisorResult() {
         _aiAdvisorResult.value = null
+        _aiAdvisorError.value = null
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Sales Target Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
