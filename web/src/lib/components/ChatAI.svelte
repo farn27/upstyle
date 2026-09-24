@@ -358,31 +358,47 @@
 		// 3. Inline code
 		out = out.replace(/`([^`]+)`/g, '<code class="ai-ic">$1</code>');
 
-		// 4. Markdown tables
-		// Find blocks of lines where first row looks like a table (has |)
-		out = out.replace(/(\|.+\|[ \t]*\n)((?:\|[-: ]+\|[ \t]*\n))((?:\|.+\|[ \t]*\n?)+)/g, (match) => {
-			const rows = match.trim().split('\n').filter(Boolean);
-			if (rows.length < 2) return match;
+		// 4. Markdown tables — line-by-line parser (robust against multi-column separators)
+		const tableLines = out.split('\n');
+		const tableOut = [];
+		let i = 0;
+		while (i < tableLines.length) {
+			const line = tableLines[i];
+			// Detect separator row: line is all |, -, :, spaces — e.g. |---|---|---|
+			const isSep = (l) => /^\|[-| :\t]+\|[ \t]*$/.test(l.trim());
+			// Detect table row: starts and ends with |
+			const isRow = (l) => /^\|.+\|[ \t]*$/.test(l.trim());
 
-			// Header row
-			const headerRow = rows[0];
-			// Separator row (row[1]) — skip it
-			const bodyRows = rows.slice(2);
+			// Look ahead: current line is a table row AND next line is a separator
+			if (isRow(line) && i + 1 < tableLines.length && isSep(tableLines[i + 1])) {
+				// Collect the full table block
+				const headerLine = line;
+				// skip separator line (i+1)
+				let j = i + 2;
+				const bodyLines = [];
+				while (j < tableLines.length && isRow(tableLines[j])) {
+					bodyLines.push(tableLines[j]);
+					j++;
+				}
 
-			const parseRow = (row) =>
-				row.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+				const parseRow = (r) =>
+					r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
 
-			const headers = parseRow(headerRow);
-			const thCells = headers.map(h => `<th>${h}</th>`).join('');
+				const headers = parseRow(headerLine);
+				const thCells = headers.map(h => `<th>${h}</th>`).join('');
+				const tbodyRows = bodyLines.map(r => {
+					const cells = parseRow(r);
+					return `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+				}).join('');
 
-			const tbodyRows = bodyRows.map(row => {
-				const cells = parseRow(row);
-				const tdCells = cells.map(c => `<td>${c}</td>`).join('');
-				return `<tr>${tdCells}</tr>`;
-			}).join('');
-
-			return `<div class="ai-table-wrap"><table class="ai-table"><thead><tr>${thCells}</tr></thead><tbody>${tbodyRows}</tbody></table></div>`;
-		});
+				tableOut.push(`<div class="ai-table-wrap"><table class="ai-table"><thead><tr>${thCells}</tr></thead><tbody>${tbodyRows}</tbody></table></div>`);
+				i = j; // skip past the entire table block
+			} else {
+				tableOut.push(line);
+				i++;
+			}
+		}
+		out = tableOut.join('\n');
 
 		// 4b. Custom rich components — :::type{...}::: syntax
 		// METRIC card: :::metric{label:"Label",value:"Rp1.000.000",trend:"+12%",color:"green"}:::
