@@ -269,6 +269,9 @@ class AppViewModel(
                 // Recreate HTTP client dengan token baru agar semua request berikutnya terautentikasi
                 refreshApiClient()
                 clearMessages()
+                // Load units dulu sebelum navigate — supaya _suppress401 masih aktif
+                // saat request pertama keluar, mencegah false-positive 401 redirect.
+                loadUnits().join()
                 navigationManager.navigateToRoot(Screen.Home)
                 onResult(true, null)
             } else {
@@ -282,6 +285,9 @@ class AppViewModel(
             onResult(false, err)
         } finally {
             setLoading(false)
+            // Beri sedikit delay sebelum melepas suppress agar coroutine-coroutine
+            // yang di-launch oleh selectUnit() sempat melihat flag ini masih true.
+            kotlinx.coroutines.delay(500)
             _suppress401 = false
         }
     }
@@ -1143,33 +1149,42 @@ class AppViewModel(
     }
 
     fun selectUnit(unitId: Int) = viewModelScope.launch {
-        _activeUnitId.value = unitId
-        val unit = _units.value.find { it.id == unitId }
-        session.setActiveUnit(unitId, unit?.name ?: "", unit?.slug ?: "")
-        if (unitId > 0) {
-            SocketManager.joinUnit(unitId)
-            // Reset all module data so they reload fresh for the new unit
-            _financeData.value = null
-            _hrData.value = null
-            _scmData.value = null
-            _marketingData.value = null
-            _katalogData.value = null
-            _products.value = emptyList()
-            _orders.value = emptyList()
-            // Reset AI state untuk unit baru
-            _aiAdvisorResult.value = null
-            _aiKategoriSuggestion.value = null
-            _aiEntryResult.value = null
-            // Load essential data
-            loadDashboard()
-            loadProducts()
-            loadOrders()
-            loadReceivables()
-            loadPayables()
-            loadNotifications()
-            loadLowStock()
-            // Load COA untuk unit baru
-            loadChartOfAccounts()
+        // Suppress 401-redirect selama proses inisialisasi unit agar request-request
+        // awal (loadDashboard, loadProducts, dll.) tidak menyebabkan false-positive logout.
+        _suppress401 = true
+        try {
+            _activeUnitId.value = unitId
+            val unit = _units.value.find { it.id == unitId }
+            session.setActiveUnit(unitId, unit?.name ?: "", unit?.slug ?: "")
+            if (unitId > 0) {
+                SocketManager.joinUnit(unitId)
+                // Reset all module data so they reload fresh for the new unit
+                _financeData.value = null
+                _hrData.value = null
+                _scmData.value = null
+                _marketingData.value = null
+                _katalogData.value = null
+                _products.value = emptyList()
+                _orders.value = emptyList()
+                // Reset AI state untuk unit baru
+                _aiAdvisorResult.value = null
+                _aiKategoriSuggestion.value = null
+                _aiEntryResult.value = null
+                // Load essential data
+                loadDashboard()
+                loadProducts()
+                loadOrders()
+                loadReceivables()
+                loadPayables()
+                loadNotifications()
+                loadLowStock()
+                // Load COA untuk unit baru
+                loadChartOfAccounts()
+            }
+        } finally {
+            // Beri waktu request-request di atas mulai terkirim sebelum lepas guard
+            kotlinx.coroutines.delay(500)
+            _suppress401 = false
         }
     }
 
