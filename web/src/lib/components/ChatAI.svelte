@@ -1030,10 +1030,10 @@
 </script>
 
 <!-- ROOT -->
-<div class="fixed bottom-5 right-5 z-[200] select-none" role="region" aria-label="Chat AI Bizgrow">
+<div class="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-[200] select-none" role="region" aria-label="Chat AI Bizgrow">
 
 {#if isOpen || showUnitPicker}
-<div style="transform: translate({dragX}px, {dragY}px);" class="absolute bottom-0 right-0 z-50">
+<div style="transform: translate({dragX}px, {dragY}px);" class="fixed sm:absolute bottom-0 right-0 left-0 sm:left-auto z-50">
 
 <!-- ══ UNIT PICKER (contextual modal) ══════════════════════════════════════ -->
 {#if showUnitPicker}
@@ -1100,8 +1100,8 @@
             rounded-2xl border border-slate-200/80 dark:border-slate-700/60 overflow-hidden
             shadow-[0_20px_56px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_56px_rgba(0,0,0,0.5)]
             transition-all duration-300 origin-bottom-right"
-  class:w-[370px]={!isExpanded} class:w-[520px]={isExpanded}
-  style="height:min({isExpanded?660:540}px,calc(100vh - 96px));max-height:calc(100vh - 96px);"
+  class:sm:w-[370px]={!isExpanded} class:sm:w-[520px]={isExpanded}
+  style="height:min({isExpanded?660:540}px,calc(100dvh - 16px));max-height:calc(100dvh - 16px);" class="w-full sm:w-auto"
   transition:scale={{ start: 0.92, duration: 220 }}>
 
   <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
