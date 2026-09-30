@@ -1096,12 +1096,12 @@
 
 <!-- ══ CHAT WINDOW ══════════════════════════════════════════════════════════ -->
 {#if isOpen}
-<div class="flex flex-col bg-white dark:bg-slate-900
+<div class="flex flex-col w-full sm:w-auto bg-white dark:bg-slate-900
             rounded-2xl border border-slate-200/80 dark:border-slate-700/60 overflow-hidden
             shadow-[0_20px_56px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_56px_rgba(0,0,0,0.5)]
             transition-all duration-300 origin-bottom-right"
   class:sm:w-[370px]={!isExpanded} class:sm:w-[520px]={isExpanded}
-  style="height:min({isExpanded?660:540}px,calc(100dvh - 16px));max-height:calc(100dvh - 16px);" class="w-full sm:w-auto"
+  style="height:min({isExpanded?660:540}px,calc(100dvh - 16px));max-height:calc(100dvh - 16px);"
   transition:scale={{ start: 0.92, duration: 220 }}>
 
   <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
