@@ -130,7 +130,26 @@
         }
 
         formData.append('variants', JSON.stringify(variants));
-        if (fileAsli) formData.append('foto', fileAsli);
+        // Upload foto ke VPS API dulu, baru kirim URL ke server action
+        if (fileAsli) {
+            const uploadFd = new FormData();
+            uploadFd.append('image', fileAsli);
+            uploadFd.append('unitSlug', slug);
+            try {
+                const uploadRes = await fetch('/api/uploads/product-image', {
+                    method: 'POST',
+                    body: uploadFd
+                });
+                if (uploadRes.ok) {
+                    const uploadJson = await uploadRes.json();
+                    formData.append('fotoUrl', uploadJson.data.url);
+                } else {
+                    console.error('Foto gagal diupload, produk disimpan tanpa foto');
+                }
+            } catch (uploadErr) {
+                console.error('Upload error:', uploadErr);
+            }
+        }
 
         try {
             const response = await fetch(`?/createProduct`, { method: 'POST', body: formData });

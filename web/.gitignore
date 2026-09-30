@@ -25,3 +25,7 @@ vite.config.ts.timestamp-*
 
 *storybook.log
 storybook-static
+
+# User uploaded files (stored on VPS, not in repo)
+web/static/uploads/
+static/uploads/

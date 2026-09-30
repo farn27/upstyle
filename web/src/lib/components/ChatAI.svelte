@@ -203,6 +203,8 @@
 		nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: true, error: '' } };
 		try {
 			const fd = new FormData();
+			fd.append('product_id', ''); // For non-product transactions
+			fd.append('tglTrx', conf.tanggal); // Transaction date
 			fd.append('kategori_trx', trxData.kategori);
 			fd.append('kas_coa_id', conf.kas_coa_id);
 			fd.append('coa_id', conf.coa_id);

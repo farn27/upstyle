@@ -134,6 +134,7 @@ export const actions = {
         const metadataRaw = formData.get('metadata');
         const variantsRaw = formData.get('variants');
         const fotoFile = formData.get('foto');
+        const fotoUrl = formData.get('fotoUrl'); // Pre-uploaded URL from VPS API
 
         if (!nama) return fail(400, { message: "Nama produk wajib diisi" });
 
@@ -145,21 +146,24 @@ export const actions = {
 
             if (!unit) return fail(404, { message: "Unit invalid" });
 
-            // File Upload — R2 cloud atau local fallback
+            // File Upload — prioritize fotoUrl from VPS API
             let fotoString = null;
-            if (fotoFile && fotoFile.name && fotoFile.size > 0) {
+            if (fotoUrl) {
+                fotoString = fotoUrl;
+            } else if (fotoFile && fotoFile.name && fotoFile.size > 0) {
                 if (isStorageConfigured()) {
                     const { url } = await uploadFromFormFile(fotoFile, 'products');
                     fotoString = url;
                 } else {
-                    // Fallback local (development only)
-                    const uploadDir = join(process.cwd(), 'static', 'uploads');
-                    mkdirSync(uploadDir, { recursive: true });
-                    const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-                    const fullPath = join(uploadDir, namaFileUnik);
-                    const buffer = Buffer.from(await fotoFile.arrayBuffer());
-                    writeFileSync(fullPath, buffer);
-                    fotoString = `/uploads/${namaFileUnik}`;
+                    try {
+                        const uploadDir = join(process.cwd(), 'static', 'uploads');
+                        mkdirSync(uploadDir, { recursive: true });
+                        const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                        const fullPath = join(uploadDir, namaFileUnik);
+                        const buffer = Buffer.from(await fotoFile.arrayBuffer());
+                        writeFileSync(fullPath, buffer);
+                        fotoString = `/uploads/${namaFileUnik}`;
+                    } catch (e) { console.warn('[Upload] Filesystem not writable:', e.message); }
                 }
             }
 

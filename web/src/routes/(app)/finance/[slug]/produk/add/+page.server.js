@@ -86,6 +86,7 @@ export const actions = {
         const metadataRaw = formData.get('metadata');
         const variantsRaw = formData.get('variants');
         const fotoFile = formData.get('foto');
+        const fotoUrl = formData.get('fotoUrl'); // Pre-uploaded URL from VPS API
 
         if (!nama) return fail(400, { message: "Nama produk wajib diisi" });
 
@@ -98,9 +99,13 @@ export const actions = {
 
             if (!unit) return fail(404, { message: "Unit invalid" });
 
-            // 4. Upload foto — proses dengan Sharp dulu, lalu upload
+            // 4. Handle foto — prioritize pre-uploaded fotoUrl dari VPS API
             let fotoString = null;
-            if (fotoFile && fotoFile.name && fotoFile.size > 0) {
+
+            if (fotoUrl) {
+                // Pakai URL yang sudah diupload via /api/uploads/product-image
+                fotoString = fotoUrl;
+            } else if (fotoFile && fotoFile.name && fotoFile.size > 0) {
                 const rawBuffer = Buffer.from(await fotoFile.arrayBuffer());
 
                 // Validasi gambar

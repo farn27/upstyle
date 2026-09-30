@@ -51,6 +51,7 @@ export const actions = {
         const hargaJual = formData.get('hargaJual');
         const minStok = formData.get('minStok');
         const fotoFile = formData.get('foto');
+        const fotoUrl = formData.get('fotoUrl'); // Pre-uploaded URL from VPS API
         const kategoriId = formData.get('kategoriId');
         const variantsRaw = formData.get('variants');
 
@@ -69,16 +70,16 @@ export const actions = {
             const variants = variantsRaw ? JSON.parse(variantsRaw) : [];
             const hasVariant = variants.length > 0 ? 1 : 0;
 
-            // 1. File Upload Logic — Sharp process, lalu R2 cloud atau local fallback
+            // 1. File Upload Logic — prioritize fotoUrl from VPS API
             let fotoString = null;
-            if (fotoFile && fotoFile.name && fotoFile.size > 0) {
+            if (fotoUrl) {
+                fotoString = fotoUrl;
+            } else if (fotoFile && fotoFile.name && fotoFile.size > 0) {
                 const rawBuffer = Buffer.from(await fotoFile.arrayBuffer());
 
-                // Validasi gambar
                 const validation = await validateImage(rawBuffer, { maxSizeMB: 5 });
                 if (!validation.valid) return fail(400, { message: validation.error });
 
-                // Compress & resize dengan Sharp → WebP
                 const processedBuffer = await processProductImage(rawBuffer, { width: 800, height: 800, quality: 80 });
 
                 if (isStorageConfigured()) {
@@ -90,12 +91,14 @@ export const actions = {
                     const { url } = await uploadFromFormFile(processedFile, 'products');
                     fotoString = url;
                 } else {
-                    const uploadDir = join(process.cwd(), 'static', 'uploads');
-                    mkdirSync(uploadDir, { recursive: true });
-                    const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]+$/, '.webp')}`;
-                    const fullPath = join(uploadDir, namaFileUnik);
-                    writeFileSync(fullPath, processedBuffer);
-                    fotoString = `/uploads/${namaFileUnik}`;
+                    try {
+                        const uploadDir = join(process.cwd(), 'static', 'uploads');
+                        mkdirSync(uploadDir, { recursive: true });
+                        const namaFileUnik = `${Date.now()}-${fotoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]+$/, '.webp')}`;
+                        const fullPath = join(uploadDir, namaFileUnik);
+                        writeFileSync(fullPath, processedBuffer);
+                        fotoString = `/uploads/${namaFileUnik}`;
+                    } catch (e) { console.warn('[Upload] Filesystem not writable:', e.message); }
                 }
             }
 
