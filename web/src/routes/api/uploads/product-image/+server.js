@@ -4,6 +4,7 @@ import { join } from 'path';
 import crypto from 'crypto';
 import { getCurrentUserId } from '$lib/server/auth.js';
 import { validateImage, processProductImage } from '$lib/server/imageProcessing.js';
+import { uploadToSupabase, isSupabaseConfigured } from '$lib/server/storage.js';
 
 /** POST /api/uploads/product-image */
 export async function POST({ request, cookies }) {
@@ -20,42 +21,41 @@ export async function POST({ request, cookies }) {
             return json({ success: false, message: 'No image file provided' }, { status: 400 });
         }
 
-        // Validate image
+        // Validate & process image
         const rawBuffer = Buffer.from(await imageFile.arrayBuffer());
         const validation = await validateImage(rawBuffer, { maxSizeMB: 5 });
         if (!validation.valid) {
             return json({ success: false, message: validation.error }, { status: 400 });
         }
 
-        // Process image (compress & convert to WebP)
         const processedBuffer = await processProductImage(rawBuffer, {
             width: 800, height: 800, quality: 80
         });
 
-        // Save to VPS filesystem
-        const uploadsDir = join(process.cwd(), 'static', 'uploads', 'products');
-        mkdirSync(uploadsDir, { recursive: true });
-
         const randomId = crypto.randomBytes(8).toString('hex');
         const safeName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]+$/, '');
         const filename = `${Date.now()}-${randomId}-${safeName}.webp`;
-        const filePath = join(uploadsDir, filename);
 
-        writeFileSync(filePath, processedBuffer);
+        let publicUrl;
 
-        const publicUrl = `/uploads/products/${filename}`;
-        console.log('[VPS Upload] Saved product image:', publicUrl);
+        if (isSupabaseConfigured()) {
+            // Production: upload ke Supabase Storage
+            const result = await uploadToSupabase(processedBuffer, filename, 'image/webp', 'products');
+            publicUrl = result.url;
+            console.log('[Upload] Supabase Storage:', publicUrl);
+        } else {
+            // Local dev: simpan ke filesystem
+            const uploadsDir = join(process.cwd(), 'static', 'uploads', 'products');
+            mkdirSync(uploadsDir, { recursive: true });
+            writeFileSync(join(uploadsDir, filename), processedBuffer);
+            publicUrl = `/uploads/products/${filename}`;
+            console.log('[Upload] Local filesystem:', publicUrl);
+        }
 
-        return json({
-            success: true,
-            data: {
-                url: publicUrl,
-                filename
-            }
-        });
+        return json({ success: true, data: { url: publicUrl, filename } });
 
     } catch (err) {
-        console.error('[VPS Upload] Error:', err);
+        console.error('[Upload] Error:', err);
         return json({ success: false, message: err.message }, { status: 500 });
     }
 }

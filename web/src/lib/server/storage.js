@@ -268,3 +268,44 @@ function getMimeType(ext) {
 	};
 	return map[ext] || 'application/octet-stream';
 }
+
+
+// ─── Supabase Storage ──────────────────────────────────────────────────────────
+
+/**
+ * Upload file ke Supabase Storage
+ */
+export async function uploadToSupabase(buffer, filename, mimeType = 'image/webp', bucket = 'products') {
+    const url = env.SUPABASE_URL;
+    const key = env.SUPABASE_SERVICE_KEY;
+
+    if (!url || !key) throw new Error('SUPABASE_URL atau SUPABASE_SERVICE_KEY belum diset di .env');
+
+    const uploadUrl = `${url}/storage/v1/object/${bucket}/${filename}`;
+
+    const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${key}`,
+            'Content-Type': mimeType,
+            'x-upsert': 'true'
+        },
+        body: buffer
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Supabase upload failed: ${err}`);
+    }
+
+    // Return public URL
+    const publicUrl = `${url}/storage/v1/object/public/${bucket}/${filename}`;
+    return { url: publicUrl };
+}
+
+/**
+ * Cek apakah Supabase Storage sudah dikonfigurasi
+ */
+export function isSupabaseConfigured() {
+    return Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY);
+}
