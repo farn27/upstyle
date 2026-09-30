@@ -9,7 +9,7 @@ import { uploadToSupabase, isSupabaseConfigured } from '$lib/server/storage.js';
 /** POST /api/uploads/product-image */
 export async function POST({ request, cookies }) {
     try {
-        const userId = await getCurrentUserId(cookies);
+        const userId = await getCurrentUserId(cookies, request);
         if (!userId) {
             return json({ success: false, message: 'Unauthorized' }, { status: 401 });
         }
