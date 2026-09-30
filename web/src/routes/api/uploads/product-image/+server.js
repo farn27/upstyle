@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import crypto from 'crypto';
-import { getCurrentUserId } from '$lib/server/auth.js';
+import { getCurrentUserId } from '$lib/server/getUser';
 import { validateImage, processProductImage } from '$lib/server/imageProcessing.js';
 import { uploadToSupabase, isSupabaseConfigured } from '$lib/server/storage.js';
 
