@@ -3,7 +3,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import crypto from 'crypto';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { validateImage, processProductImage } from '$lib/server/imageProcessing.js';
+import { validateImage, processProductImage } from '$lib/server/imageProcessor.js';
 import { uploadToSupabase, isSupabaseConfigured } from '$lib/server/storage.js';
 
 /** POST /api/uploads/product-image */
