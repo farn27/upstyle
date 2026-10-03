@@ -113,7 +113,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
     - **Property 8.2: Stock movement round-trip** — for any stock adjustment on a variant, the adjustment amount and reason appear in `getStockMovements()` history immediately after the call
     - **Validates: Requirements 3.4, Property 2 (Data Synchronization Integrity)**
 
-- [ ] 9. Extend ProductsScreen with variants, bulk ops, and advanced filtering
+- [x] 9. Extend ProductsScreen with variants, bulk ops, and advanced filtering
   - Extend `ProductsScreen.kt` to show a "Variants" expandable section per product (calls `loadProductVariants()`)
   - Add multi-select mode with a floating action bar for bulk operations: price update, category change, archive, delete
   - Add `BulkOperationProgressSheet` bottom sheet showing per-item status and a Rollback button wired to `rollbackBulkOperation()`
@@ -126,7 +126,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
     - **Property 9.1: Filter predicate consistency** — for any generated product list and any combination of active filter criteria, every product in the result satisfies all criteria simultaneously; no product outside the criteria appears
     - **Validates: Requirements 3.2, 3.6**
 
-- [ ] 10. Checkpoint — Ensure all Phase 2 and 3 tests pass
+- [x] 10. Checkpoint — Ensure all Phase 2 and 3 tests pass
   - Run `./gradlew :shared:testDebugUnitTest`; fix any regressions before continuing.
 
 ---
@@ -183,7 +183,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
   - Add export/import entry point to the existing `AdvancedSettingsScreen.kt` settings list
   - _Requirements: 5.1, 5.2, 5.4, 5.5, 5.7, 5.8_
 
-- [ ] 15. Checkpoint — Ensure all Phase 4 and 5 tests pass
+- [x] 15. Checkpoint — Ensure all Phase 4 and 5 tests pass
   - Run `./gradlew :shared:testDebugUnitTest`; address any failures before continuing.
 
 ---
@@ -218,7 +218,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
 
 ### Phase 8: UI/UX Enhancements & Performance
 
-- [ ] 18. Implement progressive disclosure, lazy loading, and gesture shortcuts
+- [x] 18. Implement progressive disclosure, lazy loading, and gesture shortcuts
   - Audit all screens with complex forms (ProductsScreen, TransactionEntryScreen, PricingScreen) and replace unconditional field display with progressive disclosure: secondary fields hidden behind a "More options" expander
   - Replace `LazyColumn` direct-items patterns in ProductsScreen, OrdersScreen, and CrmContactsScreen with paged loading: add `loadMoreProducts(page)`, `loadMoreOrders(page)` to `AppViewModel`; update each screen to trigger load when scrolled to last visible item
   - Add `SwipeToDismiss` wrapper in `NotificationScreen.kt` item rows and `TrashProductsScreen.kt`
@@ -229,7 +229,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
     - **Property 18.1: Pagination correctness** — for any page number N > 0, calling `loadMoreProducts(N)` appends exactly the API-returned items to the existing list without duplicates (no product ID appears twice)
     - **Validates: Requirements 8.2, 11.2**
 
-- [ ] 19. Apply accessibility, dark mode, and adaptive layout polish
+- [x] 19. Apply accessibility, dark mode, and adaptive layout polish
   - Audit every screen for missing `contentDescription` on `Icon` and `IconButton` elements; add descriptions using the existing string resource pattern
   - Verify all text uses `MaterialTheme.typography` styles (not hardcoded `sp` values) so dynamic text sizing works; fix violations
   - Test dark mode by toggling `AdvancedSettingsState.darkMode`; fix any hardcoded `Color(0xFFFFFFFF)` or `Color.White` usages — replace with `BizgrowColors` tokens
@@ -240,7 +240,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
 
 ### Phase 9: Security & Compliance Hardening
 
-- [ ] 20. Implement secure token storage and session management
+- [x] 20. Implement secure token storage and session management
   - Add `saveToKeychain(key, value)` / `loadFromKeychain(key)` expect/actual in `Expect.kt` (Android: `EncryptedSharedPreferences`, iOS: Keychain Services); replace plain `settings.putString(KEY_TOKEN, ...)` in `SessionRepository` with keychain variants
   - Implement session timeout: add `lastActivityTimestamp` to `SessionRepository`; add a `SessionTimeoutMonitor` in `AppViewModel` that checks inactivity and emits `authEvent` after 30 min idle
   - Add biometric authentication expect/actual: `authenticateWithBiometrics(prompt): Boolean`; call before showing sensitive screens (Billing, Subscription, BusinessUnit management)
@@ -252,7 +252,7 @@ This plan implements 100% feature parity between the BizGrow web and KMP mobile 
     - Test session timeout fires `authEvent` after idle period
     - _Requirements: 12.6_
 
-- [ ] 21. Add audit logging for sensitive operations
+- [x] 21. Add audit logging for sensitive operations
   - Add `AuditLogger` class in `utils/` that writes timestamped entries to a local audit log via `CacheManager` (capped at 1000 entries with FIFO eviction)
   - Instrument `AppViewModel`: call `AuditLogger.log(action, entityType, entityId)` on subscription changes, bulk product operations, business unit CRUD, export/import, and authentication events
   - Add audit log viewer to the Diagnostics panel in `AdvancedSettingsScreen.kt` (last 50 entries, reverse chronological)

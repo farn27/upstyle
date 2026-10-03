@@ -5,29 +5,49 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.data.*
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(viewModel: AppViewModel) {
-    val orders by viewModel.orders.collectAsState(initial = viewModel.orders.value)
+    val ordersState by viewModel.ordersState.collectAsState()
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "Pending", "Processing", "Shipped", "Completed", "Cancelled")
 
+    val listState = rememberLazyListState()
+
+    // Trigger initial load
     LaunchedEffect(Unit) {
         viewModel.loadOrders()
+    }
+
+    // Trigger load-more when near the bottom of the list
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .collect { lastVisibleIndex ->
+                val totalItems = listState.layoutInfo.totalItemsCount
+                if (lastVisibleIndex != null && totalItems > 0 && lastVisibleIndex >= totalItems - 3) {
+                    viewModel.loadMoreOrders()
+                }
+            }
     }
 
     Scaffold(
@@ -48,8 +68,8 @@ fun OrdersScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Total: ${orders.size} Pesanan", fontWeight = FontWeight.Bold)
-                    val todayRev = orders.filter { it.status != "Cancelled" }.sumOf { it.totalAmount }
+                    Text("Total: ${ordersState.orders.size} Pesanan", fontWeight = FontWeight.Bold)
+                    val todayRev = ordersState.orders.filter { it.status != "Cancelled" }.sumOf { it.totalAmount }
                     Text("Pendapatan: Rp ${"%,.0f".format(todayRev)}", fontWeight = FontWeight.Bold)
                 }
             }
@@ -67,9 +87,10 @@ fun OrdersScreen(viewModel: AppViewModel) {
                 }
             }
 
-            val filteredOrders = orders.filter { selectedFilter == "All" || it.status == selectedFilter }
+            val filteredOrders = ordersState.orders.filter { selectedFilter == "All" || it.status == selectedFilter }
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -100,6 +121,18 @@ fun OrdersScreen(viewModel: AppViewModel) {
                                     colors = SuggestionChipDefaults.suggestionChipColors(containerColor = statusColor.copy(alpha = 0.1f))
                                 )
                             }
+                        }
+                    }
+                }
+
+                // Bottom loading indicator for pagination
+                item {
+                    if (ordersState.isLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         }
                     }
                 }
