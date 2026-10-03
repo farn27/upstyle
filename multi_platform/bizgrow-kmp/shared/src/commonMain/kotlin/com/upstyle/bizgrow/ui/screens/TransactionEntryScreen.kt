@@ -1,5 +1,8 @@
 package com.upstyle.bizgrow.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -57,6 +60,9 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
     var keterangan by remember { mutableStateOf("") }
     var selectedAbcId by remember { mutableStateOf<Int?>(null) }
 
+    // Progressive disclosure — secondary fields hidden by default
+    var showAdvanced by remember { mutableStateOf(false) }
+
     // Dropdown expand states
     var showTipeMenu by remember { mutableStateOf(false) }
     var showCoaMenu by remember { mutableStateOf(false) }
@@ -91,6 +97,11 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
         // Cari dan set produk jika ada
         if (!result.productId.isNullOrBlank()) {
             selectedProduct = products.find { it.id == result.productId }
+            // Auto-expand advanced section so the user can see AI-filled product/keterangan
+            showAdvanced = true
+        }
+        if (result.catatan.isNotBlank()) {
+            showAdvanced = true
         }
 
         // Set COA — cari dari chartOfAccounts
@@ -343,52 +354,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                         }
                     }
 
-                    // Produk (opsional)
-                    ExposedDropdownMenuBox(
-                        expanded = showProductMenu,
-                        onExpandedChange = { if (products.isNotEmpty()) showProductMenu = it }
-                    ) {
-                        OutlinedTextField(
-                            value = selectedProduct?.nama ?: "",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Produk (opsional)") },
-                            placeholder = { Text("Pilih produk...") },
-                            trailingIcon = {
-                                Row {
-                                    if (selectedProduct != null) {
-                                        IconButton(onClick = { selectedProduct = null; nominal = "" }, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
-                                        }
-                                    }
-                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = showProductMenu)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        ExposedDropdownMenu(expanded = showProductMenu, onDismissRequest = { showProductMenu = false }) {
-                            products.take(50).forEach { p ->
-                                DropdownMenuItem(
-                                    text = { Text("${p.nama} — Rp${"%,.0f".format(p.hargaJual)}", fontSize = 13.sp) },
-                                    onClick = { selectedProduct = p; showProductMenu = false }
-                                )
-                            }
-                        }
-                    }
-
-                    // Qty
-                    OutlinedTextField(
-                        value = qty,
-                        onValueChange = { qty = it },
-                        label = { Text("Qty") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
-                    )
-
-                    // Nominal
+                    // Nominal — primary required field, always visible
                     OutlinedTextField(
                         value = nominal,
                         onValueChange = { nominal = it },
@@ -401,19 +367,96 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                         isError = nominalDouble <= 0 && nominal.isNotBlank()
                     )
 
-                    // Keterangan — trigger AI Kategori debounce
-                    OutlinedTextField(
-                        value = keterangan,
-                        onValueChange = {
-                            keterangan = it
-                            viewModel.onKeteranganChanged(it)
-                        },
-                        label = { Text("Keterangan") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        placeholder = { Text("Contoh: Penjualan ayam geprek...") }
-                    )
+                    // ─── Opsi Lanjutan toggle ─────────────────────────────────
+                    TextButton(
+                        onClick = { showAdvanced = !showAdvanced },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = if (showAdvanced) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = if (showAdvanced) "Sembunyikan Opsi Lanjutan ▴" else "Opsi Lanjutan ▾",
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    // ─── Advanced fields: Produk, Qty, Keterangan ─────────────
+                    AnimatedVisibility(
+                        visible = showAdvanced,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Produk (opsional)
+                            ExposedDropdownMenuBox(
+                                expanded = showProductMenu,
+                                onExpandedChange = { if (products.isNotEmpty()) showProductMenu = it }
+                            ) {
+                                OutlinedTextField(
+                                    value = selectedProduct?.nama ?: "",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Produk (opsional)") },
+                                    placeholder = { Text("Pilih produk...") },
+                                    trailingIcon = {
+                                        Row {
+                                            if (selectedProduct != null) {
+                                                IconButton(
+                                                    onClick = { selectedProduct = null; nominal = "" },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = showProductMenu)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = showProductMenu,
+                                    onDismissRequest = { showProductMenu = false }
+                                ) {
+                                    products.take(50).forEach { p ->
+                                        DropdownMenuItem(
+                                            text = { Text("${p.nama} — Rp${"%,.0f".format(p.hargaJual)}", fontSize = 13.sp) },
+                                            onClick = { selectedProduct = p; showProductMenu = false }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Qty
+                            OutlinedTextField(
+                                value = qty,
+                                onValueChange = { qty = it },
+                                label = { Text("Qty") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+
+                            // Keterangan — trigger AI Kategori debounce
+                            OutlinedTextField(
+                                value = keterangan,
+                                onValueChange = {
+                                    keterangan = it
+                                    viewModel.onKeteranganChanged(it)
+                                },
+                                label = { Text("Keterangan") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                placeholder = { Text("Contoh: Penjualan ayam geprek...") }
+                            )
+                        }
+                    }
                 }
             }
 

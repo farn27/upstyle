@@ -21,25 +21,25 @@ fun BottomNavBar(viewModel: AppViewModel, currentScreen: Screen) {
         tonalElevation = 4.dp,
     ) {
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Home, null, Modifier.size(22.dp)) },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Beranda", Modifier.size(22.dp)) },
             label = { Text("Home", fontSize = 10.sp) },
             selected = currentScreen is Screen.Dashboard,
             onClick = { viewModel.navigateToRoot(Screen.Dashboard) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.PointOfSale, null, Modifier.size(22.dp)) },
+            icon = { Icon(Icons.Default.PointOfSale, contentDescription = "Point of Sale", Modifier.size(22.dp)) },
             label = { Text("POS", fontSize = 10.sp) },
             selected = currentScreen is Screen.Pos,
             onClick = { viewModel.navigate(Screen.Pos) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Inventory2, null, Modifier.size(22.dp)) },
+            icon = { Icon(Icons.Default.Inventory2, contentDescription = "Produk", Modifier.size(22.dp)) },
             label = { Text("Produk", fontSize = 10.sp) },
             selected = currentScreen is Screen.Products,
             onClick = { viewModel.navigate(Screen.Products) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.AccountBalanceWallet, null, Modifier.size(22.dp)) },
+            icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Keuangan", Modifier.size(22.dp)) },
             label = { Text("Keuangan", fontSize = 10.sp) },
             selected = currentScreen is Screen.Finance,
             onClick = { viewModel.navigate(Screen.Finance) }
@@ -49,7 +49,7 @@ fun BottomNavBar(viewModel: AppViewModel, currentScreen: Screen) {
                 BadgedBox(badge = {
                     if (unreadCount > 0) Badge { Text(if (unreadCount > 9) "9+" else unreadCount.toString()) }
                 }) {
-                    Icon(Icons.Default.Person, null, Modifier.size(22.dp))
+                    Icon(Icons.Default.Person, contentDescription = "Profil", Modifier.size(22.dp))
                 }
             },
             label = { Text("Profil", fontSize = 10.sp) },

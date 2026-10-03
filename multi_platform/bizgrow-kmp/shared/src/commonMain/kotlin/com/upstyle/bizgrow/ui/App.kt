@@ -17,9 +17,13 @@ import com.upstyle.bizgrow.ui.theme.BizgrowTheme
 
 @Composable
 fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
-    BizgrowTheme {
+    val advancedSettings by viewModel.advancedSettingsState.collectAsState(initial = viewModel.advancedSettingsState.value)
+    BizgrowTheme(darkTheme = advancedSettings.darkMode) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
+
+        // Adaptive layout placeholder — on tablets, future enhancement to show side panels
+        // val isCompact = LocalConfiguration.current.screenWidthDp < 600 // Android-specific
 
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register
 
@@ -71,6 +75,8 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.StockLogs      -> StockLogsScreen(viewModel)
                     is Screen.ProdukDetail   -> ProdukDetailScreen(viewModel, target.productId)
                     is Screen.BarcodeScanner -> BarcodeScannerScreen(viewModel)
+                    is Screen.StockMovement  -> StockMovementScreen(viewModel, target.productId)
+                    is Screen.PricingStrategy -> PricingStrategyScreen(viewModel, target.productId)
 
                     // POS
                     is Screen.Pos       -> PosScreen(viewModel)
@@ -150,8 +156,19 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.LandingPageScreen       -> LandingPageScreen(viewModel)
                     is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
 
+                    // Subscription & Billing
+                    is Screen.SubscriptionPlans -> SubscriptionPlansScreen(viewModel)
+                    is Screen.PlanUpgrade       -> PlanUpgradeScreen(viewModel)
+
                     // AI Features
                     is Screen.TransactionEntry -> TransactionEntryScreen(viewModel)
+
+                    // Export / Import
+                    is Screen.ExportImport -> ExportImportScreen(viewModel)
+
+                    // Help & Support
+                    is Screen.Diagnostics          -> DiagnosticsScreen(viewModel)
+                    is Screen.SupportTicketDetail  -> TicketDetailScreen(viewModel, target.ticketId)
 
                     else -> {}
                 }

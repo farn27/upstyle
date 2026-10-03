@@ -182,17 +182,15 @@ data class WebsiteBuilderState(
 )
 
 // â”€â”€â”€ Help Center State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-data class HelpFaq(
-    val id: Int,
-    val category: String,
-    val question: String,
-    val answer: String
-)
 data class HelpCenterState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val articles: List<com.upstyle.bizgrow.data.HelpArticle> = emptyList()
-
+    val articles: List<com.upstyle.bizgrow.data.HelpArticle> = emptyList(),
+    val faqs: List<com.upstyle.bizgrow.data.HelpFaqItem> = emptyList(),
+    val searchResults: List<com.upstyle.bizgrow.data.HelpArticle> = emptyList(),
+    val contextualArticles: Map<String, List<com.upstyle.bizgrow.data.HelpArticle>> = emptyMap(),
+    val diagnosticResult: com.upstyle.bizgrow.data.DiagnosticResult? = null,
+    val isOffline: Boolean = false
 )
 // â”€â”€â”€ Landing Page State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class LandingPageState(
@@ -220,4 +218,74 @@ data class AdvancedSettingsState(
     val phone: String = "",
     val darkMode: Boolean = false,
     val notifEnabled: Boolean = true
+)
+
+// ─── Subscription State ───────────────────────────────────────────────────────
+data class SubscriptionState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val plans: List<com.upstyle.bizgrow.data.SubscriptionPlan> = emptyList(),
+    val currentSubscription: com.upstyle.bizgrow.data.CurrentSubscription? = null,
+    val usageMetrics: com.upstyle.bizgrow.data.UsageMetrics? = null,
+    val invoices: List<com.upstyle.bizgrow.data.Invoice> = emptyList()
+)
+
+// ─── Billing State ────────────────────────────────────────────────────────────
+data class BillingState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val invoices: List<com.upstyle.bizgrow.data.Invoice> = emptyList(),
+    val activeSession: com.upstyle.bizgrow.data.PaymentSession? = null,
+    val activePaymentSession: com.upstyle.bizgrow.data.PaymentSession? = null,
+    val lastPaymentResult: com.upstyle.bizgrow.data.PaymentResult? = null
+)
+
+// ─── Product Variants State ───────────────────────────────────────────────────
+data class ProductVariantsState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val variants: List<com.upstyle.bizgrow.data.ProductVariant> = emptyList(),
+    val variantsByProduct: Map<String, List<com.upstyle.bizgrow.data.ProductVariant>> = emptyMap(),
+    val stockMovements: List<com.upstyle.bizgrow.data.StockMovement> = emptyList(),
+    val pricingStrategies: List<com.upstyle.bizgrow.data.PricingStrategy> = emptyList()
+)
+
+// ─── Bulk Operation State ─────────────────────────────────────────────────────
+data class BulkOperationState(
+    val isLoading: Boolean = false,
+    val isRunning: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val progress: Float = 0f, // 0.0 - 1.0
+    val currentOperationId: String? = null,
+    val lastResult: com.upstyle.bizgrow.data.BulkOperationResult? = null,
+    val currentResult: com.upstyle.bizgrow.data.BulkOperationResult? = null
+)
+
+// ─── Export / Import State ────────────────────────────────────────────────────
+data class ExportImportState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val exportProgress: Float = 0f, // 0.0 - 1.0
+    val lastExportResult: com.upstyle.bizgrow.data.ExportResult? = null,
+    val lastImportResult: com.upstyle.bizgrow.data.ImportResult? = null,
+    val importValidation: com.upstyle.bizgrow.data.ImportValidationResult? = null,
+    val validationResult: com.upstyle.bizgrow.data.ImportValidationResult? = null,
+    val exportHistory: List<com.upstyle.bizgrow.data.ExportHistoryItem> = emptyList()
+)
+
+// ─── Sync State ───────────────────────────────────────────────────────────────
+data class SyncState(
+    val isOnline: Boolean = true,
+    val isSyncing: Boolean = false,
+    val error: String? = null,
+    val queueSize: Int = 0,
+    val pendingCount: Int = 0,
+    val lastSyncedAt: String? = null,
+    val lastSyncAt: Long = 0L,
+    val pendingConflicts: List<com.upstyle.bizgrow.data.SyncConflict> = emptyList()
 )

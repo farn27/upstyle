@@ -80,6 +80,11 @@ class SessionRepository(private val settings: Settings) {
     fun saveToCache(key: String, value: String) = settings.putString("cache_$key", value)
     fun loadFromCache(key: String): String? = settings.getStringOrNull("cache_$key")
     fun clearCache(key: String) = settings.remove("cache_$key")
+
+    // TTL helpers — used by CacheManager.putWithTtl / getIfFresh
+    fun saveLongToCache(key: String, value: Long) = settings.putLong("cache_$key", value)
+    fun loadLongFromCache(key: String): Long? = settings.getLongOrNull("cache_$key")
+    fun clearLongFromCache(key: String) = settings.remove("cache_$key")
     
     fun clearAllCache() {
         // Clear all keys starting with "cache_"
