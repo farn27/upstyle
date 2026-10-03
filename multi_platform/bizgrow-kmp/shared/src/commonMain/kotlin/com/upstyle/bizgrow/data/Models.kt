@@ -1860,10 +1860,7 @@ data class ImportResult(
     val totalRows: Int = 0,
     val successRows: Int = 0,
     val failedRows: Int = 0,
-    val errors: List<String> = emptyList() {
-    val importedCount: Int get() = successRows
-    val failedCount: Int get() = failedRows
-},
+    val errors: List<String> = emptyList(),
     val completedAt: String = ""
 )
 
@@ -1883,9 +1880,7 @@ data class ExportHistoryItem(
 data class ImportValidationResult(
     val isValid: Boolean = false,
     val totalRows: Int = 0,
-    val errors: List<String> = emptyList() {
-    val rowCount: Int get() = totalRows
-},
+    val errors: List<String> = emptyList(),
     val suggestedMapping: Map<String, String> = emptyMap()
 )
 

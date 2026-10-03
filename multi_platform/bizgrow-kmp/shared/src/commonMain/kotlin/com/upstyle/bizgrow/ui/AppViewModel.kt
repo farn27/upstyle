@@ -1341,7 +1341,7 @@ class AppViewModel(
                 _ordersState.update { it.copy(isLoading = false, error = res.error) }
             }
         } catch (e: Exception) {
-            _ordersState.update { it.copy(isLoading = false, error = e.error) }
+            _ordersState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -1528,7 +1528,7 @@ class AppViewModel(
             val res = api.createBusinessPlan(plan.copy(unitId = unitId))
             if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil dibuat!") }
             else { _businessPlansState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun loadSosmedPosts() = viewModelScope.launch {
@@ -1550,7 +1550,7 @@ class AppViewModel(
             val res = api.createSosmedPost(com.upstyle.bizgrow.data.SocialPost(unitId = unitId, platform = platform, caption = caption, imageUrl = imageUrl, scheduledAt = scheduledAt ?: "", status = status))
             if (res.success) { loadSosmedPosts(); setSuccess("Postingan sosial media berhasil dibuat!") }
             else { _sosmedState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun loadWebsiteSettings() = viewModelScope.launch {
@@ -1572,7 +1572,7 @@ class AppViewModel(
             val res = api.saveWebsiteSettings(settings.copy(unitId = unitId))
             if (res.success) { _websiteState.update { it.copy(isLoading = false) }; setSuccess("Pengaturan website berhasil disimpan!") }
             else { _websiteState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _websiteState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _websiteState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun loadHelpArticles() = viewModelScope.launch {
@@ -1639,7 +1639,7 @@ class AppViewModel(
             val result = api.searchHelp(query)
             _helpState.update { it.copy(isLoading = false, searchResults = result.data ?: emptyList()) }
         } catch (e: Exception) {
-            _helpState.update { it.copy(isLoading = false, error = e.error) }
+            _helpState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -1670,7 +1670,7 @@ class AppViewModel(
                 _helpState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _helpState.update { it.copy(isLoading = false, error = e.error) }
+            _helpState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -1681,7 +1681,7 @@ class AppViewModel(
             val result = api.runDiagnostics(unitId)
             _helpState.update { it.copy(isLoading = false, diagnosticResult = result.data) }
         } catch (e: Exception) {
-            _helpState.update { it.copy(isLoading = false, error = e.error) }
+            _helpState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -1714,7 +1714,7 @@ class AppViewModel(
             val res = api.createLandingPage(page.copy(unitId = unitId))
             if (res.success) { loadLandingPages(); setSuccess("Landing page berhasil dibuat!") }
             else { _landingPageState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun updateLandingPage(page: LandingPage) = viewModelScope.launch {
@@ -1723,7 +1723,7 @@ class AppViewModel(
             val res = api.updateLandingPage(page)
             if (res.success) { loadLandingPages(); setSuccess("Landing page berhasil diperbarui!") }
             else { _landingPageState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _landingPageState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun deleteLandingPage(pageId: Int) = viewModelScope.launch {
@@ -1762,7 +1762,7 @@ class AppViewModel(
             val res = api.connectShopee(ShopeeIntegration(unitId = unitId, shopId = shopId, shopName = shopName, accessToken = token, isActive = true))
             if (res.success) { _shopeeState.update { it.copy(isLoading = false, integration = res.data) }; setSuccess("Shopee berhasil terhubung!") }
             else { _shopeeState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _shopeeState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _shopeeState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun disconnectShopee() = viewModelScope.launch {
@@ -1808,7 +1808,7 @@ class AppViewModel(
             val res = api.updateProfile(unitId, mapOf("name" to name, "email" to email, "phone" to phone))
             if (res.success) { _advancedSettingsState.update { it.copy(isSaving = false, successMessage = "Profil berhasil disimpan!") }; setSuccess("Profil berhasil disimpan!") }
             else { _advancedSettingsState.update { it.copy(isSaving = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun changePassword(currentPassword: String, newPassword: String) = viewModelScope.launch {
@@ -1817,7 +1817,7 @@ class AppViewModel(
             val res = api.changePassword(mapOf("currentPassword" to currentPassword, "newPassword" to newPassword))
             if (res.success) { _advancedSettingsState.update { it.copy(isSaving = false, successMessage = "Password berhasil diubah!") }; setSuccess("Password berhasil diubah!") }
             else { _advancedSettingsState.update { it.copy(isSaving = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean) = viewModelScope.launch {
@@ -2070,7 +2070,7 @@ class AppViewModel(
             val res = api.updateSocialPost(SocialPost(id = id, unitId = unitId, platform = platform, caption = caption, imageUrl = imageUrl, scheduledAt = scheduledAt ?: "", status = status))
             if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil diperbarui!") }
             else { _sosmedState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _sosmedState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun deleteSosmedPost(postId: Int) = viewModelScope.launch {
@@ -2100,7 +2100,7 @@ class AppViewModel(
             val res = api.createBusinessPlan(plan)
             if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil dibuat!") }
             else { _businessPlansState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun updateBusinessPlan(id: Int, title: String, description: String, status: String) = viewModelScope.launch {
@@ -2111,7 +2111,7 @@ class AppViewModel(
             val res = api.updateBusinessPlan(plan)
             if (res.success) { loadBusinessPlans(); setSuccess("Business plan berhasil diperbarui!") }
             else { _businessPlansState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.error) }; setError("Koneksi gagal: ${e.message}") }
+        } catch (e: Exception) { _businessPlansState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
 
     fun deleteBusinessPlan(id: Int) = viewModelScope.launch {
@@ -2206,7 +2206,7 @@ class AppViewModel(
                 _subscriptionState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _subscriptionState.update { it.copy(isLoading = false, error = e.error) }
+            _subscriptionState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2220,7 +2220,7 @@ class AppViewModel(
                 _subscriptionState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _subscriptionState.update { it.copy(isLoading = false, error = e.error) }
+            _subscriptionState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2262,7 +2262,7 @@ class AppViewModel(
                 _billingState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _billingState.update { it.copy(isLoading = false, error = e.error) }
+            _billingState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2279,7 +2279,7 @@ class AppViewModel(
                 _billingState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _billingState.update { it.copy(isLoading = false, error = e.error) }
+            _billingState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2295,7 +2295,7 @@ class AppViewModel(
                 _billingState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _billingState.update { it.copy(isLoading = false, error = e.error) }
+            _billingState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2323,7 +2323,7 @@ class AppViewModel(
                 _productVariantsState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(isLoading = false, error = e.error) }
+            _productVariantsState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2335,7 +2335,7 @@ class AppViewModel(
             if (result.success) loadProductVariants(variant.productId)
             else _productVariantsState.update { it.copy(error = result.error) }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(error = e.error) }
+            _productVariantsState.update { it.copy(error = e.message) }
         }
     }
 
@@ -2347,7 +2347,7 @@ class AppViewModel(
             if (result.success) loadProductVariants(variant.productId)
             else _productVariantsState.update { it.copy(error = result.error) }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(error = e.error) }
+            _productVariantsState.update { it.copy(error = e.message) }
         }
     }
 
@@ -2359,7 +2359,7 @@ class AppViewModel(
             if (result.success) loadProductVariants(productId)
             else _productVariantsState.update { it.copy(error = result.error) }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(error = e.error) }
+            _productVariantsState.update { it.copy(error = e.message) }
         }
     }
 
@@ -2375,7 +2375,7 @@ class AppViewModel(
                 _productVariantsState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(isLoading = false, error = e.error) }
+            _productVariantsState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2412,7 +2412,7 @@ class AppViewModel(
             if (result.success) loadPricingStrategies(strategy.productId)
             else _productVariantsState.update { it.copy(error = result.error) }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(error = e.error) }
+            _productVariantsState.update { it.copy(error = e.message) }
         }
     }
 
@@ -2430,7 +2430,7 @@ class AppViewModel(
                 _bulkOperationState.update { it.copy(isRunning = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _bulkOperationState.update { it.copy(isRunning = false, error = e.error) }
+            _bulkOperationState.update { it.copy(isRunning = false, error = e.message) }
         }
     }
 
@@ -2451,7 +2451,7 @@ class AppViewModel(
                 _bulkOperationState.update { it.copy(error = result.error) }
             }
         } catch (e: Exception) {
-            _bulkOperationState.update { it.copy(error = e.error) }
+            _bulkOperationState.update { it.copy(error = e.message) }
         }
     }
 
@@ -2467,7 +2467,7 @@ class AppViewModel(
                 _productVariantsState.update { it.copy(error = result.error) }
             }
         } catch (e: Exception) {
-            _productVariantsState.update { it.copy(error = e.error) }
+            _productVariantsState.update { it.copy(error = e.message) }
         }
     }
 
@@ -2499,7 +2499,7 @@ class AppViewModel(
                 _exportImportState.update { it.copy(isLoading = false, exportProgress = 0f, error = result.error) }
             }
         } catch (e: Exception) {
-            _exportImportState.update { it.copy(isLoading = false, exportProgress = 0f, error = e.error) }
+            _exportImportState.update { it.copy(isLoading = false, exportProgress = 0f, error = e.message) }
         }
     }
 
@@ -2511,7 +2511,7 @@ class AppViewModel(
             val result = api.validateImportFile(unitId, dataType, fileBase64, fileName)
             _exportImportState.update { it.copy(isLoading = false, validationResult = result.data) }
         } catch (e: Exception) {
-            _exportImportState.update { it.copy(isLoading = false, error = e.error) }
+            _exportImportState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
@@ -2532,7 +2532,7 @@ class AppViewModel(
                 _exportImportState.update { it.copy(isLoading = false, error = result.error) }
             }
         } catch (e: Exception) {
-            _exportImportState.update { it.copy(isLoading = false, error = e.error) }
+            _exportImportState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
 
