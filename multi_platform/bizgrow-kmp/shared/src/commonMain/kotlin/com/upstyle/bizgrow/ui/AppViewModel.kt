@@ -202,6 +202,19 @@ class AppViewModel(
             loadNotifications()
         } catch (e: Exception) { Napier.e("markAllRead error", e) }
     }
+
+    /** Alias used by NotificationScreen */
+    fun markAllNotificationsRead() = markAllRead()
+
+    fun markNotifRead(notifId: Int) = viewModelScope.launch {
+        try {
+            api.markNotificationRead(notifId)
+            _notifications.value = _notifications.value.map {
+                if (it.id == notifId) it.copy(isRead = 1) else it
+            }
+            _unreadCount.value = _notifications.value.count { it.isRead == 0 }
+        } catch (e: Exception) { Napier.e("markNotifRead error", e) }
+    }
     
     fun updateOrderStatus(orderId: Int, status: String) = viewModelScope.launch {
         setLoading(true)
@@ -1536,6 +1549,109 @@ class AppViewModel(
         }
     }
 
+    // ─── Help Center & Diagnostics ────────────────────────────────────────────
+
+    fun loadContextualHelp(screenName: String) = viewModelScope.launch {
+        _helpState.update { it.copy(isLoading = true) }
+        try {
+            val result = api.getContextualHelp(screenName)
+            if (result.success) {
+                val articles = result.data ?: emptyList()
+                _helpState.update { state ->
+                    val updated = state.contextualArticles.toMutableMap().also { it[screenName] = articles }
+                    state.copy(isLoading = false, articles = articles, contextualArticles = updated)
+                }
+                // Cache for offline use — 24 hours TTL
+                cacheManager.putListWithTtl(
+                    "help_articles_$screenName", articles,
+                    ttlMs = 24 * 60 * 60 * 1000L,
+                    serializer = com.upstyle.bizgrow.data.HelpArticle.serializer()
+                )
+            } else {
+                val cached = cacheManager.getListIfFresh(
+                    "help_articles_$screenName",
+                    com.upstyle.bizgrow.data.HelpArticle.serializer()
+                )
+                _helpState.update {
+                    it.copy(isLoading = false, articles = cached ?: emptyList(), isOffline = cached != null)
+                }
+            }
+        } catch (e: Exception) {
+            val cached = cacheManager.getListIfFresh(
+                "help_articles_$screenName",
+                com.upstyle.bizgrow.data.HelpArticle.serializer()
+            )
+            _helpState.update {
+                it.copy(
+                    isLoading = false,
+                    articles = cached ?: emptyList(),
+                    error = if (cached == null) e.message else null,
+                    isOffline = cached != null
+                )
+            }
+        }
+    }
+
+    fun searchHelp(query: String) = viewModelScope.launch {
+        if (query.isBlank()) {
+            _helpState.update { it.copy(searchResults = emptyList()) }
+            return@launch
+        }
+        _helpState.update { it.copy(isLoading = true) }
+        try {
+            val result = api.searchHelp(query)
+            _helpState.update { it.copy(isLoading = false, searchResults = result.data ?: emptyList()) }
+        } catch (e: Exception) {
+            _helpState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun loadHelpFaqs(category: String? = null) = viewModelScope.launch {
+        try {
+            val result = api.getHelpFaqs(category)
+            if (result.success) {
+                _helpState.update { it.copy(faqs = result.data ?: emptyList()) }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun submitHelpTicket(title: String, description: String, priority: String = "medium") = viewModelScope.launch {
+        val unitId = _activeUnitId.value.takeIf { it != 0 } ?: return@launch
+        _helpState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val req = com.upstyle.bizgrow.data.SubmitSupportTicketRequest(
+                title = title,
+                description = description,
+                priority = priority,
+                unitId = unitId
+            )
+            val result = api.submitSupportTicket(req)
+            if (result.success) {
+                _helpState.update { it.copy(isLoading = false) }
+                setSuccess("Tiket dukungan berhasil dikirim!")
+            } else {
+                _helpState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _helpState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun runDiagnostics() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        _helpState.update { it.copy(isLoading = true) }
+        try {
+            val result = api.runDiagnostics(unitId)
+            _helpState.update { it.copy(isLoading = false, diagnosticResult = result.data) }
+        } catch (e: Exception) {
+            _helpState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun clearHelpError() {
+        _helpState.update { it.copy(error = null) }
+    }
+
     fun loadLandingPages() = viewModelScope.launch {
         _landingPageState.update { it.copy(isLoading = true, error = null) }
         val unitId = _activeUnitId.value
@@ -2033,5 +2149,364 @@ class AppViewModel(
             val res = api.getBudgetItems(unitId, year)
             if (res.success) _budgetItems.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadBudgetItems error", e) }
+    }
+
+    // ─── Subscription & Billing ───────────────────────────────────────────────
+
+    private val _subscriptionState = MutableStateFlow(SubscriptionState())
+    val subscriptionState: StateFlow<SubscriptionState> = _subscriptionState.asStateFlow()
+
+    private val _billingState = MutableStateFlow(BillingState())
+    val billingState: StateFlow<BillingState> = _billingState.asStateFlow()
+
+    fun loadSubscriptionPlans() = viewModelScope.launch {
+        _subscriptionState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val result = api.getSubscriptionPlans()
+            if (result.success) {
+                _subscriptionState.update { it.copy(isLoading = false, plans = result.data ?: emptyList()) }
+            } else {
+                _subscriptionState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _subscriptionState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun loadCurrentSubscription() = viewModelScope.launch {
+        _subscriptionState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val result = api.getCurrentSubscription()
+            if (result.success) {
+                _subscriptionState.update { it.copy(isLoading = false, currentSubscription = result.data) }
+            } else {
+                _subscriptionState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _subscriptionState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun loadUsageMetrics() = viewModelScope.launch {
+        try {
+            val result = api.getUsageMetrics()
+            if (result.success) {
+                _subscriptionState.update { it.copy(usageMetrics = result.data) }
+                // Notify if any metric is >= 80%
+                result.data?.let { metrics ->
+                    val productPct = if (metrics.maxProducts > 0) metrics.productCount * 100 / metrics.maxProducts else 0
+                    val userPct = if (metrics.maxUsers > 0) metrics.userCount * 100 / metrics.maxUsers else 0
+                    if (productPct >= 80 || userPct >= 80) {
+                        // Surface warning through subscriptionState successMessage field (non-blocking)
+                        _subscriptionState.update { it.copy(successMessage = "Peringatan: penggunaan mendekati batas paket Anda") }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun loadInvoices() = viewModelScope.launch {
+        try {
+            val result = api.getInvoices()
+            if (result.success) {
+                _subscriptionState.update { it.copy(invoices = result.data ?: emptyList()) }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun initiatePayment(planId: String, paymentMethod: String = "credit_card") = viewModelScope.launch {
+        _billingState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val req = PaymentRequest(planId = planId, paymentMethod = paymentMethod)
+            val result = api.initPaymentSession(req)
+            if (result.success) {
+                _billingState.update { it.copy(isLoading = false, activePaymentSession = result.data) }
+            } else {
+                _billingState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _billingState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun confirmPayment(sessionId: String) = viewModelScope.launch {
+        _billingState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val result = api.confirmPayment(sessionId)
+            if (result.success) {
+                _billingState.update { it.copy(isLoading = false, lastPaymentResult = result.data, activePaymentSession = null) }
+                // Refresh subscription after successful payment
+                loadCurrentSubscription()
+                loadUsageMetrics()
+            } else {
+                _billingState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _billingState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun upgradePlan(planId: String, paymentMethod: String = "credit_card", billingCycle: String = "monthly") = viewModelScope.launch {
+        _billingState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val result = api.upgradePlan(planId, paymentMethod)
+            if (result.success) {
+                _billingState.update { it.copy(isLoading = false, lastPaymentResult = result.data, successMessage = "Paket berhasil diupgrade") }
+                loadCurrentSubscription()
+            } else {
+                _billingState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _billingState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    // ─── Product Variants & Bulk Operations ───────────────────────────────────
+
+    private val _productVariantsState = MutableStateFlow(ProductVariantsState())
+    val productVariantsState: StateFlow<ProductVariantsState> = _productVariantsState.asStateFlow()
+
+    private val _bulkOperationState = MutableStateFlow(BulkOperationState())
+    val bulkOperationState: StateFlow<BulkOperationState> = _bulkOperationState.asStateFlow()
+
+    fun loadProductVariants(productId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _productVariantsState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val result = api.getProductVariants(unitId, productId)
+            if (result.success) {
+                val variants = result.data ?: emptyList()
+                _productVariantsState.update { state ->
+                    val updated = state.variantsByProduct.toMutableMap().also { it[productId] = variants }
+                    state.copy(isLoading = false, variantsByProduct = updated)
+                }
+            } else {
+                _productVariantsState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun createVariant(variant: ProductVariant) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.createVariant(unitId, variant)
+            if (result.success) loadProductVariants(variant.productId)
+            else _productVariantsState.update { it.copy(error = result.message) }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun updateVariant(variant: ProductVariant) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.updateVariant(unitId, variant)
+            if (result.success) loadProductVariants(variant.productId)
+            else _productVariantsState.update { it.copy(error = result.message) }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun deleteVariant(variantId: String, productId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.deleteVariant(unitId, variantId)
+            if (result.success) loadProductVariants(productId)
+            else _productVariantsState.update { it.copy(error = result.message) }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun loadStockMovements(productId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _productVariantsState.update { it.copy(isLoading = true) }
+        try {
+            val result = api.getStockMovements(unitId, productId)
+            if (result.success) {
+                _productVariantsState.update { it.copy(isLoading = false, stockMovements = result.data ?: emptyList()) }
+            } else {
+                _productVariantsState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun validatePricingStrategy(strategy: PricingStrategy, existing: List<PricingStrategy>): Boolean {
+        return existing.none { other ->
+            other.id != strategy.id &&
+            other.productId == strategy.productId &&
+            strategy.startDate <= other.endDate &&
+            strategy.endDate >= other.startDate
+        }
+    }
+
+    fun loadPricingStrategies(productId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.getPricingStrategies(unitId, productId)
+            if (result.success) {
+                _productVariantsState.update { it.copy(pricingStrategies = result.data ?: emptyList()) }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun applyPricingStrategy(strategy: PricingStrategy) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        val existing = _productVariantsState.value.pricingStrategies.filter { it.productId == strategy.productId }
+        if (!validatePricingStrategy(strategy, existing)) {
+            _productVariantsState.update { it.copy(error = "Tanggal pricing strategy overlap dengan yang sudah ada") }
+            return@launch
+        }
+        try {
+            val result = api.applyPricingStrategy(unitId, strategy)
+            if (result.success) loadPricingStrategies(strategy.productId)
+            else _productVariantsState.update { it.copy(error = result.message) }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun bulkUpdateProducts(productIds: List<String>, type: String, payload: Map<String, String> = emptyMap()) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _bulkOperationState.update { it.copy(isRunning = true, error = null, progress = 0f) }
+        try {
+            val operation = BulkOperation(type = type, productIds = productIds, payload = payload)
+            val result = api.bulkUpdateProducts(unitId, operation)
+            if (result.success) {
+                _bulkOperationState.update { it.copy(isRunning = false, progress = 1f, currentResult = result.data) }
+            } else {
+                _bulkOperationState.update { it.copy(isRunning = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _bulkOperationState.update { it.copy(isRunning = false, error = e.message) }
+        }
+    }
+
+    fun clearBulkOperationResult() {
+        _bulkOperationState.update { it.copy(currentResult = null, error = null, progress = 0f) }
+    }
+
+    fun rollbackBulkOperation(operationId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.rollbackBulkOperation(unitId, operationId)
+            if (result.success) {
+                clearBulkOperationResult()
+                loadProducts()
+                _uiState.update { it.copy(successMessage = "Operasi bulk berhasil di-rollback") }
+            } else {
+                _bulkOperationState.update { it.copy(error = result.message) }
+            }
+        } catch (e: Exception) {
+            _bulkOperationState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun deletePricingStrategy(strategyId: String, productId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.deletePricingStrategy(unitId, strategyId)
+            if (result.success) {
+                loadPricingStrategies(productId)
+                _uiState.update { it.copy(successMessage = "Aturan pricing dihapus") }
+            } else {
+                _productVariantsState.update { it.copy(error = result.message) }
+            }
+        } catch (e: Exception) {
+            _productVariantsState.update { it.copy(error = e.message) }
+        }
+    }
+
+    fun clearProductVariantsError() {
+        _productVariantsState.update { it.copy(error = null) }
+    }
+
+    // ─── Export / Import ──────────────────────────────────────────────────────
+
+    private val _exportImportState = MutableStateFlow(ExportImportState())
+    val exportImportState: StateFlow<ExportImportState> = _exportImportState.asStateFlow()
+
+    fun exportData(dataType: String, format: String, startDate: String? = null, endDate: String? = null) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _exportImportState.update { it.copy(isLoading = true, error = null, exportProgress = 0f) }
+        try {
+            _exportImportState.update { it.copy(exportProgress = 0.3f) }
+            val result = api.exportData(unitId, dataType, format, startDate, endDate)
+            if (result.success) {
+                _exportImportState.update { it.copy(
+                    isLoading = false, exportProgress = 1f,
+                    lastExportResult = result.data,
+                    successMessage = "Export berhasil: ${result.data?.fileName}"
+                ) }
+                loadExportHistory()
+            } else {
+                _exportImportState.update { it.copy(isLoading = false, exportProgress = 0f, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _exportImportState.update { it.copy(isLoading = false, exportProgress = 0f, error = e.message) }
+        }
+    }
+
+    fun validateImportFile(dataType: String, fileBase64: String, fileName: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _exportImportState.update { it.copy(isLoading = true, error = null, validationResult = null) }
+        try {
+            val result = api.validateImportFile(unitId, dataType, fileBase64, fileName)
+            _exportImportState.update { it.copy(isLoading = false, validationResult = result.data) }
+        } catch (e: Exception) {
+            _exportImportState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun importData(dataType: String, fileBase64: String, fileName: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _exportImportState.update { it.copy(isLoading = true, error = null) }
+        try {
+            val result = api.importData(unitId, dataType, fileBase64, fileName)
+            if (result.success) {
+                _exportImportState.update { it.copy(
+                    isLoading = false,
+                    lastImportResult = result.data,
+                    successMessage = "Import berhasil: ${result.data?.importedCount} data diimport"
+                ) }
+            } else {
+                _exportImportState.update { it.copy(isLoading = false, error = result.message) }
+            }
+        } catch (e: Exception) {
+            _exportImportState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun loadExportHistory() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val result = api.getExportHistory(unitId)
+            if (result.success) {
+                _exportImportState.update { it.copy(exportHistory = result.data ?: emptyList()) }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun clearExportImportMessages() {
+        _exportImportState.update { it.copy(error = null, successMessage = null, exportProgress = 0f) }
     }
 }

@@ -396,6 +396,17 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("lastUpdate", lastUpdate)
         }.body()
 
+    // ─── Sync Queue ───────────────────────────────────────────────────────────
+
+    /**
+     * Flush all queued offline actions to the server in a single batch request.
+     * Returns success=true when all items were processed.
+     */
+    suspend fun flushSyncQueue(unitId: Int, items: List<com.upstyle.bizgrow.data.SyncQueueItem>): com.upstyle.bizgrow.data.ApiResponse<Unit> =
+        client.post("api/app/sync/flush") {
+            setBody(com.upstyle.bizgrow.data.SyncQueueFlushRequest(unitId = unitId, items = items))
+        }.body()
+
     // ─── QR Code ─────────────────────────────────────────────────────────────
 
     suspend fun generateQrCode(data: String): ApiResponse<Map<String, String>> =
@@ -868,5 +879,377 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> =
         client.post("api/app/shopee") {
             setBody(mapOf("action" to "disconnect"))
+        }.body()
+
+    // ─── Subscription & Billing ───────────────────────────────────────────────
+
+    suspend fun getSubscriptionPlans(): ApiResponse<List<SubscriptionPlan>> =
+        client.get("api/app/subscription/plans").body()
+
+    suspend fun getCurrentSubscription(): ApiResponse<CurrentSubscription> =
+        client.get("api/app/subscription/current").body()
+
+    suspend fun upgradePlan(planId: String, paymentMethod: String): ApiResponse<PaymentResult> =
+        client.post("api/app/subscription/upgrade") {
+            setBody(mapOf("planId" to planId, "paymentMethod" to paymentMethod))
+        }.body()
+
+    suspend fun downgradePlan(planId: String): ApiResponse<PaymentResult> =
+        client.post("api/app/subscription/downgrade") {
+            setBody(mapOf("planId" to planId))
+        }.body()
+
+    suspend fun getInvoices(): ApiResponse<List<Invoice>> =
+        client.get("api/app/subscription/invoices").body()
+
+    suspend fun getUsageMetrics(): ApiResponse<UsageMetrics> =
+        client.get("api/app/subscription/usage").body()
+
+    suspend fun initPaymentSession(req: PaymentRequest): ApiResponse<PaymentSession> =
+        client.post("api/app/subscription/payment/init") { setBody(req) }.body()
+
+    suspend fun confirmPayment(sessionId: String): ApiResponse<PaymentResult> =
+        client.post("api/app/subscription/payment/confirm") {
+            setBody(mapOf("sessionId" to sessionId))
+        }.body()
+
+    // ─── Product Variants ─────────────────────────────────────────────────────
+
+    suspend fun getProductVariants(productId: String): ApiResponse<List<ProductVariant>> =
+        client.get("api/app/products/variants") {
+            parameter("productId", productId)
+        }.body()
+
+    suspend fun createProductWithVariants(product: Product): ApiResponse<Product> =
+        client.post("api/app/products/variants") { setBody(product) }.body()
+
+    suspend fun updateVariant(variant: ProductVariant): ApiResponse<Unit> =
+        client.put("api/app/products/variants") { setBody(variant) }.body()
+
+    suspend fun deleteVariant(variantId: String): ApiResponse<Unit> =
+        client.delete("api/app/products/variants") { parameter("variantId", variantId) }.body()
+
+    suspend fun getStockMovements(
+        productId: String,
+        variantId: String? = null,
+        startDate: String? = null,
+        endDate: String? = null
+    ): ApiResponse<List<StockMovement>> =
+        client.get("api/app/products/stock-movements") {
+            parameter("productId", productId)
+            variantId?.let { parameter("variantId", it) }
+            startDate?.let { parameter("startDate", it) }
+            endDate?.let { parameter("endDate", it) }
+        }.body()
+
+    suspend fun bulkUpdateProducts(updates: List<ProductBulkUpdate>): ApiResponse<BulkOperationResult> =
+        client.post("api/app/products/bulk") {
+            setBody(mapOf("updates" to updates))
+        }.body()
+
+    suspend fun rollbackBulkOperation(operationId: String): ApiResponse<Unit> =
+        client.post("api/app/products/bulk/rollback") {
+            setBody(mapOf("operationId" to operationId))
+        }.body()
+
+    suspend fun getPricingStrategies(productId: String): ApiResponse<List<PricingStrategy>> =
+        client.get("api/app/products/pricing-strategies") {
+            parameter("productId", productId)
+        }.body()
+
+    suspend fun applyPricingStrategy(productId: String, strategy: PricingStrategy): ApiResponse<Unit> =
+        client.post("api/app/products/pricing-strategies") {
+            setBody(mapOf("productId" to productId, "strategy" to strategy))
+        }.body()
+
+    suspend fun deletePricingStrategy(strategyId: String): ApiResponse<Unit> =
+        client.delete("api/app/products/pricing-strategies") {
+            parameter("strategyId", strategyId)
+        }.body()
+
+    // ─── Export / Import ──────────────────────────────────────────────────────
+
+    suspend fun exportData(
+        dataType: String,
+        format: String,
+        unitId: Int,
+        startDate: String? = null,
+        endDate: String? = null,
+        filters: Map<String, String> = emptyMap()
+    ): ApiResponse<ExportResult> =
+        client.post("api/app/export") {
+            setBody(mapOf(
+                "dataType" to dataType,
+                "format" to format,
+                "unitId" to unitId,
+                "startDate" to (startDate ?: ""),
+                "endDate" to (endDate ?: ""),
+                "filters" to filters
+            ))
+        }.body()
+
+    suspend fun importData(
+        fileName: String,
+        fileBase64: String,
+        dataType: String,
+        unitId: Int,
+        fieldMapping: Map<String, String> = emptyMap()
+    ): ApiResponse<ImportResult> =
+        client.post("api/app/import") {
+            setBody(mapOf(
+                "fileName" to fileName,
+                "fileBase64" to fileBase64,
+                "dataType" to dataType,
+                "unitId" to unitId,
+                "fieldMapping" to fieldMapping
+            ))
+        }.body()
+
+    suspend fun validateImportFile(
+        fileName: String,
+        fileBase64: String,
+        dataType: String
+    ): ApiResponse<ImportValidationResult> =
+        client.post("api/app/import/validate") {
+            setBody(mapOf(
+                "fileName" to fileName,
+                "fileBase64" to fileBase64,
+                "dataType" to dataType
+            ))
+        }.body()
+
+    suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
+        client.get("api/app/export/history") {
+            parameter("unitId", unitId)
+        }.body()
+
+    // ─── Help / Diagnostics ───────────────────────────────────────────────────
+
+    suspend fun getContextualHelp(screenName: String, locale: String = "id"): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help/contextual") {
+            parameter("screen", screenName)
+            parameter("locale", locale)
+        }.body()
+
+    suspend fun searchHelp(query: String, locale: String = "id"): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help/search") {
+            parameter("q", query)
+            parameter("locale", locale)
+        }.body()
+
+    suspend fun submitSupportTicket(req: SubmitSupportTicketRequest): ApiResponse<SupportTicket> =
+        client.post("api/app/help/tickets") { setBody(req) }.body()
+
+    suspend fun runDiagnostics(): ApiResponse<DiagnosticResult> =
+        client.get("api/app/diagnostics").body()
+
+    // ─── Sync Queue ───────────────────────────────────────────────────────────
+
+    suspend fun flushSyncQueue(items: List<SyncQueueItem>): ApiResponse<SyncResult> =
+        client.post("api/app/sync/flush") {
+            setBody(mapOf("items" to items))
+        }.body()
+
+    suspend fun resolveConflict(
+        entityType: String,
+        entityId: String,
+        resolution: String // "local" | "remote"
+    ): ApiResponse<Unit> =
+        client.post("api/app/sync/resolve") {
+            setBody(mapOf(
+                "entityType" to entityType,
+                "entityId" to entityId,
+                "resolution" to resolution
+            ))
+        }.body()
+
+    // ─── Subscription & Billing (unitId-scoped) ───────────────────────────────
+
+    suspend fun getBillingPlans(): ApiResponse<List<SubscriptionPlan>> =
+        client.get("api/app/billing/plans").body()
+
+    suspend fun getCurrentSubscription(unitId: Int): ApiResponse<CurrentSubscription> =
+        client.get("api/app/billing/subscription") { parameter("unitId", unitId) }.body()
+
+    suspend fun getUsageMetrics(unitId: Int): ApiResponse<UsageMetrics> =
+        client.get("api/app/billing/usage") { parameter("unitId", unitId) }.body()
+
+    suspend fun getBillingInvoices(unitId: Int): ApiResponse<List<Invoice>> =
+        client.get("api/app/billing/invoices") { parameter("unitId", unitId) }.body()
+
+    suspend fun initBillingPaymentSession(unitId: Int, req: PaymentRequest): ApiResponse<PaymentSession> =
+        client.post("api/app/billing/payment/init") {
+            parameter("unitId", unitId)
+            setBody(req)
+        }.body()
+
+    suspend fun confirmBillingPayment(sessionId: String): ApiResponse<PaymentResult> =
+        client.post("api/app/billing/payment/confirm") {
+            setBody(mapOf("sessionId" to sessionId))
+        }.body()
+
+    suspend fun upgradePlan(unitId: Int, planId: String, req: PaymentRequest): ApiResponse<PaymentResult> =
+        client.post("api/app/billing/upgrade") {
+            parameter("unitId", unitId)
+            setBody(mapOf("planId" to planId, "paymentMethod" to req.paymentMethod))
+        }.body()
+
+    suspend fun downgradePlan(unitId: Int, planId: String): ApiResponse<Unit> =
+        client.post("api/app/billing/downgrade") {
+            setBody(mapOf("unitId" to unitId, "planId" to planId))
+        }.body()
+
+    // ─── Product Variants (unitId-scoped) ─────────────────────────────────────
+
+    suspend fun getProductVariants(unitId: Int, productId: String): ApiResponse<List<ProductVariant>> =
+        client.get("api/app/products/variants") {
+            parameter("unitId", unitId)
+            parameter("productId", productId)
+        }.body()
+
+    suspend fun createVariant(unitId: Int, variant: ProductVariant): ApiResponse<Unit> =
+        client.post("api/app/products/variants") {
+            parameter("unitId", unitId)
+            setBody(variant)
+        }.body()
+
+    suspend fun updateVariant(unitId: Int, variant: ProductVariant): ApiResponse<Unit> =
+        client.put("api/app/products/variants") {
+            parameter("unitId", unitId)
+            setBody(variant)
+        }.body()
+
+    suspend fun deleteVariant(unitId: Int, variantId: String): ApiResponse<Unit> =
+        client.delete("api/app/products/variants") {
+            parameter("unitId", unitId)
+            parameter("variantId", variantId)
+        }.body()
+
+    suspend fun getStockMovements(unitId: Int, productId: String): ApiResponse<List<StockMovement>> =
+        client.get("api/app/products/stock-movements") {
+            parameter("unitId", unitId)
+            parameter("productId", productId)
+        }.body()
+
+    suspend fun bulkUpdateProducts(unitId: Int, operation: BulkOperation): ApiResponse<BulkOperationResult> =
+        client.post("api/app/products/bulk") {
+            parameter("unitId", unitId)
+            setBody(operation)
+        }.body()
+
+    suspend fun getPricingStrategies(unitId: Int, productId: String): ApiResponse<List<PricingStrategy>> =
+        client.get("api/app/products/pricing") {
+            parameter("unitId", unitId)
+            parameter("productId", productId)
+        }.body()
+
+    suspend fun applyPricingStrategy(unitId: Int, strategy: PricingStrategy): ApiResponse<Unit> =
+        client.post("api/app/products/pricing") {
+            parameter("unitId", unitId)
+            setBody(strategy)
+        }.body()
+
+    suspend fun deletePricingStrategy(unitId: Int, strategyId: String): ApiResponse<Unit> =
+        client.delete("api/app/products/pricing") {
+            parameter("unitId", unitId)
+            parameter("strategyId", strategyId)
+        }.body()
+
+    suspend fun rollbackBulkOperation(unitId: Int, operationId: String): ApiResponse<Unit> =
+        client.post("api/app/products/bulk/rollback") {
+            parameter("unitId", unitId)
+            setBody(mapOf("operationId" to operationId))
+        }.body()
+
+    // ─── Export / Import (unitId-scoped) ──────────────────────────────────────
+
+    suspend fun exportData(unitId: Int, dataType: String, format: String, startDate: String? = null, endDate: String? = null): ApiResponse<ExportResult> =
+        client.post("api/app/export") {
+            setBody(buildMap {
+                put("unitId", unitId.toString())
+                put("dataType", dataType)
+                put("format", format)
+                startDate?.let { put("startDate", it) }
+                endDate?.let { put("endDate", it) }
+            })
+        }.body()
+
+    suspend fun validateImportFile(unitId: Int, dataType: String, fileBase64: String, fileName: String): ApiResponse<ImportValidationResult> =
+        client.post("api/app/import/validate") {
+            setBody(mapOf("unitId" to unitId.toString(), "dataType" to dataType, "fileBase64" to fileBase64, "fileName" to fileName))
+        }.body()
+
+    suspend fun importData(unitId: Int, dataType: String, fileBase64: String, fileName: String): ApiResponse<ImportResult> =
+        client.post("api/app/import") {
+            setBody(mapOf("unitId" to unitId.toString(), "dataType" to dataType, "fileBase64" to fileBase64, "fileName" to fileName))
+        }.body()
+
+    // ─── Help & Diagnostics (extended) ────────────────────────────────────────
+
+    suspend fun getHelpArticles(screenName: String, lang: String = "id"): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help/articles") {
+            parameter("screen", screenName)
+            parameter("lang", lang)
+        }.body()
+
+    suspend fun getHelpFaqs(category: String? = null, lang: String = "id"): ApiResponse<List<HelpFaqItem>> =
+        client.get("api/app/help/faq") {
+            category?.let { parameter("category", it) }
+            parameter("lang", lang)
+        }.body()
+
+    suspend fun submitTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
+        client.post("api/app/help/ticket") {
+            parameter("unitId", unitId)
+            setBody(req)
+        }.body()
+
+    suspend fun runDiagnostics(unitId: Int): ApiResponse<DiagnosticResult> =
+        client.post("api/app/help/diagnostics") {
+            setBody(mapOf("unitId" to unitId.toString()))
+        }.body()
+
+    // ─── Sync Queue (unitId-scoped) ───────────────────────────────────────────
+
+    suspend fun flushSyncQueue(unitId: Int, items: List<SyncQueueItem>): ApiResponse<Unit> =
+        client.post("api/app/sync/flush") {
+            setBody(mapOf("unitId" to unitId, "items" to items))
+        }.body()
+
+    suspend fun resolveConflict(unitId: Int, entityType: String, entityId: String, resolution: String): ApiResponse<Unit> =
+        client.post("api/app/sync/resolve") {
+            setBody(mapOf("unitId" to unitId.toString(), "entityType" to entityType, "entityId" to entityId, "resolution" to resolution))
+        }.body()
+
+    // ─── Billing overloads (unitId-scoped, canonical names) ───────────────────
+
+    /** Returns invoices scoped to a specific business unit. */
+    suspend fun getInvoices(unitId: Int): ApiResponse<List<Invoice>> =
+        client.get("api/app/billing/invoices") { parameter("unitId", unitId) }.body()
+
+    /** Initialises a payment session scoped to a specific business unit. */
+    suspend fun initPaymentSession(unitId: Int, req: PaymentRequest): ApiResponse<PaymentSession> =
+        client.post("api/app/billing/payment/init") {
+            parameter("unitId", unitId)
+            setBody(req)
+        }.body()
+
+    // ─── Help overloads (HelpFaq return type, unitId-scoped ticket) ───────────
+
+    /**
+     * Returns FAQs as [HelpFaq] (UI alias). Use [getHelpFaqs] for the
+     * serializable [HelpFaqItem] variant.
+     */
+    suspend fun getHelpFaqsUi(category: String? = null, lang: String = "id"): ApiResponse<List<HelpFaq>> =
+        client.get("api/app/help/faq") {
+            category?.let { parameter("category", it) }
+            parameter("lang", lang)
+        }.body()
+
+    /** Submits a support ticket using the lightweight [SubmitTicketRequest] form. */
+    suspend fun submitSupportTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
+        client.post("api/app/help/ticket") {
+            parameter("unitId", unitId)
+            setBody(req)
         }.body()
 }

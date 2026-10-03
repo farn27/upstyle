@@ -1622,3 +1622,315 @@ data class CreateUnitRequest(
     val is_cabang: Boolean = false,
     val cabang_dari: Int? = null
 )
+
+// ─── Subscription & Billing ───────────────────────────────────────────────────
+
+@Serializable
+data class UsageLimits(
+    val maxProducts: Int = 0,
+    val maxStorageMb: Long = 0L,
+    val maxUsers: Int = 0,
+    val maxBusinessUnits: Int = 0
+)
+
+@Serializable
+data class PlanPricing(
+    val monthly: Double = 0.0,
+    val yearly: Double = 0.0,
+    val currency: String = "IDR"
+)
+
+@Serializable
+data class SubscriptionPlan(
+    val id: String = "",
+    val name: String = "",
+    val tier: String = "FREE", // FREE | STARTER | PRO | ENTERPRISE
+    val features: List<String> = emptyList(),
+    val limits: UsageLimits = UsageLimits(),
+    val pricing: PlanPricing = PlanPricing(),
+    val isPopular: Boolean = false,
+    val description: String = ""
+)
+
+@Serializable
+data class BillingInfo(
+    val paymentMethod: String = "",
+    val lastFourDigits: String = "",
+    val cardBrand: String = "",
+    val billingEmail: String = "",
+    val billingAddress: String = ""
+)
+
+@Serializable
+data class CurrentUsage(
+    val products: Int = 0,
+    val storageUsedMb: Long = 0L,
+    val users: Int = 0,
+    val businessUnits: Int = 0
+)
+
+@Serializable
+data class CurrentSubscription(
+    val planId: String = "",
+    val planName: String = "",
+    val status: String = "active", // active | cancelled | past_due | trialing
+    val usage: CurrentUsage = CurrentUsage(),
+    val limits: UsageLimits = UsageLimits(),
+    val billingInfo: BillingInfo? = null,
+    val nextBillingDate: String = "",
+    val trialEndsAt: String? = null
+)
+
+@Serializable
+data class UsageMetrics(
+    val products: Int = 0,
+    val storageUsedMb: Long = 0L,
+    val users: Int = 0,
+    val businessUnits: Int = 0,
+    val apiCallsThisMonth: Int = 0,
+    val lastUpdated: String = ""
+)
+
+@Serializable
+data class Invoice(
+    val id: String = "",
+    val invoiceNumber: String = "",
+    val amount: Double = 0.0,
+    val currency: String = "IDR",
+    val status: String = "paid", // paid | unpaid | void
+    val issuedAt: String = "",
+    val paidAt: String? = null,
+    val downloadUrl: String? = null,
+    val description: String = ""
+)
+
+@Serializable
+data class PaymentRequest(
+    val planId: String,
+    val paymentMethod: String,
+    val currency: String = "IDR",
+    val unitId: Int
+)
+
+@Serializable
+data class PaymentSession(
+    val sessionId: String = "",
+    val token: String = "",
+    val redirectUrl: String? = null,
+    val snapToken: String? = null,
+    val amount: Double = 0.0,
+    val currency: String = "IDR",
+    val expiresAt: String = ""
+)
+
+@Serializable
+data class PaymentResult(
+    val transactionId: String = "",
+    val status: String = "success", // success | failed | pending
+    val planId: String = "",
+    val amount: Double = 0.0,
+    val currency: String = "IDR",
+    val message: String = "",
+    val paidAt: String = ""
+)
+
+// ─── Advanced Product Models ──────────────────────────────────────────────────
+
+@Serializable
+data class PricingStrategy(
+    val id: String = "",
+    val productId: String = "",
+    val name: String = "",
+    val type: String = "FIXED", // FIXED | PERCENTAGE | TIERED
+    val value: Double = 0.0,
+    val startDate: String = "",
+    val endDate: String = "",
+    val minQty: Int = 1,
+    val isActive: Boolean = true
+)
+
+@Serializable
+data class StockMovement(
+    val id: String = "",
+    val productId: String = "",
+    val variantId: String? = null,
+    val type: String = "ADJUSTMENT", // PURCHASE | SALE | ADJUSTMENT | RETURN | TRANSFER
+    val quantity: Int = 0,
+    val stockBefore: Int = 0,
+    val stockAfter: Int = 0,
+    val reason: String = "",
+    val notes: String? = null,
+    val referenceId: String? = null,
+    val createdBy: String = "",
+    val createdAt: String = ""
+)
+
+@Serializable
+data class ProductBulkUpdate(
+    val productId: String,
+    val operation: String, // PRICE_UPDATE | CATEGORY_CHANGE | STATUS_CHANGE | ARCHIVE
+    val newPrice: Double? = null,
+    val newCategoryId: Int? = null,
+    val newStatus: String? = null
+)
+
+@Serializable
+data class BulkOperation(
+    val id: String = "",
+    val type: String = "", // PRICE_UPDATE | CATEGORY_CHANGE | STATUS_CHANGE | ARCHIVE
+    val items: List<ProductBulkUpdate> = emptyList(),
+    val unitId: Int = 0
+)
+
+@Serializable
+data class BulkOperationItemResult(
+    val productId: String = "",
+    val success: Boolean = false,
+    val error: String? = null
+)
+
+@Serializable
+data class BulkOperationResult(
+    val operationId: String = "",
+    val totalItems: Int = 0,
+    val successCount: Int = 0,
+    val failureCount: Int = 0,
+    val itemResults: List<BulkOperationItemResult> = emptyList(),
+    val completedAt: String = ""
+)
+
+// ─── Sync Queue ───────────────────────────────────────────────────────────────
+
+@Serializable
+data class SyncQueueItem(
+    val id: String = "",
+    val action: String = "", // CREATE | UPDATE | DELETE
+    val entityType: String = "", // product | transaction | contact etc.
+    val entityId: String = "",
+    val payload: String = "", // JSON-serialized request body
+    val enqueuedAt: String = "",
+    val retryCount: Int = 0
+)
+
+@Serializable
+data class SyncConflict(
+    val entityType: String = "",
+    val entityId: String = "",
+    val localVersion: String = "", // JSON
+    val remoteVersion: String = "", // JSON
+    val conflictAt: String = ""
+)
+
+@Serializable
+data class SyncResult(
+    val flushedCount: Int = 0,
+    val failedCount: Int = 0,
+    val conflictsDetected: Int = 0
+)
+
+// ─── Export / Import ──────────────────────────────────────────────────────────
+
+@Serializable
+data class ExportResult(
+    val exportId: String = "",
+    val filePath: String = "",
+    val fileName: String = "",
+    val format: String = "CSV", // CSV | EXCEL | PDF
+    val recordCount: Int = 0,
+    val fileSizeBytes: Long = 0L,
+    val downloadUrl: String? = null,
+    val createdAt: String = ""
+)
+
+@Serializable
+data class ImportResult(
+    val importId: String = "",
+    val totalRows: Int = 0,
+    val successRows: Int = 0,
+    val failedRows: Int = 0,
+    val errors: List<String> = emptyList(),
+    val completedAt: String = ""
+)
+
+@Serializable
+data class ExportHistoryItem(
+    val exportId: String = "",
+    val fileName: String = "",
+    val dataType: String = "",
+    val format: String = "",
+    val recordCount: Int = 0,
+    val status: String = "completed", // completed | failed | processing
+    val downloadUrl: String? = null,
+    val createdAt: String = ""
+)
+
+@Serializable
+data class ImportValidationResult(
+    val isValid: Boolean = false,
+    val totalRows: Int = 0,
+    val errors: List<String> = emptyList(),
+    val suggestedMapping: Map<String, String> = emptyMap()
+)
+
+// ─── Help / Diagnostics ───────────────────────────────────────────────────────
+
+@Serializable
+data class DiagnosticCheck(
+    val name: String = "",
+    val status: String = "ok", // ok | warning | error
+    val message: String = "",
+    val detail: String? = null
+)
+
+@Serializable
+data class DiagnosticResult(
+    val overallStatus: String = "ok", // ok | warning | error
+    val checks: List<DiagnosticCheck> = emptyList(),
+    val timestamp: String = ""
+)
+
+@Serializable
+data class SubmitSupportTicketRequest(
+    val title: String,
+    val description: String,
+    val priority: String = "medium", // low | medium | high | urgent
+    val category: String = "general",
+    val attachmentUrls: List<String> = emptyList(),
+    val unitId: Int,
+    val screenContext: String? = null
+)
+
+// ─── Help FAQ ─────────────────────────────────────────────────────────────────
+
+@Serializable
+data class HelpFaqItem(
+    val id: String,
+    val question: String,
+    val answer: String,
+    val category: String
+)
+
+// ─── Submit Ticket (simplified) ───────────────────────────────────────────────
+
+@Serializable
+data class SubmitTicketRequest(
+    val title: String,
+    val description: String,
+    val priority: String = "medium", // "low" | "medium" | "high"
+    val unitId: Int
+)
+
+// ─── Help FAQ (alias for use in HelpCenterState) ─────────────────────────────
+// Note: HelpFaqItem is the @Serializable API model; HelpFaq is the UI-level alias.
+data class HelpFaq(
+    val id: String,
+    val question: String,
+    val answer: String,
+    val category: String
+)
+
+@Serializable
+data class SyncQueueFlushRequest(
+    val unitId: Int,
+    val items: List<SyncQueueItem>
+)
