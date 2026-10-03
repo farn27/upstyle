@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
 import io.github.aakira.napier.Napier
+import com.upstyle.bizgrow.utils.AuditLogger
 
 /**
  * AppViewModel memegang semua state aplikasi.
@@ -1298,13 +1299,20 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Orders ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+    private var _ordersPage = 1
+    private var _ordersHasMore = true
+
     fun loadOrders() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        _ordersPage = 1
+        _ordersHasMore = true
         _ordersState.update { it.copy(isLoading = true, error = null) }
         try {
-            val res = api.getOrders(unitId)
+            val res = api.getOrders(unitId, page = 1)
             if (res.success) {
+                _ordersHasMore = res.data.size >= 20
+                _ordersPage = 2
                 _orders.value = res.data
                 _ordersState.update { it.copy(isLoading = false, orders = res.data) }
             } else {
@@ -1313,6 +1321,35 @@ class AppViewModel(
         } catch (e: Exception) {
             _ordersState.update { it.copy(isLoading = false, error = "Gagal memuat pesanan: ${e.message}") }
         }
+    }
+
+    fun loadMoreOrders() = viewModelScope.launch {
+        if (!_ordersHasMore || _ordersState.value.isLoading) return@launch
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _ordersState.update { it.copy(isLoading = true) }
+        try {
+            val res = api.getOrders(unitId, page = _ordersPage)
+            if (res.success) {
+                val newOrders = res.data
+                _ordersHasMore = newOrders.size >= 20
+                _ordersPage++
+                val merged = _ordersState.value.orders + newOrders
+                _orders.value = merged
+                _ordersState.update { it.copy(isLoading = false, orders = merged) }
+            } else {
+                _ordersState.update { it.copy(isLoading = false, error = res.message) }
+            }
+        } catch (e: Exception) {
+            _ordersState.update { it.copy(isLoading = false, error = e.message) }
+        }
+    }
+
+    fun resetOrders() {
+        _ordersPage = 1
+        _ordersHasMore = true
+        _ordersState.update { it.copy(orders = emptyList()) }
+        _orders.value = emptyList()
     }
 
     fun loadOrderDetail(orderId: Int) = viewModelScope.launch {
@@ -2247,6 +2284,7 @@ class AppViewModel(
     }
 
     fun upgradePlan(planId: String, paymentMethod: String = "credit_card", billingCycle: String = "monthly") = viewModelScope.launch {
+        auditLogger.log("upgrade_plan", "subscription", planId)
         _billingState.update { it.copy(isLoading = true, error = null) }
         try {
             val result = api.upgradePlan(planId, paymentMethod)
@@ -2381,6 +2419,7 @@ class AppViewModel(
     fun bulkUpdateProducts(productIds: List<String>, type: String, payload: Map<String, String> = emptyMap()) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        auditLogger.log("bulk_update_products", "products", type)
         _bulkOperationState.update { it.copy(isRunning = true, error = null, progress = 0f) }
         try {
             val operation = BulkOperation(type = type, productIds = productIds, payload = payload)
@@ -2444,6 +2483,7 @@ class AppViewModel(
     fun exportData(dataType: String, format: String, startDate: String? = null, endDate: String? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        auditLogger.log("export_data", dataType, "export")
         _exportImportState.update { it.copy(isLoading = true, error = null, exportProgress = 0f) }
         try {
             _exportImportState.update { it.copy(exportProgress = 0.3f) }
@@ -2478,6 +2518,7 @@ class AppViewModel(
     fun importData(dataType: String, fileBase64: String, fileName: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        auditLogger.log("import_data", dataType, "import")
         _exportImportState.update { it.copy(isLoading = true, error = null) }
         try {
             val result = api.importData(unitId, dataType, fileBase64, fileName)
@@ -2509,4 +2550,27 @@ class AppViewModel(
     fun clearExportImportMessages() {
         _exportImportState.update { it.copy(error = null, successMessage = null, exportProgress = 0f) }
     }
+
+    // ─── Session Timeout ─────────────────────────────────────────────────────────
+    private var _lastActivityMs = currentTimeMillis()
+    private val SESSION_TIMEOUT_MS = 30 * 60 * 1000L // 30 minutes
+
+    fun recordActivity() {
+        _lastActivityMs = currentTimeMillis()
+    }
+
+    fun checkSessionTimeout() {
+        if (currentTimeMillis() - _lastActivityMs > SESSION_TIMEOUT_MS) {
+            viewModelScope.launch { _authEvent.emit(Unit) }
+        }
+    }
+
+    // ─── Audit Logger ─────────────────────────────────────────────────────────────
+    private val auditLogger = AuditLogger(
+        saveToCache = { key, value -> session.saveToCache(key, value) },
+        loadFromCache = { key -> session.loadFromCache(key) }
+    )
+
+    fun getAuditLog(count: Int = 50): List<com.upstyle.bizgrow.utils.AuditEntry> =
+        auditLogger.getRecent(count)
 }

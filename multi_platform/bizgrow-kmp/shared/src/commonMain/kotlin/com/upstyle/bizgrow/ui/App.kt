@@ -17,9 +17,13 @@ import com.upstyle.bizgrow.ui.theme.BizgrowTheme
 
 @Composable
 fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
-    BizgrowTheme {
+    val advancedSettings by viewModel.advancedSettingsState.collectAsState(initial = viewModel.advancedSettingsState.value)
+    BizgrowTheme(darkTheme = advancedSettings.darkMode) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
+
+        // Adaptive layout placeholder — on tablets, future enhancement to show side panels
+        // val isCompact = LocalConfiguration.current.screenWidthDp < 600 // Android-specific
 
         val isAuthScreen = screen is Screen.Login || screen is Screen.Register
 

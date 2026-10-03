@@ -17,6 +17,7 @@ import com.upstyle.bizgrow.ui.AppViewModel
 @Composable
 fun DiagnosticsScreen(viewModel: AppViewModel) {
     val helpState by viewModel.helpState.collectAsState()
+    val auditLog = remember { viewModel.getAuditLog(20) }
 
     LaunchedEffect(Unit) { viewModel.runDiagnostics() }
 
@@ -141,6 +142,19 @@ fun DiagnosticsScreen(viewModel: AppViewModel) {
                         }
                         item {
                             Spacer(Modifier.height(16.dp))
+                            // Audit log section
+                            if (auditLog.isNotEmpty()) {
+                                Text("Log Aktivitas Terakhir", fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(8.dp))
+                                auditLog.take(10).forEach { entry ->
+                                    Text(
+                                        "• ${entry.action} [${entry.entityType}] — ${entry.entityId}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(Modifier.height(16.dp))
+                            }
                             Button(
                                 onClick = { viewModel.runDiagnostics() },
                                 modifier = Modifier.fillMaxWidth()
@@ -154,6 +168,19 @@ fun DiagnosticsScreen(viewModel: AppViewModel) {
                 } else {
                     Text("Tidak ada data pemeriksaan", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(16.dp))
+                    // Audit log section
+                    if (auditLog.isNotEmpty()) {
+                        Text("Log Aktivitas Terakhir", fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        auditLog.take(10).forEach { entry ->
+                            Text(
+                                "• ${entry.action} [${entry.entityType}] — ${entry.entityId}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
                     Button(
                         onClick = { viewModel.runDiagnostics() },
                         modifier = Modifier.fillMaxWidth()
