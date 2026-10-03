@@ -66,4 +66,22 @@ sealed class Screen {
     object AiChat : Screen()
     object SalesTargets : Screen()
     object TransactionEntry : Screen()
+
+    // Subscription & billing
+    object SubscriptionPlans : Screen()
+    object PlanUpgrade : Screen()
+    object InvoiceHistory : Screen()
+    object UsageMetrics : Screen()
+
+    // Product management
+    data class ProductVariants(val productId: String) : Screen()
+    object BulkOperations : Screen()
+    data class StockMovement(val productId: String) : Screen()
+    data class PricingStrategy(val productId: String) : Screen()
+
+    // Utilities & support
+    object ExportImport : Screen()
+    data class SupportTicketDetail(val ticketId: Int) : Screen()
+    object Diagnostics : Screen()
+    object SyncStatus : Screen()
 }
