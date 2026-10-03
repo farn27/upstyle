@@ -31,7 +31,7 @@ class SyncManager(
     init {
         scope.launch {
             connectivity.isOnline
-                .distinctUntilChanged()
+                
                 .filter { it } // react only when going from offline → online
                 .collect { flushQueue() }
         }

@@ -1651,6 +1651,13 @@ data class SubscriptionPlan(
     val isPopular: Boolean = false,
     val description: String = ""
 )
+ {
+    val priceMonthly: Double get() = pricing.monthly
+    val priceYearly: Double get() = pricing.yearly
+    val maxProducts: Int get() = limits.maxProducts
+    val maxUsers: Int get() = limits.maxUsers
+    val maxStorageMb: Long get() = limits.maxStorageMb
+}
 
 @Serializable
 data class BillingInfo(
@@ -1667,7 +1674,10 @@ data class CurrentUsage(
     val storageUsedMb: Long = 0L,
     val users: Int = 0,
     val businessUnits: Int = 0
-)
+) {
+    val productCount: Int get() = products
+    val userCount: Int get() = users
+}
 
 @Serializable
 data class CurrentSubscription(
@@ -1702,7 +1712,9 @@ data class Invoice(
     val paidAt: String? = null,
     val downloadUrl: String? = null,
     val description: String = ""
-)
+) {
+    val issuedDate: String get() = issuedAt
+}
 
 @Serializable
 data class PaymentRequest(
@@ -1848,7 +1860,10 @@ data class ImportResult(
     val totalRows: Int = 0,
     val successRows: Int = 0,
     val failedRows: Int = 0,
-    val errors: List<String> = emptyList(),
+    val errors: List<String> = emptyList() {
+    val importedCount: Int get() = successRows
+    val failedCount: Int get() = failedRows
+},
     val completedAt: String = ""
 )
 
@@ -1868,7 +1883,9 @@ data class ExportHistoryItem(
 data class ImportValidationResult(
     val isValid: Boolean = false,
     val totalRows: Int = 0,
-    val errors: List<String> = emptyList(),
+    val errors: List<String> = emptyList() {
+    val rowCount: Int get() = totalRows
+},
     val suggestedMapping: Map<String, String> = emptyMap()
 )
 
