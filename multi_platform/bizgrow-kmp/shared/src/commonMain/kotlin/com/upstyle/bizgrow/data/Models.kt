@@ -11,7 +11,10 @@ data class ApiResponse<T>(
     val message: String? = null,
     val data: T? = null,
     val code: String? = null
-)
+) {
+    /** Alias so call sites can use either `.error` or `.message`. */
+    val error: String? get() = message
+}
 
 @Serializable
 data class PaginatedResponse<T>(
@@ -1650,8 +1653,7 @@ data class SubscriptionPlan(
     val pricing: PlanPricing = PlanPricing(),
     val isPopular: Boolean = false,
     val description: String = ""
-)
- {
+) {
     val priceMonthly: Double get() = pricing.monthly
     val priceYearly: Double get() = pricing.yearly
     val maxProducts: Int get() = limits.maxProducts
@@ -1698,8 +1700,15 @@ data class UsageMetrics(
     val users: Int = 0,
     val businessUnits: Int = 0,
     val apiCallsThisMonth: Int = 0,
-    val lastUpdated: String = ""
-)
+    val lastUpdated: String = "",
+    val limits: UsageLimits = UsageLimits()
+) {
+    /** Computed aliases used by SubscriptionPlansScreen / AppViewModel. */
+    val productCount: Int get() = products
+    val userCount: Int get() = users
+    val maxProducts: Int get() = limits.maxProducts
+    val maxUsers: Int get() = limits.maxUsers
+}
 
 @Serializable
 data class Invoice(
@@ -1721,7 +1730,7 @@ data class PaymentRequest(
     val planId: String,
     val paymentMethod: String,
     val currency: String = "IDR",
-    val unitId: Int
+    val unitId: Int = 0
 )
 
 @Serializable
@@ -1791,7 +1800,9 @@ data class BulkOperation(
     val id: String = "",
     val type: String = "", // PRICE_UPDATE | CATEGORY_CHANGE | STATUS_CHANGE | ARCHIVE
     val items: List<ProductBulkUpdate> = emptyList(),
-    val unitId: Int = 0
+    val unitId: Int = 0,
+    val productIds: List<String> = emptyList(),
+    val payload: Map<String, String> = emptyMap()
 )
 
 @Serializable
@@ -1862,7 +1873,11 @@ data class ImportResult(
     val failedRows: Int = 0,
     val errors: List<String> = emptyList(),
     val completedAt: String = ""
-)
+) {
+    /** Aliases used by AppViewModel / ExportImportScreen. */
+    val importedCount: Int get() = successRows
+    val failedCount: Int get() = failedRows
+}
 
 @Serializable
 data class ExportHistoryItem(
@@ -1882,7 +1897,10 @@ data class ImportValidationResult(
     val totalRows: Int = 0,
     val errors: List<String> = emptyList(),
     val suggestedMapping: Map<String, String> = emptyMap()
-)
+) {
+    /** Alias used by ExportImportScreen. */
+    val rowCount: Int get() = totalRows
+}
 
 // ─── Help / Diagnostics ───────────────────────────────────────────────────────
 

@@ -1822,7 +1822,7 @@ class AppViewModel(
 
     fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean) = viewModelScope.launch {
         try {
-            val res = api.updatePreferences(mapOf("darkMode" to darkMode, "notifPref" to notifEnabled))
+            val res = api.updatePreferences(darkMode, notifEnabled)
             if (res.success) { _advancedSettingsState.update { it.copy(darkMode = darkMode, notifEnabled = notifEnabled) }; setSuccess("Preferensi berhasil disimpan!") }
             else setError(res.message ?: "Gagal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }

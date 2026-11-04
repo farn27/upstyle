@@ -598,4 +598,259 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
             setBody(req)
         }.body()
+
+    // ─── Alias / overload helpers for AppViewModel call-site compatibility ────
+
+    /** Alias for [getBusinessUnits] — AppViewModel calls `getUnits()`. */
+    suspend fun getUnits(): PaginatedResponse<BusinessUnit> = getBusinessUnits()
+
+    /** Alias for [getBillingPlans] — AppViewModel calls `getSubscriptionPlans()`. */
+    suspend fun getSubscriptionPlans(): ApiResponse<List<SubscriptionPlan>> = getBillingPlans()
+
+    /** Overload without unitId — reads active unit from state; AppViewModel calls `getCurrentSubscription()`. */
+    suspend fun getCurrentSubscription(): ApiResponse<CurrentSubscription> =
+        client.get("api/app/billing/subscription").body()
+
+    /** Overload without unitId — AppViewModel calls `getUsageMetrics()`. */
+    suspend fun getUsageMetrics(): ApiResponse<UsageMetrics> =
+        client.get("api/app/billing/usage").body()
+
+    /** Overload without unitId — AppViewModel calls `getInvoices()`. */
+    suspend fun getInvoices(): ApiResponse<List<Invoice>> =
+        client.get("api/app/billing/invoices").body()
+
+    /** Alias for [confirmBillingPayment] — AppViewModel calls `confirmPayment(sessionId)`. */
+    suspend fun confirmPayment(sessionId: String): ApiResponse<PaymentResult> =
+        confirmBillingPayment(sessionId)
+
+    /** Overload matching AppViewModel call `upgradePlan(planId, paymentMethod)`. */
+    suspend fun upgradePlan(planId: String, paymentMethod: String = "credit_card"): ApiResponse<PaymentResult> =
+        client.post("api/app/billing/upgrade") {
+            setBody(mapOf("planId" to planId, "paymentMethod" to paymentMethod))
+        }.body()
+
+    /** Overload for [getHelpArticles] with no arguments — AppViewModel calls `getHelpArticles()`. */
+    suspend fun getHelpArticles(): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help/articles").body()
+
+    /** Overload accepting [SubmitSupportTicketRequest] directly — AppViewModel calls `submitSupportTicket(req)`. */
+    suspend fun submitSupportTicket(req: SubmitSupportTicketRequest): ApiResponse<Unit> =
+        client.post("api/app/help/ticket") {
+            parameter("unitId", req.unitId)
+            setBody(req)
+        }.body()
+
+    // ─── Missing feature stubs ────────────────────────────────────────────────
+
+    suspend fun getPosShifts(unitId: Int): ApiResponse<List<PosShift>> =
+        client.get("api/app/pos/shifts") { parameter("unitId", unitId) }.body()
+
+    suspend fun openShift(req: OpenShiftRequest): ApiResponse<PosShift> =
+        client.post("api/app/pos/shifts/open") { setBody(req) }.body()
+
+    suspend fun closeShift(req: CloseShiftRequest): ApiResponse<PosShift> =
+        client.post("api/app/pos/shifts/close") { setBody(req) }.body()
+
+    suspend fun updateLeadStatus(leadId: Int, status: String): ApiResponse<Unit> =
+        client.put("api/app/marketing/leads/$leadId") { setBody(mapOf("status" to status)) }.body()
+
+    suspend fun getLeaveRequests(unitId: Int): ApiResponse<List<LeaveRequest>> =
+        client.get("api/app/hr/leave") { parameter("unitId", unitId) }.body()
+
+    suspend fun getMarketingCampaigns(unitId: Int): ApiResponse<List<MarketingCampaign>> =
+        client.get("api/app/marketing/campaigns") { parameter("unitId", unitId) }.body()
+
+    suspend fun createMarketingCampaign(campaign: MarketingCampaign): ApiResponse<Unit> =
+        client.post("api/app/marketing/campaigns") { setBody(campaign) }.body()
+
+    suspend fun getKatalog(unitId: Int): ApiResponse<KatalogData> =
+        client.get("api/app/catalog") { parameter("unitId", unitId) }.body()
+
+    suspend fun toggleKatalogPublish(productId: String, isPublished: Boolean): ApiResponse<Unit> =
+        client.put("api/app/catalog/publish") {
+            setBody(mapOf("productId" to productId, "isPublished" to isPublished))
+        }.body()
+
+    suspend fun updateKatalogSettings(settings: KatalogSettings): ApiResponse<Unit> =
+        client.put("api/app/catalog/settings") { setBody(settings) }.body()
+
+    suspend fun createUnit(req: CreateUnitRequest): ApiResponse<BusinessUnit> =
+        client.post("api/app/business") { setBody(req) }.body()
+
+    suspend fun getDepartments(unitId: Int): ApiResponse<List<Department>> =
+        client.get("api/app/hr/departments") { parameter("unitId", unitId) }.body()
+
+    suspend fun deleteDepartment(departmentId: Int): ApiResponse<Unit> =
+        client.delete("api/app/hr/departments/$departmentId").body()
+
+    suspend fun createDepartment(dept: Department): ApiResponse<Unit> =
+        client.post("api/app/hr/departments") { setBody(dept) }.body()
+
+    suspend fun getCrmTasks(unitId: Int): ApiResponse<List<CrmTask>> =
+        client.get("api/app/crm/tasks") { parameter("unitId", unitId) }.body()
+
+    suspend fun sendHelpFeedback(articleId: String, helpful: Boolean): ApiResponse<Unit> =
+        client.post("api/app/help/feedback") {
+            setBody(mapOf("articleId" to articleId, "helpful" to helpful))
+        }.body()
+
+    suspend fun getFixedAssets(unitId: Int): ApiResponse<List<FixedAsset>> =
+        client.get("api/app/finance/assets") { parameter("unitId", unitId) }.body()
+
+    suspend fun getMarketingData(unitId: Int): ApiResponse<MarketingData> =
+        client.get("api/app/marketing") { parameter("unitId", unitId) }.body()
+
+    suspend fun createMarketingLead(lead: MarketingLead): ApiResponse<Unit> =
+        client.post("api/app/marketing/leads") { setBody(lead) }.body()
+
+    suspend fun getPosReturns(unitId: Int): ApiResponse<List<PosReturn>> =
+        client.get("api/app/pos/returns") { parameter("unitId", unitId) }.body()
+
+    suspend fun createReturn(req: CreateReturnRequest): ApiResponse<Unit> =
+        client.post("api/app/pos/returns") { setBody(req) }.body()
+
+    suspend fun getPosVouchers(unitId: Int): ApiResponse<List<PosVoucher>> =
+        client.get("api/app/pos/vouchers") { parameter("unitId", unitId) }.body()
+
+    suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> =
+        client.get("api/app/business-plans") { parameter("unitId", unitId) }.body()
+
+    suspend fun createBusinessPlan(plan: BusinessPlan): ApiResponse<Unit> =
+        client.post("api/app/business-plans") { setBody(plan) }.body()
+
+    suspend fun updateBusinessPlan(plan: BusinessPlan): ApiResponse<Unit> =
+        client.put("api/app/business-plans/${plan.id}") { setBody(plan) }.body()
+
+    suspend fun deleteBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/business-plans/$id") { parameter("unitId", unitId) }.body()
+
+    suspend fun applyBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> =
+        client.post("api/app/business-plans/$id/apply") { setBody(mapOf("unitId" to unitId)) }.body()
+
+    suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> =
+        client.get("api/app/sosmed") { parameter("unitId", unitId) }.body()
+
+    suspend fun createSosmedPost(post: SocialPost): ApiResponse<Unit> =
+        client.post("api/app/sosmed") { setBody(post) }.body()
+
+    suspend fun updateSocialPost(post: SocialPost): ApiResponse<Unit> =
+        client.put("api/app/sosmed/${post.id}") { setBody(post) }.body()
+
+    suspend fun deleteSocialPost(postId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/sosmed/$postId") { parameter("unitId", unitId) }.body()
+
+    suspend fun generateAiCaption(platform: String, productName: String): ApiResponse<Map<String, String>> =
+        client.post("api/app/ai/caption") {
+            setBody(mapOf("platform" to platform, "productName" to productName))
+        }.body()
+
+    suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> =
+        client.get("api/app/website") { parameter("unitId", unitId) }.body()
+
+    suspend fun saveWebsiteSettings(settings: WebsiteSetting): ApiResponse<Unit> =
+        client.put("api/app/website") { setBody(settings) }.body()
+
+    suspend fun getContextualHelp(screenName: String): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help/articles") { parameter("screen", screenName) }.body()
+
+    suspend fun searchHelp(query: String): ApiResponse<List<HelpArticle>> =
+        client.get("api/app/help/search") { parameter("q", query) }.body()
+
+    suspend fun getLandingPages(unitId: Int): ApiResponse<List<LandingPage>> =
+        client.get("api/app/landing-pages") { parameter("unitId", unitId) }.body()
+
+    suspend fun getLandingPageTemplates(): ApiResponse<List<LandingPage>> =
+        client.get("api/app/landing-pages/templates").body()
+
+    suspend fun createLandingPage(page: LandingPage): ApiResponse<Unit> =
+        client.post("api/app/landing-pages") { setBody(page) }.body()
+
+    suspend fun updateLandingPage(page: LandingPage): ApiResponse<Unit> =
+        client.put("api/app/landing-pages/${page.id}") { setBody(page) }.body()
+
+    suspend fun deleteLandingPage(pageId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/landing-pages/$pageId") { parameter("unitId", unitId) }.body()
+
+    suspend fun toggleLandingPage(pageId: Int, unitId: Int, isActive: Boolean): ApiResponse<Unit> =
+        client.put("api/app/landing-pages/$pageId/toggle") {
+            parameter("unitId", unitId)
+            setBody(mapOf("isActive" to isActive))
+        }.body()
+
+    suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> =
+        client.get("api/app/integrations/shopee") { parameter("unitId", unitId) }.body()
+
+    suspend fun connectShopee(integration: ShopeeIntegration): ApiResponse<ShopeeIntegration> =
+        client.post("api/app/integrations/shopee") { setBody(integration) }.body()
+
+    suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/integrations/shopee") { parameter("unitId", unitId) }.body()
+
+    suspend fun getProfileSettings(): ApiResponse<Map<String, String>> =
+        client.get("api/app/profile").body()
+
+    suspend fun updateProfile(unitId: Int, data: Map<String, String>): ApiResponse<Unit> =
+        client.put("api/app/profile") { setBody(data) }.body()
+
+    suspend fun changePassword(data: Map<String, String>): ApiResponse<Unit> =
+        client.put("api/app/profile/password") { setBody(data) }.body()
+
+    suspend fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean): ApiResponse<Unit> =
+        client.put("api/app/profile/preferences") {
+            setBody(mapOf("darkMode" to darkMode, "notifPref" to notifEnabled))
+        }.body()
+
+    suspend fun getSalesTargets(unitId: Int, periode: String? = null): ApiResponse<SalesTargetData> =
+        client.get("api/app/hr/sales-targets") {
+            parameter("unitId", unitId)
+            periode?.let { parameter("periode", it) }
+        }.body()
+
+    suspend fun createSalesTarget(target: SalesTarget): ApiResponse<Unit> =
+        client.post("api/app/hr/sales-targets") { setBody(target) }.body()
+
+    suspend fun deleteSalesTarget(targetId: Int): ApiResponse<Unit> =
+        client.delete("api/app/hr/sales-targets/$targetId").body()
+
+    suspend fun getTaxRates(unitId: Int): ApiResponse<List<TaxRate>> =
+        client.get("api/app/finance/tax-rates") { parameter("unitId", unitId) }.body()
+
+    suspend fun getStockOpnameList(unitId: Int): ApiResponse<List<StockOpnameSession>> =
+        client.get("api/app/products/stock-opname") { parameter("unitId", unitId) }.body()
+
+    suspend fun getTrashProducts(unitId: Int): ApiResponse<List<Product>> =
+        client.get("api/app/products/trash") { parameter("unitId", unitId) }.body()
+
+    suspend fun restoreProduct(productId: String): ApiResponse<Unit> =
+        client.post("api/app/products/restore") { setBody(mapOf("productId" to productId)) }.body()
+
+    suspend fun getQuotations(unitId: Int): ApiResponse<List<Quotation>> =
+        client.get("api/app/quotations") { parameter("unitId", unitId) }.body()
+
+    suspend fun getSalesOrders(unitId: Int): ApiResponse<List<SalesOrder>> =
+        client.get("api/app/sales-orders") { parameter("unitId", unitId) }.body()
+
+    suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
+        client.get("api/app/finance/closing-periods") { parameter("unitId", unitId) }.body()
+
+    suspend fun getApprovals(unitId: Int): ApiResponse<ApprovalsData> =
+        client.get("api/app/approvals") { parameter("unitId", unitId) }.body()
+
+    suspend fun approveRequest(approvalId: Int, status: String): ApiResponse<Unit> =
+        client.put("api/app/approvals/$approvalId") { setBody(mapOf("status" to status)) }.body()
+
+    suspend fun createApprovalRequest(req: ApprovalRequest): ApiResponse<Unit> =
+        client.post("api/app/approvals") { setBody(req) }.body()
+
+    suspend fun getBudgetItems(unitId: Int, year: Int): ApiResponse<List<BudgetItem>> =
+        client.get("api/app/finance/budget") {
+            parameter("unitId", unitId)
+            parameter("year", year)
+        }.body()
+
+    suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
+        client.get("api/app/export/history") { parameter("unitId", unitId) }.body()
+
+    suspend fun getPosCashTransactions(shiftId: Int): ApiResponse<List<PosCashTransaction>> =
+        client.get("api/app/pos/cash-transactions") { parameter("shiftId", shiftId) }.body()
 }
