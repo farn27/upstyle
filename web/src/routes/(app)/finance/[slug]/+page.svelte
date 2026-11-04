@@ -22,16 +22,10 @@
 
   export let data;
 
-  // --- REALTIME UPDATE ---
-  $: if ($financeUpdate) {
-    if ($financeUpdate.action === 'stats-updated' || $financeUpdate.action === 'pos-transaction') {
-      invalidate('app:finance');
-    }
-  }
+  // --- REALTIME UPDATE (Bug 3.7: single handler, no duplicate) ---
 
   // --- 1. STATE UI ---
-  let showKasDetail = false;     
-  let showLabaRugiDetail = false;
+  // Bug 3.1: Removed unused showKasDetail and showLabaRugiDetail (popup never implemented)
   let teksAnalisisAI = "";    
   let healthScore = 0;   
   let forecastLaba = 0;
@@ -60,18 +54,19 @@
   $: endDate = data.endDate;
 
   // --- 3. LOGIKA KEUANGAN ---
-  $: modalAwal = Number(unit?.modal_awal) || 0;
+  $: modalAwal = Number(unit?.modalAwal) || 0; // BUGFIX 1.2: Use camelCase
   $: totalMasuk = Number(summary.total_masuk) || 0;
   $: totalKeluar = Number(summary.total_keluar) || 0;
   $: totalHpp = Number(summary.total_hpp) || 0;
   $: selisih = totalMasuk - totalKeluar; // Arus Kas Bersih
   $: labaKotor = totalMasuk - totalHpp;
-  $: saldoSaatIni = modalAwal + selisih;
+  // BUGFIX 1.1: Use server-calculated saldoKas instead of client calculation
+  $: saldoSaatIni = Number(summary.saldoKas) || (modalAwal + selisih);
   $: persentaseLaba = totalMasuk > 0 ? (selisih / totalMasuk) * 100 : 0;
   $: kpiProgress = Math.min((kpi.current / kpi.target) * 100, 100);
 
   // --- 4. FILTER & PRESET ---
-  let activePreset = "Hari Ini";
+  let activePreset = "Semua"; // Bug 2.3: Match server default "all"
   let selectedKategori = "";
   let sDate = "";
   let eDate = "";
@@ -113,7 +108,10 @@
     const omzet = totalMasuk;
     const hariBerjalan = new Date().getDate();
     const runRate = omzet / (hariBerjalan || 1);
-    forecastLaba = (runRate * 30) - ((totalKeluar / (hariBerjalan || 1)) * 30);
+    // Bug 2.4: Only project for current month or "all" filter
+    forecastLaba = (activePreset === 'Bulan Ini' || activePreset === 'Semua')
+        ? (runRate * 30) - ((totalKeluar / (hariBerjalan || 1)) * 30)
+        : null;
 
     let points = 0;
     if (persentaseLaba > 20) points += 40; else if (persentaseLaba > 0) points += 20;
@@ -201,7 +199,18 @@
           });
 
           const topProducts = Object.values(productStats).sort((a,b) => b.total - a.total).slice(0, 5);
-          if (topProducts.length === 0) return;
+          if (topProducts.length === 0) {
+              if (chartCanvas) {
+                  if (myChart) { myChart.destroy(); myChart = null; }
+                  const ctx = chartCanvas.getContext('2d');
+                  ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+                  ctx.font = '11px Inter, system-ui, sans-serif';
+                  ctx.fillStyle = '#94a3b8';
+                  ctx.textAlign = 'center';
+                  ctx.fillText('Tidak ada transaksi yang terhubung ke produk', chartCanvas.width / 2, chartCanvas.height / 2);
+              }
+              return;
+          }
 
           const ctx = chartCanvas.getContext('2d');
           myChart = new Chart(ctx, {
@@ -215,36 +224,7 @@
   // --- 7. REALTIME ENGINE ---
   let pusherClient;
   let realtimeManager;
-  let lastUpdate = Date.now();
-
-  async function checkUpdates() {
-    try {
-      const response = await fetch(`/api/updates?slug=${slug}&lastUpdate=${lastUpdate}&type=transactions`);
-      const updates = await response.json();
-
-      if (updates.transactions && updates.transactions.length > 0) {
-        // Add new transactions to the list
-        updates.transactions.forEach(newTrx => {
-          const nominal = Number(newTrx.nominal);
-          const kat = (newTrx.kategoriTrx || "").toLowerCase();
-
-          if (kat.includes('masuk')) {
-            summary.total_masuk = Number(summary.total_masuk) + nominal;
-          } else {
-            summary.total_keluar = Number(summary.total_keluar) + nominal;
-          }
-
-          transactions = [newTrx, ...transactions];
-        });
-
-        await invalidate('app:finance');
-      }
-
-      lastUpdate = updates.timestamp || Date.now();
-    } catch (error) {
-      console.error('[Polling] Error checking updates:', error);
-    }
-  }
+  // Bug 3.6: Removed dead checkUpdates polling function
 
   // Listen for finance updates via Socket.io
   $: if ($financeUpdate) {
@@ -297,7 +277,7 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mb-6">
         
         <!-- Card 1: Saldo Kas -->
-        <button on:click={() => showKasDetail = true} class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all text-left group">
+        <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all text-left group">
             <div class="flex justify-between items-start mb-1 sm:mb-2">
                 <p class="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Saldo Kas</p>
                 <div class="p-1 sm:p-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-lg text-slate-500">
@@ -305,7 +285,7 @@
                 </div>
             </div>
             <p class="text-base sm:text-xl font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-650 dark:group-hover:text-indigo-400 transition-colors mt-1 sm:mt-2">{formatIDR(saldoSaatIni)}</p>
-        </button>
+        </div>
 
         <!-- Card 2: Total Pemasukan -->
         <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
@@ -330,7 +310,7 @@
         </div>
 
         <!-- Card 4: Arus Kas Bersih -->
-        <button on:click={() => showLabaRugiDetail = true} class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all text-left group">
+        <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all text-left group">
             <div class="flex justify-between items-start mb-1 sm:mb-2">
                 <p class="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Arus Kas</p>
                 <span class="inline-flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded text-[7px] sm:text-[8px] font-black uppercase tracking-wider {selisih >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}">
@@ -338,7 +318,7 @@
                 </span>
             </div>
             <p class="text-base sm:text-xl font-black mt-1 sm:mt-2 {selisih >= 0 ? 'text-emerald-650 dark:text-emerald-400' : 'text-rose-600'}">{formatIDR(selisih)}</p>
-        </button>
+        </div>
 
     </div>
 
@@ -354,7 +334,7 @@
                         <div class="flex items-center gap-1.5 sm:gap-2">
                             <span class="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 bg-gradient-to-r from-violet-650 to-indigo-650 text-white rounded-md text-[7px] sm:text-[8px] font-black uppercase tracking-widest shadow-sm">
                                 <Sparkles class="w-2 sm:w-2.5 h-2 sm:h-2.5" />
-                                AI INSIGHT
+                                Analisis Bisnis
                             </span>
                             <span class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Kombinasi Finansial</span>
                         </div>
@@ -376,7 +356,16 @@
                     {#if modeGrafik === 'produkTerlaris' && (!transactions || transactions.length === 0)}
                         <div class="absolute inset-0 flex items-center justify-center text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Belum Ada Data Terlaris</div>
                     {/if}
-                    <canvas bind:this={chartCanvas}></canvas>
+                    <!-- Bug 3.2: Chart filter toggle buttons -->
+<div class="flex items-center gap-1 mb-3">
+    {#each [['', 'Semua'], ['MASUK', 'Masuk'], ['KELUAR', 'Keluar']] as [val, label]}
+        <button type="button" on:click={() => selectedKategori = val}
+            class="px-2.5 py-1 rounded-md text-[8px] font-black uppercase tracking-wider transition-all {selectedKategori === val ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'}">
+            {label}
+        </button>
+    {/each}
+</div>
+<canvas bind:this={chartCanvas}></canvas>
                 </div>
             </div>
         </div>
@@ -421,8 +410,8 @@
                     
                     <div class="pt-2 sm:pt-3 border-t border-white/5">
                         <p class="text-[7px] sm:text-[8px] font-black text-slate-500 uppercase tracking-wider">Projected Cash Flow</p>
-                        <p class="text-sm sm:text-base font-black mt-1 {forecastLaba >= 0 ? 'text-emerald-450' : 'text-rose-455'}">
-                            {formatIDR(forecastLaba).replace(',00', '')}
+                        <p class="text-sm sm:text-base font-black mt-1 {forecastLaba !== null && forecastLaba >= 0 ? 'text-emerald-450' : forecastLaba !== null ? 'text-rose-455' : 'text-slate-400'}">
+                            {forecastLaba !== null ? formatIDR(forecastLaba).replace(',00', '') : '—'}
                         </p>
                     </div>
                 </div>
@@ -515,7 +504,7 @@
                                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors">
                                     <td class="px-4 sm:px-5 py-2 sm:py-2.5">
                                         <p class="text-[9px] sm:text-[10px] font-bold text-slate-700 dark:text-slate-250 uppercase tracking-tight line-clamp-1">{trx.keterangan}</p>
-                                        <p class="text-[7px] sm:text-[8px] text-slate-450 dark:text-slate-500 mt-0.5">{new Date(trx.tanggal).toLocaleDateString('id-ID')} • {trx.metode_bayar || 'KAS'}</p>
+                                        <p class="text-[7px] sm:text-[8px] text-slate-450 dark:text-slate-500 mt-0.5">{new Date(trx.tanggal).toLocaleDateString('id-ID')} • {trx.metodeBayar || 'KAS'}</p>
                                     </td>
                                     <td class="px-4 sm:px-5 py-2 sm:py-2.5 text-right">
                                         <span class="text-[9px] sm:text-[10px] font-black font-mono {isMasuk ? 'text-emerald-650' : 'text-rose-650'}">
@@ -544,7 +533,7 @@
                 {/if}
                 {#each riwayat as log}
                     <div class="flex gap-2 sm:gap-3 relative before:absolute before:left-1 before:top-4 before:bottom-[-16px] before:w-0.5 before:bg-slate-100 dark:before:bg-slate-800 last:before:hidden">
-                        <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mt-1 shrink-0 relative z-10 {log.tipe === 'DELETE' ? 'bg-rose-500' : log.tipe === 'UPDATE' ? 'bg-amber-500' : 'bg-indigo-500'}"></div>
+                        <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mt-1 shrink-0 relative z-10 {log.tipe === 'error' ? 'bg-rose-500' : log.tipe === 'warning' ? 'bg-amber-500' : log.tipe === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'}"></div>
                         <div>
                             <p class="text-[9px] sm:text-[10px] font-medium text-slate-700 dark:text-slate-350 leading-snug">{log.pesan}</p>
                             <p class="text-[7px] sm:text-[8px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">{new Date(log.waktu).toLocaleString('id-ID', { hour:'2-digit', minute:'2-digit', day:'numeric', month:'short' })}</p>

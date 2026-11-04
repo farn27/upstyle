@@ -40,11 +40,11 @@ export const load = async ({ params, url, depends, cookies }) => {
 
         const abcCats = await db.select().from(abcCategories).orderBy(abcCategories.id);
         const productsData = await db.select({
-            id: products.id, nama: products.nama, harga_jual: products.hargaJual, stok: products.stok
+            id: products.id, nama: products.nama, harga_jual: products.hargaJual, stok: products.stok, minStok: products.minStok
         }).from(products).where(eq(products.unitId, unitData.id));
 
         // Peringatan Stok Menipis (Low Stock <= 5)
-        const lowStockProducts = productsData.filter(p => p.stok <= 5);
+        const lowStockProducts = productsData.filter(p => p.stok <= (p.minStok ?? 5));
 
         let baseFilter = eq(transaksi.unitId, unitData.id);
         if (startDate !== "all" && endDate !== "all") {
@@ -63,7 +63,10 @@ export const load = async ({ params, url, depends, cookies }) => {
         }).from(transaksi).where(baseFilter);
         
         const summary = summaryRows[0] || { total_masuk: 0, total_keluar: 0, total_hpp: 0 };
-        const transactionList = await db.select().from(transaksi).where(baseFilter).orderBy(desc(transaksi.tanggal), desc(transaksi.id));
+        // Bug 1.1: saldoKas = modalAwal + totalMasuk - totalKeluar
+        summary.saldoKas = Number(unitData.modalAwal || 0) + Number(summary.total_masuk || 0) - Number(summary.total_keluar || 0);
+        
+        const transactionList = await db.select().from(transaksi).where(baseFilter).orderBy(desc(transaksi.tanggal), desc(transaksi.id)).limit(100);
 
         const logs = await db.select({ pesan: riwayatAksi.pesan, tipe: riwayatAksi.tipe, waktu: riwayatAksi.waktu })
             .from(riwayatAksi)
@@ -99,11 +102,17 @@ export const load = async ({ params, url, depends, cookies }) => {
                 kode: b.kodeAkun,
                 saldo: Number(b.totalDebit) - Number(b.totalKredit)
             };
-        }).filter(b => b.saldo > 0); // Hanya tampilkan yang bersaldo
+        }); // Bug 2.6: Show all balances including negative (overdrawn accounts)
 
-        // Monthly Target KPI (Asumsikan target = Modal Awal * 1.5 atau statis 50jt)
-        const targetPendapatan = Math.max(unitData.modalAwal * 1.5, 10000000); 
-        const currentPendapatan = Number(summary.total_masuk || 0);
+        // Bug 2.1: Use user-configurable target from DB, fallback to formula
+        const targetPendapatan = Number(unitData.monthlyTarget) || Math.max(Number(unitData.modalAwal || 0) * 1.5, 10000000);
+        // Bug 2.2: KPI uses CURRENT MONTH revenue, not filtered period
+        const now = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const kpiRows = await db.select({
+            currentMonth: sql`SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%' THEN ${transaksi.nominal} ELSE 0 END)`
+        }).from(transaksi).where(and(eq(transaksi.unitId, unitData.id), sql`DATE(${transaksi.tanggal}) >= ${firstOfMonth}`));
+        const currentPendapatan = Number(kpiRows[0]?.currentMonth || 0);
 
         const finalData = {
             unit: unitData, 
@@ -139,9 +148,11 @@ export const load = async ({ params, url, depends, cookies }) => {
 
         return finalData;
 
-    } catch (err) { 
+    } catch (err) {
+        // Bug 4.2: Re-throw SvelteKit HTTP errors (404, 401) — don't convert to 500
+        if (err.status) throw err;
         log.finance.error({ err }, '[Dashboard Error]');
-        throw error(500, "Gagal memuat data"); 
+        throw error(500, "Gagal memuat data");
     }
 };
 
@@ -164,7 +175,22 @@ export const actions = {
                 });
                 if (trxData && trxData.productId) {
                     const produk = await tx.query.products.findFirst({ where: eq(products.id, trxData.productId) });
-                    if (produk) await tx.update(products).set({ stok: produk.stok + trxData.qty }).where(eq(products.id, trxData.productId));
+                    if (produk) {
+                        // Bug 1.4 & 1.5: Reverse direction based on transaction type
+                        // KELUAR (purchase) → delete → stock goes DOWN (reverse the increase)
+                        // MASUK (sale) → delete → stock goes UP (restore the decrease)
+                        const delta = trxData.kategoriTrx === 'KELUAR' ? -trxData.qty : trxData.qty;
+                        await tx.update(products).set({ stok: produk.stok + delta }).where(eq(products.id, trxData.productId));
+                    }
+                }
+                // Bug 1.6: Cascade delete journal entries BEFORE deleting transaction
+                const relatedJournals = await tx.select({ id: journalEntries.id })
+                    .from(journalEntries)
+                    .where(eq(journalEntries.transaksiId, Number(id)));
+                if (relatedJournals.length > 0) {
+                    const jIds = relatedJournals.map(j => j.id);
+                    await tx.delete(journalEntryLines).where(inArray(journalEntryLines.journalId, jIds));
+                    await tx.delete(journalEntries).where(inArray(journalEntries.id, jIds));
                 }
                 if (trxData) {
                     await tx.delete(transaksi).where(eq(transaksi.id, id));
