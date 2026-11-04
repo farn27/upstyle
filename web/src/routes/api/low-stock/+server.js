@@ -9,7 +9,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 
-export async function GET({ url, cookies }) {
+export async function GET({ url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
