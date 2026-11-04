@@ -1,0 +1,24 @@
+# Sampah lokal (lihat bersih-bersih.cjs)
+_to_delete/
+
+# Dependency & log
+node_modules/
+*.log
+hs_err_pid*
+replay_pid*
+/temp.zip
+/temp_unzip/
+
+# Env (rahasia) — contoh boleh di-commit
+.env
+.env.*
+!.env.example
+
+# Android / Kotlin build output
+multi_platform/**/build/
+multi_platform/**/.gradle/
+multi_platform/**/.kotlin/
+local.properties
+
+# IDE (khusus mesin masing-masing)
+.idea/workspace.xml

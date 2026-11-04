@@ -5,7 +5,17 @@
 import crypto from 'crypto';
 import { log } from '$lib/server/logger';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+/**
+ * Wajib dari env. TIDAK ada fallback acak: key acak per proses membuat data
+ * yang dienkripsi tidak bisa dibuka lagi setelah server restart / di instance lain.
+ */
+function getEncryptionKey() {
+	const key = process.env.ENCRYPTION_KEY;
+	if (!key || key.length < 32) {
+		throw new Error('ENCRYPTION_KEY belum diset (minimal 32 karakter)');
+	}
+	return key;
+}
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const SALT_LENGTH = 32;
@@ -33,7 +43,7 @@ export function encrypt(text) {
 		const iv = crypto.randomBytes(IV_LENGTH);
 		const salt = crypto.randomBytes(SALT_LENGTH);
 		
-		const key = deriveKey(ENCRYPTION_KEY, salt);
+		const key = deriveKey(getEncryptionKey(), salt);
 		
 		const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 		
@@ -66,7 +76,7 @@ export function decrypt(encryptedData) {
 		const tag = buffer.subarray(TAG_POSITION, ENCRYPTED_POSITION);
 		const encrypted = buffer.subarray(ENCRYPTED_POSITION);
 		
-		const key = deriveKey(ENCRYPTION_KEY, salt);
+		const key = deriveKey(getEncryptionKey(), salt);
 		
 		const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
 		decipher.setAuthTag(tag);

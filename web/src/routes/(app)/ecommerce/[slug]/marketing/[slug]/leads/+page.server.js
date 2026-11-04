@@ -110,7 +110,7 @@ export const actions = {
             await redis.del(`marketing_leads:${unit.id}`);
 
             // Pusher realtime
-            pusherServer.trigger(`marketing-${slug}`, 'lead-transferred', { leadId, nama }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'lead-transferred', { leadId, nama }).catch(() => {});
 
             return { success: true };
         } catch (err) {

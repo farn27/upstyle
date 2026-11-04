@@ -73,7 +73,7 @@ export const actions = {
             const keys = await redis.keys(`cs_tickets:${unit.id}:*`);
             if (keys.length) await redis.del(...keys);
             await redis.del(`cs_dash:${unit.id}`);
-            pusherServer.trigger(`cs-${slug}`, 'ticket-new', { subject, priority }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'ticket-new', { subject, priority }).catch(() => {});
             await inngest.send({ name: 'cs/ticket.created', data: { unitId: unit.id, slug, subject, priority } });
             return { success: true };
         } catch (err) {
@@ -101,7 +101,7 @@ export const actions = {
             const keys = await redis.keys(`cs_tickets:${unit.id}:*`);
             if (keys.length) await redis.del(...keys);
             await redis.del(`cs_dash:${unit.id}`);
-            pusherServer.trigger(`cs-${slug}`, 'ticket-updated', { ticketId: id, status }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'ticket-updated', { ticketId: id, status }).catch(() => {});
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal update status' });
@@ -128,8 +128,8 @@ export const actions = {
             await db.update(supportTickets).set({ lastResponseAt: nowWIB().toISOString() })
                 .where(and(eq(supportTickets.id, ticketId), eq(supportTickets.unitId, unit.id)));
             // Realtime — kirim pesan baru ke channel tiket
-            pusherServer.trigger(`cs-ticket-${ticketId}`, 'new-message', {
-                senderType: 'STAFF', message, ts: Date.now()
+            pusherServer.trigger(`unit-${unit.id}:ticket-${Number(ticketId)}`, 'ticket-message', {
+                ticketId: Number(ticketId), senderType: 'STAFF', message, ts: Date.now()
             }).catch(() => {});
             const keys = await redis.keys(`cs_tickets:${unit.id}:*`);
             if (keys.length) await redis.del(...keys);

@@ -62,7 +62,7 @@ export const actions = {
             await db.insert(marketingCampaigns).values({ unitId: unit.id, name, type, budget: String(budget), composeSubject, composeText, status: 'DRAFT' });
             await redis.del(`marketing_campaign:${unit.id}`);
             await redis.del(`marketing_dash:${unit.id}`);
-            pusherServer.trigger(`marketing-${slug}`, 'campaign-created', { name, type }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'campaign-created', { name, type }).catch(() => {});
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal buat kampanye' });
@@ -84,7 +84,7 @@ export const actions = {
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
             await db.update(marketingCampaigns).set({ status }).where(and(eq(marketingCampaigns.id, id), eq(marketingCampaigns.unitId, unit.id)));
             await redis.del(`marketing_campaign:${unit.id}`);
-            pusherServer.trigger(`marketing-${slug}`, 'campaign-updated', { id, status }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'campaign-updated', { id, status }).catch(() => {});
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal update status' });

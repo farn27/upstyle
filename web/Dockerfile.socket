@@ -1,7 +1,7 @@
 # Dockerfile untuk Socket.io server
 # Build: docker build -f Dockerfile.socket -t bizgrow-socket .
 
-FROM node:20-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 

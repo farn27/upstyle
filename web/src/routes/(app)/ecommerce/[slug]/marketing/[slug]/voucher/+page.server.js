@@ -53,7 +53,7 @@ export const actions = {
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
             await db.insert(vouchers).values({ unitId: unit.id, code, discountType, discountValue: String(discountValue), maxUsage, minPurchase: String(minPurchase), validFrom, validUntil, isActive: true });
             await redis.del(`marketing_voucher:${unit.id}`);
-            pusherServer.trigger(`marketing-${slug}`, 'voucher-created', { code }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'voucher-created', { code }).catch(() => {});
             return { success: true };
         } catch (err) {
             if (err.code === 'ER_DUP_ENTRY') return fail(400, { error: 'Kode voucher sudah digunakan' });

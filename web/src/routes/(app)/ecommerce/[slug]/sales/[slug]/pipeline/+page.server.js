@@ -71,7 +71,7 @@ export const actions = {
 
             await redis.del(`sales_pipeline:${unit.id}`);
             await redis.del(`sales_dash:${unit.id}:*`).catch(() => {});
-            pusherServer.trigger(`sales-${slug}`, 'pipeline-updated', { dealId, stage }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'pipeline-updated', { dealId, stage }).catch(() => {});
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal update stage' });
@@ -101,7 +101,7 @@ export const actions = {
                 nilai: String(nilai), stage, kontakId, status: 'open'
             });
             await redis.del(`sales_pipeline:${unit.id}`);
-            pusherServer.trigger(`sales-${slug}`, 'pipeline-updated', { action: 'create' }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'pipeline-updated', { action: 'create' }).catch(() => {});
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal buat deal: ' + err.message });

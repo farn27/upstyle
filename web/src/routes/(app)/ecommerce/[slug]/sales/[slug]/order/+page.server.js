@@ -126,7 +126,7 @@ export const actions = {
             if (keys.length > 0) await redis.del(...keys);
 
             // Pusher realtime update
-            pusherServer.trigger(`sales-${slug}`, 'order-updated', {
+            pusherServer.trigger(`unit-${unit.id}`, 'order-status-changed', {
                 orderId, status: newStatus
             }).catch(() => {});
 

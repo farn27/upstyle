@@ -3,9 +3,9 @@ import { db } from "$lib/server/drizzle";
 import { products } from "$lib/server/schema";
 import { sql } from "drizzle-orm";
 
-// Lazy import Redis and Pusher to avoid blocking SSR
+// Lazy import Redis dan Socket trigger agar tidak memblokir SSR
 const getRedis = () => import("$lib/server/redis").then(m => m.redis).catch(() => null);
-const getPusher = () => import("$lib/server/pusher").then(m => m.pusherServer).catch(() => null);
+const getSocket = () => import("$lib/server/socketTrigger").then(m => m.socketTriggers).catch(() => null);
 
 // 1. Membersihkan cache Redis saat ada perubahan transaksi
 export const redisCleaner = inngest.createFunction(
@@ -20,15 +20,6 @@ export const redisCleaner = inngest.createFunction(
         const keys = await redis.keys(`*:${userId}:${slug}:*`);
         if (keys.length > 0) {
             await redis.del(...keys);
-
-            const pusher = await getPusher();
-            if (pusher) {
-                await pusher.trigger('finance-channel', 'cache-cleared', {
-                    userId,
-                    slug
-                });
-            }
-
             return `Sapu ${keys.length} keys selesai!`;
         }
     });
@@ -50,12 +41,15 @@ export const generateReportJob = inngest.createFunction(
             return `https://storage.upstyle.id/reports/report_${unitId}_${Date.now()}.xlsx`;
         });
 
-        // Step 2: Kirim notifikasi via Pusher ke klien (Optimistic / Realtime update)
+        // Step 2: Kirim notifikasi realtime ke unit (Socket.io room unit-{unitId})
         await step.run("notify-user", async () => {
-            const pusher = await getPusher();
-            if (pusher) {
-                await pusher.trigger(`finance-${slug}`, 'report-ready', {
-                    message: `Laporan keuangan Anda sudah siap diunduh!`,
+            const socket = await getSocket();
+            if (socket) {
+                await socket.notification(unitId, {
+                    id: Date.now(),
+                    pesan: 'Laporan keuangan Anda sudah siap diunduh!',
+                    kategori: 'LAPORAN',
+                    tipe: 'success',
                     downloadUrl: reportUrl
                 });
             }
@@ -78,10 +72,13 @@ export const payrollNotificationJob = inngest.createFunction(
         });
 
         await step.run("notify-admin-dashboard", async () => {
-            const pusher = await getPusher();
-            if (pusher) {
-                await pusher.trigger(`finance-${slug}`, 'payroll-notified', {
-                    message: `Berhasil mengirim ${payrollIds.length} slip gaji via WhatsApp`
+            const socket = await getSocket();
+            if (socket) {
+                await socket.notification(unitId, {
+                    id: Date.now(),
+                    pesan: `Berhasil mengirim ${payrollIds.length} slip gaji via WhatsApp`,
+                    kategori: 'HR',
+                    tipe: 'success'
                 });
             }
         });
@@ -113,10 +110,10 @@ export const stockAlertCron = inngest.createFunction(
                     alertsByUnit[p.unitId].push(p.nama);
                 }
 
-                const pusher = await getPusher();
-                if (pusher) {
+                const socket = await getSocket();
+                if (socket) {
                     for (const [unitId, productNames] of Object.entries(alertsByUnit)) {
-                        await pusher.trigger(`private-unit-${unitId}`, 'stock-alert', {
+                        await socket.stockAlert(unitId, {
                             message: `Peringatan: ${productNames.length} produk stoknya hampir habis!`,
                             products: productNames
                         });
@@ -151,9 +148,9 @@ export const salesOrderStatusChanged = inngest.createFunction(
         });
 
         await step.run("notify-realtime", async () => {
-            const pusher = await getPusher();
-            if (pusher) {
-                await pusher.trigger(`sales-${slug}`, 'order-status-changed', {
+            const socket = await getSocket();
+            if (socket) {
+                await socket.orderStatusChanged(unitId, {
                     orderId, status,
                     message: `Order #${orderId} → ${status}`
                 });
@@ -182,11 +179,14 @@ export const csTicketCreated = inngest.createFunction(
         const { unitId, slug, subject, priority } = event.data;
 
         await step.run("notify-admin-realtime", async () => {
-            const pusher = await getPusher();
-            if (pusher) {
-                await pusher.trigger(`cs-${slug}`, 'ticket-new-notification', {
-                    subject, priority,
-                    message: `Tiket baru: "${subject}" — Prioritas: ${priority}`
+            const socket = await getSocket();
+            if (socket) {
+                await socket.notification(unitId, {
+                    id: Date.now(),
+                    pesan: `Tiket baru: "${subject}" — Prioritas: ${priority}`,
+                    kategori: 'CS',
+                    tipe: 'info',
+                    link: `/customer-service/${slug}/tickets`
                 });
             }
         });
@@ -194,9 +194,9 @@ export const csTicketCreated = inngest.createFunction(
         // Jika URGENT, kirim notifikasi lebih menonjol
         if (priority === 'URGENT') {
             await step.run("urgent-alert", async () => {
-                const pusher = await getPusher();
-                if (pusher) {
-                    await pusher.trigger(`channel-bizgrow`, 'notif-baru', {
+                const socket = await getSocket();
+                if (socket) {
+                    await socket.notification(unitId, {
                         id: Date.now(),
                         unitId,
                         pesan: `🚨 URGENT: Tiket CS baru — "${subject}"`,

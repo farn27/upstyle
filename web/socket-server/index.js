@@ -51,17 +51,38 @@ function verifySocketToken(token) {
 }
 
 const app = express();
-app.use(cors({ origin: '*', credentials: true }));
+// Origin yang boleh connect (pisahkan dengan koma), mis.
+// ORIGIN=https://bizgrows-ten.vercel.app,http://localhost:5173
+const ALLOWED_ORIGINS = (process.env.ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+if (ALLOWED_ORIGINS.length === 0) {
+  console.error('❌ ORIGIN wajib diisi (mis. https://bizgrows-ten.vercel.app)');
+  process.exit(1);
+}
+
+// localhost = app desktop Tauri (port dinamis 4173+) & mode dev — website internet tidak bisa memakai origin ini
+const LOCALHOST_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+// Tanpa header Origin = bukan browser (server web / app mobile) → tetap wajib token
+const isAllowedOrigin = (origin) =>
+  !origin || ALLOWED_ORIGINS.includes(origin) || LOCALHOST_ORIGIN.test(origin);
+
+app.use(cors({ origin: (origin, cb) => cb(null, isAllowedOrigin(origin)), credentials: true }));
 app.use(express.json());
 
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
     methods: ['GET', 'POST'],
     credentials: true
   },
+  // CORS browser tidak berlaku untuk WebSocket → cek Origin manual di handshake
+  allowRequest: (req, cb) => cb(null, isAllowedOrigin(req.headers.origin)),
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000
@@ -111,19 +132,30 @@ io.on('connection', (socket) => {
     io.to(unitRoom).emit('stock-alert', { ...data, timestamp: new Date().toISOString() });
   });
 
+  // Room tiket di-scope per unit: user unit lain otomatis masuk room berbeda
+  const ticketRoom = (ticketId) => {
+    const id = Number(ticketId);
+    return Number.isInteger(id) && id > 0 ? `${unitRoom}:ticket-${id}` : null;
+  };
+
   socket.on('join-ticket', (ticketId) => {
-    socket.join(`ticket-${ticketId}`);
-    socket.emit('joined-ticket', { ticketId });
+    const room = ticketRoom(ticketId);
+    if (!room) return;
+    socket.join(room);
+    socket.emit('joined-ticket', { ticketId: Number(ticketId) });
   });
 
   socket.on('leave-ticket', (ticketId) => {
-    socket.leave(`ticket-${ticketId}`);
-    socket.emit('left-ticket', { ticketId });
+    const room = ticketRoom(ticketId);
+    if (!room) return;
+    socket.leave(room);
+    socket.emit('left-ticket', { ticketId: Number(ticketId) });
   });
 
   socket.on('ticket-message', (data) => {
-    const { ticketId } = data;
-    io.to(`ticket-${ticketId}`).emit('ticket-message', {
+    const room = ticketRoom(data?.ticketId);
+    if (!room) return;
+    io.to(room).emit('ticket-message', {
       ...data,
       timestamp: new Date().toISOString()
     });
@@ -171,4 +203,5 @@ app.post('/emit', (req, res) => {
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 Socket.io server running on port ${PORT}`);
+  console.log(`🔒 Allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
 });

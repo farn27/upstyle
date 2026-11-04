@@ -344,12 +344,12 @@ OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk
 			// 6. Trigger realtime & background job
 			try {
 				if (pusherServer) {
-					await pusherServer.trigger(`finance-${slug}`, 'stats-updated', {
+					await pusherServer.trigger(`unit-${unitId}`, 'stats-updated', {
 						newTransaction: { keterangan, nominal, kategori, waktu: new Date() },
 						triggerRefresh: true
 					});
 
-					await pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+					await pusherServer.trigger(`unit-${unitId}`, 'notification', {
 						id: Date.now(),
 						unitId: unitId,
 						pesan: `MENCATAT ${kategori}: ${keterangan}`,

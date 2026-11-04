@@ -91,7 +91,7 @@ export const actions = {
                 }
             });
             await redis.del(`sales_quotation:${unit.id}`);
-            pusherServer.trigger(`sales-${slug}`, 'quotation-created', {}).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'quotation-created', {}).catch(() => {});
             return { success: true };
         } catch (err) {
             console.error(err);
@@ -114,7 +114,7 @@ export const actions = {
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
             await db.update(quotations).set({ status }).where(and(eq(quotations.id, qId), eq(quotations.unitId, unit.id)));
             await redis.del(`sales_quotation:${unit.id}`);
-            pusherServer.trigger(`sales-${slug}`, 'quotation-updated', { qId, status }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'quotation-updated', { qId, status }).catch(() => {});
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal update status' });
@@ -183,7 +183,7 @@ export const actions = {
             await redis.del(`sales_quotation:${unit.id}`);
             const soKeys = await redis.keys(`sales_orders:${unit.id}:*`);
             if (soKeys.length) await redis.del(...soKeys);
-            pusherServer.trigger(`sales-${slug}`, 'order-created', { soId }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'order-created', { soId }).catch(() => {});
 
             return { success: true, message: `Sales Order berhasil dibuat dari Quotation!`, soId };
         } catch (err) {

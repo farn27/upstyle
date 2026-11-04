@@ -118,10 +118,10 @@ export async function POST({ request, cookies, params, locals }) {
 
         // Trigger pusher event to sync stock realtime for everyone looking at POS
         try {
-            pusherServer.trigger(`finance-${params.slug}`, 'pos-stock-updated', {
+            pusherServer.trigger(`unit-${unit.id}`, 'stock-updated', {
                 triggerRefresh: true
             });
-            pusherServer.trigger(`finance-${params.slug}`, 'stats-updated', {
+            pusherServer.trigger(`unit-${unit.id}`, 'stats-updated', {
                 triggerRefresh: true
             });
         } catch (signalErr) {

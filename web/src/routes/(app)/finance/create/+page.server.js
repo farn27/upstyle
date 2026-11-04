@@ -141,7 +141,7 @@ await db.insert(riwayatAksi).values({
 });
 
 // --- 2. TEMBAK REAL-TIME KE PUSHER ---
-await pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+await pusherServer.trigger(`unit-${unitId}`, 'notification', {
     id: unitId,
     pesan: pesanToast,
     kategori: 'Unit Bisnis',

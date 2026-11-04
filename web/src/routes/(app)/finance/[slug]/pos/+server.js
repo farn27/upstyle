@@ -41,6 +41,8 @@ export async function POST({ request, cookies, params, locals }) {
 
         let orderNumber;
         let finalOrderId = null;
+        let posUnitId = null;
+        let posOrderTotal = 0;
         await db.transaction(async (tx) => {
             let unit = null;
 
@@ -104,6 +106,7 @@ export async function POST({ request, cookies, params, locals }) {
             const isOwner = ownerUserId && Number(unit.userId) === Number(ownerUserId);
             const isStaff = staffSession && Number(unit.id) === Number(staffSession.unit_id);
             if (!isOwner && !isStaff) throw new Error('Akses ditolak untuk melakukan transaksi POS');
+            posUnitId = unit.id;
 
             let customerId = null;
             if (customer_id) {
@@ -162,6 +165,7 @@ export async function POST({ request, cookies, params, locals }) {
             }
 
             const orderTotal = Math.max(0, orderSubtotal - finalDiscountValue);
+            posOrderTotal = orderTotal;
 
             const [orderInsertResult] = await tx.insert(posOrders).values({
                 orderNumber,
@@ -337,23 +341,23 @@ export async function POST({ request, cookies, params, locals }) {
 
         // Kirim sinyal Pusher (real-time reload & notifikasi)
         try {
-            pusherServer.trigger(`finance-${slug}`, 'stats-updated', {
+            pusherServer.trigger(`unit-${posUnitId}`, 'stats-updated', {
                 triggerRefresh: true
             });
 
-            pusherServer.trigger(`finance-${slug}`, 'pos-transaction-new', {
+            pusherServer.trigger(`unit-${posUnitId}`, 'pos-transaction', {
                 orderNumber: orderNumber,
                 customerName: customerNameSafe || 'Walk-in Customer'
             });
 
-            pusherServer.trigger(`finance-${slug}`, 'pos-stock-updated', {
+            pusherServer.trigger(`unit-${posUnitId}`, 'stock-updated', {
                 triggerRefresh: true
             });
 
-            pusherServer.trigger('channel-bizgrow', 'notif-baru', {
+            pusherServer.trigger(`unit-${posUnitId}`, 'notification', {
                 id: Date.now(),
-                unitId: Number(unitId),
-                pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${Number(orderTotal).toLocaleString('id-ID')}`,
+                unitId: Number(posUnitId),
+                pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${Number(posOrderTotal).toLocaleString('id-ID')}`,
                 kategori: 'POS',
                 tipe: 'success',
                 waktu: new Date()

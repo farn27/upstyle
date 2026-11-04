@@ -95,7 +95,7 @@ export const actions = {
             // Invalidate + realtime
             const keys = await redis.keys(`ecommerce_orders:${unit.id}:*`);
             if (keys.length) await redis.del(...keys);
-            pusherServer.trigger(`ecommerce-${slug}`, 'order-updated', { orderId, shippingStatus }).catch(() => {});
+            pusherServer.trigger(`unit-${unit.id}`, 'ecommerce-order-updated', { orderId, shippingStatus }).catch(() => {});
 
             return { success: true };
         } catch (err) {

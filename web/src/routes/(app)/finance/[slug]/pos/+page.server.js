@@ -264,6 +264,16 @@ export const actions = {
             });
             if (!shiftRecord) return { success: false, error: 'Shift tidak ditemukan' };
 
+            // Pastikan shift milik unit yang boleh diakses (staff unit ini / owner unit ini)
+            let bolehAkses = Boolean(staffSession && Number(staffSession.unit_id) === Number(shiftRecord.unitId));
+            if (!bolehAkses && ownerUserId) {
+                const unitMilikOwner = await db.query.unitBisnis.findFirst({
+                    where: and(eq(unitBisnis.id, shiftRecord.unitId), eq(unitBisnis.userId, ownerUserId))
+                });
+                bolehAkses = Boolean(unitMilikOwner);
+            }
+            if (!bolehAkses) return { success: false, error: 'Shift tidak ditemukan' };
+
             const selisih = kasAkhir - Number(shiftRecord.kasAkhir);
 
             await db.update(posShifts).set({
@@ -276,8 +286,8 @@ export const actions = {
 
             if (selisih !== 0) {
                 try {
-                    pusherServer.trigger(`finance-${slug}`, 'pos-cash-alert', {
-                        cashier: staffSession ? staffSession.nama_staff : 'Owner',
+                    pusherServer.trigger(`unit-${shiftRecord.unitId}`, 'pos-cash-alert', {
+                        cashier: staffSession ? staffSession.full_name : 'Owner',
                         selisih: selisih,
                         shiftId: shiftId
                     });

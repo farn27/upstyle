@@ -6,7 +6,6 @@ import { eq } from 'drizzle-orm';
 import { getUserIdFromSession } from '$lib/server/session';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { redis } from '$lib/server/redis';
-import { generateCsrfToken, validateCsrfToken } from '$lib/server/csrf';
 import { log } from '$lib/server/logger';
 
 const PROTECTED_PATHS = [
@@ -146,10 +145,6 @@ export async function handle({ event, resolve }) {
 						username: userFound.username,
 						role: userFound.role
 					};
-					
-					// Generate CSRF token for authenticated users
-					const csrfToken = generateCsrfToken(sessionToken);
-					event.locals.csrfToken = csrfToken;
 				}
 			}
 		} catch (err) {
@@ -157,25 +152,7 @@ export async function handle({ event, resolve }) {
 		}
 	}
 
-	// CSRF validation for POST/PUT/DELETE/PATCH requests (except API endpoints)
-	const isMutationRequest = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(event.request.method);
-	const isApiRoute = pathname.startsWith('/api/');
-	const isAuthRoute = pathname.startsWith('/auth/');
-	
-	// Skip CSRF validation for API routes and auth routes
-	if (isMutationRequest && !isApiRoute && !isAuthRoute && sessionToken) {
-		const csrfTokenFromHeader = event.request.headers.get('x-csrf-token');
-		
-		// Only validate if we have a CSRF token from header (to avoid consuming body)
-		// Body-based CSRF validation is handled by the action itself if needed
-		if (csrfTokenFromHeader && !validateCsrfToken(csrfTokenFromHeader, sessionToken)) {
-			log.auth.warn({ pathname }, '[CSRF] Invalid token for request');
-			return new Response(JSON.stringify({ success: false, message: 'CSRF validation failed', code: 'CSRF_INVALID' }), { 
-				status: 403, 
-				headers: { 'Content-Type': 'application/json', ...SECURITY_HEADERS } 
-			});
-		}
-	}
+	// CSRF: ditangani bawaan SvelteKit (cek Origin pada form POST) — lihat svelte.config.js
 
 	// RBAC Check for authenticated users
 	if (isProtected && event.locals.user) {

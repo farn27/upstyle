@@ -97,8 +97,9 @@ export const socketTriggers = {
         triggerSocketEvent(`unit-${unitId}`, 'stock-alert', data),
     
     // CS Ticket Messages
-    ticketMessage: (ticketId, data) => 
-        triggerSocketEvent(`ticket-${ticketId}`, 'ticket-message', data),
+    // Room tiket di-scope per unit (harus sama dengan socket-server)
+    ticketMessage: (unitId, ticketId, data) => 
+        triggerSocketEvent(`unit-${unitId}:ticket-${ticketId}`, 'ticket-message', data),
     
     // POS Cash Alerts
     posCashAlert: (unitId, data) => 
@@ -114,24 +115,30 @@ export const socketTriggers = {
 };
 
 /**
- * Legacy function name for backward compatibility
- * Replaces the old triggerEvent from pusher.js
+ * Nama event lama (era Pusher) → nama yang didengar web (realtimeStore) & mobile
+ */
+const EVENT_ALIASES = {
+    'pos-transaction-new': 'pos-transaction',
+    'pos-stock-updated': 'stock-updated',
+    'product-added': 'stock-updated',
+    'notif-baru': 'notification'
+};
+
+/**
+ * Legacy API (dipakai lewat pusherServer.trigger / triggerEvent).
+ * Hanya mengirim ke room unit (`unit-{id}` atau `unit-{id}:ticket-{id}`).
+ * Room lain (mis. `finance-{slug}`) DITOLAK: slug tidak unik antar owner,
+ * jadi tidak bisa dipetakan ke unit dengan aman.
  */
 export async function triggerEvent(channel, event, data) {
-    // Parse unit ID from channel name for backward compatibility
-    // Old format: 'private-unit-123' -> 'unit-123'
-    // Old format: 'finance-slug' -> extract unitId from database if needed
-    
-    let room = channel;
-    
-    // Convert old Pusher channel names to Socket.io room names
-    if (channel.startsWith('private-unit-')) {
-        room = channel.replace('private-unit-', 'unit-');
-    } else if (channel.startsWith('finance-')) {
-        // For finance channels, we need to get unitId from slug
-        // This is a simplified version - in production, you'd look up the unitId
-        room = channel; // Keep as-is for now, will be handled by the caller
+    const room = channel.startsWith('private-unit-')
+        ? channel.replace('private-unit-', 'unit-')
+        : channel;
+
+    if (!/^unit-\d+(:ticket-\d+)?$/.test(room)) {
+        console.warn(`[Socket Trigger] Room "${channel}" ditolak — pakai \`unit-\${unitId}\``);
+        return false;
     }
-    
-    return triggerSocketEvent(room, event, data);
+
+    return triggerSocketEvent(room, EVENT_ALIASES[event] || event, data);
 }

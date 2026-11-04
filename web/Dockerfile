@@ -1,5 +1,5 @@
 # ─── Stage 1: Build ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -15,14 +15,15 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build SvelteKit app
+# Build SvelteKit app (adapter-node → folder build/)
+ENV ADAPTER=node
 RUN npm run build
 
 # Remove devDependencies
 RUN npm ci --omit=dev
 
 # ─── Stage 2: Production ──────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 

@@ -217,6 +217,11 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
         invalidateAll().catch(() => {});
     };
 
+    // E-commerce order (status pengiriman) — dipakai halaman /ecommerce/[slug]/orders
+    const handleEcommerceOrderUpdated = (data) => {
+        emit('ecommerceOrderUpdate', ecommerceOrderUpdate, data);
+    };
+
     // Register event handlers
     eventHandlers.set('connected', handleConnected);
     eventHandlers.set('pos-transaction', handlePOSTransaction);
@@ -226,6 +231,7 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
     eventHandlers.set('pos-cash-alert', handlePOSAlert);
     eventHandlers.set('notification', handleNotification);
     eventHandlers.set('order-status-changed', handleOrderStatusChanged);
+    eventHandlers.set('ecommerce-order-updated', handleEcommerceOrderUpdated);
     eventHandlers.set('stats-updated', handleStatsUpdated);
     eventHandlers.set('new-transaction', handleNewTransaction);
 

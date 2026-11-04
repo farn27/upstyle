@@ -384,16 +384,6 @@ export async function POST({ request, cookies }) {
                 const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
                 if (productKeys.length > 0) await redis.del(...productKeys);
 
-                triggerEvent(`finance-${slug}`, 'stats-updated', { message: `POS order ${orderNumber}` });
-                triggerEvent('finance-channel', 'new-transaction', { message: `POS order ${orderNumber}` });
-                triggerEvent('channel-bizgrow', 'notif-baru', {
-                    id: Date.now(),
-                    unitId: Number(unitId),
-                    pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(total)}`,
-                    kategori: 'POS',
-                    tipe: 'success',
-                    waktu: nowWIB()
-                });
                 // Trigger on correct unit room for web notifications
                 triggerEvent(`unit-${unitId}`, 'pos-transaction', {
                     orderNumber,

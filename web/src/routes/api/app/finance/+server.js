@@ -178,16 +178,6 @@ export async function POST({ request, cookies }) {
         if (slug) {
             // Await is critical on Vercel to prevent process freezing before the fetch completes
             await Promise.allSettled([
-                triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Update dari HP' }),
-                triggerEvent('finance-channel', 'new-transaction', { message: 'Update dari HP' }),
-                triggerEvent('channel-bizgrow', 'notif-baru', {
-                    id: Date.now(),
-                    unitId: Number(unitId),
-                    pesan: `Transaksi baru ditambahkan dari HP: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
-                    kategori: 'FINANCE',
-                    tipe: 'success',
-                    waktu: new Date()
-                }),
                 triggerEvent(`unit-${unitId}`, 'notification', {
                     id: Date.now(),
                     unitId: Number(unitId),
@@ -245,16 +235,6 @@ export async function DELETE({ url, cookies, request }) {
 
         if (slug) {
             await Promise.allSettled([
-                triggerEvent(`finance-${slug}`, 'stats-updated', { message: 'Hapus dari HP' }),
-                triggerEvent('finance-channel', 'new-transaction', { message: 'Hapus dari HP' }),
-                triggerEvent('channel-bizgrow', 'notif-baru', {
-                    id: Date.now(),
-                    unitId: Number(unitId),
-                    pesan: `Transaksi dihapus dari HP`,
-                    kategori: 'FINANCE',
-                    tipe: 'warning',
-                    waktu: new Date()
-                }),
                 triggerEvent(`unit-${unitId}`, 'notification', {
                     id: Date.now(),
                     unitId: Number(unitId),
