@@ -17,14 +17,31 @@ import { env } from '$env/dynamic/public';
 
 let socketInstance = null;
 let connectionPromise = null;
+let currentAuthUnitId = null;
+
+/**
+ * Minta token Socket.io ke server web (dicek: user/staff berhak atas unit ini).
+ * @param {number|string} unitId
+ * @returns {Promise<string>}
+ */
+async function fetchSocketToken(unitId) {
+  const res = await fetch(`/api/socket-token?unitId=${encodeURIComponent(unitId)}`, {
+    credentials: 'same-origin'
+  });
+  if (!res.ok) throw new Error(`Socket token ditolak (${res.status})`);
+  const body = await res.json();
+  return body.token;
+}
 
 /**
  * Get or create Socket.io client instance
- * @param {Object} auth - Authentication data { token, unitId, userId }
+ * @param {Object} auth - { unitId } — token diambil otomatis dari /api/socket-token
  * @returns {Promise<Socket>}
  */
 export const getSocketClient = async (auth = {}) => {
   if (typeof window === 'undefined') return null;
+
+  if (auth.unitId) currentAuthUnitId = auth.unitId;
 
   // Return existing instance if connected and auth matches
   if (socketInstance?.connected) {
@@ -36,13 +53,26 @@ export const getSocketClient = async (auth = {}) => {
     return connectionPromise;
   }
 
+  // Tanpa unit tidak bisa minta token — jangan connect anonim
+  if (!currentAuthUnitId) {
+    return null;
+  }
+
   // Create new connection
   connectionPromise = new Promise((resolve, reject) => {
     try {
       const socketUrl = env.PUBLIC_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
       
       socketInstance = io(socketUrl, {
-        auth,
+        // Dipanggil di setiap (re)connect → selalu pakai token segar
+        auth: (cb) => {
+          fetchSocketToken(currentAuthUnitId)
+            .then((token) => cb({ token }))
+            .catch((err) => {
+              console.warn('[Socket] Gagal ambil token:', err.message);
+              cb({});
+            });
+        },
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 5,
@@ -93,6 +123,7 @@ export const disconnectSocket = () => {
     socketInstance.disconnect();
     socketInstance = null;
     connectionPromise = null;
+    currentAuthUnitId = null;
     console.log('🔌 Socket.io disconnected');
   }
 };

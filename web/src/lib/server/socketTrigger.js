@@ -8,8 +8,13 @@
 import { redis } from '$lib/server/redis';
 import { env } from '$env/dynamic/private';
 
-const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL || 'https://203.194.113.29.sslip.io';
-const SOCKET_API_KEY = env.SOCKET_API_KEY || '3801d6c3911bbba091ac8e9dc95b9e20add0aab827af5cfb65f5758781bfc3af';
+// Wajib diisi lewat environment (Vercel / .env). JANGAN taruh nilai asli di kode.
+const SOCKET_SERVER_URL = env.SOCKET_SERVER_URL;
+const SOCKET_API_KEY = env.SOCKET_API_KEY;
+
+if (!SOCKET_SERVER_URL || !SOCKET_API_KEY) {
+    console.warn('⚠️ [Socket Trigger] SOCKET_SERVER_URL / SOCKET_API_KEY belum diset. HTTP emit dilewati, pakai Redis pub/sub.');
+}
 
 /**
  * Trigger Socket.io event via HTTP API
@@ -19,6 +24,12 @@ const SOCKET_API_KEY = env.SOCKET_API_KEY || '3801d6c3911bbba091ac8e9dc95b9e20ad
  */
 export async function triggerSocketEvent(room, event, data) {
     try {
+        if (!SOCKET_SERVER_URL || !SOCKET_API_KEY) {
+            const configError = new Error('Socket env not configured');
+            configError.name = 'ConfigError';
+            throw configError;
+        }
+
         // Try HTTP API with 3-second timeout for serverless-to-VPS communication
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -42,7 +53,7 @@ export async function triggerSocketEvent(room, event, data) {
         }
     } catch (httpError) {
         // Don't log AbortError as a warning — it's expected fallback
-        if (httpError.name !== 'AbortError') {
+        if (httpError.name !== 'AbortError' && httpError.name !== 'ConfigError') {
             console.warn('[Socket Trigger] HTTP API failed, trying Redis pub/sub:', httpError.message);
         }
         

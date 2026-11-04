@@ -52,7 +52,8 @@
   $: if (typeof window !== 'undefined' && (unitId || activeSlug)) {
     // Only init Socket.io if we have a valid unitId for authentication
     if (unitId) {
-      initGlobalRealtime(unitId, activeSlug, username, userId, 'session-token-placeholder');
+      // Token Socket.io diambil otomatis oleh $lib/socket dari /api/socket-token
+      initGlobalRealtime(unitId, activeSlug, username, userId);
     }
     // No fallback needed — polling is handled internally by initGlobalRealtime
   }
