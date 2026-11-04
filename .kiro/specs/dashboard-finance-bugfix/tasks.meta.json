@@ -1,0 +1,843 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806559794
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806602011
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807010114
+      }
+    ],
+    "1.1.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806561739
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807010670
+      }
+    ],
+    "1.1.3.1 Update server calculation in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806562830
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807011548
+      }
+    ],
+    "1.1.3.2 Update frontend to use server-calculated saldoKas": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806563044
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807012604
+      }
+    ],
+    "1.1.3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806563310
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807013362
+      }
+    ],
+    "1.1.3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806563534
+      },
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807014245
+      }
+    ],
+    "1.2.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806563710
+      },
+      {
+        "executionId": "bf8757a3-8516-42c2-82d1-0b0033f4f922",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807064957
+      }
+    ],
+    "1.2.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806563853
+      }
+    ],
+    "1.2.3.1 Update modalAwal reference in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564017
+      }
+    ],
+    "1.2.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564201
+      }
+    ],
+    "1.2.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564338
+      }
+    ],
+    "1.3.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564485
+      }
+    ],
+    "1.3.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564638
+      }
+    ],
+    "1.3.3.1 Update metodeBayar reference in transaction table": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564829
+      }
+    ],
+    "1.3.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806564983
+      }
+    ],
+    "1.3.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806565117
+      }
+    ],
+    "1.4.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806565252
+      }
+    ],
+    "1.4.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806565393
+      }
+    ],
+    "1.4.3.1 Implement conditional stock reversal in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806565539
+      }
+    ],
+    "1.4.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806565682
+      }
+    ],
+    "1.4.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806565822
+      }
+    ],
+    "1.6.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806566006
+      }
+    ],
+    "1.6.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806566272
+      }
+    ],
+    "1.6.3.1 Add journal entry cascade delete in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806566429
+      }
+    ],
+    "1.6.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806566608
+      }
+    ],
+    "1.6.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806566796
+      }
+    ],
+    "1.7 Checkpoint - Priority 1 Complete": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806566957
+      }
+    ],
+    "2.1.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806567124
+      }
+    ],
+    "2.1.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806567301
+      }
+    ],
+    "2.1.3.1 Add monthlyTarget field to unitBisnis schema (if not exists)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806567469
+      }
+    ],
+    "2.1.3.2 Update target calculation in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806567613
+      }
+    ],
+    "2.1.3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806567756
+      }
+    ],
+    "2.1.3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806567895
+      }
+    ],
+    "2.2.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806568105
+      }
+    ],
+    "2.2.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806568253
+      }
+    ],
+    "2.2.3.1 Add separate query for current month revenue": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806568453
+      }
+    ],
+    "2.2.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806568628
+      }
+    ],
+    "2.2.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806568780
+      }
+    ],
+    "2.3.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806569019
+      }
+    ],
+    "2.3.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806569164
+      }
+    ],
+    "2.3.3.1 Update frontend default to match server": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806569326
+      }
+    ],
+    "2.3.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806569471
+      }
+    ],
+    "2.3.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806569724
+      }
+    ],
+    "2.4.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806569912
+      }
+    ],
+    "2.4.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806570121
+      }
+    ],
+    "2.4.3.1 Update projection logic in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806570315
+      }
+    ],
+    "2.4.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806570501
+      }
+    ],
+    "2.4.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806570669
+      }
+    ],
+    "2.5.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806570843
+      }
+    ],
+    "2.5.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806571005
+      }
+    ],
+    "2.5.3.1 Update low stock filter in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806571166
+      }
+    ],
+    "2.5.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806571339
+      }
+    ],
+    "2.5.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806571600
+      }
+    ],
+    "2.6.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806571755
+      }
+    ],
+    "2.6.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806572044
+      }
+    ],
+    "2.6.3.1 Remove negative balance filter in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806572270
+      }
+    ],
+    "2.6.3.2 Add visual warning for negative balances in frontend": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806572456
+      }
+    ],
+    "2.6.3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806572630
+      }
+    ],
+    "2.6.3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806572857
+      }
+    ],
+    "2.7 Checkpoint - Priority 2 Complete": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806573053
+      }
+    ],
+    "3.1.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806573259
+      }
+    ],
+    "3.1.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806573483
+      }
+    ],
+    "3.1.3.1 Decision: Implement popups or remove variables": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806573680
+      }
+    ],
+    "3.1.3.2 Remove unused variables in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806573852
+      }
+    ],
+    "3.1.3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806574015
+      }
+    ],
+    "3.1.3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806574185
+      }
+    ],
+    "3.2.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806574370
+      }
+    ],
+    "3.2.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806574562
+      }
+    ],
+    "3.2.3.1 Add toggle buttons to chart section in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806574771
+      }
+    ],
+    "3.2.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806575057
+      }
+    ],
+    "3.2.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806575268
+      }
+    ],
+    "3.3.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806575412
+      }
+    ],
+    "3.3.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806575594
+      }
+    ],
+    "3.3.3.1 Update chart rendering logic in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806575786
+      }
+    ],
+    "3.3.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806575958
+      }
+    ],
+    "3.3.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806576119
+      }
+    ],
+    "3.4.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806576282
+      }
+    ],
+    "3.4.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806576428
+      }
+    ],
+    "3.4.3.1 Update color mapping logic in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806576625
+      }
+    ],
+    "3.4.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806576796
+      }
+    ],
+    "3.4.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806576969
+      }
+    ],
+    "3.5.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806577115
+      }
+    ],
+    "3.5.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806577299
+      }
+    ],
+    "3.5.3.1 Decision: Rename or integrate ML": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806577518
+      }
+    ],
+    "3.5.3.2 Rename panel to \"Business Insights\" in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806577679
+      }
+    ],
+    "3.5.3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806577833
+      }
+    ],
+    "3.5.3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806578001
+      }
+    ],
+    "3.6.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806578170
+      }
+    ],
+    "3.6.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806578359
+      }
+    ],
+    "3.6.3.1 Delete checkUpdates function in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806578561
+      }
+    ],
+    "3.6.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806578768
+      }
+    ],
+    "3.6.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806578985
+      }
+    ],
+    "3.7.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806579266
+      }
+    ],
+    "3.7.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806579580
+      }
+    ],
+    "3.7.3.1 Move handler out of reactive block in +page.svelte": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806579867
+      }
+    ],
+    "3.7.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806580251
+      }
+    ],
+    "3.7.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806580486
+      }
+    ],
+    "3.8 Checkpoint - Priority 3 Complete": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806580869
+      }
+    ],
+    "4.1.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806581075
+      }
+    ],
+    "4.1.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806581283
+      }
+    ],
+    "4.1.3.1 Add limit clause to transaction query in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806581486
+      }
+    ],
+    "4.1.3.2 Add \"load more\" UI hint in frontend": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806581745
+      }
+    ],
+    "4.1.3.3 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806581957
+      }
+    ],
+    "4.1.3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806582176
+      }
+    ],
+    "4.2.1 Write bug condition exploration test": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806582424
+      }
+    ],
+    "4.2.2 Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806582702
+      }
+    ],
+    "4.2.3.1 Update try-catch to re-throw SvelteKit errors in +page.server.js": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806582916
+      }
+    ],
+    "4.2.3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806583221
+      }
+    ],
+    "4.2.3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806583377
+      }
+    ],
+    "4.3 Checkpoint - Priority 4 Complete": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806583570
+      }
+    ],
+    "5.1 Run complete test suite for all 20 bugfixes": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806583817
+      }
+    ],
+    "5.2 Documentation and verification": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806584041
+      }
+    ],
+    "5.3 Final user acceptance": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793806584261
+      }
+    ],
+    "1.1.3 Fix saldo kas calculation": [
+      {
+        "executionId": "d437370c-3125-4072-b0c7-204294026253",
+        "chatSessionId": "sess_fb9e3056-9e87-4662-a366-2f46bad6eef6",
+        "timestamp": 1793807014511
+      }
+    ]
+  }
+}
