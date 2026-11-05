@@ -1,12 +1,13 @@
-import { error, fail } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { transaksi, unitBisnis, products, abcCategories, riwayatAksi, receivables, payables, chartOfAccounts, journalEntryLines, journalEntries } from '$lib/server/schema';
+import { transaksi, unitBisnis, products, riwayatAksi, receivables, payables, chartOfAccounts, journalEntryLines, journalEntries } from '$lib/server/schema';
 import { eq, and, desc, sql, lte, inArray } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
 import { log } from '$lib/server/logger';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { buildStrategicBI } from '$lib/server/strategicBI';
 import { todayStrWIB } from '$lib/server/dateUtils';
+import { hitungSaldoKas, targetBulananOtomatis, labelMetodeBayar } from '$lib/financeDashboard';
 
 export const load = async ({ params, url, depends, cookies }) => {
     const { slug } = params;
@@ -38,7 +39,6 @@ export const load = async ({ params, url, depends, cookies }) => {
         });
         if (!unitData) throw error(404, 'Unit tidak ditemukan');
 
-        const abcCats = await db.select().from(abcCategories).orderBy(abcCategories.id);
         const productsData = await db.select({
             id: products.id, nama: products.nama, harga_jual: products.hargaJual, stok: products.stok, minStok: products.minStok
         }).from(products).where(eq(products.unitId, unitData.id));
@@ -62,11 +62,36 @@ export const load = async ({ params, url, depends, cookies }) => {
             total_hpp: sql`SUM(COALESCE(${transaksi.hppTotal}, 0))`
         }).from(transaksi).where(baseFilter);
         
-        const summary = summaryRows[0] || { total_masuk: 0, total_keluar: 0, total_hpp: 0 };
-        // Bug 1.1: saldoKas = modalAwal + totalMasuk - totalKeluar
-        summary.saldoKas = Number(unitData.modalAwal || 0) + Number(summary.total_masuk || 0) - Number(summary.total_keluar || 0);
-        
-        const transactionList = await db.select().from(transaksi).where(baseFilter).orderBy(desc(transaksi.tanggal), desc(transaksi.id)).limit(100);
+        // Saldo kas & KPI TIDAK ikut filter periode: saldo = sepanjang waktu, KPI = bulan berjalan (WIB)
+        const awalBulanIni = `${todayStrWIB().slice(0, 7)}-01`;
+        const [totalUnit] = await db.select({
+            masukSemua: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'MASUK' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            keluarSemua: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'KELUAR' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            masukBulanIni: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'MASUK' AND DATE(${transaksi.tanggal}) >= ${awalBulanIni} THEN ${transaksi.nominal} ELSE 0 END), 0)`
+        }).from(transaksi).where(eq(transaksi.unitId, unitData.id));
+
+        const summary = {
+            ...(summaryRows[0] || { total_masuk: 0, total_keluar: 0, total_hpp: 0 }),
+            saldoKas: hitungSaldoKas({
+                modalAwal: unitData.modalAwal,
+                totalMasuk: /** @type {string} */ (totalUnit?.masukSemua),
+                totalKeluar: /** @type {string} */ (totalUnit?.keluarSemua)
+            })
+        };
+
+        const transactionRows = await db.select().from(transaksi).where(baseFilter).orderBy(desc(transaksi.tanggal), desc(transaksi.id)).limit(100);
+
+        // metodeBayar dari form entry berisi ID akun kas → ambil nama akunnya
+        const idAkunKas = [...new Set(transactionRows.map(t => String(t.metodeBayar || '')).filter(v => /^\d+$/.test(v)))];
+        /** @type {Record<string, string>} */
+        const namaAkunById = {};
+        if (idAkunKas.length > 0) {
+            const akun = await db.select({ id: chartOfAccounts.id, namaAkun: chartOfAccounts.namaAkun })
+                .from(chartOfAccounts)
+                .where(and(eq(chartOfAccounts.unitId, unitData.id), inArray(chartOfAccounts.id, idAkunKas.map(Number))));
+            for (const a of akun) namaAkunById[String(a.id)] = a.namaAkun;
+        }
+        const transactionList = transactionRows.map(t => ({ ...t, metodeLabel: labelMetodeBayar(t.metodeBayar, namaAkunById) }));
 
         const logs = await db.select({ pesan: riwayatAksi.pesan, tipe: riwayatAksi.tipe, waktu: riwayatAksi.waktu })
             .from(riwayatAksi)
@@ -104,15 +129,9 @@ export const load = async ({ params, url, depends, cookies }) => {
             };
         }); // Bug 2.6: Show all balances including negative (overdrawn accounts)
 
-        // Bug 2.1: Use user-configurable target from DB, fallback to formula
-        const targetPendapatan = Number(unitData.monthlyTarget) || Math.max(Number(unitData.modalAwal || 0) * 1.5, 10000000);
-        // Bug 2.2: KPI uses CURRENT MONTH revenue, not filtered period
-        const now = new Date();
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const kpiRows = await db.select({
-            currentMonth: sql`SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%' THEN ${transaksi.nominal} ELSE 0 END)`
-        }).from(transaksi).where(and(eq(transaksi.unitId, unitData.id), sql`DATE(${transaksi.tanggal}) >= ${firstOfMonth}`));
-        const currentPendapatan = Number(kpiRows[0]?.currentMonth || 0);
+        // Target bulanan belum bisa diatur per unit → estimasi otomatis (ditandai di UI)
+        const targetPendapatan = targetBulananOtomatis(unitData.modalAwal);
+        const currentPendapatan = Number(/** @type {string} */ (totalUnit?.masukBulanIni) || 0);
 
         const finalData = {
             unit: unitData, 
@@ -120,7 +139,6 @@ export const load = async ({ params, url, depends, cookies }) => {
             transactions: transactionList, 
             products: productsData, 
             riwayat: logs, 
-            abcCategories: abcCats, 
             startDate, 
             endDate,
             alerts: {
@@ -129,7 +147,7 @@ export const load = async ({ params, url, depends, cookies }) => {
                 lowStock: lowStockProducts
             },
             bankBalances,
-            kpi: { target: targetPendapatan, current: currentPendapatan },
+            kpi: { target: targetPendapatan, current: currentPendapatan, estimasi: true },
             strategicBI: buildStrategicBI({
                 totalMasuk: summary.total_masuk,
                 totalKeluar: summary.total_keluar,
@@ -156,59 +174,4 @@ export const load = async ({ params, url, depends, cookies }) => {
     }
 };
 
-export const actions = {
-    deleteTransaction: async ({ request, cookies, params }) => {
-        const userId = await getCurrentUserId(cookies);
-        const { slug } = params;
-        const formData = await request.formData();
-        const id = formData.get('id');
-
-        try {
-            await db.transaction(async (tx) => {
-                const unit = await tx.query.unitBisnis.findFirst({
-                    where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
-                });
-                if (!unit) throw new Error('Unit tidak ditemukan');
-
-                const trxData = await tx.query.transaksi.findFirst({
-                    where: and(eq(transaksi.id, id), eq(transaksi.unitId, unit.id))
-                });
-                if (trxData && trxData.productId) {
-                    const produk = await tx.query.products.findFirst({ where: eq(products.id, trxData.productId) });
-                    if (produk) {
-                        // Bug 1.4 & 1.5: Reverse direction based on transaction type
-                        // KELUAR (purchase) → delete → stock goes DOWN (reverse the increase)
-                        // MASUK (sale) → delete → stock goes UP (restore the decrease)
-                        const delta = trxData.kategoriTrx === 'KELUAR' ? -trxData.qty : trxData.qty;
-                        await tx.update(products).set({ stok: produk.stok + delta }).where(eq(products.id, trxData.productId));
-                    }
-                }
-                // Bug 1.6: Cascade delete journal entries BEFORE deleting transaction
-                const relatedJournals = await tx.select({ id: journalEntries.id })
-                    .from(journalEntries)
-                    .where(eq(journalEntries.transaksiId, Number(id)));
-                if (relatedJournals.length > 0) {
-                    const jIds = relatedJournals.map(j => j.id);
-                    await tx.delete(journalEntryLines).where(inArray(journalEntryLines.journalId, jIds));
-                    await tx.delete(journalEntries).where(inArray(journalEntries.id, jIds));
-                }
-                if (trxData) {
-                    await tx.delete(transaksi).where(eq(transaksi.id, id));
-                }
-            });
-
-            if (redis) {
-                try {
-                    const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
-                    if (keys.length > 0) await redis.del(...keys);
-                    const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
-                    if (historyKeys.length > 0) await redis.del(...historyKeys);
-                } catch (redisErr) {
-                    log.finance.warn({ err: redisErr.message }, '[Redis] Gagal invalidate cache dashboard action');
-                }
-            }
-
-            return { success: true };
-        } catch (err) { return fail(500, { message: 'Gagal hapus transaksi' }); }
-    }
-};
+// Hapus transaksi dilakukan dari halaman Riwayat (history) → lihat $lib/server/hapusTransaksi.js

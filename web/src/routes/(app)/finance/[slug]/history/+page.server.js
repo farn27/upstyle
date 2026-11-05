@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { hapusTransaksi } from '$lib/server/hapusTransaksi';
 import { db } from '$lib/server/drizzle'; 
 import { transaksi, unitBisnis, products, abcCategories , riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc, between, lt, getTableColumns, sql } from 'drizzle-orm';
@@ -23,7 +24,7 @@ export const load = async ({ params, url, cookies }) => {
     const cacheKey = `history_v3:${userId}:${slug}:${start}:${end}`;
 
     try {
-        const cachedHistory = await redis.get(cacheKey);
+        const cachedHistory = redis ? await redis.get(cacheKey) : null;
         if (cachedHistory) {
             return cachedHistory;
         }
@@ -101,22 +102,14 @@ export const actions = {
                 });
                 if (!unit) throw new Error('Unit tidak ditemukan');
 
-                const trxData = await tx.query.transaksi.findFirst({
-                    where: and(eq(transaksi.id, numericId), eq(transaksi.unitId, unit.id))
-                });
-
-                // 2. Logic Pembasmi Hantu: Jika data null, paksa Inngest tetap nyapu
-                if (!trxData) {
-                    await inngest.send({
-                        name: "app/transaction.changed",
-                        data: { userId, slug }
-                    });
-                    return; 
-                }
+                // Hapus transaksi + kembalikan stok penjualan + hapus jurnalnya
+                const hasil = await hapusTransaksi(tx, { unitId: unit.id, trxId: numericId });
+                const trxData = hasil?.trx;
+                if (!trxData) return; // sudah terhapus / bukan milik unit ini
 
                 namaTerhapus = trxData.keterangan || "TRANSAKSI TANPA NAMA";
 
-                // 3. Masukkan ke Audit Trail (Notification Dropdown)
+                // Audit Trail (Notification Dropdown)
                 await tx.insert(riwayatAksi).values({ 
                     userId, 
                     unitId: trxData.unitId, 
@@ -124,16 +117,25 @@ export const actions = {
                     tipe: 'info',
                     waktu: nowWIB()
                 });
-
-                // 4. Hapus data dari MySQL
-                await tx.delete(transaksi).where(eq(transaksi.id, numericId));
-
-                // 5. Kirim sinyal ke Inngest Janitor
-                await inngest.send({
-                    name: "app/transaction.changed",
-                    data: { userId, slug }
-                });
             });
+
+            // Bersihkan cache SETELAH data aman terhapus. Best-effort: kalau Redis / Inngest
+            // sedang tidak bisa dihubungi, penghapusan TIDAK ikut dibatalkan.
+            if (redis) {
+                try {
+                    for (const pola of [`finance_dash_v4:${userId}:${slug}:*`, `history_v3:${userId}:${slug}:*`]) {
+                        const keys = await redis.keys(pola);
+                        if (keys.length > 0) await redis.del(...keys);
+                    }
+                } catch (redisErr) {
+                    log.finance.warn({ err: redisErr instanceof Error ? redisErr.message : String(redisErr) }, '[Redis] Gagal hapus cache setelah delete');
+                }
+            }
+            try {
+                await inngest.send({ name: "app/transaction.changed", data: { userId, slug } });
+            } catch (inngestErr) {
+                log.finance.warn({ err: inngestErr instanceof Error ? inngestErr.message : String(inngestErr) }, '[Inngest] Gagal kirim event setelah delete');
+            }
 
             // Return pesan yang lebih manusiawi lurd!
             return { 

@@ -7,6 +7,7 @@
   import { financeUpdate } from '$lib/realtimeStore';
   import PageLayout from '$lib/components/PageLayout.svelte';
   import StockAlertBanner from '$lib/components/StockAlertBanner.svelte';
+  import { PRESETS, rentangPreset, presetDariRentang, proyeksiArusKasBulanIni } from '$lib/financeDashboard';
   import {
     Coins,
     ArrowUpRight,
@@ -61,43 +62,27 @@
   $: selisih = totalMasuk - totalKeluar; // Arus Kas Bersih
   $: labaKotor = totalMasuk - totalHpp;
   // BUGFIX 1.1: Use server-calculated saldoKas instead of client calculation
-  $: saldoSaatIni = Number(summary.saldoKas) || (modalAwal + selisih);
+  // Saldo kas sepanjang waktu (dari server, tidak ikut filter periode)
+  $: saldoSaatIni = summary.saldoKas != null ? Number(summary.saldoKas) : modalAwal + selisih;
   $: persentaseLaba = totalMasuk > 0 ? (selisih / totalMasuk) * 100 : 0;
   $: kpiProgress = Math.min((kpi.current / kpi.target) * 100, 100);
 
   // --- 4. FILTER & PRESET ---
-  let activePreset = "Semua"; // Bug 2.3: Match server default "all"
-  let selectedKategori = "";
-  let sDate = "";
-  let eDate = "";
+  // Preset aktif selalu diturunkan dari tanggal di URL → tetap benar setelah refresh
+  $: activePreset = presetDariRentang(startDate, endDate);
+  let selectedKategori = ""; // filter grafik arus kas (sisi klien)
 
-  $: if (startDate) sDate = startDate;
-  $: if (endDate) eDate = endDate;
-
-  async function handleFilter() {
+  async function setPreset(preset) {
     const url = new URL(window.location.href);
-    if (sDate) url.searchParams.set('start', sDate);
-    if (eDate) url.searchParams.set('end', eDate);
-    if (selectedKategori) url.searchParams.set('kategori', selectedKategori);
-    else url.searchParams.delete('kategori');
-    
+    const rentang = rentangPreset(preset);
+    if (rentang) {
+      url.searchParams.set('start', rentang.start);
+      url.searchParams.set('end', rentang.end);
+    } else {
+      url.searchParams.delete('start');
+      url.searchParams.delete('end');
+    }
     await goto(url.pathname + url.search, { keepFocus: true, noScroll: true, replaceState: true, invalidateAll: true });
-  }
-
-  function setPreset(p) {
-    activePreset = p;
-    const now = new Date();
-    let start = new Date();
-    
-    if (p === 'Hari Ini') {} 
-    else if (p === 'Kemarin') { start.setDate(now.getDate() - 1); now.setDate(now.getDate() - 1); } 
-    else if (p === '7 Hari') { start.setDate(now.getDate() - 7); } 
-    else if (p === 'Bulan Ini') { start = new Date(now.getFullYear(), now.getMonth(), 1); }
-    
-    const formatDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-    sDate = formatDate(start); eDate = formatDate(now);
-    handleFilter();
   }
 
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
@@ -106,11 +91,9 @@
   $: {
     const opex = totalKeluar - totalHpp;
     const omzet = totalMasuk;
-    const hariBerjalan = new Date().getDate();
-    const runRate = omzet / (hariBerjalan || 1);
-    // Bug 2.4: Only project for current month or "all" filter
-    forecastLaba = (activePreset === 'Bulan Ini' || activePreset === 'Semua')
-        ? (runRate * 30) - ((totalKeluar / (hariBerjalan || 1)) * 30)
+    // Proyeksi hanya bermakna untuk data bulan berjalan
+    forecastLaba = activePreset === 'Bulan Ini'
+        ? proyeksiArusKasBulanIni({ totalMasuk, totalKeluar })
         : null;
 
     let points = 0;
@@ -121,7 +104,7 @@
     operationalVelocity = omzet > (modalAwal * 0.3) ? "HIGH" : "STABLE";
 
     if (omzet === 0) teksAnalisisAI = `Menunggu data operasional periode ${activePreset} untuk kalkulasi.`;
-    else if (selisih < 0) teksAnalisisAI = `DEFISIT ARUS KAS: Burn-rate ${formatIDR(Math.abs(selisih / hariBerjalan))}/hari. Pangkas pengeluaran operasional (OPEX) segera untuk menjaga likuiditas.`;
+    else if (selisih < 0) teksAnalisisAI = `DEFISIT ARUS KAS: pengeluaran melebihi pemasukan ${formatIDR(Math.abs(selisih))} pada periode ${activePreset}. Pangkas pengeluaran operasional (OPEX) untuk menjaga likuiditas.`;
     else if (opex > totalHpp && totalHpp > 0) teksAnalisisAI = `EFISIENSI BURUK: Biaya Operasional lebih tinggi dari HPP barang terjual. Evaluasi pengeluaran bulanan.`;
     else teksAnalisisAI = `OPTIMAL: Performa efisien dengan Health Score ${healthScore}/100. Struktur biaya unit terpantau sangat sehat.`;
   }
@@ -130,7 +113,9 @@
   let chartCanvas;
   let myChart = null;
 
+  // Gambar ulang saat data, mode, filter kategori, atau periode berubah
   $: if (chartCanvas && transactions && modeGrafik) {
+      selectedKategori; activePreset;
       tick().then(() => updateChart());
   }
 
@@ -222,9 +207,6 @@
   }
 
   // --- 7. REALTIME ENGINE ---
-  let pusherClient;
-  let realtimeManager;
-  // Bug 3.6: Removed dead checkUpdates polling function
 
   // Listen for finance updates via Socket.io
   $: if ($financeUpdate) {
@@ -253,7 +235,7 @@
 
     <!-- Date presets mapped to the sticky sub-navigation actions slot -->
     <div slot="nav-actions" class="flex items-center gap-1 bg-slate-100 dark:bg-slate-955 p-0.5 rounded-lg shrink-0 overflow-x-auto">
-        {#each ['Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini'] as periode}
+        {#each PRESETS as periode}
             <button type="button" on:click|preventDefault={() => setPreset(periode)} class="whitespace-nowrap px-2 sm:px-3 py-1 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all {activePreset === periode ? 'bg-white text-indigo-655 shadow-sm dark:bg-slate-800 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100' }">{periode}</button>
         {/each}
     </div>
@@ -277,14 +259,14 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mb-6">
         
         <!-- Card 1: Saldo Kas -->
-        <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all text-left group">
+        <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm text-left">
             <div class="flex justify-between items-start mb-1 sm:mb-2">
                 <p class="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Saldo Kas</p>
                 <div class="p-1 sm:p-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-lg text-slate-500">
                     <Coins class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </div>
             </div>
-            <p class="text-base sm:text-xl font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-650 dark:group-hover:text-indigo-400 transition-colors mt-1 sm:mt-2">{formatIDR(saldoSaatIni)}</p>
+            <p class="text-base sm:text-xl font-black text-slate-800 dark:text-slate-100 mt-1 sm:mt-2">{formatIDR(saldoSaatIni)}</p>
         </div>
 
         <!-- Card 2: Total Pemasukan -->
@@ -310,7 +292,7 @@
         </div>
 
         <!-- Card 4: Arus Kas Bersih -->
-        <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all text-left group">
+        <div class="bg-white dark:bg-slate-900 p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm text-left">
             <div class="flex justify-between items-start mb-1 sm:mb-2">
                 <p class="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Arus Kas</p>
                 <span class="inline-flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded text-[7px] sm:text-[8px] font-black uppercase tracking-wider {selisih >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}">
@@ -347,25 +329,25 @@
             <div class="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden flex-1">
                 <div class="px-4 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-100 dark:border-slate-850 flex items-center justify-between">
                     <h3 class="text-[8px] sm:text-[9px] font-black text-slate-850 dark:text-white uppercase tracking-widest">Grafik Analisis</h3>
+                    <div class="flex items-center gap-2">
+                    {#if modeGrafik === 'arusKas'}
+                        <div class="flex bg-slate-100 dark:bg-slate-950 rounded-lg p-0.5 sm:p-1">
+                            {#each [['', 'Semua'], ['MASUK', 'Masuk'], ['KELUAR', 'Keluar']] as [val, label]}
+                                <button type="button" on:click={() => selectedKategori = val} class="px-2 sm:px-2.5 py-0.5 sm:py-1 text-[7px] sm:text-[8px] font-black rounded-md transition-all uppercase {selectedKategori === val ? 'bg-white dark:bg-slate-900 text-indigo-650 shadow-sm' : 'text-slate-400 dark:text-slate-500'}">{label}</button>
+                            {/each}
+                        </div>
+                    {/if}
                     <div class="flex bg-slate-100 dark:bg-slate-950 rounded-lg p-0.5 sm:p-1">
                         <button on:click={() => modeGrafik = "arusKas"} class="px-2.5 sm:px-3.5 py-0.5 sm:py-1 text-[7px] sm:text-[8px] font-black rounded-md transition-all {modeGrafik === 'arusKas' ? 'bg-white dark:bg-slate-900 text-indigo-650 shadow-sm' : 'text-slate-400 dark:text-slate-500'} uppercase">CASH</button>
                         <button on:click={() => modeGrafik = "produkTerlaris"} class="px-2.5 sm:px-3.5 py-0.5 sm:py-1 text-[7px] sm:text-[8px] font-black rounded-md transition-all {modeGrafik === 'produkTerlaris' ? 'bg-white dark:bg-slate-900 text-indigo-650 shadow-sm' : 'text-slate-400 dark:text-slate-500'} uppercase">ITEMS</button>
+                    </div>
                     </div>
                 </div>
                 <div class="p-3 sm:p-5 h-48 sm:h-64 relative">
                     {#if modeGrafik === 'produkTerlaris' && (!transactions || transactions.length === 0)}
                         <div class="absolute inset-0 flex items-center justify-center text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Belum Ada Data Terlaris</div>
                     {/if}
-                    <!-- Bug 3.2: Chart filter toggle buttons -->
-<div class="flex items-center gap-1 mb-3">
-    {#each [['', 'Semua'], ['MASUK', 'Masuk'], ['KELUAR', 'Keluar']] as [val, label]}
-        <button type="button" on:click={() => selectedKategori = val}
-            class="px-2.5 py-1 rounded-md text-[8px] font-black uppercase tracking-wider transition-all {selectedKategori === val ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'}">
-            {label}
-        </button>
-    {/each}
-</div>
-<canvas bind:this={chartCanvas}></canvas>
+                    <canvas bind:this={chartCanvas}></canvas>
                 </div>
             </div>
         </div>
@@ -374,7 +356,10 @@
         <div class="lg:col-span-4 flex flex-col gap-4 sm:gap-5">
             <!-- Monthly Revenue Target -->
             <div class="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 p-3 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm text-center flex flex-col justify-between h-auto sm:h-1/2">
-                <h3 class="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Monthly Target</h3>
+                <div>
+                    <h3 class="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Target Bulan Ini</h3>
+                    {#if kpi.estimasi}<p class="text-[7px] sm:text-[8px] text-slate-400 dark:text-slate-500 mt-0.5">estimasi otomatis: modal × 1,5 (min. Rp10 jt)</p>{/if}
+                </div>
                 <div class="relative w-20 h-20 sm:w-28 sm:h-28 mx-auto flex items-center justify-center my-2 sm:my-0">
                     <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="40" fill="transparent" stroke="#f1f5f9" stroke-width="8"></circle>
@@ -504,7 +489,7 @@
                                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors">
                                     <td class="px-4 sm:px-5 py-2 sm:py-2.5">
                                         <p class="text-[9px] sm:text-[10px] font-bold text-slate-700 dark:text-slate-250 uppercase tracking-tight line-clamp-1">{trx.keterangan}</p>
-                                        <p class="text-[7px] sm:text-[8px] text-slate-450 dark:text-slate-500 mt-0.5">{new Date(trx.tanggal).toLocaleDateString('id-ID')} • {trx.metodeBayar || 'KAS'}</p>
+                                        <p class="text-[7px] sm:text-[8px] text-slate-450 dark:text-slate-500 mt-0.5">{new Date(trx.tanggal).toLocaleDateString('id-ID')} • {trx.metodeLabel || trx.metodeBayar || 'KAS'}</p>
                                     </td>
                                     <td class="px-4 sm:px-5 py-2 sm:py-2.5 text-right">
                                         <span class="text-[9px] sm:text-[10px] font-black font-mono {isMasuk ? 'text-emerald-650' : 'text-rose-650'}">
