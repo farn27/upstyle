@@ -13,7 +13,7 @@ vi.mock('$env/dynamic/private', () => ({ env: process.env }));
 vi.mock('$lib/server/getUser', () => ({ getCurrentUserId: async () => login.userId }));
 vi.mock('$lib/server/payment', async (asli) => ({
 	...(await asli()),
-	createSnapTransaction: async ({ userId, planId }) => ({ token: 'tok-123', redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/tok-123', order_id: `UPSTYLE-${planId.toUpperCase()}-${userId}-1700000000000` }),
+	createSnapTransaction: async (/** @type {any} */ { userId, planId }) => ({ token: 'tok-123', redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/tok-123', order_id: `UPSTYLE-${planId.toUpperCase()}-${userId}-1700000000000` }),
 	checkTransactionStatus: async () => ({ transaction_status: midtrans.status, fraud_status: 'accept' })
 }));
 

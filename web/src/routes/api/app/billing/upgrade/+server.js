@@ -29,7 +29,7 @@ export async function POST({ request, cookies }) {
 		if (sekarang === 'enterprise' && planId === 'pro') {
 			return json({ success: false, message: 'Tidak bisa downgrade via sistem ini. Hubungi support.' }, { status: 400 });
 		}
-		const snap = await createSnapTransaction({ userId, userEmail: user.email, username: user.username, planId });
+		const snap = await createSnapTransaction({ userId, userEmail: user.email, username: user.username, planId: /** @type {'pro' | 'enterprise'} */ (planId) });
 		return json({
 			success: true,
 			message: 'Lanjutkan pembayaran di halaman Midtrans',

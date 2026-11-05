@@ -57,7 +57,7 @@ export const PLAN_PRICES = {
  * @param {string} opts.userEmail
  * @param {string} opts.username
  * @param {'pro' | 'enterprise'} opts.planId
- * @returns {Promise<{ token: string, redirect_url: string }>}
+ * @returns {Promise<{ token: string, redirect_url: string, order_id: string }>}
  */
 export async function createSnapTransaction({ userId, userEmail, username, planId }) {
 	const plan = PLAN_PRICES[planId];
