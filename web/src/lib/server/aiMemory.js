@@ -138,8 +138,12 @@ export async function deleteAiMemory(unitId, userId, keywordOrId) {
 	const key = getMemoryKey(unitId, userId);
 	const existing = await getAiMemories(unitId, userId);
 	const target = String(keywordOrId || '').toLowerCase().trim();
+	// Kata kunci minimal 3 huruf — "hapus memori a" dulu menghapus hampir semua memori, kosong = semua
+	if (target.length < 3 && !existing.some(m => m.id === keywordOrId)) {
+		return { success: false, removedCount: 0 };
+	}
 
-	const filtered = existing.filter(m => m.id !== keywordOrId && !m.fact.toLowerCase().includes(target));
+	const filtered = existing.filter(m => m.id !== keywordOrId && !(target.length >= 3 && m.fact.toLowerCase().includes(target)));
 	const removedCount = existing.length - filtered.length;
 
 	try {
