@@ -5,10 +5,10 @@ import * as schema from './schema.js';
 import * as relations from './relations.ts';
 import { businessPlans, businessPlanSeedLogs } from './businessPlanSchema.js';
 
-const connectionString = env.DATABASE_URL;
+const connectionString = env.DATABASE_URL || 'mysql://build_placeholder:build_placeholder@localhost:3306/build_placeholder';
 
-if (!connectionString) {
-    throw new Error("DATABASE_URL is not defined in the environment variables. Please check your .env file.");
+if (!env.DATABASE_URL) {
+    console.warn("⚠️ DATABASE_URL belum diset di environment. Menggunakan placeholder pool untuk build-time analysis.");
 }
 
 const isTiDB = connectionString.includes('tidbcloud') || connectionString.includes('ssl=');
