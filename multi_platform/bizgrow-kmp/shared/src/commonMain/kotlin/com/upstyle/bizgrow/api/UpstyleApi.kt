@@ -1014,6 +1014,60 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getTaxRates(unitId: Int): ApiResponse<List<TaxRate>> =
         client.get("api/app/finance/tax-rates") { parameter("unitId", unitId) }.body()
 
+    // ─── Master data: tambah / ubah / hapus (sama dengan halaman master-data di web) ──
+
+    suspend fun createFixedAsset(asset: FixedAsset): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/fixed-assets") { setBody(asset.keJson(withId = false)) }.body())
+
+    suspend fun updateFixedAsset(asset: FixedAsset): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/finance/fixed-assets") { setBody(asset.keJson(withId = true)) }.body())
+
+    suspend fun deleteFixedAsset(id: Int, unitId: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/fixed-assets") {
+            parameter("id", id)
+            parameter("unitId", unitId)
+        }.body())
+
+    suspend fun createTaxRate(tax: TaxRate): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/tax-rates") { setBody(tax.keJson(withId = false)) }.body())
+
+    suspend fun updateTaxRate(tax: TaxRate): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/finance/tax-rates") { setBody(tax.keJson(withId = true)) }.body())
+
+    suspend fun deleteTaxRate(id: Int, unitId: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/tax-rates") {
+            parameter("id", id)
+            parameter("unitId", unitId)
+        }.body())
+
+    suspend fun createBudgetItem(item: BudgetItem): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/budget") {
+            setBody(buildJsonObject {
+                put("unitId", item.unitId)
+                put("coaId", item.coaId)
+                put("tahun", item.tahun)
+                put("bulan", item.bulan)
+                put("nominal", item.nominal)
+                item.keterangan?.let { put("keterangan", it) }
+            })
+        }.body())
+
+    suspend fun deleteBudgetItem(id: Int, unitId: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/budget") {
+            parameter("id", id)
+            parameter("unitId", unitId)
+        }.body())
+
+    /** Isi COA standar sesuai jenis usaha (GROSIR, MINIMARKET, RESTORAN, CAFE, ..., LAINNYA). Gagal kalau unit sudah punya COA. */
+    suspend fun seedDefaultCoa(unitId: Int, type: String = "LAINNYA"): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/coa") {
+            setBody(buildJsonObject {
+                put("action", "seed-default")
+                put("unitId", unitId)
+                put("type", type)
+            })
+        }.body())
+
     suspend fun getStockOpnameList(unitId: Int): ApiResponse<List<StockOpnameSession>> =
         client.get("api/app/products/stock-opname") { parameter("unitId", unitId) }.body()
 
@@ -1093,6 +1147,34 @@ class UpstyleApi(private val client: HttpClient) {
 
 private fun <A, B> ApiResponse<A>.mapData(f: (A) -> B): ApiResponse<B> =
     ApiResponse(success, message, data?.let(f), code)
+
+/** Buang isi `data` (bentuknya bisa apa saja) untuk fungsi yang cukup tahu berhasil/gagal */
+private fun tanpaData(res: ApiResponse<JsonElement>): ApiResponse<Unit> =
+    ApiResponse(res.success, res.message, null, res.code)
+
+private fun FixedAsset.keJson(withId: Boolean) = buildJsonObject {
+    if (withId) put("id", id)
+    put("unitId", unitId)
+    put("namaAset", namaAset)
+    put("kategori", kategori)
+    put("nilaiPerolehan", nilaiPerolehan)
+    put("tanggalPerolehan", tanggalPerolehan)
+    put("umurEkonomis", umurEkonomis)
+    put("metodePenyusutan", metodePenyusutan)
+    put("nilaiSisa", nilaiSisa)
+    if (withId) put("status", status)
+    keterangan?.let { put("keterangan", it) }
+}
+
+private fun TaxRate.keJson(withId: Boolean) = buildJsonObject {
+    if (withId) put("id", id)
+    put("unitId", unitId)
+    put("namaPajak", namaPajak)
+    put("persentase", persentase)
+    put("tipe", tipe)
+    put("isDefault", isDefault)
+    if (withId) put("isActive", isActive)
+}
 
 @Serializable
 private data class IdDto(val id: Int = 0)

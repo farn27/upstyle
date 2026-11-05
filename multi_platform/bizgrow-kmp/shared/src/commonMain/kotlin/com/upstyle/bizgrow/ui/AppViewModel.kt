@@ -647,6 +647,44 @@ class AppViewModel(
     }
     private val _fixedAssets = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.FixedAsset>>(emptyList())
     val fixedAssets: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.FixedAsset>> = _fixedAssets.asStateFlow()
+    // ─── Master data: tambah / ubah / hapus ──────────────────────────────────
+    private fun jalankanMasterData(
+        pesanSukses: String,
+        muatUlang: () -> Unit,
+        aksi: suspend (unitId: Int) -> ApiResponse<Unit>
+    ) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        setLoading(true)
+        try {
+            val res = aksi(unitId)
+            if (res.success) { muatUlang(); setSuccess(pesanSukses) }
+            else setError(res.message ?: "Gagal menyimpan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun createFixedAsset(asset: FixedAsset) =
+        jalankanMasterData("Aset tetap ditambahkan", { loadFixedAssets() }) { api.createFixedAsset(asset.copy(unitId = it)) }
+    fun updateFixedAsset(asset: FixedAsset) =
+        jalankanMasterData("Aset tetap diperbarui", { loadFixedAssets() }) { api.updateFixedAsset(asset.copy(unitId = it)) }
+    fun deleteFixedAsset(id: Int) =
+        jalankanMasterData("Aset tetap dihapus", { loadFixedAssets() }) { api.deleteFixedAsset(id, it) }
+
+    fun createTaxRate(tax: TaxRate) =
+        jalankanMasterData("Pajak ditambahkan", { loadTaxRates() }) { api.createTaxRate(tax.copy(unitId = it)) }
+    fun updateTaxRate(tax: TaxRate) =
+        jalankanMasterData("Pajak diperbarui", { loadTaxRates() }) { api.updateTaxRate(tax.copy(unitId = it)) }
+    fun deleteTaxRate(id: Int) =
+        jalankanMasterData("Pajak dihapus", { loadTaxRates() }) { api.deleteTaxRate(id, it) }
+
+    fun createBudgetItem(item: BudgetItem) =
+        jalankanMasterData("Anggaran disimpan", { loadBudgetItems(item.tahun) }) { api.createBudgetItem(item.copy(unitId = it)) }
+    fun deleteBudgetItem(id: Int, tahun: Int) =
+        jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
+
+    fun seedDefaultCoa(type: String = "LAINNYA") =
+        jalankanMasterData("COA standar dibuat", { loadChartOfAccounts() }) { api.seedDefaultCoa(it, type) }
+
     fun loadFixedAssets() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch

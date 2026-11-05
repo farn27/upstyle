@@ -4,6 +4,7 @@ import { fixedAssets, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { ubahAset, hapusAset, MasterDataError } from '$lib/server/masterData';
 import { z } from 'zod';
 
 // GET /api/app/finance/fixed-assets?unitId=X
@@ -93,5 +94,43 @@ export async function POST({ request, cookies }) {
     } catch (err) {
         log.api.error({ err }, 'POST finance/fixed-assets');
         return json({ success: false, message: 'Gagal tambah aset tetap' }, { status: 500 });
+    }
+}
+
+// PUT: ubah aset tetap — body: { id, unitId, ...field yang diubah } (sama dengan form edit di web)
+export async function PUT({ request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    try {
+        const body = await request.json();
+        const id = Number(body?.id);
+        const unitId = Number(body?.unitId);
+        if (!id || !unitId) return json({ success: false, message: 'id dan unitId wajib diisi' }, { status: 400 });
+        const { id: _id, unitId: _unit, ...data } = body;
+        await ubahAset(db, unitId, id, data);
+        await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Aset tetap diperbarui', kategori: 'FINANCE', tipe: 'info' });
+        return json({ success: true, message: 'Aset tetap berhasil diperbarui' });
+    } catch (err) {
+        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        log.api.error({ err }, 'PUT fixed-assets/+server.js');
+        return json({ success: false, message: 'Gagal memperbarui aset tetap' }, { status: 500 });
+    }
+}
+
+// DELETE: hapus aset tetap — ?id=X&unitId=Y
+export async function DELETE({ url, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const id = Number(url.searchParams.get('id'));
+    const unitId = Number(url.searchParams.get('unitId'));
+    if (!id || !unitId) return json({ success: false, message: 'id dan unitId wajib diisi' }, { status: 400 });
+    try {
+        await hapusAset(db, unitId, id);
+        await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Aset tetap dihapus', kategori: 'FINANCE', tipe: 'info' });
+        return json({ success: true, message: 'Aset tetap berhasil dihapus' });
+    } catch (err) {
+        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        log.api.error({ err }, 'DELETE fixed-assets/+server.js');
+        return json({ success: false, message: 'Gagal menghapus aset tetap' }, { status: 500 });
     }
 }
