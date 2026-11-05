@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm';
 import { getUserIdFromSession } from '$lib/server/session';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { redis } from '$lib/server/redis';
+import { guardUnitApiApp } from '$lib/server/apiUnitGuard';
+import { bacaKunciIdempoten, mulaiIdempoten, selesaiIdempoten } from '$lib/server/idempotency';
 import { log } from '$lib/server/logger';
 
 const PROTECTED_PATHS = [
@@ -21,7 +23,7 @@ const PROTECTED_PATHS = [
 const AUTH_PATHS = ['/auth/login', '/auth/register', '/auth/logout'];
 
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
-const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With'];
+const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'];
 
 // ─── Security Headers ─────────────────────────────────────────────────────────
 const SECURITY_HEADERS = {
@@ -221,7 +223,32 @@ export async function handle({ event, resolve }) {
 		throw redirect(303, '/finance');
 	}
 
+	// Guard: API mobile hanya boleh menyentuh unit milik user yang login
+	if (event.locals.user && pathname.startsWith('/api/app/')) {
+		const ditolak = await guardUnitApiApp(db, event, event.locals.user.id);
+		if (ditolak) {
+			Object.entries(SECURITY_HEADERS).forEach(([key, value]) => ditolak.headers.set(key, value));
+			if (corsOrigin) ditolak.headers.set('Access-Control-Allow-Origin', corsOrigin);
+			return ditolak;
+		}
+	}
+
+	// Idempotency: request dari antrean offline app tidak boleh tercatat dua kali
+	const idemKey = event.locals.user && pathname.startsWith('/api/app/') && event.request.method !== 'GET'
+		? bacaKunciIdempoten(event.request)
+		: null;
+	if (idemKey && event.locals.user) {
+		const tersimpan = await mulaiIdempoten(redis, event.locals.user.id, idemKey);
+		if (tersimpan) {
+			Object.entries(SECURITY_HEADERS).forEach(([key, value]) => tersimpan.headers.set(key, value));
+			if (corsOrigin) tersimpan.headers.set('Access-Control-Allow-Origin', corsOrigin);
+			return tersimpan;
+		}
+	}
+
 	const response = await resolve(event);
+
+	if (idemKey && event.locals.user) await selesaiIdempoten(redis, event.locals.user.id, idemKey, response);
 
 	// Terapkan security headers ke semua response
 	Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {

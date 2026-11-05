@@ -57,7 +57,7 @@ export const PLAN_PRICES = {
  * @param {string} opts.userEmail
  * @param {string} opts.username
  * @param {'pro' | 'enterprise'} opts.planId
- * @returns {Promise<{ token: string, redirect_url: string }>}
+ * @returns {Promise<{ token: string, redirect_url: string, order_id: string }>}
  */
 export async function createSnapTransaction({ userId, userEmail, username, planId }) {
 	const plan = PLAN_PRICES[planId];
@@ -106,7 +106,9 @@ export async function createSnapTransaction({ userId, userEmail, username, planI
 		throw new Error(`Midtrans Snap error: ${response.status} ${text}`);
 	}
 
-	return response.json();
+	const hasil = await response.json();
+	// order_id ikut dikembalikan supaya app bisa cek status pembayaran (konfirmasi)
+	return { ...hasil, order_id: orderId };
 }
 
 // ─── Webhook / Notification ────────────────────────────────────────────────────

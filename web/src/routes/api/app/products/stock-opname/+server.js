@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { stockOpname, stockOpnameItems, products, stockLogs, riwayatAksi } from '$lib/server/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import crypto from 'crypto';
@@ -48,6 +48,16 @@ export async function POST({ request, cookies }) {
         const { unitId, warehouseId, notes, items } = body;
         if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
 
+        // Semua produk yang di-opname harus milik unit ini
+        const idProduk = Array.isArray(items) ? [...new Set(items.map((/** @type {any} */ i) => String(i.productId)))] : [];
+        if (idProduk.length > 0) {
+            const ada = await db.select({ id: products.id }).from(products)
+                .where(and(eq(products.unitId, Number(unitId)), inArray(products.id, idProduk)));
+            if (ada.length !== idProduk.length) {
+                return json({ success: false, message: 'Ada produk yang tidak ditemukan di unit ini' }, { status: 404 });
+            }
+        }
+
         const wId = warehouseId || 1; // default warehouse
 
         const [result] = await db.insert(stockOpname).values({
@@ -72,7 +82,7 @@ export async function POST({ request, cookies }) {
                 if (diff !== 0) {
                     await db.update(products)
                         .set({ stok: Number(item.actualStock) })
-                        .where(eq(products.id, item.productId));
+                        .where(and(eq(products.id, item.productId), eq(products.unitId, Number(unitId))));
 
                     await db.insert(stockLogs).values({
                         id: crypto.randomUUID(), productId: item.productId,

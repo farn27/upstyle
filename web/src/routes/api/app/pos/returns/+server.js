@@ -106,7 +106,7 @@ export async function POST({ request, cookies }) {
                 if (item.productId) {
                     await tx.update(products)
                         .set({ stok: sql`stok + ${qty}` })
-                        .where(eq(products.id, String(item.productId)));
+                        .where(and(eq(products.id, String(item.productId)), eq(products.unitId, Number(unitId))));
                 }
             }
 

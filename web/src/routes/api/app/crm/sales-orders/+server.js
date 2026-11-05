@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { salesOrders, salesOrderItems, crmContacts, products, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 export async function GET({ url, cookies, request }) {
@@ -81,6 +82,10 @@ export async function PUT({ request, cookies }) {
         const body = await request.json();
         const { orderId, status } = body;
         if (!orderId || !status) return json({ success: false, message: 'orderId dan status wajib' }, { status: 400 });
+        const order = await db.query.salesOrders.findFirst({ where: eq(salesOrders.id, Number(orderId)) });
+        if (!order || !(await unitMilikUser(db, userId, order.unitId))) {
+            return json({ success: false, message: 'Sales order tidak ditemukan' }, { status: 404 });
+        }
         await db.update(salesOrders).set({ status }).where(eq(salesOrders.id, Number(orderId)));
         return json({ success: true, message: 'Status diperbarui' });
     } catch (err) {

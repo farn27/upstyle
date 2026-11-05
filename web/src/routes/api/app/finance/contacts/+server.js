@@ -4,6 +4,7 @@ import { accountingContacts, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET /api/app/finance/contacts?unitId=X
@@ -92,7 +93,7 @@ export async function PUT({ request, cookies }) {
             where: eq(accountingContacts.id, Number(contactId))
         });
 
-        if (!contact) {
+        if (!contact || !(await unitMilikUser(db, userId, contact.unitId))) {
             return json({ success: false, message: 'Kontak tidak ditemukan' }, { status: 404 });
         }
 
@@ -149,7 +150,7 @@ export async function DELETE({ url, cookies, request }) {
             where: eq(accountingContacts.id, Number(contactId))
         });
 
-        if (!contact) {
+        if (!contact || !(await unitMilikUser(db, userId, contact.unitId))) {
             return json({ success: false, message: 'Kontak tidak ditemukan' }, { status: 404 });
         }
 
@@ -163,7 +164,7 @@ export async function DELETE({ url, cookies, request }) {
             unitId: Number(unitId || contact.unitId),
             pesan: `Kontak akuntansi dihapus: ${contact.namaKontak}`,
             kategori: 'FINANCE',
-            tipe: 'warning'
+            tipe: 'info'
         });
 
         return json({ success: true, message: 'Kontak berhasil dihapus' });

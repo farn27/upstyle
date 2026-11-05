@@ -4,6 +4,7 @@ import { payables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { triggerEvent } from '$lib/server/pusher';
 
 export async function GET({ url, cookies, request }) {
@@ -106,7 +107,7 @@ export async function PUT({ request, cookies }) {
 			where: eq(payables.id, Number(invoiceId))
 		});
 
-		if (!payable) {
+		if (!payable || !(await unitMilikUser(db, userId, payable.unitId))) {
 			return json({ success: false, message: 'Data hutang tidak ditemukan' }, { status: 404 });
 		}
 

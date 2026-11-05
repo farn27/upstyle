@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { riwayatAksi } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 // PUT /api/app/notifications/[notifId]/read
@@ -14,6 +15,10 @@ export async function PUT({ params, cookies, request }) {
     if (!notifId) return json({ success: false, message: 'notifId tidak valid' }, { status: 400 });
 
     try {
+        const notif = await db.query.riwayatAksi.findFirst({ where: eq(riwayatAksi.id, notifId) });
+        if (!notif || !(await unitMilikUser(db, userId, notif.unitId))) {
+            return json({ success: false, message: 'Notifikasi tidak ditemukan' }, { status: 404 });
+        }
         await db.update(riwayatAksi).set({ isRead: 1 }).where(eq(riwayatAksi.id, notifId));
         return json({ success: true, message: 'Notifikasi ditandai dibaca' });
     } catch (err) {

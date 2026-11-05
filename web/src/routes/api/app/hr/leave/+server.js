@@ -4,6 +4,7 @@ import { leaveRequests, employees, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET /api/app/hr/leave?unitId=X
@@ -63,6 +64,10 @@ export async function POST({ request, cookies }) {
         const parsed = schema.safeParse(body.leaveRequest || body);
         if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
         const { employeeId, type, startDate, endDate, reason, unitId } = parsed.data;
+        const karyawan = await karyawanMilikUser(db, userId, employeeId);
+        if (!karyawan || Number(karyawan.companyId) !== Number(unitId)) {
+            return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+        }
 
         const [result] = await db.insert(leaveRequests).values({
             employeeId, type,
@@ -94,6 +99,10 @@ export async function PUT({ request, cookies }) {
         const body = await request.json();
         const { leaveId, status } = body;
         if (!leaveId || !status) return json({ success: false, message: 'leaveId dan status wajib' }, { status: 400 });
+        const izin = await db.query.leaveRequests.findFirst({ where: eq(leaveRequests.id, Number(leaveId)) });
+        if (!izin || !(await karyawanMilikUser(db, userId, izin.employeeId))) {
+            return json({ success: false, message: 'Pengajuan tidak ditemukan' }, { status: 404 });
+        }
 
         await db.update(leaveRequests)
             .set({ status, approvedBy: status !== 'pending' ? userId : null })

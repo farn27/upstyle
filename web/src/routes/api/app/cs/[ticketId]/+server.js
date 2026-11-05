@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { supportTickets, riwayatAksi } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 // PUT /api/app/cs/[ticketId] — update status tiket
@@ -20,7 +21,9 @@ export async function PUT({ params, request, cookies }) {
         if (!status) return json({ success: false, message: 'status wajib diisi' }, { status: 400 });
 
         const ticket = await db.query.supportTickets.findFirst({ where: eq(supportTickets.id, ticketId) });
-        if (!ticket) return json({ success: false, message: 'Tiket tidak ditemukan' }, { status: 404 });
+        if (!ticket || !(await unitMilikUser(db, userId, ticket.unitId))) {
+            return json({ success: false, message: 'Tiket tidak ditemukan' }, { status: 404 });
+        }
 
         await db.update(supportTickets)
             .set({ status, ...(status === 'RESOLVED' ? { resolvedAt: new Date().toISOString() } : {}) })

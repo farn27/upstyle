@@ -30,12 +30,17 @@ export async function GET({ url, cookies, request }) {
 
     const plans = await db.select({
       id: businessPlans.id,
+      unitId: businessPlans.unitId,
       namaBisnis: businessPlans.namaBisnis,
       kategori: businessPlans.kategori,
+      deskripsi: businessPlans.deskripsi,
+      targetPasar: businessPlans.targetPasar,
+      aiSummary: businessPlans.aiSummary,
       status: businessPlans.status,
       currentStep: businessPlans.currentStep,
       isSeeded: businessPlans.isSeeded,
       createdAt: businessPlans.createdAt,
+      updatedAt: businessPlans.updatedAt,
     }).from(businessPlans)
       .where(eq(businessPlans.userId, userId))
       .orderBy(desc(businessPlans.id));

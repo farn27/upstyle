@@ -4,6 +4,7 @@ import { posCashTransactions, posShifts, riwayatAksi } from '$lib/server/schema'
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET /api/app/pos/cash?shiftId=X — cash in/out untuk shift
@@ -15,6 +16,11 @@ export async function GET({ url, cookies, request }) {
     if (!shiftId) return json({ success: false, message: 'shiftId wajib' }, { status: 400 });
 
     try {
+        const shift = await db.query.posShifts.findFirst({ where: eq(posShifts.id, Number(shiftId)) });
+        if (!shift || !(await unitMilikUser(db, userId, shift.unitId))) {
+            return json({ success: false, message: 'Shift tidak ditemukan' }, { status: 404 });
+        }
+
         const txns = await db.query.posCashTransactions.findMany({
             where: eq(posCashTransactions.shiftId, Number(shiftId)),
             orderBy: [desc(posCashTransactions.id)]
@@ -54,7 +60,7 @@ export async function POST({ request, cookies }) {
         const { shiftId, type, amount, description, unitId } = parsed.data;
 
         // Verify shift exists and is OPEN
-        const shift = await db.query.posShifts.findFirst({ where: and(eq(posShifts.id, shiftId), eq(posShifts.status, 'OPEN')) });
+        const shift = await db.query.posShifts.findFirst({ where: and(eq(posShifts.id, shiftId), eq(posShifts.unitId, unitId), eq(posShifts.status, 'OPEN')) });
         if (!shift) return json({ success: false, message: 'Shift tidak aktif atau tidak ditemukan' }, { status: 400 });
 
         await db.insert(posCashTransactions).values({

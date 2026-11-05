@@ -319,7 +319,12 @@ export const suppliers = mysqlTable("suppliers", {
 	id: int().autoincrement().notNull(),
 	unitId: int("unit_id").notNull().references(() => unitBisnis.id, { onDelete: "cascade" } ),
 	namaSupplier: varchar("nama_supplier", { length: 150 }).notNull(),
-	kontak: varchar({ length: 50 }),
+	// JSON { contactName, phone, email, category, address, npwp } — format yang sama dengan API mobile (/api/app/scm)
+	kontak: varchar({ length: 1000 }),
+	termPembayaran: int("term_pembayaran").default(30), // hari
+	isActive: tinyint("is_active").default(1),
+	// Kontak akuntansi untuk hutang (payables.contact_id) — dibuat otomatis saat tagihan pertama
+	contactId: int("contact_id").references(() => accountingContacts.id, { onDelete: "set null" }),
 },
 (table) => [
 	primaryKey({ columns: [table.id], name: "suppliers_id"}),
@@ -690,10 +695,14 @@ export const purchaseOrders = mysqlTable("purchase_orders", {
 	unitId: int("unit_id").notNull().references(() => unitBisnis.id, { onDelete: "cascade" }),
 	supplierId: int("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
 	createdBy: int("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
-	status: varchar("status", { length: 20 }).default('DRAFT'), // DRAFT, SENT, PARTIAL, COMPLETED, CANCELLED
+	status: varchar("status", { length: 20 }).default('DRAFT'), // DRAFT, SENT, PARTIAL, COMPLETED, CANCELLED, RECEIVED (diterima lewat app mobile)
+	diskon: decimal("diskon", { precision: 15, scale: 2 }).default('0'),
+	ongkir: decimal("ongkir", { precision: 15, scale: 2 }).default('0'),
+	ppnPersen: decimal("ppn_persen", { precision: 5, scale: 2 }).default('0'),
 	totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
 	expectedDate: timestamp("expected_date"),
 	notes: text("notes"),
+	alasanBatal: varchar("alasan_batal", { length: 255 }),
 	createdAt: timestamp("created_at").defaultNow(),
 },
 (table) => [
@@ -707,9 +716,14 @@ export const purchaseOrderItems = mysqlTable("purchase_order_items", {
 	productId: varchar("product_id", { length: 50 }).notNull(),
 	qtyOrdered: int("qty_ordered").notNull(),
 	qtyReceived: int("qty_received").default(0),
+	qtyInvoiced: int("qty_invoiced").default(0),
+	qtyReturned: int("qty_returned").default(0),
 	unitPrice: decimal("unit_price", { precision: 15, scale: 2 }).notNull(),
 	totalPrice: decimal("total_price", { precision: 15, scale: 2 }).notNull(),
-});
+},
+(table) => [
+	index("idx_purchase_order_items_po").on(table.poId),
+]);
 
 // ═══════════════════════════════════════════════════
 // ACCOUNTING / AKUNTANSI TABLES
@@ -815,6 +829,120 @@ export const payables = mysqlTable("payables", {
 	keterangan: text("keterangan"),
 	createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ═══════════════════════════════════════════════════
+// PENGADAAN — dokumen di bawah Purchase Order
+// ═══════════════════════════════════════════════════
+
+// Penerimaan Barang (Goods Receipt)
+export const purchaseReceipts = mysqlTable("purchase_receipts", {
+	id: int("id").primaryKey().autoincrement(),
+	unitId: int("unit_id").notNull().references(() => unitBisnis.id, { onDelete: "cascade" }),
+	poId: int("po_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+	nomor: varchar("nomor", { length: 50 }).notNull(),
+	tanggal: date("tanggal", { mode: 'string' }).notNull(),
+	noSuratJalan: varchar("no_surat_jalan", { length: 100 }),
+	catatan: text("catatan"),
+	createdBy: int("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+},
+(table) => [
+	unique("uq_purchase_receipts_nomor").on(table.unitId, table.nomor),
+	index("idx_purchase_receipts_po").on(table.poId),
+]);
+
+export const purchaseReceiptItems = mysqlTable("purchase_receipt_items", {
+	id: int("id").primaryKey().autoincrement(),
+	receiptId: int("receipt_id").notNull().references(() => purchaseReceipts.id, { onDelete: "cascade" }),
+	poItemId: int("po_item_id").notNull(),
+	productId: varchar("product_id", { length: 50 }).notNull(),
+	qty: int("qty").notNull(),
+},
+(table) => [
+	index("idx_purchase_receipt_items_receipt").on(table.receiptId),
+]);
+
+// Tagihan Supplier — selalu berpasangan dengan satu baris payables (hutang) dan satu jurnal
+export const purchaseInvoices = mysqlTable("purchase_invoices", {
+	id: int("id").primaryKey().autoincrement(),
+	unitId: int("unit_id").notNull().references(() => unitBisnis.id, { onDelete: "cascade" }),
+	poId: int("po_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+	supplierId: int("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+	payableId: int("payable_id").notNull().references(() => payables.id, { onDelete: "cascade" }),
+	journalId: int("journal_id").references(() => journalEntries.id, { onDelete: "set null" }),
+	nomorFaktur: varchar("nomor_faktur", { length: 50 }).notNull(),
+	tanggal: date("tanggal", { mode: 'string' }).notNull(),
+	jatuhTempo: date("jatuh_tempo", { mode: 'string' }).notNull(),
+	subtotal: decimal("subtotal", { precision: 15, scale: 2 }).notNull(),
+	diskon: decimal("diskon", { precision: 15, scale: 2 }).default('0'),
+	ongkir: decimal("ongkir", { precision: 15, scale: 2 }).default('0'),
+	ppn: decimal("ppn", { precision: 15, scale: 2 }).default('0'),
+	total: decimal("total", { precision: 15, scale: 2 }).notNull(),
+	createdBy: int("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+},
+(table) => [
+	unique("uq_purchase_invoices_faktur").on(table.unitId, table.supplierId, table.nomorFaktur),
+	index("idx_purchase_invoices_po").on(table.poId),
+]);
+
+export const purchaseInvoiceItems = mysqlTable("purchase_invoice_items", {
+	id: int("id").primaryKey().autoincrement(),
+	invoiceId: int("invoice_id").notNull().references(() => purchaseInvoices.id, { onDelete: "cascade" }),
+	poItemId: int("po_item_id").notNull(),
+	productId: varchar("product_id", { length: 50 }).notNull(),
+	qty: int("qty").notNull(),
+	unitPrice: decimal("unit_price", { precision: 15, scale: 2 }).notNull(),
+},
+(table) => [
+	index("idx_purchase_invoice_items_invoice").on(table.invoiceId),
+]);
+
+// Retur Pembelian
+export const purchaseReturns = mysqlTable("purchase_returns", {
+	id: int("id").primaryKey().autoincrement(),
+	unitId: int("unit_id").notNull().references(() => unitBisnis.id, { onDelete: "cascade" }),
+	poId: int("po_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+	nomor: varchar("nomor", { length: 50 }).notNull(),
+	tanggal: date("tanggal", { mode: 'string' }).notNull(),
+	alasan: varchar("alasan", { length: 255 }),
+	// Nilai yang memotong hutang (0 kalau barangnya belum ditagih)
+	nilaiPotongHutang: decimal("nilai_potong_hutang", { precision: 15, scale: 2 }).default('0'),
+	journalId: int("journal_id").references(() => journalEntries.id, { onDelete: "set null" }),
+	createdBy: int("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+},
+(table) => [
+	unique("uq_purchase_returns_nomor").on(table.unitId, table.nomor),
+	index("idx_purchase_returns_po").on(table.poId),
+]);
+
+export const purchaseReturnItems = mysqlTable("purchase_return_items", {
+	id: int("id").primaryKey().autoincrement(),
+	returnId: int("return_id").notNull().references(() => purchaseReturns.id, { onDelete: "cascade" }),
+	poItemId: int("po_item_id").notNull(),
+	productId: varchar("product_id", { length: 50 }).notNull(),
+	qty: int("qty").notNull(),
+},
+(table) => [
+	index("idx_purchase_return_items_return").on(table.returnId),
+]);
+
+// Riwayat pembayaran hutang dari tagihan pengadaan
+export const purchasePayments = mysqlTable("purchase_payments", {
+	id: int("id").primaryKey().autoincrement(),
+	unitId: int("unit_id").notNull().references(() => unitBisnis.id, { onDelete: "cascade" }),
+	payableId: int("payable_id").notNull().references(() => payables.id, { onDelete: "cascade" }),
+	journalId: int("journal_id").references(() => journalEntries.id, { onDelete: "set null" }),
+	trxId: int("trx_id"),
+	kasCoaId: int("kas_coa_id").references(() => chartOfAccounts.id, { onDelete: "set null" }),
+	nominal: decimal("nominal", { precision: 15, scale: 2 }).notNull(),
+	createdBy: int("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+},
+(table) => [
+	index("idx_purchase_payments_payable").on(table.payableId),
+]);
 
 // Fixed Assets — Aset Tetap
 export const fixedAssets = mysqlTable("fixed_assets", {

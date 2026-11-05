@@ -209,7 +209,7 @@ export async function DELETE({ url, cookies, request }) {
 			unitId,
 			pesan: `Landing page dihapus: ${existing.title}`,
 			kategori: 'MARKETING',
-			tipe: 'warning'
+			tipe: 'info'
 		});
 
 		return apiSuccess({ message: 'Landing page berhasil dihapus' }, 'OK');

@@ -3,6 +3,8 @@ import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$lib/server/schema';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
+import { isiCoaStandar, MasterDataError, TIPE_COA } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
 // GET: Fetch all active COAs for unitId
@@ -41,6 +43,19 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
+
+        // Isi COA standar sesuai jenis usaha (sama dengan tombol "COA Standar" di web)
+        if (body?.action === 'seed-default') {
+            if (!body.unitId) return json({ success: false, message: 'unitId wajib diisi', data: null }, { status: 400 });
+            try {
+                const jumlah = await isiCoaStandar(db, Number(body.unitId), body.type);
+                return json({ success: true, message: `${jumlah} akun COA standar dibuat`, data: { created: jumlah } });
+            } catch (e) {
+                if (e instanceof MasterDataError) return json({ success: false, message: e.message, data: { pilihan: TIPE_COA } }, { status: e.status });
+                throw e;
+            }
+        }
+
         const { unitId, kodeAkun, namaAkun, tipeAkun, normalBalance, deskripsi } = body;
 
         if (!unitId || !kodeAkun || !namaAkun || !tipeAkun || !normalBalance) {
@@ -111,6 +126,10 @@ export async function PUT({ request, cookies }) {
         if (!id) {
             return json({ success: false, message: 'id COA wajib diisi', data: null }, { status: 400 });
         }
+        const akun = await db.query.chartOfAccounts.findFirst({ where: eq(chartOfAccounts.id, Number(id)) });
+        if (!akun || !(await unitMilikUser(db, userId, akun.unitId))) {
+            return json({ success: false, message: 'COA tidak ditemukan' }, { status: 404 });
+        }
 
         const updateData = {};
         if (namaAkun !== undefined) updateData.namaAkun = String(namaAkun);
@@ -148,6 +167,11 @@ export async function DELETE({ url, cookies, request }) {
     }
 
     try {
+        const akun = await db.query.chartOfAccounts.findFirst({ where: eq(chartOfAccounts.id, Number(coaId)) });
+        if (!akun || !(await unitMilikUser(db, userId, akun.unitId))) {
+            return json({ success: false, message: 'COA tidak ditemukan' }, { status: 404 });
+        }
+
         await db.update(chartOfAccounts)
             .set({ isActive: 0 })
             .where(eq(chartOfAccounts.id, Number(coaId)));

@@ -183,8 +183,16 @@ data class TransactionBody(
     val metodeBayar: String = "KAS",
     val abcCategoryId: Int? = null,
     val productId: String? = null,
-    val qty: Int = 1
+    val qty: Int = 1,
+    /** Akun pendapatan/beban (COA). Kosong → server pakai akun default unit. */
+    val coaId: Int? = null,
+    /** Akun kas/bank. Kosong → server pilih dari metodeBayar (KAS / BANK / QRIS ...). */
+    val kasCoaId: Int? = null
 )
+
+/** Balasan POST api/app/finance */
+@Serializable
+data class TransaksiTersimpan(val id: Int? = null, val journalId: Int? = null)
 
 // â”€â”€â”€ Products â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1004,6 +1012,65 @@ data class LaporanRawData(
 
 // â”€â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/** Pengaturan toko online (web: ecommerce/[slug]) */
+@Serializable
+data class StoreSettings(
+    val unitId: Int = 0,
+    val storefrontName: String = "",
+    val description: String = "",
+    val logoUrl: String = "",
+    val domainSlug: String = "",
+    val isActive: Boolean = false,
+    val payment: StorePaymentConfig = StorePaymentConfig()
+)
+
+/** Konfigurasi bayar toko — server key tidak pernah dikirim ke app, hanya serverKeySet */
+@Serializable
+data class StorePaymentConfig(val midtrans: StoreMidtransConfig = StoreMidtransConfig())
+
+@Serializable
+data class StoreMidtransConfig(
+    val clientKey: String = "",
+    val sandbox: Boolean = true,
+    val configured: Boolean = false,
+    val serverKeySet: Boolean = false
+)
+
+/** Artikel knowledge base layanan pelanggan per unit */
+@Serializable
+data class KnowledgeArticle(
+    val id: Int = 0,
+    val unitId: Int = 0,
+    val category: String = "Umum",
+    val title: String = "",
+    val content: String = "",
+    val views: Int = 0,
+    val createdAt: String = ""
+)
+
+/** Pengaturan fitur POS per unit (sama dengan halaman web pos/kelola/fitur) */
+@Serializable
+data class PosFeatureSettings(
+    val category: String = "UMUM",
+    /** fitur yang berlaku sekarang, mis. posEnabled, barcodeScanner, splitPayment, showStock ... */
+    val activeFeatures: Map<String, Boolean> = emptyMap(),
+    /** bawaan kategori usaha (dipakai setelah reset) */
+    val defaultFeatures: Map<String, Boolean> = emptyMap(),
+    val overrides: Map<String, Boolean> = emptyMap(),
+    val keys: List<String> = emptyList()
+)
+
+/** Produk di pengaturan "tampil di kasir" (pos/kelola/produk) */
+@Serializable
+data class PosProductItem(
+    val id: String = "",
+    val nama: String = "",
+    val sku: String = "",
+    val hargaJual: Double = 0.0,
+    val stok: Int = 0,
+    val showInPos: Boolean = true
+)
+
 @Serializable
 data class PosFeatureOverride(
     val enableDiskon: Boolean = true,
@@ -1506,6 +1573,8 @@ data class BusinessPlan(
     val id: Int = 0,
     val unitId: Int,
     val title: String = "",
+    /** Kategori usaha (kunci CATEGORY_TO_COA di server), dipakai saat plan diterapkan */
+    val kategori: String = "RETAIL_MINIMARKET",
     val description: String = "",
     val executiveSummary: String = "",
     val marketAnalysis: String = "",
@@ -1826,13 +1895,20 @@ data class BulkOperationResult(
 
 @Serializable
 data class SyncQueueItem(
+    /** Dipakai juga sebagai header Idempotency-Key — server tidak mencatat request yang sama dua kali */
     val id: String = "",
     val action: String = "", // CREATE | UPDATE | DELETE
     val entityType: String = "", // product | transaction | contact etc.
     val entityId: String = "",
     val payload: String = "", // JSON-serialized request body
     val enqueuedAt: String = "",
-    val retryCount: Int = 0
+    val retryCount: Int = 0,
+    /** Endpoint asli, mis. "api/app/finance" (opsi B: kirim ulang ke API biasa) */
+    val path: String = "",
+    /** POST | PUT | DELETE */
+    val method: String = "POST",
+    /** Pesan terakhir dari server kalau ditolak permanen (4xx) */
+    val lastError: String? = null
 )
 
 @Serializable

@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis, ecommerceSettings } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { simpanKonfigurasiBayar, konfigurasiBayarAman } from '$lib/server/tokoOnline';
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -13,7 +14,7 @@ export const load = async ({ params, cookies }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
     const settings = await db.query.ecommerceSettings.findFirst({ where: eq(ecommerceSettings.unitId, unit.id) });
-    const paymentConfig = settings?.paymentConfigJson || {};
+    const paymentConfig = konfigurasiBayarAman(settings?.paymentConfigJson);
     return { unit, settings, paymentConfig };
 };
 
@@ -32,16 +33,10 @@ export const actions = {
                 where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
             });
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
-            const s = await db.query.ecommerceSettings.findFirst({ where: eq(ecommerceSettings.unitId, unit.id) });
-            const newConfig = { midtrans: { clientKey: midtransClientKey, serverKey: midtransServerKey ? '***' : '', sandbox: midtransSandbox, configured: Boolean(midtransClientKey && midtransServerKey) } };
-            if (s) {
-                await db.update(ecommerceSettings).set({ paymentConfigJson: newConfig }).where(eq(ecommerceSettings.unitId, unit.id));
-            } else {
-                await db.insert(ecommerceSettings).values({ unitId: unit.id, storefrontName: unit.namaUnit, domainSlug: unit.slug, paymentConfigJson: newConfig, isActive: false });
-            }
+            await simpanKonfigurasiBayar(db, unit.id, { clientKey: midtransClientKey, serverKey: midtransServerKey, sandbox: midtransSandbox });
             return { success: true, message: 'Konfigurasi pembayaran disimpan' };
         } catch (err) {
-            return fail(500, { error: 'Gagal simpan konfigurasi: ' + err.message });
+            return fail(500, { error: 'Gagal simpan konfigurasi pembayaran' });
         }
     }
 };

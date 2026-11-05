@@ -4,6 +4,7 @@ import { budgetItems, chartOfAccounts, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { hapusBudget, MasterDataError } from '$lib/server/masterData';
 import { z } from 'zod';
 
 export async function GET({ url, cookies, request }) {
@@ -51,5 +52,23 @@ export async function POST({ request, cookies }) {
     } catch (err) {
         log.api.error({ err }, 'POST finance/budget');
         return json({ success: false, message: 'Gagal tambah anggaran' }, { status: 500 });
+    }
+}
+
+// DELETE: hapus anggaran — ?id=X&unitId=Y
+export async function DELETE({ url, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const id = Number(url.searchParams.get('id'));
+    const unitId = Number(url.searchParams.get('unitId'));
+    if (!id || !unitId) return json({ success: false, message: 'id dan unitId wajib diisi' }, { status: 400 });
+    try {
+        await hapusBudget(db, unitId, id);
+        await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Anggaran dihapus', kategori: 'FINANCE', tipe: 'info' });
+        return json({ success: true, message: 'Anggaran berhasil dihapus' });
+    } catch (err) {
+        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        log.api.error({ err }, 'DELETE budget/+server.js');
+        return json({ success: false, message: 'Gagal menghapus anggaran' }, { status: 500 });
     }
 }

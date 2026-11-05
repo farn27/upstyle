@@ -5,6 +5,7 @@ import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // 1. GET: Ambil semua deals (dengan kontak info) untuk unitId (with pagination)
@@ -167,7 +168,9 @@ export async function PUT({ request, cookies }) {
                 crmContact: true
             }
         });
-        if (!deal) return json({ success: false, message: "Deal tidak ditemukan" }, { status: 404 });
+        if (!deal || !(await unitMilikUser(db, userId, deal.unitId))) {
+            return json({ success: false, message: "Deal tidak ditemukan" }, { status: 404 });
+        }
 
         await db.transaction(async (tx) => {
             const nextStageLower = stage.toLowerCase();
@@ -178,12 +181,12 @@ export async function PUT({ request, cookies }) {
                     stage: nextStageLower,
                     status: statusVal
                 })
-                .where(eq(crmDeals.id, Number(dealId)));
+                .where(and(eq(crmDeals.id, Number(dealId)), eq(crmDeals.unitId, deal.unitId)));
 
             // Log action
             await tx.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId || deal.unitId),
+                unitId: deal.unitId,
                 pesan: `Deal ${deal.crmContact?.nama || 'Pelanggan'} (Rp ${String(deal.nilai || 0)}) diperbarui ke tahap: ${stage.toUpperCase()}`,
                 kategori: 'CRM',
                 tipe: stage.toUpperCase() === 'WON' ? 'success' : 'info'
@@ -211,7 +214,7 @@ export async function DELETE({ url, cookies, request }) {
 
         // Save log
         await db.insert(riwayatAksi).values({
-            userId, unitId: Number(unitId), pesan: 'Deal dihapus', kategori: 'CRM', tipe: 'warning'
+            userId, unitId: Number(unitId), pesan: 'Deal dihapus', kategori: 'CRM', tipe: 'info'
         });
 
         return json({ success: true, message: "Deal berhasil dihapus" });

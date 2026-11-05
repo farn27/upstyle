@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { employees, employeeDocuments, employeeKpi, employeeHistory, riwayatAksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 // GET /api/app/hr/[employeeId] — detail karyawan lengkap
@@ -14,7 +15,7 @@ export async function GET({ params, cookies, request }) {
     if (!empId) return json({ success: false, message: 'employeeId tidak valid' }, { status: 400 });
 
     try {
-        const emp = await db.query.employees.findFirst({ where: eq(employees.id, empId) });
+        const emp = await karyawanMilikUser(db, userId, empId);
         if (!emp) return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
 
         const [documents, kpis, history] = await Promise.all([
@@ -66,9 +67,14 @@ export async function PUT({ params, request, cookies }) {
     if (!empId) return json({ success: false, message: 'employeeId tidak valid' }, { status: 400 });
 
     try {
+        if (!(await karyawanMilikUser(db, userId, empId))) {
+            return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+        }
+
         const body = await request.json();
         const { fullName, position, salary, email, phone, division, status, employmentStatus, bankName, bankAccountNumber, address, contractStart, contractEnd } = body;
 
+        /** @type {Record<string, any>} */
         const updateData = {};
         if (fullName) updateData.fullName = fullName;
         if (position) updateData.position = position;
@@ -84,6 +90,7 @@ export async function PUT({ params, request, cookies }) {
         if (contractStart) updateData.contractStart = contractStart;
         if (contractEnd) updateData.contractEnd = contractEnd;
 
+        if (Object.keys(updateData).length === 0) return json({ success: false, message: 'Tidak ada data yang diubah' }, { status: 400 });
         await db.update(employees).set(updateData).where(eq(employees.id, empId));
 
         const emp = await db.query.employees.findFirst({ where: eq(employees.id, empId), columns: { companyId: true, fullName: true } });

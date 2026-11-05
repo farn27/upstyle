@@ -4,6 +4,7 @@ import { marketingCampaigns, marketingLeads, adTrackers, landingPages, riwayatAk
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET: Fetch marketing data (campaigns, leads, ad-trackers)
@@ -238,6 +239,14 @@ export async function POST({ request, cookies }) {
         if (action === 'create-lead') {
             const { landingPageId, firstName, lastName, email, phone, notes } = body.lead;
 
+            // Lead tercatat lewat landing page; tanpa itu lead tidak terlihat oleh unit mana pun
+            const halamanLead = landingPageId
+                ? await db.query.landingPages.findFirst({ where: eq(landingPages.id, Number(landingPageId)) })
+                : null;
+            if (!halamanLead || !(await unitMilikUser(db, userId, halamanLead.unitId))) {
+                return json({ success: false, message: 'Pilih landing page milik unit ini untuk lead' }, { status: 422 });
+            }
+
             const [result] = await db.insert(marketingLeads).values({
                 landingPageId: landingPageId || null,
                 firstName,
@@ -306,6 +315,10 @@ export async function PUT({ request, cookies }) {
             if (!campaignId || !status) {
                 return json({ success: false, message: 'campaignId dan status wajib diisi' }, { status: 400 });
             }
+            const campaign = await db.query.marketingCampaigns.findFirst({ where: eq(marketingCampaigns.id, Number(campaignId)) });
+            if (!campaign || !(await unitMilikUser(db, userId, campaign.unitId))) {
+                return json({ success: false, message: 'Campaign tidak ditemukan' }, { status: 404 });
+            }
 
             await db.update(marketingCampaigns)
                 .set({ status })
@@ -313,7 +326,7 @@ export async function PUT({ request, cookies }) {
 
             await db.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
+                unitId: campaign.unitId,
                 pesan: `Status campaign diubah ke ${status}`,
                 kategori: 'MARKETING',
                 tipe: 'info'
@@ -327,6 +340,11 @@ export async function PUT({ request, cookies }) {
 
             if (!leadId) {
                 return json({ success: false, message: 'leadId wajib diisi' }, { status: 400 });
+            }
+            const lead = await db.query.marketingLeads.findFirst({ where: eq(marketingLeads.id, Number(leadId)) });
+            const halaman = lead?.landingPageId ? await db.query.landingPages.findFirst({ where: eq(landingPages.id, lead.landingPageId) }) : null;
+            if (!halaman || !(await unitMilikUser(db, userId, halaman.unitId))) {
+                return json({ success: false, message: 'Lead tidak ditemukan' }, { status: 404 });
             }
 
             await db.update(marketingLeads)
@@ -359,21 +377,29 @@ export async function DELETE({ url, cookies, request }) {
 
     try {
         if (type === 'campaign') {
+            const campaign = await db.query.marketingCampaigns.findFirst({ where: eq(marketingCampaigns.id, Number(id)) });
+            if (!campaign || !(await unitMilikUser(db, userId, campaign.unitId))) {
+                return json({ success: false, message: 'Campaign tidak ditemukan' }, { status: 404 });
+            }
             await db.delete(marketingCampaigns)
                 .where(eq(marketingCampaigns.id, Number(id)));
 
             await db.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
+                unitId: campaign.unitId,
                 pesan: 'Campaign dihapus',
                 kategori: 'MARKETING',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Campaign berhasil dihapus' });
         }
 
         if (type === 'tracker') {
+            const tracker = await db.query.adTrackers.findFirst({ where: eq(adTrackers.id, Number(id)) });
+            if (!tracker || !(await unitMilikUser(db, userId, tracker.unitId))) {
+                return json({ success: false, message: 'Ad tracker tidak ditemukan' }, { status: 404 });
+            }
             await db.delete(adTrackers)
                 .where(eq(adTrackers.id, Number(id)));
 
@@ -381,6 +407,11 @@ export async function DELETE({ url, cookies, request }) {
         }
 
         if (type === 'lead') {
+            const lead = await db.query.marketingLeads.findFirst({ where: eq(marketingLeads.id, Number(id)) });
+            const halaman = lead?.landingPageId ? await db.query.landingPages.findFirst({ where: eq(landingPages.id, lead.landingPageId) }) : null;
+            if (!halaman || !(await unitMilikUser(db, userId, halaman.unitId))) {
+                return json({ success: false, message: 'Lead tidak ditemukan' }, { status: 404 });
+            }
             await db.delete(marketingLeads)
                 .where(eq(marketingLeads.id, Number(id)));
 

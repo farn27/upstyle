@@ -4,6 +4,7 @@ import { salesTargets, salesCommissions, salesOrders, riwayatAksi, users } from 
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET: Fetch sales targets and commissions
@@ -291,13 +292,18 @@ export async function PUT({ request, cookies }) {
                 return json({ success: false, message: 'Tidak ada data yang diubah' }, { status: 400 });
             }
 
+            const target = await db.query.salesTargets.findFirst({ where: eq(salesTargets.id, Number(targetId)) });
+            if (!target || !(await unitMilikUser(db, userId, target.unitId))) {
+                return json({ success: false, message: 'Target tidak ditemukan' }, { status: 404 });
+            }
+
             await db.update(salesTargets)
                 .set(updates)
                 .where(eq(salesTargets.id, Number(targetId)));
 
             await db.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
+                unitId: target.unitId,
                 pesan: 'Target sales diperbarui',
                 kategori: 'SALES',
                 tipe: 'info'
@@ -313,13 +319,18 @@ export async function PUT({ request, cookies }) {
                 return json({ success: false, message: 'commissionId wajib diisi' }, { status: 400 });
             }
 
+            const komisi = await db.query.salesCommissions.findFirst({ where: eq(salesCommissions.id, Number(commissionId)) });
+            if (!komisi || !(await unitMilikUser(db, userId, komisi.unitId))) {
+                return json({ success: false, message: 'Komisi tidak ditemukan' }, { status: 404 });
+            }
+
             await db.update(salesCommissions)
                 .set({ status: 'PAID' })
                 .where(eq(salesCommissions.id, Number(commissionId)));
 
             await db.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
+                unitId: komisi.unitId,
                 pesan: 'Komisi sales dibayarkan',
                 kategori: 'SALES',
                 tipe: 'success'
@@ -351,30 +362,38 @@ export async function DELETE({ url, cookies, request }) {
 
     try {
         if (type === 'target') {
+            const target = await db.query.salesTargets.findFirst({ where: eq(salesTargets.id, Number(id)) });
+            if (!target || !(await unitMilikUser(db, userId, target.unitId))) {
+                return json({ success: false, message: 'Target tidak ditemukan' }, { status: 404 });
+            }
             await db.delete(salesTargets)
                 .where(eq(salesTargets.id, Number(id)));
 
             await db.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
+                unitId: target.unitId,
                 pesan: 'Target sales dihapus',
                 kategori: 'SALES',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Target berhasil dihapus' });
         }
 
         if (type === 'commission') {
+            const komisi = await db.query.salesCommissions.findFirst({ where: eq(salesCommissions.id, Number(id)) });
+            if (!komisi || !(await unitMilikUser(db, userId, komisi.unitId))) {
+                return json({ success: false, message: 'Komisi tidak ditemukan' }, { status: 404 });
+            }
             await db.delete(salesCommissions)
                 .where(eq(salesCommissions.id, Number(id)));
 
             await db.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
+                unitId: komisi.unitId,
                 pesan: 'Komisi sales dihapus',
                 kategori: 'SALES',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Komisi berhasil dihapus' });

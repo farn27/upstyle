@@ -1,15 +1,19 @@
 import { db } from '$lib/server/drizzle';
 import { unitBisnis } from '$lib/server/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { getCurrentUserId } from '$lib/server/getUser';
 import { inngest } from '$lib/server/inngest';
 
-export const GET = async ({ params }) => {
+export const GET = async ({ params, cookies, request }) => {
     const { slug } = params;
+    // Hanya pemilik unit — dulu siapa pun yang tahu slug bisa memicu pembuatan laporan unit orang lain
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return new Response('Silakan login ulang', { status: 401 });
 
     try {
         const units = await db.select()
             .from(unitBisnis)
-            .where(eq(unitBisnis.slug, slug));
+            .where(and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId)));
         
         if (!units || units.length === 0) {
             return new Response(`ERROR: Unit dengan slug "${slug}" tidak ditemukan.`, { status: 404 });

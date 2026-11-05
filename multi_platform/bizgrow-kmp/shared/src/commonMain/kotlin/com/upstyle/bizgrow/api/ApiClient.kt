@@ -37,7 +37,10 @@ fun createHttpClient(
             logger = object : Logger {
                 override fun log(message: String) = Napier.d(message, tag = "Ktor")
             }
-            level = LogLevel.BODY
+            // INFO = method, URL, status saja. BODY dulu ikut mencatat password & server key Midtrans ke log HP.
+            level = LogLevel.INFO
+            // Token login jangan pernah masuk log
+            sanitizeHeader { header -> header == HttpHeaders.Authorization }
         }
 
         install(DefaultRequest) {

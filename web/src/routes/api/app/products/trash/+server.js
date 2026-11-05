@@ -4,6 +4,7 @@ import { products, productVariants } from '$lib/server/schema';
 import { eq, and, desc, isNotNull, isNull } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET /api/app/products/trash?unitId=X — list soft-deleted products
@@ -71,7 +72,7 @@ export async function POST({ request, cookies }) {
             where: eq(products.id, parsed.data.productId)
         });
 
-        if (!existing) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
+        if (!existing || !(await unitMilikUser(db, userId, existing.unitId))) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
         if (Number(existing.userId) !== Number(userId)) {
             return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
         }
@@ -100,7 +101,7 @@ export async function DELETE({ url, cookies, request }) {
             where: eq(products.id, productId)
         });
 
-        if (!existing) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
+        if (!existing || !(await unitMilikUser(db, userId, existing.unitId))) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
         if (Number(existing.userId) !== Number(userId)) {
             return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
         }

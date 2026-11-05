@@ -11,38 +11,9 @@ import { groqChatCompletion } from '$lib/server/groq';
 import { normalizeKategoriTrx, isKategoriMasuk } from '$lib/server/kategoriTrx';
 import { nowWIB } from '$lib/server/dateUtils';
 import { sql } from 'drizzle-orm';
+import { catatTransaksi, COA_STANDAR } from '$lib/server/catatTransaksi';
 
-// ─── COA STANDAR untuk AUTO-SEED jika unit belum punya COA ──────────────────
-const COA_STANDAR = [
-	// KAS & BANK (ASET LANCAR)
-	{ kodeAkun: '1-10001', namaAkun: 'Kas Tunai',          tipeAkun: 'ASET_LANCAR',       normalBalance: 'DEBIT' },
-	{ kodeAkun: '1-10002', namaAkun: 'Bank / Transfer',    tipeAkun: 'ASET_LANCAR',       normalBalance: 'DEBIT' },
-	{ kodeAkun: '1-10003', namaAkun: 'Piutang Usaha',      tipeAkun: 'ASET_LANCAR',       normalBalance: 'DEBIT' },
-	{ kodeAkun: '1-10004', namaAkun: 'Persediaan Barang',  tipeAkun: 'ASET_LANCAR',       normalBalance: 'DEBIT' },
-	// ASET TETAP
-	{ kodeAkun: '1-20001', namaAkun: 'Peralatan & Mesin',  tipeAkun: 'ASET_TETAP',        normalBalance: 'DEBIT' },
-	// LIABILITAS
-	{ kodeAkun: '2-10001', namaAkun: 'Hutang Usaha',       tipeAkun: 'LIABILITAS_LANCAR', normalBalance: 'KREDIT' },
-	{ kodeAkun: '2-10002', namaAkun: 'Hutang Gaji',        tipeAkun: 'LIABILITAS_LANCAR', normalBalance: 'KREDIT' },
-	// EKUITAS
-	{ kodeAkun: '3-10001', namaAkun: 'Modal Pemilik',      tipeAkun: 'EKUITAS',           normalBalance: 'KREDIT' },
-	{ kodeAkun: '3-10002', namaAkun: 'Laba Ditahan',       tipeAkun: 'EKUITAS',           normalBalance: 'KREDIT' },
-	// PENDAPATAN
-	{ kodeAkun: '4-10001', namaAkun: 'Pendapatan Penjualan',    tipeAkun: 'PENDAPATAN',         normalBalance: 'KREDIT' },
-	{ kodeAkun: '4-10002', namaAkun: 'Pendapatan Jasa',         tipeAkun: 'PENDAPATAN',         normalBalance: 'KREDIT' },
-	{ kodeAkun: '4-10003', namaAkun: 'Pendapatan Lain-Lain',    tipeAkun: 'PENDAPATAN_LAINNYA', normalBalance: 'KREDIT' },
-	// HPP
-	{ kodeAkun: '5-10001', namaAkun: 'Harga Pokok Penjualan (HPP)', tipeAkun: 'HPP',              normalBalance: 'DEBIT' },
-	// BEBAN OPERASIONAL
-	{ kodeAkun: '6-10001', namaAkun: 'Biaya Gaji & Tunjangan',  tipeAkun: 'BEBAN_OPERASIONAL',  normalBalance: 'DEBIT' },
-	{ kodeAkun: '6-10002', namaAkun: 'Biaya Sewa',              tipeAkun: 'BEBAN_OPERASIONAL',  normalBalance: 'DEBIT' },
-	{ kodeAkun: '6-10003', namaAkun: 'Biaya Listrik & Air',     tipeAkun: 'BEBAN_OPERASIONAL',  normalBalance: 'DEBIT' },
-	{ kodeAkun: '6-10004', namaAkun: 'Biaya Bahan Baku',        tipeAkun: 'BEBAN_OPERASIONAL',  normalBalance: 'DEBIT' },
-	{ kodeAkun: '6-10005', namaAkun: 'Biaya Pemasaran & Iklan', tipeAkun: 'BEBAN_OPERASIONAL',  normalBalance: 'DEBIT' },
-	{ kodeAkun: '6-10006', namaAkun: 'Biaya Operasional Lainnya', tipeAkun: 'BEBAN_OPERASIONAL', normalBalance: 'DEBIT' },
-	// BEBAN LAINNYA
-	{ kodeAkun: '7-10001', namaAkun: 'Beban Bunga & Administrasi Bank', tipeAkun: 'BEBAN_LAINNYA', normalBalance: 'DEBIT' },
-];
+// COA standar & logika catat transaksi dipakai bersama web + mobile
 
 export const load = async ({ params, cookies }) => {
 	const userId = await getCurrentUserId(cookies);
@@ -252,78 +223,18 @@ OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk
 			if (!unit) throw new Error('Unit tidak ditemukan');
 			unitId = unit.id;
 
-			await db.transaction(async (tx) => {
-
-				// Validasi & update stok produk jika ada
-				let hppTotal = 0;
-				if (productId && isKategoriMasuk(kategori)) {
-					const produk = await tx.query.products.findFirst({ where: eq(products.id, productId) });
-					if (produk) {
-						if (produk.stok < qty) throw new Error(`Stok ${produk.nama} tidak mencukupi! (Sisa: ${produk.stok})`);
-						hppTotal = Number(produk.hargaBeli) * qty;
-						await tx.update(products).set({ stok: produk.stok - qty }).where(eq(products.id, productId));
-					}
-				}
-
-				// 1. Buat Journal Entry (double-entry accounting)
-				const nomorJurnal = `JRN-TRX-${Date.now()}`;
-				const tanggalJurnal = nowWIB().toISOString().split('T')[0];
-
-				const [jurnalResult] = await tx.insert(journalEntries).values({
-					unitId: unit.id,
-					userId: String(userId),
-					tanggal: tanggalJurnal,
-					nomorJurnal,
-					referensi: keterangan.substring(0, 100),
-					memo: keterangan,
-					sourceType: 'TRX',
-					totalDebit: String(nominal),
-					totalKredit: String(nominal),
-					status: 'POSTED'
-				});
-				const journalId = jurnalResult.insertId;
-
-				// 2. Simpan ke tabel transaksi (untuk dashboard cashflow)
-				const [trxResult] = await tx.insert(transaksi).values({
-					userId,
-					unitId: unit.id,
-					tanggal: nowWIB(),
-					keterangan,
-					nominal: String(nominal),
-					totalHarga: String(nominal),
-					hppTotal: String(hppTotal),
-					kategoriTrx: kategori,
-					metodeBayar: kasCoaId.toString(),
-					productId: productId,
-					qty,
-					journalId: journalId,
-					coaId: coaId
-				});
-				savedTrxId = trxResult.insertId;
-
-				// Update sourceId pada jurnal
-				await tx.update(journalEntries).set({ sourceId: String(savedTrxId) }).where(eq(journalEntries.id, journalId));
-
-				// 3. Buat Journal Entry Lines (debit & kredit)
-				if (isKategoriMasuk(kategori)) {
-					// MASUK: Debit Kas/Bank, Kredit Pendapatan
-					await tx.insert(journalEntryLines).values({ journalId, coaId: kasCoaId, keterangan, debit: String(nominal), kredit: '0' });
-					await tx.insert(journalEntryLines).values({ journalId, coaId, keterangan, debit: '0', kredit: String(nominal) });
-				} else {
-					// KELUAR: Debit Beban, Kredit Kas/Bank
-					await tx.insert(journalEntryLines).values({ journalId, coaId, keterangan, debit: String(nominal), kredit: '0' });
-					await tx.insert(journalEntryLines).values({ journalId, coaId: kasCoaId, keterangan, debit: '0', kredit: String(nominal) });
-				}
-
-				// 4. Log aktivitas
-				await tx.insert(riwayatAksi).values({
-					userId,
-					unitId: unit.id,
-					pesan: `MENCATAT ${kategori}: ${keterangan}`,
-					tipe: isKategoriMasuk(kategori) ? 'success' : 'info',
-					waktu: nowWIB()
-				});
-			});
+			const hasil = await db.transaction((tx) => catatTransaksi(tx, {
+				unitId: unit.id,
+				userId,
+				kategori,
+				nominal,
+				keterangan,
+				coaId,
+				kasCoaId,
+				productId,
+				qty
+			}));
+			savedTrxId = hasil.trxId;
 
 			// 5. Invalidate cache (Bungkus di try-catch agar transaksi tidak gagal jika Redis down)
 			try {

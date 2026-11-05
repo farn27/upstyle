@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { quotations, quotationItems, crmContacts, products, riwayatAksi, posOrders, posOrderItems } from '$lib/server/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -96,7 +96,7 @@ export async function PUT({ request, cookies }) {
 
             // Get quotation with items
             const quotation = await db.query.quotations.findFirst({
-                where: eq(quotations.id, Number(quotationId)),
+                where: and(eq(quotations.id, Number(quotationId)), eq(quotations.unitId, Number(unitId))),
                 with: {
                     items: {
                         with: { product: true }
@@ -152,7 +152,7 @@ export async function PUT({ request, cookies }) {
                     .set({ 
                         status: 'CONVERTED'
                     })
-                    .where(eq(quotations.id, Number(quotationId)));
+                    .where(and(eq(quotations.id, Number(quotationId)), eq(quotations.unitId, Number(unitId))));
 
                 // Log action
                 await tx.insert(riwayatAksi).values({
@@ -187,9 +187,12 @@ export async function PUT({ request, cookies }) {
 
             const { status } = body;
 
-            await db.update(quotations)
+            const [hasil] = await db.update(quotations)
                 .set({ status })
-                .where(eq(quotations.id, Number(quotationId)));
+                .where(and(eq(quotations.id, Number(quotationId)), eq(quotations.unitId, Number(unitId))));
+            if (!hasil?.affectedRows) {
+                return json({ success: false, message: 'Quotation tidak ditemukan' }, { status: 404 });
+            }
 
             await db.insert(riwayatAksi).values({
                 userId,

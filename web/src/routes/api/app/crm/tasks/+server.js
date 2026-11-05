@@ -4,6 +4,7 @@ import { crmTasks, crmContacts, crmDeals, riwayatAksi } from '$lib/server/schema
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 export async function GET({ url, cookies, request }) {
@@ -69,6 +70,10 @@ export async function PUT({ request, cookies }) {
         const body = await request.json();
         const { taskId, status } = body;
         if (!taskId || !status) return json({ success: false, message: 'taskId dan status wajib' }, { status: 400 });
+        const task = await db.query.crmTasks.findFirst({ where: eq(crmTasks.id, Number(taskId)) });
+        if (!task || !(await unitMilikUser(db, userId, task.unitId))) {
+            return json({ success: false, message: 'Task tidak ditemukan' }, { status: 404 });
+        }
         await db.update(crmTasks).set({ status }).where(eq(crmTasks.id, Number(taskId)));
         return json({ success: true, message: 'Task diperbarui' });
     } catch (err) {

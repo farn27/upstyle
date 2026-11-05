@@ -8,6 +8,9 @@ import { redis } from '$lib/server/redis';
 import { nowWIB } from '$lib/server/dateUtils';
 import { z } from 'zod';
 import { log } from '$lib/server/logger.js';
+import { catatTransaksi, pastikanCoaStandar, pilihAkunDefault, TransaksiError } from '$lib/server/catatTransaksi';
+import { hapusTransaksi } from '$lib/server/hapusTransaksi';
+import { inngest } from '$lib/server/inngest';
 
 const createTransactionSchema = z.object({
     transaction: z.object({
@@ -19,7 +22,9 @@ const createTransactionSchema = z.object({
         abcCategoryId: z.coerce.number().int().nullable().optional(),
         productId: z.string().optional(),
         qty: z.coerce.number().int().positive().optional().default(1),
-        hppTotal: z.coerce.number().min(0).optional().default(0),
+        hppTotal: z.coerce.number().min(0).optional().default(0), // diabaikan: HPP dihitung server dari harga beli
+        coaId: z.coerce.number().int().positive().optional(),     // akun pendapatan/beban (opsional)
+        kasCoaId: z.coerce.number().int().positive().optional(),  // akun kas/bank (opsional)
     })
 });
 
@@ -141,39 +146,40 @@ export async function POST({ request, cookies }) {
             return json({ success: false, message: msg }, { status: 422 });
         }
 
-        const { unitId, kategoriTrx, nominal, keterangan, metodeBayar, abcCategoryId, productId, qty, hppTotal } = parsed.data.transaction;
+        const { unitId, kategoriTrx, nominal, keterangan, metodeBayar, abcCategoryId, productId, qty, coaId } = parsed.data.transaction;
+        // App versi lama mengirim akun kas sebagai metodeBayar "COA:<id>"
+        const kasLama = /^COA:(\d+)$/i.exec(String(metodeBayar || ''));
+        const kasCoaId = parsed.data.transaction.kasCoaId ?? (kasLama ? Number(kasLama[1]) : undefined);
 
-        await db.transaction(async (tx) => {
-            // Insert transaction
-            await tx.insert(transaksi).values({
-                userId: userId,
+        // Unit harus milik user yang login
+        const unitMilikUser = await db.query.unitBisnis.findFirst({
+            where: and(eq(unitBisnis.id, Number(unitId)), eq(unitBisnis.userId, userId))
+        });
+        if (!unitMilikUser) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
+
+        // Sama dengan form entry web: stok, jurnal double-entry, transaksi, riwayat
+        const hasil = await db.transaction(async (tx) => {
+            let akun = { coaId: coaId ?? null, kasCoaId: kasCoaId ?? null };
+            if (!akun.coaId || !akun.kasCoaId) {
+                await pastikanCoaStandar(tx, Number(unitId));
+                const def = await pilihAkunDefault(tx, Number(unitId), kategoriTrx, metodeBayar);
+                akun = { coaId: akun.coaId ?? def.coaId, kasCoaId: akun.kasCoaId ?? def.kasCoaId };
+            }
+            return catatTransaksi(tx, {
                 unitId: Number(unitId),
-                kategoriTrx: kategoriTrx,
-                nominal: String(nominal),
-                totalHarga: String(nominal),
-                keterangan: keterangan || '',
-                tanggal: nowWIB(),
-                metodeBayar: metodeBayar || 'KAS',
-                abcCategoryId: abcCategoryId || null,
-                productId: productId || null,
-                qty: Number(qty || 1),
-                hppTotal: String(hppTotal || 0)
-            });
-
-            await tx.insert(riwayatAksi).values({
                 userId,
-                unitId: Number(unitId),
-                pesan: `Transaksi baru ditambahkan: ${kategoriTrx} sebesar Rp ${String(nominal)}`,
-                kategori: 'FINANCE',
-                tipe: 'success',
-                waktu: nowWIB()
+                kategori: kategoriTrx,
+                nominal,
+                keterangan,
+                coaId: Number(akun.coaId),
+                kasCoaId: Number(akun.kasCoaId),
+                productId: productId || null,
+                qty,
+                abcCategoryId: abcCategoryId ?? null
             });
         });
 
-        const unit = await db.query.unitBisnis.findFirst({
-            where: eq(unitBisnis.id, Number(unitId))
-        });
-        const slug = unit?.slug || '';
+        const slug = unitMilikUser.slug || '';
 
         if (slug) {
             // Await is critical on Vercel to prevent process freezing before the fetch completes
@@ -204,8 +210,11 @@ export async function POST({ request, cookies }) {
             }
         }
 
-        return json({ success: true, message: "Transaksi berhasil disimpan" });
+        return json({ success: true, message: "Transaksi berhasil disimpan", data: { id: hasil.trxId, journalId: hasil.journalId } });
     } catch (err) {
+        if (err instanceof TransaksiError) {
+            return json({ success: false, message: err.message }, { status: err.status });
+        }
         log.finance.error({ err }, 'API POST FINANCE ERROR');
         return json({ success: false, message: "Gagal menyimpan transaksi: " + err.message }, { status: 500 });
     }
@@ -220,25 +229,41 @@ export async function DELETE({ url, cookies, request }) {
     const unitId = url.searchParams.get('unitId');
     if (!transactionId || !unitId) return json({ success: false, message: "transactionId dan unitId wajib diisi" }, { status: 400 });
 
+    const trxId = Number(transactionId);
+    const unitIdNum = Number(unitId);
+    if (!Number.isInteger(trxId) || !Number.isInteger(unitIdNum)) {
+        return json({ success: false, message: "transactionId dan unitId harus angka" }, { status: 400 });
+    }
+
     try {
-        await db.delete(transaksi).where(and(eq(transaksi.id, Number(transactionId)), eq(transaksi.unitId, Number(unitId))));
-
-        // Save log
-        await db.insert(riwayatAksi).values({
-            userId, unitId: Number(unitId), pesan: 'Transaksi dihapus', kategori: 'FINANCE', tipe: 'warning'
-        });
-
+        // Unit harus milik user yang login
         const unit = await db.query.unitBisnis.findFirst({
-            where: eq(unitBisnis.id, Number(unitId))
+            where: and(eq(unitBisnis.id, unitIdNum), eq(unitBisnis.userId, userId))
         });
-        const slug = unit?.slug || '';
+        if (!unit) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
+
+        // Sama dengan hapus di halaman Riwayat web: stok penjualan kembali + jurnal ikut terhapus
+        const namaTerhapus = await db.transaction(async (tx) => {
+            const hasil = await hapusTransaksi(tx, { unitId: unitIdNum, trxId });
+            if (!hasil) return null;
+            const nama = hasil.trx.keterangan || 'TRANSAKSI TANPA NAMA';
+            await tx.insert(riwayatAksi).values({
+                userId, unitId: unitIdNum, pesan: `MENGHAPUS: ${nama.toUpperCase()}`, kategori: 'FINANCE', tipe: 'info', waktu: nowWIB()
+            });
+            return nama;
+        });
+        if (namaTerhapus === null) {
+            return json({ success: false, message: 'Transaksi tidak ditemukan' }, { status: 404 });
+        }
+
+        const slug = unit.slug || '';
 
         if (slug) {
             await Promise.allSettled([
                 triggerEvent(`unit-${unitId}`, 'notification', {
                     id: Date.now(),
                     unitId: Number(unitId),
-                    pesan: 'Transaksi dihapus',
+                    pesan: `MENGHAPUS: ${namaTerhapus.toUpperCase()}`,
                     kategori: 'FINANCE',
                     tipe: 'warning',
                     waktu: new Date().toISOString()
@@ -258,9 +283,14 @@ export async function DELETE({ url, cookies, request }) {
             } catch (err) {
                 log.finance.warn({ err }, 'Gagal menghapus cache Redis (DELETE)');
             }
+            try {
+                await inngest.send({ name: 'app/transaction.changed', data: { userId, slug } });
+            } catch (err) {
+                log.finance.warn({ err }, 'Gagal kirim event Inngest (DELETE)');
+            }
         }
 
-        return json({ success: true, message: "Transaksi berhasil dihapus" });
+        return json({ success: true, message: `"${namaTerhapus.toUpperCase()}" berhasil dihapus` });
     } catch (err) {
         log.finance.error({ err }, 'API DELETE FINANCE ERROR');
         return json({ success: false, message: "Gagal menghapus transaksi" }, { status: 500 });

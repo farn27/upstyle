@@ -5,6 +5,14 @@ import { groqChatCompletion } from '$lib/server/groq';
 import { eq, and, sql, desc, or, inArray, asc } from 'drizzle-orm';
 import { log } from '$lib/server/logger';
 import {
+	getAiMemories,
+	saveAiMemory,
+	deleteAiMemory,
+	clearAllAiMemories,
+	formatMemoriesForPrompt,
+	isFinancialOrTransactionData
+} from '$lib/server/aiMemory';
+import {
 	receivables,
 	payables,
 	journalEntries,
@@ -684,6 +692,79 @@ export async function POST({ request, cookies }) {
 		const intent = detectIntent(message);
 		const isTransactionParse = intent === 'transaction_input';
 
+		// 5b. AI Memory Management & Guardrails (Simpan & Ingat Konteks Non-Angka)
+		const msgTrim = message.trim();
+
+		// A. Tanya daftar memori yang diingat
+		if (/^(apa\s+saja\s+(yang\s+)?(kamu\s+)?ingat|kamu\s+ingat\s+apa|daftar\s+memori|cek\s+memori|memori\s+saya)\b/i.test(msgTrim)) {
+			const memories = await getAiMemories(targetUnitId, userId);
+			if (memories.length === 0) {
+				return json({
+					reply: '🧠 **Belum ada memori khusus yang disimpan kak.**\n\nKakak bisa meminta saya mengingat konteks penting seperti nama panggilan, aturan operasional, atau profil usaha. Contoh:\n• *"Ingat bahwa toko kami libur setiap hari Minggu"*\n• *"Ingat nama panggilan saya Mas Farhan"*\n• *"Catat preferensi: jawaban to-the-point dan singkat"*\n\n*(Catatan: Data angka keuangan tidak disimpan di memori permanen agar selalu akurat merujuk ke database live).*',
+					suggestions: ['Ingat nama panggilan saya...', 'Toko kami libur hari...']
+				});
+			}
+			const listText = memories.map((m, i) => `${i + 1}. ${m.fact}`).join('\n');
+			return json({
+				reply: `🧠 **Berikut konteks bisnis & preferensi yang saya ingat:**\n\n${listText}\n\n💡 *Kakak bisa menambah dengan mengetik "Ingat bahwa...", atau menghapus dengan "Lupakan memori tentang [topik]".*`,
+				suggestions: ['Lupakan memori...', 'Cek saldo kas saat ini']
+			});
+		}
+
+		// B. Reset / Hapus seluruh memori
+		if (/^(reset\s+semua\s+memori|hapus\s+semua\s+ingatan|bersihkan\s+memori)\b/i.test(msgTrim)) {
+			await clearAllAiMemories(targetUnitId, userId);
+			return json({
+				reply: '🧹 **Seluruh memori AI berhasil dibersihkan kak.**\nAI sekarang mulai kembali dengan konteks bawaan tanpa memori masa lalu.',
+				suggestions: ['Apa saja yang kamu ingat?', 'Cek status bisnis']
+			});
+		}
+
+		// C. Hapus / Lupakan memori tertentu
+		const deleteMatch = msgTrim.match(/^(?:tolong\s+)?(?:lupakan|hapus)\s+(?:memori|ingatan)\s*(?:tentang\s*)?[:,-]?\s*(.+)/i);
+		if (deleteMatch) {
+			const targetKeyword = deleteMatch[1].trim();
+			const { removedCount } = await deleteAiMemory(targetUnitId, userId, targetKeyword);
+			if (removedCount > 0) {
+				return json({
+					reply: `🗑️ **Memori dihapus kak.**\nBerhasil melupakan ${removedCount} memori terkait *"${targetKeyword}"*.`,
+					suggestions: ['Apa saja yang kamu ingat sekarang?', 'Cek data bisnis']
+				});
+			} else {
+				return json({
+					reply: `Kak, tidak ditemukan memori yang cocok dengan kata kunci *"${targetKeyword}"*. Ketik *"Apa saja yang kamu ingat?"* untuk melihat daftar memori aktif ya kak.`,
+					suggestions: ['Apa saja yang kamu ingat?']
+				});
+			}
+		}
+
+		// D. Simpan memori / konteks baru
+		const rememberMatch = msgTrim.match(/^(?:tolong\s+)?(?:ingat(?:kan)?|catat|simpan)\s*(?:memori|bahwa|fakta|preferensi)?\s*[:,-]?\s*(.+)/i);
+		if (rememberMatch) {
+			const factCandidate = rememberMatch[1].trim();
+
+			// GUARDRAIL KRITIS: Tolak jika mengandung data angka transaksi / keuangan
+			if (isFinancialOrTransactionData(factCandidate)) {
+				return json({
+					reply: '⚠️ **Data angka transaksi & keuangan tidak disimpan di memori permanen kak.**\n\nAlasannya: Supaya data angka lama tidak tertukar atau mengotori pembukuan periode terbaru. Seluruh data angka keuangan (seperti saldo, omzet, hutang, atau transaksi) **selalu dibaca secara live langsung dari database keuangan** agar selalu 100% akurat.\n\nMemori khusus digunakan untuk mengingat **konteks bisnis & preferensi** (misalnya nama supplier, hari libur toko, menu andalan, target pasar, atau nama panggilan kakak). Silakan coba lagi dengan konteks non-angka ya kak! 😊',
+					suggestions: ['Ingat nama panggilan saya...', 'Toko kami libur hari...']
+				});
+			}
+
+			const saveRes = await saveAiMemory(targetUnitId, userId, factCandidate, 'context');
+			if (saveRes.success) {
+				return json({
+					reply: `🧠 **Memori tersimpan kak!**\nSaya sudah mengingat: *"${factCandidate}"*\n\nInformasi ini akan selalu saya jadikan konteks dan preferensi di setiap obrolan kita berikutnya. 😊`,
+					suggestions: ['Apa saja yang kamu ingat?', 'Cek data bisnis']
+				});
+			} else {
+				return json({
+					reply: `Gagal menyimpan memori: ${saveRes.message}`,
+					suggestions: ['Apa saja yang kamu ingat?']
+				});
+			}
+		}
+
 		// 6. Transaction NL detection — RUNS FIRST
 		if (targetUnitId) {
 			const trxDataList = parseTransactionNL(message);
@@ -772,7 +853,7 @@ export async function POST({ request, cookies }) {
 					keterangan: transaksi.keterangan,
 					tanggal: transaksi.tanggal,
 					metode_bayar: transaksi.metodeBayar
-				}).from(transaksi).where(queryTrxCondition).orderBy(desc(transaksi.tanggal)).limit(20);
+				}).from(transaksi).where(queryTrxCondition).orderBy(desc(transaksi.tanggal)).limit(8);
 				trxSnippet = freshTrx.length ? freshTrx.map(t => `[${fmtDate(t.tanggal)}] ${t.kategori_trx} ${fmtRp(t.nominal)} - ${t.keterangan || t.metode_bayar || '-'}`).join('\n  ') : 'Belum ada transaksi';
 			}
 
@@ -783,7 +864,7 @@ export async function POST({ request, cookies }) {
 					harga_jual: productsTable.hargaJual,
 					stok: productsTable.stok,
 					min_stok: productsTable.minStok
-				}).from(productsTable).where(and(queryProdCondition, sql`${productsTable.deletedAt} IS NULL`)).orderBy(asc(productsTable.stok)).limit(20);
+				}).from(productsTable).where(and(queryProdCondition, sql`${productsTable.deletedAt} IS NULL`)).orderBy(asc(productsTable.stok)).limit(10);
 				prodSnippet = products.length ? products.map(p => `${p.nama} | Jual: ${fmtRp(p.harga_jual)} | Stok: ${p.stok}${p.stok <= p.min_stok ? ' ⚠️MENIPIS' : ''}`).join('\n  ') : 'Belum ada produk';
 			}
 		}
@@ -793,6 +874,10 @@ export async function POST({ request, cookies }) {
 
 
 		// 9. Bangun prompt
+		// 8b. Ambil memori konteks yang tersimpan untuk unit/user
+		const activeMemories = await getAiMemories(targetUnitId, userId);
+		const memoryPromptSection = formatMemoriesForPrompt(activeMemories);
+
 		let systemPrompt = '';
 
 		if (isTransactionParse) {
@@ -830,55 +915,59 @@ Gunakan hanya: [Pilih Unit Bisnis](/finance) atau [Beranda](/beranda)`;
 
 			systemPrompt = `Kamu adalah **Bizgrow AI** — asisten ERP cerdas untuk UMKM Indonesia.
 Gaya bicara: ramah, analitis, padat, gunakan sapaan "kak". Bahasa Indonesia natural.
-PENTING: Jawab SATU KALI SAJA. Jangan ulangi jawaban yang sama.
+PENTING: Jawab langsung to-the-point dan ringkas (maksimal 2-3 paragraf). Jangan bertele-tele. Jawab SATU KALI SAJA.
 
-## TANGGAL HARI INI
-${bulanNames[thisMonth]} ${thisYear} (${thisMonthStart} hingga sekarang)
-
-## UNIT BISNIS AKTIF
-${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}]` : 'Belum dipilih'}
-Semua unit: ${units.map(u => u.nama_unit).join(', ')}
-
-${financeSummary ? `## DATA KEUANGAN\n${financeSummary}\n` : ''}${trenText ? `## TREN 6 BULAN TERAKHIR\n${trenText}\n` : ''}${trxSnippet ? `## 20 TRANSAKSI TERAKHIR\n  ${trxSnippet}\n` : ''}${prodSnippet ? `## PRODUK & STOK\n  ${prodSnippet}\n` : ''}${dynamicContext}
-${navInstructions}
-
-## ATURAN PENTING
-- Data di atas SUDAH AKURAT dari database — jangan mengarang angka.
-- JANGAN mengarang route/URL selain yang valid.
-
-## FORMAT KAYA — GUNAKAN SESUAI KONTEKS
+## FORMAT KAYA (Gunakan jika relevan):
 :::metric{label:"Omzet",value:"Rp12.5M",trend:"+8%",color:"green"}:::
 :::alert{type:"warning",title:"Info",msg:"Pesan"}:::
 :::badge{text:"LUNAS",color:"green"}:::
 :::progress{label:"Target Omzet",value:75,color:"indigo"}:::
-:::grid:::\n- Poin 1\n- Poin 2\n:::endgrid:::
-:::steps:::\n1. Langkah 1\n2. Langkah 2\n:::endsteps:::
+
+## ATURAN PENTING
+- Data di bawah SUDAH AKURAT dari database — jangan mengarang angka.
+- JANGAN mengarang route/URL selain yang valid.
+- JANGAN pernah mengarang info produk.
+- Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.
 
 ## 💡 INPUT TRANSAKSI NATURAL LANGUAGE
 Jika pesan user menceritakan transaksi keuangan, ekstrak datanya dalam blok code \`\`\`transaction\`\`\`. 
-Jika ada BANYAK transaksi (multiple input), buat ARRAY JSON.
-
 \`\`\`transaction
 [
   {
     "kategori": "Keluar", // Masuk atau Keluar
     "nominal": 10000,
-    "keterangan": "BELI ARANG",
-    "tanggal": "2026-09-24", // gunakan hari ini
+    "keterangan": "Beli sesuatu",
+    "tanggal": "${fmtDate(nowWIBDate).split(' ')[0]}",
     "metode": "Tunai"
   }
 ]
 \`\`\`
 
-## ⚠️ GUARDRAIL KRITIS
-- **JANGAN pernah mengarang info produk**.
-- Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.`;
+---
+## KONTEKS BISNIS AKTIF
+Tanggal: ${bulanNames[thisMonth]} ${thisYear} (${thisMonthStart} s/d sekarang)
+Unit Bisnis: ${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}]` : 'Belum dipilih'}
+Semua Unit: ${units.map(u => u.nama_unit).join(', ')}${memoryPromptSection}
+
+${financeSummary ? `## DATA KEUANGAN\n${financeSummary}\n` : ''}${trenText ? `## TREN 6 BULAN TERAKHIR\n${trenText}\n` : ''}${trxSnippet ? `## 8 TRANSAKSI TERAKHIR\n  ${trxSnippet}\n` : ''}${prodSnippet ? `## PRODUK & STOK\n  ${prodSnippet}\n` : ''}${dynamicContext}
+${navInstructions}`;
 		}
 
-		// Batasi history max 16 pesan (8 turn)
+		// Batasi history max 6 pesan (3 turn) untuk efisiensi token & kecepatan
 		const cleanHistory = history
-			.slice(-16)
-			.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: String(h.content || '') }));
+			.slice(-6)
+			.map(h => {
+				let text = String(h.content || '').trim();
+				// Pangkas widget panjang di histori lama agar tidak memboroskan token input
+				if (h.role !== 'user' && text.length > 300) {
+					text = text.replace(/:::[a-z]+[\s\S]*?:::/g, '').trim().slice(0, 250);
+				}
+				return {
+					role: h.role === 'user' ? 'user' : 'assistant',
+					content: text
+				};
+			})
+			.filter(h => h.content.length > 0);
 
 		// 9. Panggil Groq
 		const groqResp = await groqChatCompletion({
@@ -888,8 +977,8 @@ Jika ada BANYAK transaksi (multiple input), buat ARRAY JSON.
 				...cleanHistory,
 				{ role: 'user', content: message }
 			],
-			temperature: 0.35,
-			max_tokens: 1200
+			temperature: 0.3,
+			max_tokens: 650
 		});
 
 		let aiReply = groqResp.choices?.[0]?.message?.content

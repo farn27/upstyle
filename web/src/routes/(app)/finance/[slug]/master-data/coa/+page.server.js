@@ -5,10 +5,16 @@ import { eq, and, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { DEFAULT_COAS } from '$lib/server/defaultCoa';
 import { Groq } from 'groq-sdk';
-import { GROQ_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
+import { isiCoaStandar, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
-const groq = new Groq({ apiKey: GROQ_API_KEY });
+function getGroqClient() {
+    if (!env.GROQ_API_KEY) {
+        throw new Error('GROQ_API_KEY belum dikonfigurasi di server');
+    }
+    return new Groq({ apiKey: env.GROQ_API_KEY });
+}
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -148,7 +154,7 @@ export const actions = {
 
         const { slug } = params;
         const formData = await request.formData();
-        const type = formData.get('type') || 'GENERAL';
+        const type = String(formData.get('type') || 'LAINNYA');
 
         try {
             const unit = await db.query.unitBisnis.findFirst({
@@ -156,22 +162,12 @@ export const actions = {
             });
             if (!unit) return fail(404, { message: 'Unit tidak ditemukan' });
 
-            // check if already has COA
-            const existing = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.unitId, unit.id)).limit(1);
-            if (existing.length > 0) {
-                return fail(400, { message: 'Unit sudah memiliki Chart of Accounts lurd!' });
+            try {
+                await isiCoaStandar(db, unit.id, type);
+            } catch (e) {
+                if (e instanceof MasterDataError) return fail(e.status === 409 ? 400 : e.status, { message: e.message });
+                throw e;
             }
-
-            const coasToInsert = DEFAULT_COAS[type] || DEFAULT_COAS['GENERAL'];
-
-            for (const coa of coasToInsert) {
-                await db.insert(chartOfAccounts).values({
-                    unitId: unit.id,
-                    ...coa,
-                    isActive: 1
-                });
-            }
-
             return { success: true, message: 'COA Standard berhasil dibuat jeh!' };
         } catch (err) {
             return fail(500, { message: err.message });
@@ -213,6 +209,7 @@ Gunakan skema JSON berikut untuk setiap akun:
 ]
 Hasilkan sekitar 10-15 akun esensial yang sangat spesifik dan relevan dengan model bisnis ini. Output HANYA JSON array saja tanpa teks lain.`;
 
+            const groq = getGroqClient();
             const completion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: systemPrompt },

@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.upstyle.bizgrow.ui.AppViewModel
@@ -108,6 +109,28 @@ fun PlanUpgradeScreen(viewModel: AppViewModel) {
                     Spacer(Modifier.weight(1f))
                     if (billingState.error != null) {
                         Text(billingState.error ?: "", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    // Transaksi Midtrans sudah dibuat → buka halaman bayar, lalu cek statusnya
+                    billingState.activePaymentSession?.let { sesi ->
+                        val uriHandler = LocalUriHandler.current
+                        billingState.successMessage?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        sesi.redirectUrl?.let { url ->
+                            Button(onClick = { uriHandler.openUri(url) }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Default.OpenInBrowser, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Bayar di Midtrans")
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.confirmPayment(sesi.sessionId) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !billingState.isLoading
+                        ) { Text("Saya sudah bayar — cek status") }
                         Spacer(Modifier.height(8.dp))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

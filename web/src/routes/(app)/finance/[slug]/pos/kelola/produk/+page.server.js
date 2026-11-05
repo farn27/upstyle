@@ -1,22 +1,16 @@
 import { db } from '$lib/server/drizzle';
-import { unitBisnis, products } from '$lib/server/schema';
-import { eq, and, or } from 'drizzle-orm';
-import { getCurrentUserId } from '$lib/server/getUser';
+import { products } from '$lib/server/schema';
+import { eq } from 'drizzle-orm';
+import { resolvePosUnitAccess } from '$lib/server/posAuth';
+import { aturProdukPos } from '$lib/server/posKelola';
 
-export async function load({ cookies, params }) {
-    const userId = await getCurrentUserId(cookies);
-    const { slug } = params;
-
-    const units = await db.select({ id: unitBisnis.id })
-        .from(unitBisnis)
-        .where(or(eq(unitBisnis.slug, slug), eq(unitBisnis.loginSlug, slug)));
-    
-    if (!units.length) return { error: 'Unit tidak ditemukan' };
-    const unitId = units[0].id;
+// Akses unit dicek (pemilik atau staf POS unit ini) — dulu cukup tahu slug unit orang lain.
+export async function load({ cookies, params, locals }) {
+    const { unit } = await resolvePosUnitAccess(cookies, params, locals);
 
     const posProducts = await db.select()
         .from(products)
-        .where(eq(products.unitId, unitId));
+        .where(eq(products.unitId, unit.id));
 
     return {
         products: posProducts
@@ -24,22 +18,18 @@ export async function load({ cookies, params }) {
 }
 
 export const actions = {
-    toggle: async ({ request, cookies, params }) => {
-        const userId = await getCurrentUserId(cookies);
-        if (!userId) return { success: false, error: 'Unauthorized' };
-
+    toggle: async ({ request, cookies, params, locals }) => {
+        const { unit } = await resolvePosUnitAccess(cookies, params, locals);
         const data = await request.formData();
-        const productId = data.get('productId');
-        const showInPos = data.get('showInPos') === 'true' ? 1 : 0;
+        const productId = String(data.get('productId') || '');
+        const showInPos = data.get('showInPos') === 'true';
 
         try {
-            await db.update(products)
-                .set({ showInPos })
-                .where(eq(products.id, productId));
-            
+            const ok = await aturProdukPos(db, unit.id, productId, showInPos);
+            if (!ok) return { success: false, error: 'Produk tidak ditemukan' };
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return { success: false, error: err instanceof Error ? err.message : String(err) };
         }
     }
 };

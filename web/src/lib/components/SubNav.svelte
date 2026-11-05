@@ -13,7 +13,8 @@
         ArrowUpRight, 
         ArrowDownLeft, 
         FileBarChart, 
-        Settings 
+        Settings,
+        ClipboardList
     } from 'lucide-svelte';
 
     export let slug = '';
@@ -28,6 +29,7 @@
     $: menuItems = [
         { name: 'Dashboard', suffix: '', icon: LayoutDashboard },
         { name: 'Produk', suffix: '/produk', icon: Package },
+        { name: 'Pengadaan', suffix: '/pengadaan', icon: ClipboardList },
         { name: 'POS', suffix: '/pos', icon: ShoppingCart },
         { name: 'SDM / HR', suffix: '/hr', icon: Users },
         { name: 'CRM', suffix: '/crm', icon: Handshake },

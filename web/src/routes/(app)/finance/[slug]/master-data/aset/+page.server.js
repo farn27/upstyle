@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { fixedAssets, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { ubahAset, hapusAset, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
@@ -76,33 +77,18 @@ export const actions = {
     editAsset: async ({ request, params, cookies }) => {
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { error: 'Unauthorized' });
-
-        const data = await request.formData();
-        const id = data.get('id');
-        const namaAset = data.get('namaAset');
-        const kategori = data.get('kategori');
-        const nilaiPerolehan = data.get('nilaiPerolehan');
-        const tanggalPerolehan = data.get('tanggalPerolehan');
-        const umurEkonomis = data.get('umurEkonomis');
-        const metodePenyusutan = data.get('metodePenyusutan');
-        const nilaiSisa = data.get('nilaiSisa') || 0;
-        const coaId = data.get('coaId');
-        const status = data.get('status') || 'AKTIF';
-
+        const unit = await db.query.unitBisnis.findFirst({
+            where: (ub, { eq, and }) => and(eq(ub.slug, params.slug), eq(ub.userId, userId))
+        });
+        if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
+        const data = Object.fromEntries(await request.formData());
         try {
-            await db.update(fixedAssets).set({
-                namaAset,
-                kategori,
-                nilaiPerolehan: String(nilaiPerolehan),
-                tanggalPerolehan,
-                umurEkonomis: Number(umurEkonomis),
-                metodePenyusutan,
-                nilaiSisa: String(nilaiSisa),
-                status,
-                coaId: coaId ? Number(coaId) : null
-            }).where(eq(fixedAssets.id, Number(id)));
+            const { id, ...isi } = data;
+            // sama dengan form lama: COA kosong = dilepas, nilai sisa kosong = 0, status default AKTIF
+            await ubahAset(db, unit.id, Number(id), { ...isi, coaId: isi.coaId || null, nilaiSisa: isi.nilaiSisa || 0, status: isi.status || 'AKTIF' });
             return { success: true };
         } catch (err) {
+            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
             log.finance.error({ err }, 'Edit Asset Error');
             return fail(500, { error: 'Gagal mengubah aset' });
         }
@@ -110,14 +96,16 @@ export const actions = {
     deleteAsset: async ({ request, params, cookies }) => {
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { error: 'Unauthorized' });
-
+        const unit = await db.query.unitBisnis.findFirst({
+            where: (ub, { eq, and }) => and(eq(ub.slug, params.slug), eq(ub.userId, userId))
+        });
+        if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
         const data = await request.formData();
-        const id = data.get('id');
-
         try {
-            await db.delete(fixedAssets).where(eq(fixedAssets.id, Number(id)));
+            await hapusAset(db, unit.id, Number(data.get('id')));
             return { success: true };
         } catch (err) {
+            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
             log.finance.error({ err }, 'Delete Asset Error');
             return fail(500, { error: 'Gagal menghapus aset' });
         }
