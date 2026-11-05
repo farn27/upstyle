@@ -435,10 +435,10 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getBillingInvoices(unitId: Int): ApiResponse<List<Invoice>> =
         client.get("api/app/billing/invoices") { parameter("unitId", unitId) }.body()
 
+    /** Buat transaksi Midtrans Snap untuk naik paket (sama dengan tombol upgrade di web). Buka redirectUrl untuk bayar. */
     suspend fun initBillingPaymentSession(unitId: Int, req: PaymentRequest): ApiResponse<PaymentSession> =
-        client.post("api/app/billing/payment/init") {
-            parameter("unitId", unitId)
-            setBody(req)
+        client.post("api/app/billing/upgrade") {
+            setBody(buildJsonObject { put("planId", req.planId.lowercase()) })
         }.body()
 
     suspend fun confirmBillingPayment(sessionId: String): ApiResponse<PaymentResult> =
@@ -446,16 +446,13 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("sessionId" to sessionId))
         }.body()
 
+    /** Naik paket: hasilnya PENDING sampai pembayaran di Midtrans selesai (lihat initBillingPaymentSession). */
     suspend fun upgradePlan(unitId: Int, planId: String, req: PaymentRequest): ApiResponse<PaymentResult> =
-        client.post("api/app/billing/upgrade") {
-            parameter("unitId", unitId)
-            setBody(mapOf("planId" to planId, "paymentMethod" to req.paymentMethod))
-        }.body()
+        upgradePlan(planId, req.paymentMethod)
 
+    // Turun paket tidak tersedia lewat sistem (sama dengan web) — hubungi support
     suspend fun downgradePlan(unitId: Int, planId: String): ApiResponse<Unit> =
-        client.post("api/app/billing/downgrade") {
-            setBody(mapOf("unitId" to unitId, "planId" to planId))
-        }.body()
+        ApiResponse(false, "Turun paket belum bisa lewat aplikasi. Hubungi support Bizgrow.", null, "DOWNGRADE_NOT_ALLOWED")
 
     // ─── Product Variants (unitId-scoped) ─────────────────────────────────────
 
@@ -590,12 +587,9 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getInvoices(unitId: Int): ApiResponse<List<Invoice>> =
         client.get("api/app/billing/invoices") { parameter("unitId", unitId) }.body()
 
-    /** Initialises a payment session scoped to a specific business unit. */
+    /** Initialises a payment session (Midtrans Snap) — paket berlaku per akun, bukan per unit. */
     suspend fun initPaymentSession(unitId: Int, req: PaymentRequest): ApiResponse<PaymentSession> =
-        client.post("api/app/billing/payment/init") {
-            parameter("unitId", unitId)
-            setBody(req)
-        }.body()
+        initBillingPaymentSession(unitId, req)
 
     // ─── Help overloads (HelpFaq return type, unitId-scoped ticket) ───────────
 
@@ -637,9 +631,9 @@ class UpstyleApi(private val client: HttpClient) {
 
     /** Overload matching AppViewModel call `upgradePlan(planId, paymentMethod)`. */
     suspend fun upgradePlan(planId: String, paymentMethod: String = "credit_card"): ApiResponse<PaymentResult> =
-        client.post("api/app/billing/upgrade") {
-            setBody(mapOf("planId" to planId, "paymentMethod" to paymentMethod))
-        }.body()
+        initBillingPaymentSession(0, PaymentRequest(planId = planId, paymentMethod = paymentMethod)).mapData {
+            PaymentResult(transactionId = it.sessionId, status = "pending", planId = planId.lowercase(), amount = it.amount, message = it.redirectUrl ?: "")
+        }
 
     /** Overload for [getHelpArticles] with no arguments — AppViewModel calls `getHelpArticles()`. */
     suspend fun getHelpArticles(): ApiResponse<List<HelpArticle>> = getContextualHelp("")

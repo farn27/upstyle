@@ -9,6 +9,7 @@ import { users, riwayatAksi, unitBisnis } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { verifyWebhookSignature, parseTransactionStatus } from '$lib/server/payment';
 import { checkRateLimit, getClientIP } from '$lib/server/rateLimit';
+import { aktifkanPaket } from '$lib/server/billing';
 import { log } from '$lib/server/logger.js';
 
 export async function POST({ request }) {
@@ -64,24 +65,7 @@ export async function POST({ request }) {
 				return json({ ok: true });
 			}
 
-			await db.update(users).set({ role: planId }).where(eq(users.id, userId));
-
-			// Catat di riwayat
-			const userUnits = await db.select({ id: unitBisnis.id })
-				.from(unitBisnis)
-				.where(eq(unitBisnis.userId, userId))
-				.orderBy(unitBisnis.id)
-				.limit(1);
-			const minUnitId = userUnits.length > 0 ? userUnits[0].id : 0;
-			
-			db.insert(riwayatAksi).values({
-				userId: userId,
-				unitId: minUnitId,
-				pesan: `Upgrade ke paket ${planId.toUpperCase()} berhasil`,
-				tipe: 'success',
-				kategori: 'billing'
-			}).catch(() => {}); // Non-blocking
-
+			await aktifkanPaket(db, userId, planId);
 			log.api.info({ userId, planId, orderId }, 'PaymentWebhook: User upgraded');
 		} else if (status === 'failed' || status === 'expired') {
 			log.api.info({ status, orderId }, 'PaymentWebhook: Payment not completed');

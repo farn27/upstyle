@@ -2451,10 +2451,10 @@ class AppViewModel(
         auditLogger.log("upgrade_plan", "subscription", planId)
         _billingState.update { it.copy(isLoading = true, error = null) }
         try {
-            val result = api.upgradePlan(planId, paymentMethod)
+            // Paket baru aktif setelah pembayaran Midtrans lunas — buka halaman bayar dulu
+            val result = api.initPaymentSession(_activeUnitId.value, PaymentRequest(planId = planId, paymentMethod = paymentMethod))
             if (result.success) {
-                _billingState.update { it.copy(isLoading = false, lastPaymentResult = result.data, successMessage = "Paket berhasil diupgrade") }
-                loadCurrentSubscription()
+                _billingState.update { it.copy(isLoading = false, activePaymentSession = result.data, successMessage = "Lanjutkan pembayaran di halaman Midtrans") }
             } else {
                 _billingState.update { it.copy(isLoading = false, error = result.error) }
             }
