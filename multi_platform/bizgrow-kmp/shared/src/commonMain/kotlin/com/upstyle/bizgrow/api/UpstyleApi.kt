@@ -549,17 +549,20 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getHelpArticles(screenName: String, lang: String = "id"): ApiResponse<List<HelpArticle>> =
         getContextualHelp(screenName)
 
+    // FAQ bantuan → api/app/help (item q/a)
     suspend fun getHelpFaqs(category: String? = null, lang: String = "id"): ApiResponse<List<HelpFaqItem>> =
-        client.get("api/app/help/faq") {
-            category?.let { parameter("category", it) }
-            parameter("lang", lang)
+        ambilFaq(category).mapData { list -> list.map { HelpFaqItem(id = it.id.toString(), question = it.q, answer = it.a, category = it.category) } }
+
+    private suspend fun ambilFaq(category: String?): ApiResponse<List<HelpItemDto>> {
+        val res: ApiResponse<HelpListDto> = client.get("api/app/help") {
+            category?.takeIf { it.isNotBlank() }?.let { parameter("category", it) }
         }.body()
+        return res.mapData { it.items }
+    }
 
     suspend fun submitTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
-        client.post("api/app/help/ticket") {
-            parameter("unitId", unitId)
-            setBody(req)
-        }.body()
+        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
+        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
 
     suspend fun runDiagnostics(unitId: Int): ApiResponse<DiagnosticResult> =
         client.post("api/app/help/diagnostics") {
@@ -598,17 +601,12 @@ class UpstyleApi(private val client: HttpClient) {
      * serializable [HelpFaqItem] variant.
      */
     suspend fun getHelpFaqsUi(category: String? = null, lang: String = "id"): ApiResponse<List<HelpFaq>> =
-        client.get("api/app/help/faq") {
-            category?.let { parameter("category", it) }
-            parameter("lang", lang)
-        }.body()
+        ambilFaq(category).mapData { list -> list.map { HelpFaq(id = it.id.toString(), question = it.q, answer = it.a, category = it.category) } }
 
     /** Submits a support ticket using the lightweight [SubmitTicketRequest] form. */
     suspend fun submitSupportTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
-        client.post("api/app/help/ticket") {
-            parameter("unitId", unitId)
-            setBody(req)
-        }.body()
+        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
+        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
 
     // ─── Alias / overload helpers for AppViewModel call-site compatibility ────
 
@@ -645,10 +643,8 @@ class UpstyleApi(private val client: HttpClient) {
 
     /** Overload accepting [SubmitSupportTicketRequest] directly — AppViewModel calls `submitSupportTicket(req)`. */
     suspend fun submitSupportTicket(req: SubmitSupportTicketRequest): ApiResponse<Unit> =
-        client.post("api/app/help/ticket") {
-            parameter("unitId", req.unitId)
-            setBody(req)
-        }.body()
+        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
+        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
 
     // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
 
@@ -1134,6 +1130,29 @@ class UpstyleApi(private val client: HttpClient) {
 
     suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
         client.get("api/app/export/history") { parameter("unitId", unitId) }.body()
+
+    // ─── Knowledge base layanan pelanggan (web: ecommerce/[slug]/layanan/.../knowledge-base) ──
+    suspend fun getKnowledgeBase(unitId: Int, query: String? = null): ApiResponse<List<KnowledgeArticle>> =
+        client.get("api/app/knowledge-base") {
+            parameter("unitId", unitId)
+            query?.takeIf { it.isNotBlank() }?.let { parameter("q", it) }
+        }.body()
+
+    suspend fun createKnowledgeArticle(article: KnowledgeArticle): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/knowledge-base") {
+            setBody(buildJsonObject {
+                put("unitId", article.unitId)
+                put("title", article.title)
+                put("category", article.category)
+                put("content", article.content)
+            })
+        }.body())
+
+    suspend fun deleteKnowledgeArticle(id: Int, unitId: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/knowledge-base") {
+            parameter("id", id)
+            parameter("unitId", unitId)
+        }.body())
 
     // ─── Pengaturan POS (web: pos/kelola/fitur & pos/kelola/produk) ──────────
     suspend fun getPosFeatures(unitId: Int): ApiResponse<PosFeatureSettings> =

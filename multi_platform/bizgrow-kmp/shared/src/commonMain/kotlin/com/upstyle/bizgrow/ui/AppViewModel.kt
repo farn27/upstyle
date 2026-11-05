@@ -140,6 +140,38 @@ class AppViewModel(
             }
         } catch (e: Exception) { Napier.e("loadPosShifts error", e) }
     }
+    // ─── Knowledge base layanan pelanggan ─────────────────────────────────────
+    private val _knowledgeBase = kotlinx.coroutines.flow.MutableStateFlow<List<KnowledgeArticle>>(emptyList())
+    val knowledgeBase: kotlinx.coroutines.flow.StateFlow<List<KnowledgeArticle>> = _knowledgeBase.asStateFlow()
+
+    fun loadKnowledgeBase(query: String? = null) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getKnowledgeBase(unitId, query)
+            if (res.success) _knowledgeBase.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadKnowledgeBase error", e) }
+    }
+
+    fun createKnowledgeArticle(title: String, category: String, content: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        setLoading(true)
+        try {
+            val res = api.createKnowledgeArticle(KnowledgeArticle(unitId = unitId, title = title, category = category.ifBlank { "Umum" }, content = content))
+            if (res.success) { loadKnowledgeBase(); setSuccess("Artikel disimpan") } else setError(res.message ?: "Gagal simpan artikel")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun deleteKnowledgeArticle(id: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.deleteKnowledgeArticle(id, unitId)
+            if (res.success) { loadKnowledgeBase(); setSuccess("Artikel dihapus") } else setError(res.message ?: "Gagal hapus artikel")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     // ─── Pengaturan POS: fitur & produk tampil di kasir ──────────────────────
     private val _posFeatures = kotlinx.coroutines.flow.MutableStateFlow<PosFeatureSettings?>(null)
     val posFeatures: kotlinx.coroutines.flow.StateFlow<PosFeatureSettings?> = _posFeatures.asStateFlow()

@@ -1012,6 +1012,18 @@ data class LaporanRawData(
 
 // â”€â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/** Artikel knowledge base layanan pelanggan per unit */
+@Serializable
+data class KnowledgeArticle(
+    val id: Int = 0,
+    val unitId: Int = 0,
+    val category: String = "Umum",
+    val title: String = "",
+    val content: String = "",
+    val views: Int = 0,
+    val createdAt: String = ""
+)
+
 /** Pengaturan fitur POS per unit (sama dengan halaman web pos/kelola/fitur) */
 @Serializable
 data class PosFeatureSettings(
