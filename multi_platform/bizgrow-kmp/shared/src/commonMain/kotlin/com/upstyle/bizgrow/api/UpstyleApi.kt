@@ -1131,6 +1131,32 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
         client.get("api/app/export/history") { parameter("unitId", unitId) }.body()
 
+    // ─── Toko online & metode bayar (web: ecommerce/[slug] & ecommerce/[slug]/integrasi) ──
+    suspend fun getStoreSettings(unitId: Int): ApiResponse<StoreSettings> =
+        client.get("api/app/ecommerce/settings") { parameter("unitId", unitId) }.body()
+
+    suspend fun updateStoreSettings(settings: StoreSettings): ApiResponse<StoreSettings> =
+        client.put("api/app/ecommerce/settings") {
+            setBody(buildJsonObject {
+                put("unitId", settings.unitId)
+                put("storefrontName", settings.storefrontName)
+                put("description", settings.description)
+                put("domainSlug", settings.domainSlug)
+                put("isActive", settings.isActive)
+            })
+        }.body()
+
+    /** Server key dikirim sekali saat disimpan dan tidak pernah dikembalikan server. */
+    suspend fun saveStorePaymentConfig(unitId: Int, clientKey: String, serverKey: String, sandbox: Boolean): ApiResponse<StorePaymentConfig> =
+        client.put("api/app/ecommerce/payment") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("midtransClientKey", clientKey)
+                put("midtransServerKey", serverKey)
+                put("midtransSandbox", sandbox)
+            })
+        }.body()
+
     // ─── Knowledge base layanan pelanggan (web: ecommerce/[slug]/layanan/.../knowledge-base) ──
     suspend fun getKnowledgeBase(unitId: Int, query: String? = null): ApiResponse<List<KnowledgeArticle>> =
         client.get("api/app/knowledge-base") {

@@ -140,6 +140,43 @@ class AppViewModel(
             }
         } catch (e: Exception) { Napier.e("loadPosShifts error", e) }
     }
+    // ─── Toko online & metode bayar ───────────────────────────────────────────
+    private val _storeSettings = kotlinx.coroutines.flow.MutableStateFlow<StoreSettings?>(null)
+    val storeSettings: kotlinx.coroutines.flow.StateFlow<StoreSettings?> = _storeSettings.asStateFlow()
+
+    fun loadStoreSettings() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getStoreSettings(unitId)
+            if (res.success) _storeSettings.value = res.data
+        } catch (e: Exception) { Napier.e("loadStoreSettings error", e) }
+    }
+
+    fun updateStoreSettings(settings: StoreSettings) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        setLoading(true)
+        try {
+            val res = api.updateStoreSettings(settings.copy(unitId = unitId))
+            if (res.success) { _storeSettings.value = res.data ?: _storeSettings.value; setSuccess("Pengaturan toko disimpan") }
+            else setError(res.message ?: "Gagal menyimpan pengaturan toko")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun saveStorePaymentConfig(clientKey: String, serverKey: String, sandbox: Boolean) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        setLoading(true)
+        try {
+            val res = api.saveStorePaymentConfig(unitId, clientKey, serverKey, sandbox)
+            if (res.success) {
+                _storeSettings.value = _storeSettings.value?.copy(payment = res.data ?: StorePaymentConfig())
+                setSuccess("Konfigurasi pembayaran disimpan")
+            } else setError(res.message ?: "Gagal simpan konfigurasi pembayaran")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     // ─── Knowledge base layanan pelanggan ─────────────────────────────────────
     private val _knowledgeBase = kotlinx.coroutines.flow.MutableStateFlow<List<KnowledgeArticle>>(emptyList())
     val knowledgeBase: kotlinx.coroutines.flow.StateFlow<List<KnowledgeArticle>> = _knowledgeBase.asStateFlow()

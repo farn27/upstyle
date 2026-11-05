@@ -1012,6 +1012,30 @@ data class LaporanRawData(
 
 // â”€â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/** Pengaturan toko online (web: ecommerce/[slug]) */
+@Serializable
+data class StoreSettings(
+    val unitId: Int = 0,
+    val storefrontName: String = "",
+    val description: String = "",
+    val logoUrl: String = "",
+    val domainSlug: String = "",
+    val isActive: Boolean = false,
+    val payment: StorePaymentConfig = StorePaymentConfig()
+)
+
+/** Konfigurasi bayar toko — server key tidak pernah dikirim ke app, hanya serverKeySet */
+@Serializable
+data class StorePaymentConfig(val midtrans: StoreMidtransConfig = StoreMidtransConfig())
+
+@Serializable
+data class StoreMidtransConfig(
+    val clientKey: String = "",
+    val sandbox: Boolean = true,
+    val configured: Boolean = false,
+    val serverKeySet: Boolean = false
+)
+
 /** Artikel knowledge base layanan pelanggan per unit */
 @Serializable
 data class KnowledgeArticle(

@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis, ecommerceSettings, ecommerceOrders } from '$lib/server/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { simpanPengaturanToko, TokoError } from '$lib/server/tokoOnline';
 
 export const load = async ({ params, cookies }) => {
     const { slug } = params;
@@ -87,30 +88,21 @@ export const actions = {
         const { slug } = params;
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { error: 'Unauthorized' });
-
         const formData = await request.formData();
-        const storefrontName = formData.get('storefrontName');
-        const description = formData.get('description');
-        const domainSlug = formData.get('domainSlug');
-        const isActive = formData.get('isActive') === 'true';
-
         try {
             const unit = await db.query.unitBisnis.findFirst({
                 where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
             });
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
-
-            await db.update(ecommerceSettings)
-                .set({
-                    storefrontName,
-                    description,
-                    domainSlug,
-                    isActive
-                })
-                .where(eq(ecommerceSettings.unitId, unit.id));
-
+            await simpanPengaturanToko(db, unit.id, {
+                storefrontName: formData.get('storefrontName') ?? undefined,
+                description: formData.get('description') ?? undefined,
+                domainSlug: formData.get('domainSlug') ?? undefined,
+                isActive: formData.get('isActive') === 'true'
+            });
             return { success: true, message: 'Pengaturan toko berhasil diperbarui!' };
         } catch (err) {
+            if (err instanceof TokoError) return fail(err.status, { error: err.message });
             console.error("UPDATE STORE SETTINGS ERROR:", err);
             return fail(500, { error: 'Gagal memperbarui pengaturan toko.' });
         }
