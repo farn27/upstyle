@@ -4,6 +4,7 @@ import com.upstyle.bizgrow.data.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -408,18 +409,12 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("lastUpdate", lastUpdate)
         }.body()
 
+    // Sinkron offline memakai opsi B (kirim ulang ke API biasa) — tidak ada penyelesaian bentrok di server.
     suspend fun resolveConflict(
         entityType: String,
         entityId: String,
         resolution: String // "local" | "remote"
-    ): ApiResponse<Unit> =
-        client.post("api/app/sync/resolve") {
-            setBody(mapOf(
-                "entityType" to entityType,
-                "entityId" to entityId,
-                "resolution" to resolution
-            ))
-        }.body()
+    ): ApiResponse<Unit> = ApiResponse(true, "Tidak ada bentrok: perubahan offline dikirim ulang apa adanya")
 
     // ─── Subscription & Billing (unitId-scoped) ───────────────────────────────
 
@@ -571,15 +566,40 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Sync Queue (unitId-scoped) ───────────────────────────────────────────
 
-    suspend fun flushSyncQueue(unitId: Int, items: List<SyncQueueItem>): ApiResponse<Unit> =
-        client.post("api/app/sync/flush") {
-            setBody(mapOf("unitId" to unitId, "items" to items))
-        }.body()
+    /**
+     * Kirim ulang SATU item antrean offline ke endpoint aslinya (opsi B), dengan Idempotency-Key = item.id.
+     * - terkirim: server menerima (2xx)
+     * - ditolakPermanen: 4xx selain 408/429 — data tidak valid, jangan dicoba lagi
+     * - selain itu (jaringan putus / 5xx): biarkan di antrean untuk dicoba lagi
+     */
+    suspend fun replaySyncItem(item: SyncQueueItem): HasilKirimAntrean {
+        if (item.path.isBlank()) return HasilKirimAntrean(terkirim = false, ditolakPermanen = true, pesan = "Item antrean lama tanpa alamat endpoint")
+        val res: HttpResponse = client.request(item.path) {
+            method = HttpMethod.parse(item.method.uppercase())
+            header("Idempotency-Key", item.id)
+            if (item.payload.isNotBlank()) setBody(Json.parseToJsonElement(item.payload))
+        }
+        val kode = res.status.value
+        val pesan = runCatching { res.body<ApiResponse<JsonElement>>().message }.getOrNull()
+        return when {
+            kode in 200..299 -> HasilKirimAntrean(terkirim = true, ditolakPermanen = false, pesan = pesan)
+            kode in 400..499 && kode != 408 && kode != 429 && kode != 401 && kode != 409 ->
+                HasilKirimAntrean(terkirim = false, ditolakPermanen = true, pesan = pesan ?: "Ditolak server ($kode)")
+            else -> HasilKirimAntrean(terkirim = false, ditolakPermanen = false, pesan = pesan)
+        }
+    }
+
+    /** Kompatibilitas: kirim semua item satu per satu; sukses kalau semua sudah selesai diproses. */
+    suspend fun flushSyncQueue(unitId: Int, items: List<SyncQueueItem>): ApiResponse<Unit> {
+        for (item in items) {
+            val hasil = replaySyncItem(item)
+            if (!hasil.terkirim && !hasil.ditolakPermanen) return ApiResponse(false, hasil.pesan ?: "Belum bisa sinkron, coba lagi nanti")
+        }
+        return ApiResponse(true, "Antrean offline terkirim")
+    }
 
     suspend fun resolveConflict(unitId: Int, entityType: String, entityId: String, resolution: String): ApiResponse<Unit> =
-        client.post("api/app/sync/resolve") {
-            setBody(mapOf("unitId" to unitId.toString(), "entityType" to entityType, "entityId" to entityId, "resolution" to resolution))
-        }.body()
+        resolveConflict(entityType, entityId, resolution)
 
     // ─── Billing overloads (unitId-scoped, canonical names) ───────────────────
 
@@ -1211,6 +1231,9 @@ class UpstyleApi(private val client: HttpClient) {
     private fun <T> fiturDihentikan(nama: String): ApiResponse<T> =
         ApiResponse(false, "$nama tidak tersedia", null, "FEATURE_DISCONTINUED")
 }
+
+/** Hasil kirim ulang satu item antrean offline */
+data class HasilKirimAntrean(val terkirim: Boolean, val ditolakPermanen: Boolean, val pesan: String?)
 
 // ─── Helper & DTO internal: menyesuaikan bentuk data server dengan model app ──
 

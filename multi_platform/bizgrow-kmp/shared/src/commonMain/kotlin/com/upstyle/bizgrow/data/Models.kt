@@ -1895,13 +1895,20 @@ data class BulkOperationResult(
 
 @Serializable
 data class SyncQueueItem(
+    /** Dipakai juga sebagai header Idempotency-Key — server tidak mencatat request yang sama dua kali */
     val id: String = "",
     val action: String = "", // CREATE | UPDATE | DELETE
     val entityType: String = "", // product | transaction | contact etc.
     val entityId: String = "",
     val payload: String = "", // JSON-serialized request body
     val enqueuedAt: String = "",
-    val retryCount: Int = 0
+    val retryCount: Int = 0,
+    /** Endpoint asli, mis. "api/app/finance" (opsi B: kirim ulang ke API biasa) */
+    val path: String = "",
+    /** POST | PUT | DELETE */
+    val method: String = "POST",
+    /** Pesan terakhir dari server kalau ditolak permanen (4xx) */
+    val lastError: String? = null
 )
 
 @Serializable

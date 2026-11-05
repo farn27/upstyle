@@ -47,6 +47,22 @@ class SyncQueue(private val session: SessionRepository) {
         session.clearCache(KEY)
     }
 
+    // ─── Item yang ditolak server permanen (4xx) — disimpan supaya user tahu, tidak dicoba lagi ──
+    private val KEY_GAGAL = "sync_queue_failed"
+
+    fun simpanGagal(item: SyncQueueItem) {
+        val sekarang = getGagal().toMutableList()
+        sekarang.add(item)
+        session.saveToCache(KEY_GAGAL, json.encodeToString(sekarang.takeLast(50)))
+    }
+
+    fun getGagal(): List<SyncQueueItem> {
+        val raw = session.loadFromCache(KEY_GAGAL) ?: return emptyList()
+        return try { json.decodeFromString(raw) } catch (e: Exception) { emptyList() }
+    }
+
+    fun hapusGagal() = session.saveToCache(KEY_GAGAL, "[]")
+
     fun size(): Int = getAll().size
 
     fun isEmpty(): Boolean = size() == 0

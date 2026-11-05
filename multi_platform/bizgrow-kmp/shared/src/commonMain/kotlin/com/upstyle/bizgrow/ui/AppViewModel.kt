@@ -696,22 +696,61 @@ class AppViewModel(
             if (res.success) _financeData.value = res.data
         } catch (e: Exception) { Napier.e("loadFinanceData error", e) }
     }
+    // ─── Sinkron offline (opsi B: antrean dikirim ulang ke API biasa) ─────────
+    private val jsonAntrean = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    private val antreanOffline = com.upstyle.bizgrow.cache.SyncQueue(session)
+    private val _antreanOfflineCount = kotlinx.coroutines.flow.MutableStateFlow(antreanOffline.size())
+    /** Jumlah data yang menunggu dikirim (tampilkan sebagai badge "menunggu sinkron") */
+    val antreanOfflineCount: kotlinx.coroutines.flow.StateFlow<Int> = _antreanOfflineCount.asStateFlow()
+    private var sedangSinkron = false
+
+    private fun simpanKeAntreanOffline(path: String, method: String, payload: String, entityType: String) {
+        antreanOffline.enqueue(
+            SyncQueueItem(
+                id = "OFF-${currentTimeMillis()}-${kotlin.random.Random.nextInt(1_000_000)}",
+                action = "CREATE",
+                entityType = entityType,
+                payload = payload,
+                enqueuedAt = currentTimeMillis().toString(),
+                path = path,
+                method = method
+            )
+        )
+        _antreanOfflineCount.value = antreanOffline.size()
+        setSuccess("Offline: data disimpan di HP dan dikirim otomatis saat online")
+    }
+
+    /** Kirim antrean offline. Aman dipanggil kapan saja (berulang tidak membuat data dobel). */
+    fun sinkronkanOffline() = viewModelScope.launch {
+        if (sedangSinkron || antreanOffline.isEmpty()) return@launch
+        sedangSinkron = true
+        try {
+            val hasil = com.upstyle.bizgrow.cache.kirimAntreanOffline(antreanOffline, api)
+            _antreanOfflineCount.value = hasil.tersisa
+            if (hasil.terkirim > 0) { loadDashboard(); setSuccess("${hasil.terkirim} data offline berhasil dikirim") }
+            if (hasil.ditolak > 0) setError("${hasil.ditolak} data offline ditolak server (data tidak valid)")
+        } finally {
+            sedangSinkron = false
+        }
+    }
+
     fun createTransaction(
         kategoriTrx: String, nominal: Double, keterangan: String,
         metodeBayar: String = "KAS", productId: String? = null, qty: Int = 1
     ) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
+        val req = CreateTransactionRequest(TransactionBody(unitId, kategoriTrx, nominal, keterangan, metodeBayar, null, productId, qty))
         try {
-            val res = api.createTransaction(
-                CreateTransactionRequest(TransactionBody(unitId, kategoriTrx, nominal, keterangan, metodeBayar, null, productId, qty))
-            )
+            val res = api.createTransaction(req)
             if (res.success) {
                 loadDashboard()
                 setSuccess("Transaksi berhasil disimpan!")
+                sinkronkanOffline() // online lagi → kirim antrean yang tertunda
             } else setError(res.message ?: "Gagal simpan transaksi")
         } catch (e: Exception) {
-            setError("Koneksi gagal: ${e.message}")
+            // Offline: simpan ke antrean, dikirim otomatis saat online (tidak tercatat dua kali)
+            simpanKeAntreanOffline("api/app/finance", "POST", jsonAntrean.encodeToString(CreateTransactionRequest.serializer(), req), "transaction")
         }
     }
 
@@ -731,30 +770,31 @@ class AppViewModel(
     ) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
-        try {
-            val res = api.createTransaction(
-                CreateTransactionRequest(
-                    TransactionBody(
-                        unitId = unitId,
-                        kategoriTrx = kategoriTrx.uppercase(),
-                        nominal = nominal,
-                        keterangan = keterangan,
-                        abcCategoryId = abcCategoryId,
-                        productId = productId,
-                        qty = qty,
-                        coaId = coaId,
-                        kasCoaId = kasCoaId
-                    )
-                )
+        val req = CreateTransactionRequest(
+            TransactionBody(
+                unitId = unitId,
+                kategoriTrx = kategoriTrx.uppercase(),
+                nominal = nominal,
+                keterangan = keterangan,
+                abcCategoryId = abcCategoryId,
+                productId = productId,
+                qty = qty,
+                coaId = coaId,
+                kasCoaId = kasCoaId
             )
+        )
+        try {
+            val res = api.createTransaction(req)
             if (res.success) {
                 loadDashboard()
                 loadFinanceData()
                 setSuccess("Transaksi berhasil disimpan!")
                 navigateBack()
+                sinkronkanOffline()
             } else setError(res.message ?: "Gagal simpan transaksi")
         } catch (e: Exception) {
-            setError("Koneksi gagal: ${e.message}")
+            simpanKeAntreanOffline("api/app/finance", "POST", jsonAntrean.encodeToString(CreateTransactionRequest.serializer(), req), "transaction")
+            navigateBack()
         }
     }
     fun deleteTransaction(transactionId: Int) = viewModelScope.launch {
@@ -1258,6 +1298,7 @@ class AppViewModel(
 
     // Init / socket
     init {
+        sinkronkanOffline() // kirim data yang tertunda sejak app terakhir dibuka
         viewModelScope.launch {
             setupSocket()
         }

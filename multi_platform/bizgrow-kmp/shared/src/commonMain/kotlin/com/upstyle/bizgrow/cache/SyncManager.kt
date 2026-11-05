@@ -50,11 +50,9 @@ class SyncManager(
 
         _isSyncing.value = true
         try {
-            val result = api.flushSyncQueue(unitId, items)
-            if (result.success) {
-                syncQueue.clear()
-                _lastSyncAt.value = currentTimeMillis()
-            }
+            // Kirim satu per satu ke endpoint aslinya; yang gagal karena jaringan tetap di antrean
+            val hasil = kirimAntreanOffline(syncQueue, api)
+            if (hasil.tersisa == 0) _lastSyncAt.value = currentTimeMillis()
         } catch (e: Exception) {
             // Will retry automatically on the next connectivity event
         } finally {
