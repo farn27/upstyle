@@ -20,7 +20,7 @@ export const load = async ({ params, cookies }) => {
     if (!page) throw error(404, 'Halaman tidak ditemukan');
 
     const productList = await db.query.products.findMany({
-        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt)),
+        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt), eq(products.jenis, 'BARANG_JADI')),
         columns: { id: true, nama: true, hargaJual: true, foto: true, stok: true },
         limit: 30
     });

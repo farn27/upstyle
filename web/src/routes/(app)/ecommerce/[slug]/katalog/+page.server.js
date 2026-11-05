@@ -13,7 +13,7 @@ export const load = async ({ params, cookies, url }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
     const productList = await db.query.products.findMany({
-        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt)),
+        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt), eq(products.jenis, 'BARANG_JADI')),
         orderBy: [desc(products.createdAt)]
     });
     return { unit, productList };

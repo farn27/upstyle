@@ -5,6 +5,7 @@
     import { contextMap } from '$lib/bussinesConfig';
     import { deserialize } from '$app/forms';
     import { onMount } from 'svelte';
+    import { DAFTAR_JENIS, JENIS_PRODUK, JENIS_DIJUAL } from '$lib/jenisProduk';
     export let data;
 
     // DATA CONTEXT
@@ -22,6 +23,7 @@
         nama: '',
         sku: '',
         kategori_id: '',
+        jenis: JENIS_DIJUAL,
         harga_beli: 0,   // HPP default (bisa di-override per varian)
         harga_jual: 0,   // Harga jual untuk produk TANPA varian
         stok: 0,         // Stok awal untuk produk TANPA varian
@@ -116,6 +118,7 @@
         formData.append('nama', formBody.nama);
         formData.append('sku', formBody.sku);
         formData.append('kategori_id', formBody.kategori_id);
+        formData.append('jenis', formBody.jenis);
         formData.append('harga_beli', formBody.harga_beli);
         formData.append('min_stok', formBody.min_stok);
 
@@ -233,6 +236,21 @@
                 <div>
                     <label class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase block mb-1.5">SKU Utama</label>
                     <input type="text" bind:value={formBody.sku} on:input={generateCombinations} class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-2 text-sm font-mono outline-none focus:bg-white dark:bg-slate-800" placeholder="AUTO" />
+                </div>
+                <div class="md:col-span-4">
+                    <label for="jenisProduk" class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Jenis Barang</label>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <select id="jenisProduk" bind:value={formBody.jenis} class="sm:w-64 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 text-sm font-semibold outline-none focus:bg-white dark:bg-slate-800">
+                            {#each DAFTAR_JENIS as j}
+                                <option value={j}>{JENIS_PRODUK[j].label}</option>
+                            {/each}
+                        </select>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                            {formBody.jenis === JENIS_DIJUAL
+                                ? 'Dijual: tampil di kasir, toko online, dan website.'
+                                : `${JENIS_PRODUK[formBody.jenis].keterangan}. Tidak tampil di kasir dan toko, tapi bisa dibeli lewat Pengadaan. Harga jual boleh 0.`}
+                        </p>
+                    </div>
                 </div>
 
                 <!-- HARGA & STOK — Adaptif berdasarkan ada/tidaknya varian -->

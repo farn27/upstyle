@@ -50,6 +50,13 @@
       "when": 1793897964661,
       "tag": "0006_pengadaan_modul",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1793904792546,
+      "tag": "0007_jenis_produk",
+      "breakpoints": true
     }
   ]
 }

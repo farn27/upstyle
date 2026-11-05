@@ -1,11 +1,12 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { hitungTotalPO, rp } from '$lib/pengadaan';
+	import { DAFTAR_JENIS, JENIS_PRODUK, normalisasiJenis } from '$lib/jenisProduk';
 	import PesanForm from './PesanForm.svelte';
 
 	/** @type {{ id: number, namaSupplier: string, termPembayaran?: number }[]} */
 	export let suppliers = [];
-	/** @type {{ id: string, nama: string, sku?: string, hargaBeli: string, stok: number }[]} */
+	/** @type {{ id: string, nama: string, sku?: string, jenis?: string, hargaBeli: string, stok: number }[]} */
 	export let products = [];
 	export let form = null;
 	export let batalHref = '';
@@ -22,11 +23,13 @@
 	let ppnPersen = Number(awal.ppnPersen || 0);
 
 	let cari = '';
+	let jenis = '';
 	let pilihProduk = '';
 	let sedangKirim = false;
 
 	$: produkTersaring = products.filter((p) => {
 		if (items.some((i) => i.productId === p.id)) return false;
+		if (jenis && normalisasiJenis(p.jenis) !== jenis) return false;
 		const kata = cari.trim().toLowerCase();
 		return !kata || p.nama.toLowerCase().includes(kata) || String(p.sku || '').toLowerCase().includes(kata);
 	});
@@ -36,7 +39,7 @@
 	function tambah() {
 		const p = products.find((x) => x.id === pilihProduk);
 		if (!p) return;
-		items = [...items, { productId: p.id, nama: p.nama, sku: p.sku, qty: 1, unitPrice: Number(p.hargaBeli || 0) }];
+		items = [...items, { productId: p.id, nama: p.nama, sku: p.sku, jenis: p.jenis, qty: 1, unitPrice: Number(p.hargaBeli || 0) }];
 		pilihProduk = '';
 		cari = '';
 	}
@@ -95,7 +98,16 @@
 
 			<section class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 space-y-4">
 				<h2 class="font-bold text-slate-800 dark:text-slate-100">Daftar Barang</h2>
-				<div class="grid grid-cols-1 sm:grid-cols-[1fr_1.5fr_auto] gap-2 items-end">
+				<div class="grid grid-cols-1 sm:grid-cols-[0.9fr_1fr_1.5fr_auto] gap-2 items-end">
+					<div>
+						<label for="jenisProduk" class={kelasLabel}>Jenis</label>
+						<select id="jenisProduk" bind:value={jenis} class={kelasInput}>
+							<option value="">Semua jenis</option>
+							{#each DAFTAR_JENIS as j}
+								<option value={j}>{JENIS_PRODUK[j].singkat}</option>
+							{/each}
+						</select>
+					</div>
 					<div>
 						<label for="cariProduk" class={kelasLabel}>Cari produk</label>
 						<input id="cariProduk" type="search" bind:value={cari} placeholder="Nama atau SKU" class={kelasInput} />
@@ -105,7 +117,7 @@
 						<select id="pilihProduk" bind:value={pilihProduk} class={kelasInput}>
 							<option value="">Pilih produk ({produkTersaring.length})</option>
 							{#each produkTersaring as p}
-								<option value={p.id}>{p.nama}{p.sku ? ` (${p.sku})` : ''} · stok {p.stok ?? 0}</option>
+								<option value={p.id}>{p.nama}{p.sku ? ` (${p.sku})` : ''} · {JENIS_PRODUK[normalisasiJenis(p.jenis)].singkat} · stok {p.stok ?? 0}</option>
 							{/each}
 						</select>
 					</div>
@@ -130,7 +142,7 @@
 								<tr>
 									<td class="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
 										{item.nama}
-										{#if item.sku}<span class="block text-xs font-normal text-slate-400">{item.sku}</span>{/if}
+										<span class="block text-xs font-normal text-slate-400">{[item.sku, item.jenis ? JENIS_PRODUK[normalisasiJenis(item.jenis)].singkat : ''].filter(Boolean).join(' · ')}</span>
 									</td>
 									<td class="py-2 px-3">
 										<input type="number" aria-label="Jumlah {item.nama}" min="1" step="1" required bind:value={item.qty} class="{kelasInput} text-center" />

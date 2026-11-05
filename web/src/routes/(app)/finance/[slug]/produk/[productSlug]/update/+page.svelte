@@ -4,6 +4,7 @@
     import { toastPesan } from '$lib/notifStore';
     import { contextMap } from '$lib/bussinesConfig';
     import { deserialize } from '$app/forms';
+    import { DAFTAR_JENIS, JENIS_PRODUK, JENIS_DIJUAL, normalisasiJenis } from '$lib/jenisProduk';
 
     export let data;
 
@@ -33,6 +34,7 @@
         nama: data.product?.nama || '',
         sku: data.product?.sku || '',
         kategori_id: data.product?.kategoriId ? Number(data.product.kategoriId) : '',
+        jenis: normalisasiJenis(data.product?.jenis),
         harga_beli: Number(data.product?.hargaBeli || 0),
         harga_jual: Number(data.product?.hargaJual || 0),
         stok: Number(data.product?.stok || 0),
@@ -92,6 +94,7 @@
         formData.append('nama', formBody.nama);
         formData.append('sku', formBody.sku);
         formData.append('kategoriId', formBody.kategori_id !== '' ? String(formBody.kategori_id) : '');
+        formData.append('jenis', formBody.jenis);
         formData.append('hargaBeli', formBody.harga_beli);
         // Jika ada varian: kirim minHarga dari varian sebagai hargaJual produk
         formData.append('hargaJual', hasVariants && hargaVarianList.length > 0 ? minHarga : formBody.harga_jual);
@@ -239,6 +242,21 @@
                                     <option value={Number(kat.id)}>{kat.namaKategori}</option>
                                 {/each}
                             </select>
+                        </div>
+                        <div class="md:col-span-3">
+                            <label for="jenisProduk" class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Jenis Barang</label>
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
+                                <select id="jenisProduk" bind:value={formBody.jenis} class="sm:w-64 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-semibold outline-none focus:border-indigo-300 transition">
+                                    {#each DAFTAR_JENIS as j}
+                                        <option value={j}>{JENIS_PRODUK[j].label}</option>
+                                    {/each}
+                                </select>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                                    {formBody.jenis === JENIS_DIJUAL
+                                        ? 'Dijual: tampil di kasir, toko online, dan website.'
+                                        : `${JENIS_PRODUK[formBody.jenis].keterangan}. Tidak tampil di kasir dan toko, tapi bisa dibeli lewat Pengadaan.`}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

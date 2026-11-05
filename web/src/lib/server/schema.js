@@ -224,6 +224,8 @@ export const products = mysqlTable("products", {
 	kategoriId: int("kategori_id").references(() => kategoriProduk.id, { onDelete: "set null" } ),
 	supplierId: int("supplier_id").references(() => suppliers.id, { onDelete: "set null" } ),
 	status: mysqlEnum("status", ['active','draft','archived']).default('active'),
+	// Hanya BARANG_JADI yang dijual; lainnya dibeli lewat Pengadaan untuk dipakai sendiri ($lib/jenisProduk)
+	jenis: mysqlEnum("jenis", ['BARANG_JADI','BAHAN_BAKU','KEMASAN','PERLENGKAPAN']).default('BARANG_JADI').notNull(),
 	metadata: json(),
 	videoUrl: varchar("video_url", { length: 255 }),
 	weightGrams: int("weight_grams").default(0),

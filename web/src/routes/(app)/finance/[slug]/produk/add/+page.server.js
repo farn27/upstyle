@@ -10,6 +10,7 @@ import { join } from 'path';
 import { writeFileSync, mkdirSync } from 'fs';
 import { processProductImage, createThumbnail, validateImage } from '$lib/server/imageProcessor.js';
 import { log } from '$lib/server/logger.js';
+import { normalisasiJenis } from '$lib/jenisProduk';
 
 // --- LOAD FUNCTION ---
 export const load = async ({ params, locals, parent }) => {
@@ -82,7 +83,8 @@ export const actions = {
         // 2. Ambil Data Dasar
         const nama = formData.get('nama');
         const sku = formData.get('sku');
-        const kategoriInput = formData.get('kategori_id'); 
+        const kategoriInput = formData.get('kategori_id');
+        const jenis = normalisasiJenis(formData.get('jenis'));
         const metadataRaw = formData.get('metadata');
         const variantsRaw = formData.get('variants');
         const fotoFile = formData.get('foto');
@@ -182,6 +184,7 @@ export const actions = {
                     userId: locals.user.id,
                     unitId: unit.id,
                     kategoriId: finalKategoriId,
+                    jenis,
                     nama: nama,
                     foto: fotoString, // Aman masuk ke VARCHAR(255) karena hanya berupa teks alamat file pendek!
                     sku: sku || `SKU-${newProductId.slice(0, 8).toUpperCase()}`,

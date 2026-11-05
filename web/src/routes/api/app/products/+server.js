@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { nowWIB } from '$lib/server/dateUtils';
+import { normalisasiJenis } from '$lib/jenisProduk';
 
 // 1. GET: Ambil semua produk & variasi untuk unitId (with pagination)
 export async function GET({ url, cookies, request }) {
@@ -55,6 +56,7 @@ export async function GET({ url, cookies, request }) {
             foto: p.foto || '',
             barcode: p.barcode || '',
             status: p.status || 'active',
+            jenis: normalisasiJenis(p.jenis),
             showInPos: p.showInPos || 0,
             hasVariant: p.hasVariant || 0,
             variants: (p.productVariants || []).map(v => ({
@@ -140,6 +142,7 @@ export async function POST({ request, cookies }) {
                 userId: userId,
                 unitId: Number(unitId),
                 kategoriId: kategoriId,
+                jenis: normalisasiJenis(body.jenis),
                 nama: nama,
                 sku: sku || `SKU-${newId.slice(0, 8).toUpperCase()}`,
                 slug: slug,
@@ -219,7 +222,9 @@ export async function PUT({ request, cookies }) {
                     hargaBeli: String(hargaBeli || 0),
                     hargaJual: String(hargaJual || 0),
                     stok: stokBaru,
-                    kategoriId: kategoriId
+                    kategoriId: kategoriId,
+                    // App mobile versi lama tidak mengirim jenis: biarkan yang tersimpan
+                    ...(body.jenis ? { jenis: normalisasiJenis(body.jenis) } : {})
                 })
                 .where(eq(products.id, id));
 

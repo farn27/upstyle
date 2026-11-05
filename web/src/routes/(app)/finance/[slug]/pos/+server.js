@@ -8,6 +8,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
 import { pusherServer } from '$lib/server/pusher';
 import { nowWIB } from '$lib/server/dateUtils';
+import { bisaDijual } from '$lib/jenisProduk';
 
 export async function POST({ request, cookies, params, locals }) {
     try {
@@ -224,6 +225,7 @@ export async function POST({ request, cookies, params, locals }) {
                     where: eq(products.id, item.id)
                 });
                 if (!produk) throw new Error(`Produk ${item.nama} tidak ditemukan`);
+                if (!bisaDijual(produk.jenis)) throw new Error(`${produk.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
                 if (produk.stok < qty) {
                     throw new Error(`Stok ${produk.nama} tidak mencukupi! (Sisa: ${produk.stok})`);
                 }

@@ -8,6 +8,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { processProductImage, validateImage } from '$lib/server/imageProcessor.js';
 import { log } from '$lib/server/logger.js';
+import { normalisasiJenis } from '$lib/jenisProduk';
 
 // 1. LOAD DATA BERDASARKAN SLUG PRODUK
 export const load = async ({ params, locals }) => {
@@ -53,6 +54,8 @@ export const actions = {
         const fotoFile = formData.get('foto');
         const fotoUrl = formData.get('fotoUrl'); // Pre-uploaded URL from VPS API
         const kategoriId = formData.get('kategoriId');
+        // Klien lama tidak mengirim jenis: jangan ubah jenis yang tersimpan
+        const jenisInput = formData.get('jenis');
         const variantsRaw = formData.get('variants');
 
         if (!nama) return fail(400, { message: "Nama produk wajib diisi" });
@@ -152,6 +155,7 @@ export const actions = {
                     hargaJual: String(hargaJual || '0'),
                     minStok: Number(minStok || 5),
                     kategoriId: finalKategoriId,
+                    ...(jenisInput ? { jenis: normalisasiJenis(jenisInput) } : {}),
                     hasVariant: hasVariant,
                     updatedAt: new Date(),
                     ...stokUpdate,

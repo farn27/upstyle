@@ -5,6 +5,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { unitBisnis, products } from '$lib/server/schema';
 import { getActivePosFeatures, POS_FEATURE_DEFAULTS } from '$lib/posFeatures';
+import { JENIS_DIJUAL } from '$lib/jenisProduk';
 
 /** Semua kunci fitur POS yang dikenal (sumber: default kategori UMUM) */
 export const KUNCI_FITUR_POS = Object.keys(POS_FEATURE_DEFAULTS['UMUM']);
@@ -74,7 +75,7 @@ export async function daftarProdukPos(/** @type {any} */ db, /** @type {number} 
 	const rows = await db
 		.select({ id: products.id, nama: products.nama, sku: products.sku, hargaJual: products.hargaJual, stok: products.stok, showInPos: products.showInPos })
 		.from(products)
-		.where(and(eq(products.unitId, unitId), isNull(products.deletedAt)))
+		.where(and(eq(products.unitId, unitId), isNull(products.deletedAt), eq(products.jenis, JENIS_DIJUAL)))
 		.orderBy(products.nama);
 	return rows.map((/** @type {any} */ p) => ({ ...p, sku: p.sku || '', hargaJual: Number(p.hargaJual || 0), stok: p.stok || 0, showInPos: p.showInPos !== 0 }));
 }
