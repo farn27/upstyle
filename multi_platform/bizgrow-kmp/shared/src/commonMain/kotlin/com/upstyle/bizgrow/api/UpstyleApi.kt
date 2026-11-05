@@ -1135,6 +1135,33 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
         client.get("api/app/export/history") { parameter("unitId", unitId) }.body()
 
+    // ─── Pengaturan POS (web: pos/kelola/fitur & pos/kelola/produk) ──────────
+    suspend fun getPosFeatures(unitId: Int): ApiResponse<PosFeatureSettings> =
+        client.get("api/app/pos/features") { parameter("unitId", unitId) }.body()
+
+    suspend fun updatePosFeatures(unitId: Int, features: Map<String, Boolean>): ApiResponse<PosFeatureSettings> =
+        client.put("api/app/pos/features") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("features", JsonObject(features.mapValues { JsonPrimitive(it.value) }))
+            })
+        }.body()
+
+    suspend fun resetPosFeatures(unitId: Int): ApiResponse<PosFeatureSettings> =
+        client.delete("api/app/pos/features") { parameter("unitId", unitId) }.body()
+
+    suspend fun getPosProducts(unitId: Int): ApiResponse<List<PosProductItem>> =
+        client.get("api/app/pos/products") { parameter("unitId", unitId) }.body()
+
+    suspend fun setProductShowInPos(unitId: Int, productId: String, show: Boolean): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/pos/products") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("productId", productId)
+                put("showInPos", show)
+            })
+        }.body())
+
     // Kas masuk/keluar shift → api/app/pos/cash?shiftId=
     suspend fun getPosCashTransactions(shiftId: Int): ApiResponse<List<PosCashTransaction>> =
         client.get("api/app/pos/cash") { parameter("shiftId", shiftId) }.body()

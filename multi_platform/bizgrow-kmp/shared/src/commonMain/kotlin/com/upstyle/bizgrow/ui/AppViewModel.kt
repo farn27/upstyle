@@ -140,6 +140,62 @@ class AppViewModel(
             }
         } catch (e: Exception) { Napier.e("loadPosShifts error", e) }
     }
+    // ─── Pengaturan POS: fitur & produk tampil di kasir ──────────────────────
+    private val _posFeatures = kotlinx.coroutines.flow.MutableStateFlow<PosFeatureSettings?>(null)
+    val posFeatures: kotlinx.coroutines.flow.StateFlow<PosFeatureSettings?> = _posFeatures.asStateFlow()
+    private val _posProducts = kotlinx.coroutines.flow.MutableStateFlow<List<PosProductItem>>(emptyList())
+    val posProducts: kotlinx.coroutines.flow.StateFlow<List<PosProductItem>> = _posProducts.asStateFlow()
+
+    fun loadPosFeatures() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosFeatures(unitId)
+            if (res.success) _posFeatures.value = res.data
+        } catch (e: Exception) { Napier.e("loadPosFeatures error", e) }
+    }
+
+    fun setPosFeature(key: String, enabled: Boolean) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        val sekarang = _posFeatures.value?.activeFeatures ?: return@launch
+        try {
+            val res = api.updatePosFeatures(unitId, sekarang + (key to enabled))
+            if (res.success) _posFeatures.value = res.data ?: _posFeatures.value
+            else setError(res.message ?: "Gagal menyimpan fitur POS")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun resetPosFeatures() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.resetPosFeatures(unitId)
+            if (res.success) { _posFeatures.value = res.data; setSuccess("Fitur POS kembali ke default") }
+            else setError(res.message ?: "Gagal reset fitur POS")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun loadPosProducts() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosProducts(unitId)
+            if (res.success) _posProducts.value = res.data ?: emptyList()
+        } catch (e: Exception) { Napier.e("loadPosProducts error", e) }
+    }
+
+    fun setProductShowInPos(productId: String, show: Boolean) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        // ubah tampilan dulu supaya terasa cepat, kembalikan kalau server menolak
+        val sebelum = _posProducts.value
+        _posProducts.value = sebelum.map { if (it.id == productId) it.copy(showInPos = show) else it }
+        try {
+            val res = api.setProductShowInPos(unitId, productId, show)
+            if (!res.success) { _posProducts.value = sebelum; setError(res.message ?: "Gagal mengubah produk POS") }
+        } catch (e: Exception) { _posProducts.value = sebelum; setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun openShift(modalAwal: Double) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value

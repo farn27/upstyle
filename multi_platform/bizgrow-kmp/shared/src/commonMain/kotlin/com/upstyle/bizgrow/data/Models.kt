@@ -1012,6 +1012,29 @@ data class LaporanRawData(
 
 // â”€â”€â”€ Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/** Pengaturan fitur POS per unit (sama dengan halaman web pos/kelola/fitur) */
+@Serializable
+data class PosFeatureSettings(
+    val category: String = "UMUM",
+    /** fitur yang berlaku sekarang, mis. posEnabled, barcodeScanner, splitPayment, showStock ... */
+    val activeFeatures: Map<String, Boolean> = emptyMap(),
+    /** bawaan kategori usaha (dipakai setelah reset) */
+    val defaultFeatures: Map<String, Boolean> = emptyMap(),
+    val overrides: Map<String, Boolean> = emptyMap(),
+    val keys: List<String> = emptyList()
+)
+
+/** Produk di pengaturan "tampil di kasir" (pos/kelola/produk) */
+@Serializable
+data class PosProductItem(
+    val id: String = "",
+    val nama: String = "",
+    val sku: String = "",
+    val hargaJual: Double = 0.0,
+    val stok: Int = 0,
+    val showInPos: Boolean = true
+)
+
 @Serializable
 data class PosFeatureOverride(
     val enableDiskon: Boolean = true,
