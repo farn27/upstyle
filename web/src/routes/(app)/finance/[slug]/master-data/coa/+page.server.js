@@ -9,7 +9,12 @@ import { env } from '$env/dynamic/private';
 import { isiCoaStandar, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
-const groq = new Groq({ apiKey: env.GROQ_API_KEY });
+function getGroqClient() {
+    if (!env.GROQ_API_KEY) {
+        throw new Error('GROQ_API_KEY belum dikonfigurasi di server');
+    }
+    return new Groq({ apiKey: env.GROQ_API_KEY });
+}
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -204,6 +209,7 @@ Gunakan skema JSON berikut untuk setiap akun:
 ]
 Hasilkan sekitar 10-15 akun esensial yang sangat spesifik dan relevan dengan model bisnis ini. Output HANYA JSON array saja tanpa teks lain.`;
 
+            const groq = getGroqClient();
             const completion = await groq.chat.completions.create({
                 messages: [
                     { role: "system", content: systemPrompt },
