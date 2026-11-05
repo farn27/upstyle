@@ -4,6 +4,7 @@ import { vouchers, riwayatAksi, marketingCampaigns } from '$lib/server/schema';
 import { eq, and, desc, or, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET /api/app/pos/vouchers?unitId=X
@@ -253,6 +254,10 @@ export async function PUT({ request, cookies }) {
             if (!voucherId) {
                 return json({ success: false, message: 'voucherId wajib diisi' }, { status: 400 });
             }
+            const voucher = await db.query.vouchers.findFirst({ where: eq(vouchers.id, Number(voucherId)) });
+            if (!voucher || !(await unitMilikUser(db, userId, voucher.unitId))) {
+                return json({ success: false, message: 'Voucher tidak ditemukan' }, { status: 404 });
+            }
 
             // Increment usage count
             await db.update(vouchers)
@@ -279,6 +284,10 @@ export async function DELETE({ url, cookies, request }) {
     const voucherId = url.searchParams.get('voucherId');
     if (!voucherId) return json({ success: false, message: 'voucherId wajib' }, { status: 400 });
     try {
+        const voucher = await db.query.vouchers.findFirst({ where: eq(vouchers.id, Number(voucherId)) });
+        if (!voucher || !(await unitMilikUser(db, userId, voucher.unitId))) {
+            return json({ success: false, message: 'Voucher tidak ditemukan' }, { status: 404 });
+        }
         await db.update(vouchers).set({ isActive: false }).where(eq(vouchers.id, Number(voucherId)));
         return json({ success: true, message: 'Voucher dinonaktifkan' });
     } catch (err) {

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { products, riwayatAksi } from '$lib/server/schema';
+import { products, riwayatAksi, unitBisnis } from '$lib/server/schema';
 import { eq, and, desc, sql, isNull } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
@@ -47,7 +47,17 @@ export async function GET({ url, cookies, request }) {
             createdAt: p.createdAt || ''
         }));
 
-        return json({ success: true, products: data });
+        // `data` dibaca app mobile (KatalogData), `products` dipertahankan untuk klien lama
+        const unit = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
+        const settings = {
+            unitId: Number(unitId),
+            slug: unit?.slug || '',
+            namaPortal: unit?.namaUnit || '',
+            isActive: data.some(p => p.isPublished),
+            totalProducts: data.length,
+            publishedProducts: data.filter(p => p.isPublished).length
+        };
+        return json({ success: true, products: data, data: { settings, products: data } });
 
     } catch (err) {
         log.api.error({ err }, 'GET katalog error');

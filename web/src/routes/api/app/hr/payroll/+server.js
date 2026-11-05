@@ -5,6 +5,7 @@ import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
+import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -180,7 +181,7 @@ export async function POST({ request, cookies }) {
                         where: eq(employees.id, employeeId)
                     });
 
-                    if (!employee) continue;
+                    if (!employee || !(await unitMilikUser(db, userId, employee.companyId))) continue;
 
                     // Get salary components
                     const components = await tx.select()
@@ -296,6 +297,7 @@ export async function PUT({ request, cookies }) {
                     });
 
                     if (!payroll || payroll.paymentStatus === 'paid') continue;
+                    if (!(await karyawanMilikUser(db, userId, payroll.employeeId))) continue;
 
                     await tx.update(payrolls)
                         .set({ 
@@ -339,7 +341,7 @@ export async function PUT({ request, cookies }) {
                 where: eq(payrolls.id, Number(payrollId))
             });
 
-            if (!payroll) {
+            if (!payroll || !(await karyawanMilikUser(db, userId, payroll.employeeId))) {
                 return json({ success: false, message: 'Payroll tidak ditemukan' }, { status: 404 });
             }
 
@@ -400,7 +402,7 @@ export async function DELETE({ url, cookies, request }) {
             }
         });
 
-        if (!payroll) {
+        if (!payroll || !(await karyawanMilikUser(db, userId, payroll.employeeId))) {
             return json({ success: false, message: 'Payroll tidak ditemukan' }, { status: 404 });
         }
 

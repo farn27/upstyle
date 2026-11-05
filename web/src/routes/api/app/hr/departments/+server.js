@@ -4,6 +4,7 @@ import { departments, employees, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET: Fetch all departments for unitId
@@ -132,7 +133,7 @@ export async function PUT({ request, cookies }) {
             .where(eq(departments.id, Number(departmentId)))
             .limit(1);
 
-        if (!dept || dept.length === 0) {
+        if (!dept || dept.length === 0 || !(await unitMilikUser(db, userId, dept[0].unitId))) {
             return json({ success: false, message: 'Departemen tidak ditemukan' }, { status: 404 });
         }
 
@@ -142,7 +143,7 @@ export async function PUT({ request, cookies }) {
 
         await db.insert(riwayatAksi).values({
             userId,
-            unitId: Number(unitId || dept[0].unitId),
+            unitId: Number(dept[0].unitId),
             pesan: `Departemen diperbarui: ${name}`,
             kategori: 'HR',
             tipe: 'info'
@@ -174,7 +175,7 @@ export async function DELETE({ url, cookies, request }) {
             .where(eq(departments.id, Number(departmentId)))
             .limit(1);
 
-        if (!dept || dept.length === 0) {
+        if (!dept || dept.length === 0 || !(await unitMilikUser(db, userId, dept[0].unitId))) {
             return json({ success: false, message: 'Departemen tidak ditemukan' }, { status: 404 });
         }
 
@@ -198,7 +199,7 @@ export async function DELETE({ url, cookies, request }) {
 
         await db.insert(riwayatAksi).values({
             userId,
-            unitId: Number(unitId || dept[0].unitId),
+            unitId: Number(dept[0].unitId),
             pesan: `Departemen dihapus: ${dept[0].name}`,
             kategori: 'HR',
             tipe: 'warning'

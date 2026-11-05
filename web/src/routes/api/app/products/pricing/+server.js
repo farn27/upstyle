@@ -4,6 +4,10 @@ import { products, productVariants } from '$lib/server/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { produkMilikUser, varianMilikUser } from '$lib/server/apiUnitGuard';
+
+/** Item massal yang bukan milik user → seluruh update dibatalkan */
+class AksesDitolak extends Error {}
 
 // GET: Fetch products with pricing info for unit (?unitId=)
 export async function GET({ url, cookies, request }) {
@@ -75,6 +79,10 @@ export async function PUT({ request, cookies }) {
                 const results = [];
                 for (const item of items) {
                     if (!item.id) continue;
+                    const milik = item.isVariant
+                        ? await varianMilikUser(db, userId, item.id)
+                        : await produkMilikUser(db, userId, item.id);
+                    if (!milik) throw new AksesDitolak(String(item.id));
 
                     const updateFields = {};
                     if (item.hargaBeli !== undefined && item.hargaBeli !== null) {
@@ -130,6 +138,9 @@ export async function PUT({ request, cookies }) {
             return json({ success: false, message: "Tidak ada data harga yang diubah" }, { status: 400 });
         }
 
+        const milik = body.isVariant ? await varianMilikUser(db, userId, id) : await produkMilikUser(db, userId, id);
+        if (!milik) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
+
         if (body.isVariant) {
             await db.update(productVariants)
                 .set(updateFields)
@@ -160,6 +171,9 @@ export async function PUT({ request, cookies }) {
             });
         }
     } catch (err) {
+        if (err instanceof AksesDitolak) {
+            return json({ success: false, message: `Produk ${err.message} tidak ditemukan` }, { status: 404 });
+        }
         log.product.error({ err }, 'API PUT PRODUCT PRICING ERROR');
         return json({ success: false, message: err.message || "Gagal memperbarui harga produk" }, { status: 500 });
     }

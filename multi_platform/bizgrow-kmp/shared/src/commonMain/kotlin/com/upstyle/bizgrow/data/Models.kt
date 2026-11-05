@@ -183,8 +183,16 @@ data class TransactionBody(
     val metodeBayar: String = "KAS",
     val abcCategoryId: Int? = null,
     val productId: String? = null,
-    val qty: Int = 1
+    val qty: Int = 1,
+    /** Akun pendapatan/beban (COA). Kosong → server pakai akun default unit. */
+    val coaId: Int? = null,
+    /** Akun kas/bank. Kosong → server pilih dari metodeBayar (KAS / BANK / QRIS ...). */
+    val kasCoaId: Int? = null
 )
+
+/** Balasan POST api/app/finance */
+@Serializable
+data class TransaksiTersimpan(val id: Int? = null, val journalId: Int? = null)
 
 // â”€â”€â”€ Products â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1506,6 +1514,8 @@ data class BusinessPlan(
     val id: Int = 0,
     val unitId: Int,
     val title: String = "",
+    /** Kategori usaha (kunci CATEGORY_TO_COA di server), dipakai saat plan diterapkan */
+    val kategori: String = "RETAIL_MINIMARKET",
     val description: String = "",
     val executiveSummary: String = "",
     val marketAnalysis: String = "",

@@ -4,6 +4,7 @@ import { kategoriProduk, products } from '$lib/server/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET: Get all categories for unitId
@@ -93,6 +94,11 @@ export async function DELETE({ url, cookies, request }) {
     }
 
     try {
+        const kategori = await db.query.kategoriProduk.findFirst({ where: eq(kategoriProduk.id, Number(categoryId)) });
+        if (!kategori || !(await unitMilikUser(db, userId, kategori.unitId))) {
+            return json({ success: false, message: 'Kategori tidak ditemukan' }, { status: 404 });
+        }
+
         // Check if category is used by any products
         const [productCount] = await db.select({ count: sql`count(*)` })
             .from(products)

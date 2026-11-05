@@ -9,6 +9,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { nowWIB } from '$lib/server/dateUtils';
 
 // 1. GET: Ambil list order POS dan customer POS untuk unitId
@@ -312,14 +313,14 @@ export async function POST({ request, cookies }) {
                     const nominal = price * qty;
 
                     const prod = await tx.query.products.findFirst({
-                        where: eq(products.id, item.productId)
+                        where: and(eq(products.id, item.productId), eq(products.unitId, Number(unitId)))
                     });
 
                     if (prod) {
                         const newStock = Math.max(0, (prod.stok || 0) - qty);
                         await tx.update(products)
                             .set({ stok: newStock })
-                            .where(eq(products.id, item.productId));
+                            .where(and(eq(products.id, item.productId), eq(products.unitId, Number(unitId))));
 
                         await tx.insert(posOrderItems).values({
                             orderId: finalOrderId, productId: item.productId, variantId: item.variantId || null, productName: item.productName, qty: qty, price: String(price), total: String(nominal), costTotal: String(Number(prod.hargaBeli || 0) * qty)
@@ -429,7 +430,7 @@ export async function POST({ request, cookies }) {
                 where: eq(posShifts.id, Number(shiftId))
             });
             
-            if (!shift) {
+            if (!shift || !(await unitMilikUser(db, userId, shift.unitId))) {
                 return json({ success: false, message: "Shift tidak ditemukan" }, { status: 404 });
             }
             
@@ -487,7 +488,7 @@ export async function POST({ request, cookies }) {
                 where: eq(posOrders.id, Number(orderId))
             });
 
-            if (!order) {
+            if (!order || !(await unitMilikUser(db, userId, order.unitId))) {
                 return json({ success: false, message: "Order tidak ditemukan" }, { status: 404 });
             }
 

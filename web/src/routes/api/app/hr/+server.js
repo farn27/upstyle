@@ -8,6 +8,7 @@ import { parsePagination, applyPagination, paginatedResponse } from '$lib/server
 import { encryptField, decryptField } from '$lib/server/encryption';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
+import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -300,6 +301,14 @@ export async function POST({ request, cookies }) {
         }
         // ────────────────────────────────────────────────────────────────────────
 
+        // Karyawan yang disentuh (absen / payroll) harus milik unit user
+        const empIdDipakai = body.employeeId ?? body.payroll?.employeeId;
+        if (empIdDipakai !== undefined && empIdDipakai !== null) {
+            if (!(await karyawanMilikUser(db, userId, empIdDipakai))) {
+                return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
+            }
+        }
+
         if (action === 'create-employee') {
             const { fullName, position, salary, pin, role, unitId, taxId, bankName, bankAccountNumber } = body.employee;
             
@@ -411,7 +420,7 @@ export async function POST({ request, cookies }) {
                 where: eq(approvalRequests.id, Number(requestId))
             });
 
-            if (!request) {
+            if (!request || !(await unitMilikUser(db, userId, request.unitId))) {
                 return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
             }
 
@@ -437,7 +446,7 @@ export async function POST({ request, cookies }) {
                 where: eq(approvalRequests.id, Number(requestId))
             });
 
-            if (!request) {
+            if (!request || !(await unitMilikUser(db, userId, request.unitId))) {
                 return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
             }
 
@@ -508,8 +517,9 @@ export async function PUT({ request, url, cookies }) {
         const emp = await db.query.employees.findFirst({
             where: eq(employees.id, Number(employeeId))
         });
-        if (!emp) return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
-        if (!emp.companyId) return json({ success: false, message: "Karyawan tidak memiliki unit" }, { status: 400 });
+        if (!emp || !(await unitMilikUser(db, userId, emp.companyId))) {
+            return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
+        }
         
         const { fullName, position, salary, role, email, phone, division } = body;
         
@@ -529,7 +539,7 @@ export async function PUT({ request, url, cookies }) {
                 
             await db.insert(riwayatAksi).values({
                 userId, 
-                unitId: emp.companyId, 
+                unitId: Number(emp.companyId), 
                 pesan: `Data karyawan diperbarui: ${updateData.fullName || emp.fullName}`, 
                 kategori: 'HR', 
                 tipe: 'success'

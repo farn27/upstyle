@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { supportTicketMessages, supportTickets } from '$lib/server/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 // GET /api/app/cs/[ticketId]/messages
@@ -14,6 +15,11 @@ export async function GET({ params, cookies, request }) {
     if (!ticketId) return json({ success: false, message: 'ticketId tidak valid' }, { status: 400 });
 
     try {
+        const ticket = await db.query.supportTickets.findFirst({ where: eq(supportTickets.id, ticketId) });
+        if (!ticket || !(await unitMilikUser(db, userId, ticket.unitId))) {
+            return json({ success: false, message: 'Tiket tidak ditemukan' }, { status: 404 });
+        }
+
         const messages = await db.query.supportTicketMessages.findMany({
             where: eq(supportTicketMessages.ticketId, ticketId),
             orderBy: [asc(supportTicketMessages.id)]

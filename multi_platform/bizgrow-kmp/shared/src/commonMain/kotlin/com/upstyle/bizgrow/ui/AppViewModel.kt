@@ -189,7 +189,7 @@ class AppViewModel(
     fun updateLeadStatus(leadId: Int, status: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         try {
-            val res = api.updateLeadStatus(leadId, status)
+            val res = api.updateLeadStatus(leadId, status, unitId)
             if (res.success) loadMarketingData()
         } catch (e: Exception) { Napier.e("updateLeadStatus error", e) }
     }
@@ -363,7 +363,7 @@ class AppViewModel(
     }
     fun toggleKatalogPublish(id: String, isPublished: Boolean) = viewModelScope.launch {
         try {
-            val res = api.toggleKatalogPublish(id, isPublished)
+            val res = api.toggleKatalogPublish(id, isPublished, _activeUnitId.value)
             if (res.success) { loadKatalog(); setSuccess(if (isPublished) "Produk dipublikasikan" else "Produk disembunyikan") }
             else setError(res.message ?: "Gagal update katalog")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -452,7 +452,7 @@ class AppViewModel(
     fun deleteDepartment(id: Int) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         try {
-            val res = api.deleteDepartment(id)
+            val res = api.deleteDepartment(id, unitId)
             if (res.success) { loadDepartments(); setSuccess("Departemen berhasil dihapus") }
             else setError(res.message ?: "Gagal hapus departemen")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -614,10 +614,11 @@ class AppViewModel(
                         kategoriTrx = kategoriTrx.uppercase(),
                         nominal = nominal,
                         keterangan = keterangan,
-                        metodeBayar = "COA:$kasCoaId",   // encode kas COA id di metodeBayar
                         abcCategoryId = abcCategoryId,
                         productId = productId,
-                        qty = qty
+                        qty = qty,
+                        coaId = coaId,
+                        kasCoaId = kasCoaId
                     )
                 )
             )
@@ -1957,7 +1958,7 @@ class AppViewModel(
 
     fun deleteSalesTarget(targetId: Int) = viewModelScope.launch {
         try {
-            val res = api.deleteSalesTarget(targetId)
+            val res = api.deleteSalesTarget(targetId, _activeUnitId.value)
             if (res.success) { loadSalesTargets(); setSuccess("Target berhasil dihapus!") }
             else setError(res.message ?: "Gagal hapus target")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -2159,7 +2160,7 @@ class AppViewModel(
     fun approveRequest(id: Int, status: String) = viewModelScope.launch {
         setLoading(true)
         try {
-            val res = api.approveRequest(id, status)
+            val res = api.approveRequest(id, status, _activeUnitId.value)
             if (res.success) { loadApprovals(); setSuccess("Permintaan berhasil ${if (status == "approve") "disetujui" else "ditolak"}") }
             else setError(res.message ?: "Gagal update persetujuan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }

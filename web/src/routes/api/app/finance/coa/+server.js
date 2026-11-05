@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$lib/server/schema';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 // GET: Fetch all active COAs for unitId
@@ -111,6 +112,10 @@ export async function PUT({ request, cookies }) {
         if (!id) {
             return json({ success: false, message: 'id COA wajib diisi', data: null }, { status: 400 });
         }
+        const akun = await db.query.chartOfAccounts.findFirst({ where: eq(chartOfAccounts.id, Number(id)) });
+        if (!akun || !(await unitMilikUser(db, userId, akun.unitId))) {
+            return json({ success: false, message: 'COA tidak ditemukan' }, { status: 404 });
+        }
 
         const updateData = {};
         if (namaAkun !== undefined) updateData.namaAkun = String(namaAkun);
@@ -148,6 +153,11 @@ export async function DELETE({ url, cookies, request }) {
     }
 
     try {
+        const akun = await db.query.chartOfAccounts.findFirst({ where: eq(chartOfAccounts.id, Number(coaId)) });
+        if (!akun || !(await unitMilikUser(db, userId, akun.unitId))) {
+            return json({ success: false, message: 'COA tidak ditemukan' }, { status: 404 });
+        }
+
         await db.update(chartOfAccounts)
             .set({ isActive: 0 })
             .where(eq(chartOfAccounts.id, Number(coaId)));

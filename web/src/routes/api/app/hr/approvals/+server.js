@@ -1,9 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { approvalRequests, approvalLogs, employees, riwayatAksi, transaksi } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET: Fetch approval requests for reimbursements and loans
@@ -48,29 +49,44 @@ export async function GET({ url, cookies, request }) {
         if (requestersIds.length > 0) {
             const employeesList = await db.select()
                 .from(employees)
-                .where(sql`${employees.id} IN (${requestersIds.map(id => `'${id}'`).join(',')})`);
+                .where(inArray(employees.id, requestersIds.map(Number)));
             
             employeesList.forEach(emp => {
                 employeeNames[emp.id] = emp.fullName;
             });
         }
 
-        const data = approvals.map(a => ({
+        /** JSON kolom bisa datang sebagai objek (MySQL/TiDB) atau string (MariaDB) */
+        const keObjek = (/** @type {any} */ v) => {
+            if (v && typeof v === 'string') { try { return JSON.parse(v); } catch { return {}; } }
+            return v || {};
+        };
+        const data = approvals.map(a => {
+          const sesudah = keObjek(a.dataAfter);
+          return {
             id: a.id,
+            amount: Number(sesudah.amount || 0),
+            description: sesudah.description || sesudah.purpose || a.note || '',
+            unitId: a.unitId,
+            // field untuk app mobile (ApprovalRequest)
+            employeeId: Number(a.requesterId || 0),
+            employeeName: employeeNames[a.requesterId] || 'Unknown',
+            type: String(a.module || '').toLowerCase(),
             module: a.module,
             referenceId: a.referenceId,
             requesterId: Number(a.requesterId || 0),
             requesterName: employeeNames[a.requesterId] || 'Unknown',
             actionType: a.actionType,
-            dataBefore: a.dataBefore || {},
-            dataAfter: a.dataAfter || {},
+            dataBefore: keObjek(a.dataBefore),
+            dataAfter: sesudah,
             currentLevel: a.currentLevel ?? 0,
             maxLevel: a.maxLevel ?? 0,
             status: a.status,
             note: a.note || '',
             createdAt: a.createdAt || '',
             updatedAt: a.updatedAt || ''
-        }));
+          };
+        });
 
         const grouped = {
             pending: data.filter(x => x.status === 'PENDING'),
@@ -78,7 +94,8 @@ export async function GET({ url, cookies, request }) {
             rejected: data.filter(x => x.status === 'REJECTED')
         };
 
-        return json({ success: true, approvals: grouped });
+        // `data` dibaca app mobile, `approvals` dipertahankan untuk klien lama
+        return json({ success: true, data: grouped, approvals: grouped });
 
     } catch (err) {
         log.api.error({ err }, 'GET hr/approvals error');
@@ -114,6 +131,10 @@ export async function POST({ request, cookies }) {
             }
 
             const { unitId, employeeId, amount, category, description, receiptUrl, expenseDate } = body;
+            const karyawanR = await karyawanMilikUser(db, userId, employeeId);
+            if (!karyawanR || Number(karyawanR.companyId) !== Number(unitId)) {
+                return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+            }
 
             const requestData = {
                 employeeId,
@@ -172,6 +193,10 @@ export async function POST({ request, cookies }) {
             }
 
             const { unitId, employeeId, amount, purpose, repaymentMonths, monthlyDeduction } = body;
+            const karyawanL = await karyawanMilikUser(db, userId, employeeId);
+            if (!karyawanL || Number(karyawanL.companyId) !== Number(unitId)) {
+                return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+            }
 
             const requestData = {
                 employeeId,
@@ -249,7 +274,7 @@ export async function PUT({ request, cookies }) {
                 where: eq(approvalRequests.id, Number(requestId))
             });
 
-            if (!request) {
+            if (!request || !(await unitMilikUser(db, userId, request.unitId))) {
                 return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
             }
 
@@ -330,7 +355,7 @@ export async function PUT({ request, cookies }) {
                 where: eq(approvalRequests.id, Number(requestId))
             });
 
-            if (!request) {
+            if (!request || !(await unitMilikUser(db, userId, request.unitId))) {
                 return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
             }
 
@@ -391,7 +416,7 @@ export async function DELETE({ url, cookies, request }) {
             where: eq(approvalRequests.id, Number(requestId))
         });
 
-        if (!approvalRequest) {
+        if (!approvalRequest || !(await unitMilikUser(db, userId, approvalRequest.unitId))) {
             return json({ success: false, message: 'Request tidak ditemukan' }, { status: 404 });
         }
 

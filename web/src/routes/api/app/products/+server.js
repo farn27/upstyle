@@ -1,13 +1,14 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { products, productVariants, kategoriProduk, stockLogs } from '$lib/server/schema';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { nowWIB } from '$lib/server/dateUtils';
 
 // 1. GET: Ambil semua produk & variasi untuk unitId (with pagination)
@@ -186,7 +187,7 @@ export async function PUT({ request, cookies }) {
         const existingProduct = await db.query.products.findFirst({
             where: eq(products.id, id)
         });
-        if (!existingProduct) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
+        if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
         if (Number(existingProduct.userId) !== Number(userId)) return json({ success: false, message: "Akses ditolak" }, { status: 403 });
 
         const stokLama = Number(existingProduct.stok || 0);
@@ -253,13 +254,13 @@ export async function PUT({ request, cookies }) {
                     await tx.delete(productVariants)
                         .where(and(
                             eq(productVariants.productId, id),
-                            sql`${productVariants.id} IN (${toDelete.map(id => `'${id}'`).join(',')})`
+                            inArray(productVariants.id, toDelete)
                         ));
                 }
 
                 // Insert or update variants
                 for (const v of variants) {
-                    if (v.id && incomingIds.includes(v.id)) {
+                    if (v.id && existingIds.includes(v.id)) {
                         // Update existing variant
                         await tx.update(productVariants)
                             .set({
@@ -269,7 +270,7 @@ export async function PUT({ request, cookies }) {
                                 hargaJual: String(v.hargaJual || hargaJual || 0),
                                 stok: v.stok || 0
                             })
-                            .where(eq(productVariants.id, v.id));
+                            .where(and(eq(productVariants.id, v.id), eq(productVariants.productId, id)));
                     } else {
                         // Insert new variant
                         await tx.insert(productVariants).values({
@@ -315,7 +316,7 @@ export async function DELETE({ url, cookies, request }) {
         const existingProduct = await db.query.products.findFirst({
             where: eq(products.id, productId)
         });
-        if (!existingProduct) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
+        if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
         if (Number(existingProduct.userId) !== Number(userId)) return json({ success: false, message: "Akses ditolak" }, { status: 403 });
 
         const unitId = existingProduct.unitId;

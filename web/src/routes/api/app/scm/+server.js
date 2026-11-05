@@ -4,6 +4,7 @@ import { suppliers, purchaseOrders, purchaseOrderItems, products, transaksi, riw
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import crypto from 'crypto';
 
 // 1. GET: Ambil suppliers dan purchase orders untuk unitId
@@ -205,7 +206,7 @@ export async function PUT({ request, cookies }) {
             }
         });
 
-        if (!po) return json({ success: false, message: "Purchase Order tidak ditemukan" }, { status: 404 });
+        if (!po || !(await unitMilikUser(db, userId, po.unitId))) return json({ success: false, message: "Purchase Order tidak ditemukan" }, { status: 404 });
 
         await db.transaction(async (tx) => {
             await tx.update(purchaseOrders)
@@ -282,7 +283,7 @@ export async function DELETE({ url, cookies, request }) {
         const supplierData = await db.query.suppliers.findFirst({
             where: eq(suppliers.id, Number(supplierId))
         });
-        if (!supplierData) return json({ success: false, message: "Supplier tidak ditemukan" }, { status: 404 });
+        if (!supplierData || !(await unitMilikUser(db, userId, supplierData.unitId))) return json({ success: false, message: "Supplier tidak ditemukan" }, { status: 404 });
 
         await db.delete(suppliers).where(and(eq(suppliers.id, Number(supplierId)), eq(suppliers.unitId, Number(unitId))));
 

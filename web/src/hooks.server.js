@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { getUserIdFromSession } from '$lib/server/session';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { redis } from '$lib/server/redis';
+import { guardUnitApiApp } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
 
 const PROTECTED_PATHS = [
@@ -219,6 +220,16 @@ export async function handle({ event, resolve }) {
 			throw redirect(303, '/portal');
 		}
 		throw redirect(303, '/finance');
+	}
+
+	// Guard: API mobile hanya boleh menyentuh unit milik user yang login
+	if (event.locals.user && pathname.startsWith('/api/app/')) {
+		const ditolak = await guardUnitApiApp(db, event, event.locals.user.id);
+		if (ditolak) {
+			Object.entries(SECURITY_HEADERS).forEach(([key, value]) => ditolak.headers.set(key, value));
+			if (corsOrigin) ditolak.headers.set('Access-Control-Allow-Origin', corsOrigin);
+			return ditolak;
+		}
 	}
 
 	const response = await resolve(event);

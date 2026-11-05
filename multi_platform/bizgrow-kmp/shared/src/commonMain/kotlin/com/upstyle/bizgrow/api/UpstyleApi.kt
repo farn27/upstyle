@@ -5,6 +5,17 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 class UpstyleApi(private val client: HttpClient) {
 
@@ -54,7 +65,7 @@ class UpstyleApi(private val client: HttpClient) {
             endDate?.let { parameter("end", it) }
         }.body()
 
-    suspend fun createTransaction(req: CreateTransactionRequest): ApiResponse<Unit> =
+    suspend fun createTransaction(req: CreateTransactionRequest): ApiResponse<TransaksiTersimpan> =
         client.post("api/app/finance") { setBody(req) }.body()
 
     suspend fun deleteTransaction(transactionId: Int, unitId: Int): ApiResponse<Unit> =
@@ -533,10 +544,7 @@ class UpstyleApi(private val client: HttpClient) {
     // ─── Help & Diagnostics (extended) ────────────────────────────────────────
 
     suspend fun getHelpArticles(screenName: String, lang: String = "id"): ApiResponse<List<HelpArticle>> =
-        client.get("api/app/help/articles") {
-            parameter("screen", screenName)
-            parameter("lang", lang)
-        }.body()
+        getContextualHelp(screenName)
 
     suspend fun getHelpFaqs(category: String? = null, lang: String = "id"): ApiResponse<List<HelpFaqItem>> =
         client.get("api/app/help/faq") {
@@ -630,8 +638,7 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
 
     /** Overload for [getHelpArticles] with no arguments — AppViewModel calls `getHelpArticles()`. */
-    suspend fun getHelpArticles(): ApiResponse<List<HelpArticle>> =
-        client.get("api/app/help/articles").body()
+    suspend fun getHelpArticles(): ApiResponse<List<HelpArticle>> = getContextualHelp("")
 
     /** Overload accepting [SubmitSupportTicketRequest] directly — AppViewModel calls `submitSupportTicket(req)`. */
     suspend fun submitSupportTicket(req: SubmitSupportTicketRequest): ApiResponse<Unit> =
@@ -640,68 +647,153 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(req)
         }.body()
 
-    // ─── Missing feature stubs ────────────────────────────────────────────────
+    // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
 
+    // POS shift → api/app/pos (action=shifts | open-shift | close-shift)
     suspend fun getPosShifts(unitId: Int): ApiResponse<List<PosShift>> =
-        client.get("api/app/pos/shifts") { parameter("unitId", unitId) }.body()
+        client.get("api/app/pos") {
+            parameter("unitId", unitId)
+            parameter("action", "shifts")
+        }.body()
 
-    suspend fun openShift(req: OpenShiftRequest): ApiResponse<PosShift> =
-        client.post("api/app/pos/shifts/open") { setBody(req) }.body()
+    suspend fun openShift(req: OpenShiftRequest): ApiResponse<PosShift> {
+        val res: ApiResponse<IdDto> = client.post("api/app/pos") {
+            setBody(buildJsonObject {
+                put("action", "open-shift")
+                putJsonObject("shift") {
+                    put("unitId", req.unitId)
+                    put("modalAwal", req.modalAwal)
+                }
+            })
+        }.body()
+        return res.mapData { PosShift(id = it.id, unitId = req.unitId, userId = 0, waktuBuka = "", modalAwal = req.modalAwal) }
+    }
 
-    suspend fun closeShift(req: CloseShiftRequest): ApiResponse<PosShift> =
-        client.post("api/app/pos/shifts/close") { setBody(req) }.body()
+    suspend fun closeShift(req: CloseShiftRequest): ApiResponse<PosShift> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/pos") {
+            setBody(buildJsonObject {
+                put("action", "close-shift")
+                putJsonObject("shift") {
+                    put("shiftId", req.shiftId)
+                    put("unitId", req.unitId)
+                    put("kasAkhirAktual", req.kasAkhirAktual)
+                    put("catatan", req.catatan)
+                }
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
-    suspend fun updateLeadStatus(leadId: Int, status: String): ApiResponse<Unit> =
-        client.put("api/app/marketing/leads/$leadId") { setBody(mapOf("status" to status)) }.body()
+    // Lead marketing → api/app/marketing (PUT action=transfer-lead-to-crm)
+    // Server belum menyimpan status lead selain "ditransfer ke CRM".
+    suspend fun updateLeadStatus(leadId: Int, status: String, unitId: Int): ApiResponse<Unit> {
+        if (!status.equals("converted", ignoreCase = true)) {
+            return ApiResponse(false, "Status lead \"$status\" belum didukung server — hanya \"converted\" (transfer ke CRM)")
+        }
+        return client.put("api/app/marketing") {
+            setBody(buildJsonObject {
+                put("action", "transfer-lead-to-crm")
+                put("leadId", leadId)
+                put("unitId", unitId)
+            })
+        }.body()
+    }
 
     suspend fun getLeaveRequests(unitId: Int): ApiResponse<List<LeaveRequest>> =
         client.get("api/app/hr/leave") { parameter("unitId", unitId) }.body()
 
+    // Kampanye → api/app/crm/campaigns
     suspend fun getMarketingCampaigns(unitId: Int): ApiResponse<List<MarketingCampaign>> =
-        client.get("api/app/marketing/campaigns") { parameter("unitId", unitId) }.body()
+        client.get("api/app/crm/campaigns") { parameter("unitId", unitId) }.body()
 
     suspend fun createMarketingCampaign(campaign: MarketingCampaign): ApiResponse<Unit> =
-        client.post("api/app/marketing/campaigns") { setBody(campaign) }.body()
+        client.post("api/app/crm/campaigns") { setBody(campaign) }.body()
 
+    // Katalog → api/app/katalog
     suspend fun getKatalog(unitId: Int): ApiResponse<KatalogData> =
-        client.get("api/app/catalog") { parameter("unitId", unitId) }.body()
+        client.get("api/app/katalog") { parameter("unitId", unitId) }.body()
 
-    suspend fun toggleKatalogPublish(productId: String, isPublished: Boolean): ApiResponse<Unit> =
-        client.put("api/app/catalog/publish") {
-            setBody(mapOf("productId" to productId, "isPublished" to isPublished))
+    suspend fun toggleKatalogPublish(productId: String, isPublished: Boolean, unitId: Int): ApiResponse<Unit> =
+        client.put("api/app/katalog") {
+            setBody(buildJsonObject {
+                put("action", "toggle-publish")
+                put("productId", productId)
+                put("unitId", unitId)
+                put("publish", isPublished)
+            })
         }.body()
 
     suspend fun updateKatalogSettings(settings: KatalogSettings): ApiResponse<Unit> =
-        client.put("api/app/catalog/settings") { setBody(settings) }.body()
+        client.put("api/app/katalog") {
+            setBody(buildJsonObject {
+                put("action", "update-katalog-settings")
+                put("unitId", settings.unitId)
+                put("settings", Json.encodeToJsonElement(KatalogSettings.serializer(), settings))
+            })
+        }.body()
 
     suspend fun createUnit(req: CreateUnitRequest): ApiResponse<BusinessUnit> =
         client.post("api/app/business") { setBody(req) }.body()
 
+    // Departemen → api/app/hr/departments (hapus pakai query departmentId & unitId)
     suspend fun getDepartments(unitId: Int): ApiResponse<List<Department>> =
         client.get("api/app/hr/departments") { parameter("unitId", unitId) }.body()
 
-    suspend fun deleteDepartment(departmentId: Int): ApiResponse<Unit> =
-        client.delete("api/app/hr/departments/$departmentId").body()
+    suspend fun deleteDepartment(departmentId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/hr/departments") {
+            parameter("departmentId", departmentId)
+            parameter("unitId", unitId)
+        }.body()
 
     suspend fun createDepartment(dept: Department): ApiResponse<Unit> =
-        client.post("api/app/hr/departments") { setBody(dept) }.body()
+        client.post("api/app/hr/departments") {
+            setBody(buildJsonObject {
+                put("unitId", dept.unitId)
+                put("name", dept.name)
+            })
+        }.body()
 
     suspend fun getCrmTasks(unitId: Int): ApiResponse<List<CrmTask>> =
         client.get("api/app/crm/tasks") { parameter("unitId", unitId) }.body()
 
-    suspend fun sendHelpFeedback(articleId: String, helpful: Boolean): ApiResponse<Unit> =
-        client.post("api/app/help/feedback") {
-            setBody(mapOf("articleId" to articleId, "helpful" to helpful))
+    // Bantuan → api/app/help (POST = feedback)
+    suspend fun sendHelpFeedback(articleId: String, helpful: Boolean): ApiResponse<Unit> {
+        val id = articleId.toIntOrNull() ?: return ApiResponse(false, "Artikel bantuan tidak valid")
+        val res: ApiResponse<JsonElement> = client.post("api/app/help") {
+            setBody(buildJsonObject {
+                put("id", id)
+                put("feedback", if (helpful) "membantu" else "tidak membantu")
+                put("rating", if (helpful) 5 else 1)
+            })
         }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
+    // Aset tetap → api/app/finance/fixed-assets
     suspend fun getFixedAssets(unitId: Int): ApiResponse<List<FixedAsset>> =
-        client.get("api/app/finance/assets") { parameter("unitId", unitId) }.body()
+        client.get("api/app/finance/fixed-assets") { parameter("unitId", unitId) }.body()
 
     suspend fun getMarketingData(unitId: Int): ApiResponse<MarketingData> =
         client.get("api/app/marketing") { parameter("unitId", unitId) }.body()
 
-    suspend fun createMarketingLead(lead: MarketingLead): ApiResponse<Unit> =
-        client.post("api/app/marketing/leads") { setBody(lead) }.body()
+    // Lead baru → api/app/marketing (POST action=create-lead). Server mewajibkan landing page milik unit.
+    suspend fun createMarketingLead(lead: MarketingLead, landingPageId: Int? = null): ApiResponse<Unit> {
+        val namaDepan = lead.nama.substringBefore(' ').ifBlank { lead.nama }
+        val namaBelakang = lead.nama.substringAfter(' ', "")
+        return client.post("api/app/marketing") {
+            setBody(buildJsonObject {
+                put("action", "create-lead")
+                putJsonObject("lead") {
+                    landingPageId?.let { put("landingPageId", it) }
+                    put("firstName", namaDepan)
+                    if (namaBelakang.isNotBlank()) put("lastName", namaBelakang)
+                    if (lead.email.isNotBlank()) put("email", lead.email)
+                    if (lead.telepon.isNotBlank()) put("phone", lead.telepon)
+                    lead.notes?.let { put("notes", it) }
+                }
+            })
+        }.body()
+    }
 
     suspend fun getPosReturns(unitId: Int): ApiResponse<List<PosReturn>> =
         client.get("api/app/pos/returns") { parameter("unitId", unitId) }.body()
@@ -712,36 +804,77 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getPosVouchers(unitId: Int): ApiResponse<List<PosVoucher>> =
         client.get("api/app/pos/vouchers") { parameter("unitId", unitId) }.body()
 
-    suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> =
-        client.get("api/app/business-plans") { parameter("unitId", unitId) }.body()
+    // Business plan → api/app/business-plan (simpan = POST upsert by id, hapus = ?id=, terapkan = /apply)
+    suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> {
+        val res: ApiResponse<List<BusinessPlanDto>> = client.get("api/app/business-plan").body()
+        return res.mapData { list -> list.map { it.keModel(unitId) } }
+    }
 
     suspend fun createBusinessPlan(plan: BusinessPlan): ApiResponse<Unit> =
-        client.post("api/app/business-plans") { setBody(plan) }.body()
+        simpanBusinessPlan(plan, withId = false)
 
     suspend fun updateBusinessPlan(plan: BusinessPlan): ApiResponse<Unit> =
-        client.put("api/app/business-plans/${plan.id}") { setBody(plan) }.body()
+        simpanBusinessPlan(plan, withId = true)
 
-    suspend fun deleteBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> =
-        client.delete("api/app/business-plans/$id") { parameter("unitId", unitId) }.body()
+    private suspend fun simpanBusinessPlan(plan: BusinessPlan, withId: Boolean): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/business-plan") {
+            setBody(buildJsonObject {
+                if (withId && plan.id > 0) put("id", plan.id)
+                put("namaBisnis", plan.title)
+                put("kategori", plan.kategori)
+                put("deskripsi", plan.description)
+                put("aiSummary", plan.executiveSummary)
+                put("targetPasar", plan.marketAnalysis)
+                if (plan.status in setOf("DRAFT", "COMPLETE", "APPLIED")) put("status", plan.status)
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
-    suspend fun applyBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> =
-        client.post("api/app/business-plans/$id/apply") { setBody(mapOf("unitId" to unitId)) }.body()
+    suspend fun deleteBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.delete("api/app/business-plan") { parameter("id", id) }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
+    suspend fun applyBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/business-plan/apply") {
+            setBody(buildJsonObject {
+                put("planId", id)
+                if (unitId > 0) put("unitId", unitId)
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    // Sosmed → api/app/sosmed (ubah = PUT dengan id di body, hapus = ?postId=)
     suspend fun getSosmedPosts(unitId: Int): ApiResponse<List<SocialPost>> =
         client.get("api/app/sosmed") { parameter("unitId", unitId) }.body()
 
-    suspend fun createSosmedPost(post: SocialPost): ApiResponse<Unit> =
-        client.post("api/app/sosmed") { setBody(post) }.body()
+    suspend fun createSosmedPost(post: SocialPost): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/sosmed") { setBody(post.keJson(withId = false)) }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
-    suspend fun updateSocialPost(post: SocialPost): ApiResponse<Unit> =
-        client.put("api/app/sosmed/${post.id}") { setBody(post) }.body()
+    suspend fun updateSocialPost(post: SocialPost): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.put("api/app/sosmed") { setBody(post.keJson(withId = true)) }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
-    suspend fun deleteSocialPost(postId: Int, unitId: Int): ApiResponse<Unit> =
-        client.delete("api/app/sosmed/$postId") { parameter("unitId", unitId) }.body()
+    suspend fun deleteSocialPost(postId: Int, unitId: Int): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.delete("api/app/sosmed") {
+            parameter("postId", postId)
+            parameter("unitId", unitId)
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
+    // Caption AI → api/app/sosmed/generate-caption (balasan: { caption })
     suspend fun generateAiCaption(platform: String, productName: String): ApiResponse<Map<String, String>> =
-        client.post("api/app/ai/caption") {
-            setBody(mapOf("platform" to platform, "productName" to productName))
+        client.post("api/app/sosmed/generate-caption") {
+            setBody(buildJsonObject {
+                put("platform", platform)
+                put("productName", productName)
+            })
         }.body()
 
     suspend fun getWebsiteSettings(unitId: Int): ApiResponse<WebsiteSetting> =
@@ -750,67 +883,130 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun saveWebsiteSettings(settings: WebsiteSetting): ApiResponse<Unit> =
         client.put("api/app/website") { setBody(settings) }.body()
 
-    suspend fun getContextualHelp(screenName: String): ApiResponse<List<HelpArticle>> =
-        client.get("api/app/help/articles") { parameter("screen", screenName) }.body()
+    // Bantuan → api/app/help?q=&category=
+    suspend fun getContextualHelp(screenName: String): ApiResponse<List<HelpArticle>> = cariBantuan(null)
 
-    suspend fun searchHelp(query: String): ApiResponse<List<HelpArticle>> =
-        client.get("api/app/help/search") { parameter("q", query) }.body()
+    suspend fun searchHelp(query: String): ApiResponse<List<HelpArticle>> = cariBantuan(query)
 
-    suspend fun getLandingPages(unitId: Int): ApiResponse<List<LandingPage>> =
-        client.get("api/app/landing-pages") { parameter("unitId", unitId) }.body()
-
-    suspend fun getLandingPageTemplates(): ApiResponse<List<LandingPage>> =
-        client.get("api/app/landing-pages/templates").body()
-
-    suspend fun createLandingPage(page: LandingPage): ApiResponse<Unit> =
-        client.post("api/app/landing-pages") { setBody(page) }.body()
-
-    suspend fun updateLandingPage(page: LandingPage): ApiResponse<Unit> =
-        client.put("api/app/landing-pages/${page.id}") { setBody(page) }.body()
-
-    suspend fun deleteLandingPage(pageId: Int, unitId: Int): ApiResponse<Unit> =
-        client.delete("api/app/landing-pages/$pageId") { parameter("unitId", unitId) }.body()
-
-    suspend fun toggleLandingPage(pageId: Int, unitId: Int, isActive: Boolean): ApiResponse<Unit> =
-        client.put("api/app/landing-pages/$pageId/toggle") {
-            parameter("unitId", unitId)
-            setBody(mapOf("isActive" to isActive))
+    private suspend fun cariBantuan(query: String?): ApiResponse<List<HelpArticle>> {
+        val res: ApiResponse<HelpListDto> = client.get("api/app/help") {
+            if (!query.isNullOrBlank()) parameter("q", query)
         }.body()
+        return res.mapData { dto ->
+            dto.items.map { HelpArticle(id = it.id.toString(), title = it.q, content = it.a, category = it.category) }
+        }
+    }
 
-    suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> =
-        client.get("api/app/integrations/shopee") { parameter("unitId", unitId) }.body()
+    // Landing page → api/app/landing-page (singular)
+    suspend fun getLandingPages(unitId: Int): ApiResponse<List<LandingPage>> {
+        val res: ApiResponse<List<LandingPageDto>> = client.get("api/app/landing-page") { parameter("unitId", unitId) }.body()
+        return res.mapData { list -> list.map { it.keModel() } }
+    }
 
-    suspend fun connectShopee(integration: ShopeeIntegration): ApiResponse<ShopeeIntegration> =
-        client.post("api/app/integrations/shopee") { setBody(integration) }.body()
+    suspend fun getLandingPageTemplates(): ApiResponse<List<LandingPage>> {
+        val res: ApiResponse<List<LandingTemplateDto>> = client.get("api/app/landing-page") { parameter("mode", "templates") }.body()
+        return res.mapData { list -> list.map { LandingPage(unitId = 0, title = it.name, template = it.id) } }
+    }
 
-    suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> =
-        client.delete("api/app/integrations/shopee") { parameter("unitId", unitId) }.body()
+    suspend fun createLandingPage(page: LandingPage): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/landing-page") { setBody(page.keJson(withId = false)) }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
-    suspend fun getProfileSettings(): ApiResponse<Map<String, String>> =
-        client.get("api/app/profile").body()
+    suspend fun updateLandingPage(page: LandingPage): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.put("api/app/landing-page") { setBody(page.keJson(withId = true)) }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    suspend fun deleteLandingPage(pageId: Int, unitId: Int): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.delete("api/app/landing-page") {
+            parameter("id", pageId)
+            parameter("unitId", unitId)
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    suspend fun toggleLandingPage(pageId: Int, unitId: Int, isActive: Boolean): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.put("api/app/landing-page") {
+            setBody(buildJsonObject {
+                put("id", pageId)
+                put("unitId", unitId)
+                put("isActive", isActive)
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    // Integrasi Shopee tidak dilanjutkan — tidak ada endpoint di server.
+    suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> = fiturDihentikan("Integrasi Shopee")
+    suspend fun connectShopee(integration: ShopeeIntegration): ApiResponse<ShopeeIntegration> = fiturDihentikan("Integrasi Shopee")
+    suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> = fiturDihentikan("Integrasi Shopee")
+
+    // Profil & akun → api/app/settings (mode=profile | password | preferences)
+    suspend fun getProfileSettings(): ApiResponse<Map<String, String>> {
+        val res: ApiResponse<ProfilDto> = client.get("api/app/settings") { parameter("mode", "profile") }.body()
+        return res.mapData { mapOf("username" to it.username, "email" to it.email, "name" to it.name, "phone" to it.phone) }
+    }
 
     suspend fun updateProfile(unitId: Int, data: Map<String, String>): ApiResponse<Unit> =
-        client.put("api/app/profile") { setBody(data) }.body()
+        ubahSettings("profile", data.filterValues { it.isNotBlank() }.mapValues { JsonPrimitive(it.value) })
 
     suspend fun changePassword(data: Map<String, String>): ApiResponse<Unit> =
-        client.put("api/app/profile/password") { setBody(data) }.body()
+        ubahSettings("password", data.mapValues { JsonPrimitive(it.value) })
 
     suspend fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean): ApiResponse<Unit> =
-        client.put("api/app/profile/preferences") {
-            setBody(mapOf("darkMode" to darkMode, "notifPref" to notifEnabled))
-        }.body()
+        ubahSettings("preferences", mapOf("darkMode" to JsonPrimitive(darkMode), "notifPref" to JsonPrimitive(notifEnabled)))
 
-    suspend fun getSalesTargets(unitId: Int, periode: String? = null): ApiResponse<SalesTargetData> =
-        client.get("api/app/hr/sales-targets") {
+    private suspend fun ubahSettings(mode: String, isi: Map<String, JsonElement>): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.put("api/app/settings") {
+            setBody(JsonObject(isi + ("mode" to JsonPrimitive(mode))))
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    // Target sales → api/app/sales/targets
+    suspend fun getSalesTargets(unitId: Int, periode: String? = null): ApiResponse<SalesTargetData> {
+        val res: ApiResponse<SalesTargetsDto> = client.get("api/app/sales/targets") { parameter("unitId", unitId) }.body()
+        return res.mapData { dto ->
+            val targets = dto.targets.map { t ->
+                SalesTarget(
+                    id = t.id, unitId = unitId, employeeId = t.userId, employeeName = t.userName,
+                    periode = if (t.periodYear != null && t.periodMonth != null) "${t.periodYear}-${t.periodMonth.toString().padStart(2, '0')}" else "",
+                    targetAmount = t.targetAmount
+                )
+            }.filter { periode.isNullOrBlank() || it.periode == periode }
+            val commissions = dto.commissions.map { c ->
+                SalesCommission(id = c.id, targetId = 0, employeeId = c.userId ?: 0, commissionAmount = c.amount, status = c.status.lowercase())
+            }
+            SalesTargetData(targets = targets, commissions = commissions, summary = SalesTargetSummary(totalTarget = targets.sumOf { it.targetAmount }))
+        }
+    }
+
+    suspend fun createSalesTarget(target: SalesTarget): ApiResponse<Unit> {
+        val tahun = target.periode.substringBefore('-').toIntOrNull()
+        val bulan = target.periode.substringAfter('-', "").toIntOrNull()
+        if (tahun == null || bulan == null) return ApiResponse(false, "Periode harus berformat YYYY-MM")
+        val res: ApiResponse<JsonElement> = client.post("api/app/sales/targets") {
+            setBody(buildJsonObject {
+                put("action", "create-target")
+                putJsonObject("target") {
+                    put("unitId", target.unitId)
+                    target.employeeId?.let { put("targetUserId", it) }
+                    put("targetAmount", target.targetAmount)
+                    put("periodMonth", bulan)
+                    put("periodYear", tahun)
+                }
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    suspend fun deleteSalesTarget(targetId: Int, unitId: Int): ApiResponse<Unit> =
+        client.delete("api/app/sales/targets") {
+            parameter("type", "target")
+            parameter("id", targetId)
             parameter("unitId", unitId)
-            periode?.let { parameter("periode", it) }
         }.body()
-
-    suspend fun createSalesTarget(target: SalesTarget): ApiResponse<Unit> =
-        client.post("api/app/hr/sales-targets") { setBody(target) }.body()
-
-    suspend fun deleteSalesTarget(targetId: Int): ApiResponse<Unit> =
-        client.delete("api/app/hr/sales-targets/$targetId").body()
 
     suspend fun getTaxRates(unitId: Int): ApiResponse<List<TaxRate>> =
         client.get("api/app/finance/tax-rates") { parameter("unitId", unitId) }.body()
@@ -821,26 +1017,57 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getTrashProducts(unitId: Int): ApiResponse<List<Product>> =
         client.get("api/app/products/trash") { parameter("unitId", unitId) }.body()
 
+    // Pulihkan produk → POST api/app/products/trash
     suspend fun restoreProduct(productId: String): ApiResponse<Unit> =
-        client.post("api/app/products/restore") { setBody(mapOf("productId" to productId)) }.body()
+        client.post("api/app/products/trash") { setBody(buildJsonObject { put("productId", productId) }) }.body()
 
+    // Penawaran & sales order → api/app/crm/*
     suspend fun getQuotations(unitId: Int): ApiResponse<List<Quotation>> =
-        client.get("api/app/quotations") { parameter("unitId", unitId) }.body()
+        client.get("api/app/crm/quotations") { parameter("unitId", unitId) }.body()
 
     suspend fun getSalesOrders(unitId: Int): ApiResponse<List<SalesOrder>> =
-        client.get("api/app/sales-orders") { parameter("unitId", unitId) }.body()
+        client.get("api/app/crm/sales-orders") { parameter("unitId", unitId) }.body()
 
+    // Tutup buku → api/app/finance/close-period
     suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
-        client.get("api/app/finance/closing-periods") { parameter("unitId", unitId) }.body()
+        client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()
 
+    // Persetujuan → api/app/hr/approvals
     suspend fun getApprovals(unitId: Int): ApiResponse<ApprovalsData> =
-        client.get("api/app/approvals") { parameter("unitId", unitId) }.body()
+        client.get("api/app/hr/approvals") { parameter("unitId", unitId) }.body()
 
-    suspend fun approveRequest(approvalId: Int, status: String): ApiResponse<Unit> =
-        client.put("api/app/approvals/$approvalId") { setBody(mapOf("status" to status)) }.body()
+    /** status: "approve" | "reject" (atau "approved"/"rejected") */
+    suspend fun approveRequest(approvalId: Int, status: String, unitId: Int): ApiResponse<Unit> =
+        client.put("api/app/hr/approvals") {
+            setBody(buildJsonObject {
+                put("action", if (status.startsWith("approve", ignoreCase = true)) "approve-request" else "reject-request")
+                put("requestId", approvalId)
+                put("unitId", unitId)
+            })
+        }.body()
 
-    suspend fun createApprovalRequest(req: ApprovalRequest): ApiResponse<Unit> =
-        client.post("api/app/approvals") { setBody(req) }.body()
+    suspend fun createApprovalRequest(req: ApprovalRequest): ApiResponse<Unit> {
+        val pinjaman = req.type.equals("loan", ignoreCase = true)
+        val res: ApiResponse<JsonElement> = client.post("api/app/hr/approvals") {
+            setBody(buildJsonObject {
+                put("action", if (pinjaman) "create-loan-request" else "create-reimbursement-request")
+                put("unitId", req.unitId)
+                put("employeeId", req.employeeId)
+                put("amount", req.amount)
+                if (pinjaman) {
+                    put("purpose", req.description)
+                    put("repaymentMonths", 1)
+                    put("monthlyDeduction", req.amount)
+                } else {
+                    put("category", "LAINNYA")
+                    put("description", req.description)
+                    put("expenseDate", Clock.System.todayIn(TimeZone.currentSystemDefault()).toString())
+                    req.attachmentUrl?.let { put("receiptUrl", it) }
+                }
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
     suspend fun getBudgetItems(unitId: Int, year: Int): ApiResponse<List<BudgetItem>> =
         client.get("api/app/finance/budget") {
@@ -851,6 +1078,108 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
         client.get("api/app/export/history") { parameter("unitId", unitId) }.body()
 
+    // Kas masuk/keluar shift → api/app/pos/cash?shiftId=
     suspend fun getPosCashTransactions(shiftId: Int): ApiResponse<List<PosCashTransaction>> =
-        client.get("api/app/pos/cash-transactions") { parameter("shiftId", shiftId) }.body()
+        client.get("api/app/pos/cash") { parameter("shiftId", shiftId) }.body()
+
+    private fun <T> fiturDihentikan(nama: String): ApiResponse<T> =
+        ApiResponse(false, "$nama tidak tersedia", null, "FEATURE_DISCONTINUED")
+}
+
+// ─── Helper & DTO internal: menyesuaikan bentuk data server dengan model app ──
+
+private fun <A, B> ApiResponse<A>.mapData(f: (A) -> B): ApiResponse<B> =
+    ApiResponse(success, message, data?.let(f), code)
+
+@Serializable
+private data class IdDto(val id: Int = 0)
+
+@Serializable
+private data class ProfilDto(val username: String = "", val email: String = "", val name: String = "", val phone: String = "")
+
+@Serializable
+private data class HelpItemDto(val id: Int = 0, val q: String = "", val a: String = "", val category: String = "")
+
+@Serializable
+private data class HelpListDto(val items: List<HelpItemDto> = emptyList())
+
+@Serializable
+private data class SalesTargetDto(
+    val id: Int = 0,
+    val userId: Int? = null,
+    val userName: String = "",
+    val targetAmount: Double = 0.0,
+    val periodMonth: Int? = null,
+    val periodYear: Int? = null,
+    val komisiPersen: Double = 0.0
+)
+
+@Serializable
+private data class SalesCommissionDto(val id: Int = 0, val userId: Int? = null, val amount: Double = 0.0, val status: String = "")
+
+@Serializable
+private data class SalesTargetsDto(
+    val targets: List<SalesTargetDto> = emptyList(),
+    val commissions: List<SalesCommissionDto> = emptyList()
+)
+
+@Serializable
+private data class BusinessPlanDto(
+    val id: Int = 0,
+    val unitId: Int? = null,
+    val namaBisnis: String = "",
+    val kategori: String = "",
+    val deskripsi: String? = null,
+    val targetPasar: String? = null,
+    val aiSummary: String? = null,
+    val status: String = "DRAFT",
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+) {
+    fun keModel(unitAktif: Int) = BusinessPlan(
+        id = id, unitId = unitId ?: unitAktif, title = namaBisnis, kategori = kategori,
+        description = deskripsi.orEmpty(), executiveSummary = aiSummary.orEmpty(),
+        marketAnalysis = targetPasar.orEmpty(), status = status,
+        createdAt = createdAt.orEmpty(), updatedAt = updatedAt.orEmpty()
+    )
+}
+
+@Serializable
+private data class LandingPageDto(
+    val id: Int = 0,
+    val unitId: Int = 0,
+    val pageSlug: String = "",
+    val title: String = "",
+    val templateId: String? = null,
+    val isActive: Boolean = false,
+    val createdAt: String = ""
+) {
+    fun keModel() = LandingPage(
+        id = id, unitId = unitId, title = title, pageSlug = pageSlug,
+        template = templateId ?: "leadgen", isActive = isActive, createdAt = createdAt
+    )
+}
+
+@Serializable
+private data class LandingTemplateDto(val id: String = "", val name: String = "", val description: String = "")
+
+private fun SocialPost.keJson(withId: Boolean) = buildJsonObject {
+    if (withId) put("id", id)
+    put("unitId", unitId)
+    put("platform", platform)
+    put("caption", caption)
+    if (imageUrl.isNotBlank()) put("imageUrl", imageUrl)
+    scheduledAt?.takeIf { it.isNotBlank() }?.let { put("scheduledAt", it) }
+    put("status", status)
+}
+
+private fun LandingPage.keJson(withId: Boolean) = buildJsonObject {
+    if (withId) put("id", id)
+    put("unitId", unitId)
+    put("pageSlug", pageSlug)
+    put("title", title)
+    put("templateId", template)
+    // contentJson disimpan sebagai JSON (bukan string) supaya bisa dibaca halaman web
+    put("contentJson", runCatching { Json.parseToJsonElement(contentJson) }.getOrElse { JsonObject(emptyMap()) })
+    put("isActive", isActive)
 }
