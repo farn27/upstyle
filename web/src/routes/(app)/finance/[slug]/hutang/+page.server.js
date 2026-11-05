@@ -4,6 +4,8 @@ import { payables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { bayarTagihan, daftarAkunKas, PengadaanError } from '$lib/server/pengadaan';
+import { bulat, statusHutang } from '$lib/pengadaan';
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -38,7 +40,8 @@ export const load = async ({ params, cookies }) => {
     return {
         unit,
         invoices: JSON.parse(JSON.stringify(invoices)),
-        contacts: JSON.parse(JSON.stringify(contacts))
+        contacts: JSON.parse(JSON.stringify(contacts)),
+        akunKas: await daftarAkunKas(db, unit.id)
     };
 };
 
@@ -84,36 +87,40 @@ export const actions = {
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { error: 'Unauthorized' });
 
+        const unit = await db.query.unitBisnis.findFirst({
+            where: (ub, { eq, and }) => and(eq(ub.slug, params.slug), eq(ub.userId, userId))
+        });
+        if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
+
         const data = await request.formData();
-        const invoiceId = data.get('invoiceId');
-        const nominalBayar = Number(data.get('nominalBayar'));
+        const invoiceId = Number(data.get('invoiceId'));
+        const nominalBayar = bulat(data.get('nominalBayar'));
+        if (!(nominalBayar > 0)) return fail(422, { error: 'Nominal bayar harus lebih dari 0' });
 
         try {
-            // Drizzle transaction to update payment
+            const [invoice] = await db.select().from(payables)
+                .where(and(eq(payables.id, invoiceId), eq(payables.unitId, unit.id))).limit(1);
+            if (!invoice) return fail(404, { error: 'Tagihan tidak ditemukan' });
+
+            // Tagihan dari modul Pengadaan sudah punya jurnal hutang, jadi pembayarannya juga harus dijurnal
+            if (invoice.journalId) {
+                await bayarTagihan(db, { unitId: unit.id, userId }, invoiceId, { nominal: nominalBayar, kasCoaId: data.get('kasCoaId') });
+                return { success: true };
+            }
+
             await db.transaction(async (tx) => {
-                const invoiceRaw = await tx.query.payables.findFirst({
-                    where: eq(payables.id, Number(invoiceId))
-                });
-                
-                if (!invoiceRaw) throw new Error('Invoice tidak ditemukan');
-
-                const currentPaid = Number(invoiceRaw.sudahDibayar);
-                const totalNominal = Number(invoiceRaw.nominal);
-                const newPaid = currentPaid + nominalBayar;
-                let newStatus = 'SEBAGIAN';
-
-                if (newPaid >= totalNominal) {
-                    newStatus = 'LUNAS';
-                }
-
+                const [baris] = await tx.select().from(payables).where(eq(payables.id, invoiceId)).for('update');
+                const newPaid = bulat(Number(baris.sudahDibayar) + nominalBayar);
+                if (newPaid > bulat(baris.nominal)) throw new PengadaanError('Nominal melebihi sisa tagihan', 409);
                 await tx.update(payables).set({
                     sudahDibayar: String(newPaid),
-                    status: newStatus
-                }).where(eq(payables.id, invoiceRaw.id));
+                    status: statusHutang(Number(baris.nominal), newPaid)
+                }).where(eq(payables.id, baris.id));
             });
 
             return { success: true };
         } catch (err) {
+            if (err instanceof PengadaanError) return fail(err.status, { error: err.message });
             console.error('Pay Payable Error:', err);
             return fail(500, { error: 'Gagal mencatat pembayaran' });
         }

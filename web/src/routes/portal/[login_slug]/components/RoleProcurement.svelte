@@ -9,8 +9,8 @@
     $: {
         procurementLinks = [
             { label: 'Procurement Portal', href: `/portal/${unit?.login_slug}/procurement`, icon: '🛒', primary: true },
-            { label: 'Purchase Order', href: financeLink('produk'), icon: '📄' },
-            { label: 'Supplier', href: financeLink('crm'), icon: '🏢' },
+            { label: 'Purchase Order', href: financeLink('pengadaan/po'), icon: '📄' },
+            { label: 'Supplier', href: financeLink('pengadaan/supplier'), icon: '🏢' },
             { label: 'Budget', href: financeLink(''), icon: '💰' },
             { label: 'Approval', href: financeLink('settings'), icon: '✅' }
         ];

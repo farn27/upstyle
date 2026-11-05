@@ -23,7 +23,8 @@
 		Plus,
 		X,
 		HelpCircle,
-		Handshake
+		Handshake,
+		ClipboardList
 	} from 'lucide-svelte';
 
 	export let isOpen = false;
@@ -33,6 +34,7 @@
 	const iconMap = {
 		dashboard: LayoutDashboard,
 		package: Package,
+		procurement: ClipboardList,
 		cart: ShoppingCart,
 		users: Users,
 		crm: Handshake,

@@ -1,11 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { suppliers, purchaseOrders, purchaseOrderItems, products, transaksi, riwayatAksi, stockLogs } from '$lib/server/schema';
+import { suppliers, purchaseOrders, purchaseOrderItems, products, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
-import crypto from 'crypto';
+import { batalPO, hapusSupplier, kirimPO, PengadaanError, terimaSemuaDariMobile } from '$lib/server/pengadaan';
 
 // 1. GET: Ambil suppliers dan purchase orders untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -194,77 +194,21 @@ export async function PUT({ request, cookies }) {
             return json({ success: false, message: "poId dan status wajib diisi" }, { status: 400 });
         }
 
-        const po = await db.query.purchaseOrders.findFirst({
-            where: eq(purchaseOrders.id, Number(poId)),
-            with: {
-                supplier: true,
-                items: {
-                    with: {
-                        product: true
-                    }
-                }
-            }
-        });
+        const [po] = await db.select({ id: purchaseOrders.id, unitId: purchaseOrders.unitId })
+            .from(purchaseOrders).where(eq(purchaseOrders.id, Number(poId))).limit(1);
 
         if (!po || !(await unitMilikUser(db, userId, po.unitId))) return json({ success: false, message: "Purchase Order tidak ditemukan" }, { status: 404 });
 
-        await db.transaction(async (tx) => {
-            await tx.update(purchaseOrders)
-                .set({ status: status })
-                .where(eq(purchaseOrders.id, Number(poId)));
-
-            const item = po.items?.[0] || null;
-
-            if (status === 'RECEIVED' && item && item.product) {
-                const qtyStr = String(item.qtyOrdered);
-                const currentStock = Number(item.product.stok || 0);
-                const addQty = Number(item.qtyOrdered || 0);
-                const newStock = currentStock + addQty;
-
-                // 1. Update product stock
-                await tx.update(products)
-                    .set({ stok: newStock })
-                    .where(eq(products.id, item.productId));
-
-                // 2. Insert stock log
-                await tx.insert(stockLogs).values({
-                    id: crypto.randomUUID(),
-                    productId: item.productId,
-                    userId: String(userId),
-                    unitId: Number(unitId || po.unitId),
-                    stokAwal: currentStock,
-                    perubahan: addQty,
-                    stokAkhir: newStock,
-                    alasan: 'MASUK',
-                    keterangan: `Stok bertambah via penerimaan PO ${po.poNumber}`
-                });
-
-                // 3. Record expense in transaksi
-                await tx.insert(transaksi).values({
-                    unitId: Number(unitId || po.unitId), userId: userId, kategoriTrx: 'KELUAR', nominal: String(po.totalAmount), totalHarga: String(po.totalAmount), keterangan: `Pembelian Bahan Baku PO ${po.poNumber} dari ${po.supplier?.namaSupplier || 'Supplier'}`
-                });
-
-                // 4. Log action
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId || po.unitId),
-                    pesan: `PO ${po.poNumber} DITERIMA. Stok ${item.product.nama} +${qtyStr} unit. Pengeluaran dicatat: Rp ${String(po.totalAmount)}`,
-                    kategori: 'SCM',
-                    tipe: 'success'
-                });
-            } else if (status === 'SENT') {
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId || po.unitId),
-                    pesan: `PO ${po.poNumber} dikirim ke supplier ${po.supplier?.namaSupplier || 'Supplier'}`,
-                    kategori: 'SCM',
-                    tipe: 'info'
-                });
-            }
-        });
+        // Logika yang sama dengan modul Pengadaan di web, supaya stok tidak bisa masuk dua kali
+        const ctx = { unitId: po.unitId, userId };
+        if (status === 'RECEIVED') await terimaSemuaDariMobile(db, ctx, po.id);
+        else if (status === 'SENT') await kirimPO(db, ctx, po.id);
+        else if (status === 'CANCELLED') await batalPO(db, ctx, po.id);
+        else return json({ success: false, message: "Status PO tidak dikenali" }, { status: 422 });
 
         return json({ success: true, message: `Status PO berhasil diubah menjadi ${status}` });
     } catch (err) {
+        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
         log.scm.error({ err }, 'API PUT SCM ERROR');
         return json({ success: false, message: "Gagal memperbarui PO: " + err.message }, { status: 500 });
     }
@@ -285,7 +229,8 @@ export async function DELETE({ url, cookies, request }) {
         });
         if (!supplierData || !(await unitMilikUser(db, userId, supplierData.unitId))) return json({ success: false, message: "Supplier tidak ditemukan" }, { status: 404 });
 
-        await db.delete(suppliers).where(and(eq(suppliers.id, Number(supplierId)), eq(suppliers.unitId, Number(unitId))));
+        // Menolak supplier yang punya PO: FK cascade akan ikut menghapus riwayat pembelian
+        await hapusSupplier(db, { unitId: supplierData.unitId, userId }, supplierData.id);
 
         // Save log
         await db.insert(riwayatAksi).values({
@@ -294,6 +239,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: "Supplier berhasil dihapus" });
     } catch (err) {
+        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
         log.scm.error({ err }, 'API DELETE SCM ERROR');
         return json({ success: false, message: "Gagal menghapus supplier" }, { status: 500 });
     }

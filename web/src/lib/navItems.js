@@ -24,6 +24,23 @@ export function buildNavItems(slug = '') {
 			]
 		},
 		{
+			name: 'Pengadaan Barang',
+			desc: 'Purchase order, supplier, penerimaan, dan retur',
+			path: unit(`/finance/{slug}/pengadaan`),
+			cat: 'Modul Utama',
+			iconKey: 'procurement',
+			subItems: [
+				{ name: 'Ringkasan Pengadaan', path: unit(`/finance/{slug}/pengadaan`) },
+				{ name: 'Purchase Order', path: unit(`/finance/{slug}/pengadaan/po`) },
+				{ name: 'Supplier', path: unit(`/finance/{slug}/pengadaan/supplier`) },
+				{ name: 'Penerimaan Barang', path: unit(`/finance/{slug}/pengadaan/penerimaan`) },
+				{ name: 'Tagihan Pembelian', path: unit(`/finance/{slug}/pengadaan/tagihan`) },
+				{ name: 'Retur Pembelian', path: unit(`/finance/{slug}/pengadaan/retur`) },
+				{ name: 'Saran Restock', path: unit(`/finance/{slug}/pengadaan/restock`) },
+				{ name: 'Laporan Pembelian', path: unit(`/finance/{slug}/pengadaan/laporan`) }
+			]
+		},
+		{
 			name: 'POS (Point of Sales)',
 			desc: 'Mencatat transaksi penjualan ritel & grosir',
 			path: unit(`/finance/{slug}/pos`),

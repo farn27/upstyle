@@ -5,7 +5,9 @@
     import SubNav from '$lib/components/SubNav.svelte';
 
     export let data;
-    const { unit, invoices, contacts } = data;
+    export let form;
+    // Reaktif: daftar harus ikut berubah setelah bayar / tambah tagihan
+    $: ({ invoices, contacts, akunKas } = data);
     $: slug = $page.params.slug;
 
     const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -35,6 +37,10 @@
     </div>
 
     <SubNav {slug} />
+
+    {#if form?.error}
+        <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-sm font-medium text-rose-800 dark:text-rose-200">{form.error}</div>
+    {/if}
 
     {#if $page.url.searchParams.get('focus') === 'payment'}
         <div class="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
@@ -91,7 +97,7 @@
                                         Cetak PDF
                                     </a>
                                     {#if inv.status !== 'LUNAS'}
-                                        <button on:click={() => paymentModalData = { id: inv.id, nomorFaktur: inv.nomorFaktur, sisaBayar: sisa }} class="text-[10px] bg-slate-900 text-white font-bold px-3 py-1.5 rounded hover:bg-slate-800 transition">
+                                        <button on:click={() => paymentModalData = { id: inv.id, nomorFaktur: inv.nomorFaktur, sisaBayar: sisa, berjurnal: Boolean(inv.journalId) }} class="text-[10px] bg-slate-900 text-white font-bold px-3 py-1.5 rounded hover:bg-slate-800 transition">
                                             Bayar Hutang
                                         </button>
                                     {/if}
@@ -182,9 +188,21 @@
 
                 <div>
                     <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nominal Dibayarkan (Rp) <span class="text-red-500">*</span></label>
-                    <input type="number" name="nominalBayar" required min="1" max={paymentModalData.sisaBayar} value={paymentModalData.sisaBayar} class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono focus:border-indigo-500 outline-none">
+                    <input type="number" name="nominalBayar" required min="1" max={paymentModalData.sisaBayar} step="any" value={paymentModalData.sisaBayar} class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono focus:border-indigo-500 outline-none">
                     <p class="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Anda bisa mengubah nominal ini jika pembayaran dicicil.</p>
                 </div>
+
+                {#if paymentModalData.berjurnal}
+                    <div>
+                        <label for="kasCoaId" class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Dibayar dari <span class="text-red-500">*</span></label>
+                        <select id="kasCoaId" name="kasCoaId" required class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none">
+                            <option value="">Pilih akun kas/bank</option>
+                            {#each akunKas as a}
+                                <option value={a.id}>{a.kodeAkun} · {a.namaAkun}</option>
+                            {/each}
+                        </select>
+                    </div>
+                {/if}
 
                 <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
                     <button type="button" on:click={() => paymentModalData = null} class="flex-1 py-2 text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg transition">Batal</button>
