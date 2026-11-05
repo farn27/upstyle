@@ -772,7 +772,7 @@ export async function POST({ request, cookies }) {
 					keterangan: transaksi.keterangan,
 					tanggal: transaksi.tanggal,
 					metode_bayar: transaksi.metodeBayar
-				}).from(transaksi).where(queryTrxCondition).orderBy(desc(transaksi.tanggal)).limit(20);
+				}).from(transaksi).where(queryTrxCondition).orderBy(desc(transaksi.tanggal)).limit(8);
 				trxSnippet = freshTrx.length ? freshTrx.map(t => `[${fmtDate(t.tanggal)}] ${t.kategori_trx} ${fmtRp(t.nominal)} - ${t.keterangan || t.metode_bayar || '-'}`).join('\n  ') : 'Belum ada transaksi';
 			}
 
@@ -783,7 +783,7 @@ export async function POST({ request, cookies }) {
 					harga_jual: productsTable.hargaJual,
 					stok: productsTable.stok,
 					min_stok: productsTable.minStok
-				}).from(productsTable).where(and(queryProdCondition, sql`${productsTable.deletedAt} IS NULL`)).orderBy(asc(productsTable.stok)).limit(20);
+				}).from(productsTable).where(and(queryProdCondition, sql`${productsTable.deletedAt} IS NULL`)).orderBy(asc(productsTable.stok)).limit(10);
 				prodSnippet = products.length ? products.map(p => `${p.nama} | Jual: ${fmtRp(p.harga_jual)} | Stok: ${p.stok}${p.stok <= p.min_stok ? ' ⚠️MENIPIS' : ''}`).join('\n  ') : 'Belum ada produk';
 			}
 		}
@@ -830,55 +830,59 @@ Gunakan hanya: [Pilih Unit Bisnis](/finance) atau [Beranda](/beranda)`;
 
 			systemPrompt = `Kamu adalah **Bizgrow AI** — asisten ERP cerdas untuk UMKM Indonesia.
 Gaya bicara: ramah, analitis, padat, gunakan sapaan "kak". Bahasa Indonesia natural.
-PENTING: Jawab SATU KALI SAJA. Jangan ulangi jawaban yang sama.
+PENTING: Jawab langsung to-the-point dan ringkas (maksimal 2-3 paragraf). Jangan bertele-tele. Jawab SATU KALI SAJA.
 
-## TANGGAL HARI INI
-${bulanNames[thisMonth]} ${thisYear} (${thisMonthStart} hingga sekarang)
-
-## UNIT BISNIS AKTIF
-${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}]` : 'Belum dipilih'}
-Semua unit: ${units.map(u => u.nama_unit).join(', ')}
-
-${financeSummary ? `## DATA KEUANGAN\n${financeSummary}\n` : ''}${trenText ? `## TREN 6 BULAN TERAKHIR\n${trenText}\n` : ''}${trxSnippet ? `## 20 TRANSAKSI TERAKHIR\n  ${trxSnippet}\n` : ''}${prodSnippet ? `## PRODUK & STOK\n  ${prodSnippet}\n` : ''}${dynamicContext}
-${navInstructions}
-
-## ATURAN PENTING
-- Data di atas SUDAH AKURAT dari database — jangan mengarang angka.
-- JANGAN mengarang route/URL selain yang valid.
-
-## FORMAT KAYA — GUNAKAN SESUAI KONTEKS
+## FORMAT KAYA (Gunakan jika relevan):
 :::metric{label:"Omzet",value:"Rp12.5M",trend:"+8%",color:"green"}:::
 :::alert{type:"warning",title:"Info",msg:"Pesan"}:::
 :::badge{text:"LUNAS",color:"green"}:::
 :::progress{label:"Target Omzet",value:75,color:"indigo"}:::
-:::grid:::\n- Poin 1\n- Poin 2\n:::endgrid:::
-:::steps:::\n1. Langkah 1\n2. Langkah 2\n:::endsteps:::
+
+## ATURAN PENTING
+- Data di bawah SUDAH AKURAT dari database — jangan mengarang angka.
+- JANGAN mengarang route/URL selain yang valid.
+- JANGAN pernah mengarang info produk.
+- Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.
 
 ## 💡 INPUT TRANSAKSI NATURAL LANGUAGE
 Jika pesan user menceritakan transaksi keuangan, ekstrak datanya dalam blok code \`\`\`transaction\`\`\`. 
-Jika ada BANYAK transaksi (multiple input), buat ARRAY JSON.
-
 \`\`\`transaction
 [
   {
     "kategori": "Keluar", // Masuk atau Keluar
     "nominal": 10000,
-    "keterangan": "BELI ARANG",
-    "tanggal": "2026-09-24", // gunakan hari ini
+    "keterangan": "Beli sesuatu",
+    "tanggal": "${fmtDate(nowWIBDate).split(' ')[0]}",
     "metode": "Tunai"
   }
 ]
 \`\`\`
 
-## ⚠️ GUARDRAIL KRITIS
-- **JANGAN pernah mengarang info produk**.
-- Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.`;
+---
+## KONTEKS BISNIS AKTIF
+Tanggal: ${bulanNames[thisMonth]} ${thisYear} (${thisMonthStart} s/d sekarang)
+Unit Bisnis: ${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}]` : 'Belum dipilih'}
+Semua Unit: ${units.map(u => u.nama_unit).join(', ')}
+
+${financeSummary ? `## DATA KEUANGAN\n${financeSummary}\n` : ''}${trenText ? `## TREN 6 BULAN TERAKHIR\n${trenText}\n` : ''}${trxSnippet ? `## 8 TRANSAKSI TERAKHIR\n  ${trxSnippet}\n` : ''}${prodSnippet ? `## PRODUK & STOK\n  ${prodSnippet}\n` : ''}${dynamicContext}
+${navInstructions}`;
 		}
 
-		// Batasi history max 16 pesan (8 turn)
+		// Batasi history max 6 pesan (3 turn) untuk efisiensi token & kecepatan
 		const cleanHistory = history
-			.slice(-16)
-			.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: String(h.content || '') }));
+			.slice(-6)
+			.map(h => {
+				let text = String(h.content || '').trim();
+				// Pangkas widget panjang di histori lama agar tidak memboroskan token input
+				if (h.role !== 'user' && text.length > 300) {
+					text = text.replace(/:::[a-z]+[\s\S]*?:::/g, '').trim().slice(0, 250);
+				}
+				return {
+					role: h.role === 'user' ? 'user' : 'assistant',
+					content: text
+				};
+			})
+			.filter(h => h.content.length > 0);
 
 		// 9. Panggil Groq
 		const groqResp = await groqChatCompletion({
@@ -888,8 +892,8 @@ Jika ada BANYAK transaksi (multiple input), buat ARRAY JSON.
 				...cleanHistory,
 				{ role: 'user', content: message }
 			],
-			temperature: 0.35,
-			max_tokens: 1200
+			temperature: 0.3,
+			max_tokens: 650
 		});
 
 		let aiReply = groqResp.choices?.[0]?.message?.content
