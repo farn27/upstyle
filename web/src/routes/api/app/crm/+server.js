@@ -214,7 +214,7 @@ export async function DELETE({ url, cookies, request }) {
 
         // Save log
         await db.insert(riwayatAksi).values({
-            userId, unitId: Number(unitId), pesan: 'Deal dihapus', kategori: 'CRM', tipe: 'warning'
+            userId, unitId: Number(unitId), pesan: 'Deal dihapus', kategori: 'CRM', tipe: 'info'
         });
 
         return json({ success: true, message: "Deal berhasil dihapus" });

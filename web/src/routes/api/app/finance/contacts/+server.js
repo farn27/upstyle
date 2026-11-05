@@ -164,7 +164,7 @@ export async function DELETE({ url, cookies, request }) {
             unitId: Number(unitId || contact.unitId),
             pesan: `Kontak akuntansi dihapus: ${contact.namaKontak}`,
             kategori: 'FINANCE',
-            tipe: 'warning'
+            tipe: 'info'
         });
 
         return json({ success: true, message: 'Kontak berhasil dihapus' });

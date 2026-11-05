@@ -91,6 +91,14 @@ describe.skipIf(!TEST_DB)('Akses resource milik user lain ditolak', () => {
 		expect(res.status).toBe(200);
 	});
 
+	it('hapus kontak CRM sendiri berhasil (riwayat_aksi tidak lagi pakai tipe "warning" yang ditolak DB)', async () => {
+		login.userId = id.userA;
+		const [c] = await db.insert(s.crmContacts).values({ ownerId: id.userA, unitId: id.unitA, nama: 'Kontak dihapus' });
+		const res = await r.contact.DELETE({ params: { contactId: String(c.insertId) }, cookies, request: req('DELETE') });
+		expect(res.status).toBe(200);
+		expect(await db.query.crmContacts.findFirst({ where: eq(s.crmContacts.id, c.insertId) })).toBeUndefined();
+	});
+
 	it('karyawan: detail & ubah gaji milik B → 404', async () => {
 		login.userId = id.userA;
 		const params = { employeeId: String(id.empB) };

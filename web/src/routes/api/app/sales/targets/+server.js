@@ -374,7 +374,7 @@ export async function DELETE({ url, cookies, request }) {
                 unitId: target.unitId,
                 pesan: 'Target sales dihapus',
                 kategori: 'SALES',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Target berhasil dihapus' });
@@ -393,7 +393,7 @@ export async function DELETE({ url, cookies, request }) {
                 unitId: komisi.unitId,
                 pesan: 'Komisi sales dihapus',
                 kategori: 'SALES',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Komisi berhasil dihapus' });

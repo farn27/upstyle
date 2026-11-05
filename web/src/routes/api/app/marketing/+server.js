@@ -389,7 +389,7 @@ export async function DELETE({ url, cookies, request }) {
                 unitId: campaign.unitId,
                 pesan: 'Campaign dihapus',
                 kategori: 'MARKETING',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Campaign berhasil dihapus' });

@@ -289,7 +289,7 @@ export async function DELETE({ url, cookies, request }) {
 
         // Save log
         await db.insert(riwayatAksi).values({
-            userId, unitId: Number(unitId), pesan: `Supplier Dihapus: ${supplierData.namaSupplier}`, kategori: 'SCM', tipe: 'warning'
+            userId, unitId: Number(unitId), pesan: `Supplier Dihapus: ${supplierData.namaSupplier}`, kategori: 'SCM', tipe: 'info'
         });
 
         return json({ success: true, message: "Supplier berhasil dihapus" });

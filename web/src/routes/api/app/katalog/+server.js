@@ -297,7 +297,7 @@ export async function DELETE({ url, cookies, request }) {
                 unitId: Number(unitId),
                 pesan: `Produk ${product.nama} dihapus dari katalog`,
                 kategori: 'KATALOG',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return json({ success: true, message: 'Produk berhasil dihapus dari katalog' });

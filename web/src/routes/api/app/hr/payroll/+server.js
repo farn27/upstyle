@@ -418,7 +418,7 @@ export async function DELETE({ url, cookies, request }) {
             unitId: Number(unitId),
             pesan: `Payroll ${payroll.employee?.fullName} dihapus`,
             kategori: 'HR',
-            tipe: 'warning'
+            tipe: 'info'
         });
 
         return json({ success: true, message: 'Payroll berhasil dihapus' });

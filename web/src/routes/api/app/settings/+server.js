@@ -134,7 +134,7 @@ export async function PUT({ request, cookies }) {
                 unitId: user.companyId ?? 0,
                 pesan: 'Kata sandi diubah',
                 kategori: 'SETTINGS',
-                tipe: 'warning'
+                tipe: 'info'
             });
 
             return apiSuccess({ message: 'Kata sandi berhasil diubah' }, 'OK');

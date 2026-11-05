@@ -494,23 +494,26 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(operation)
         }.body()
 
+    // Strategi harga: sama seperti kalkulator harga di web, hasilnya langsung jadi harga jual
+    // (tidak ada daftar strategi yang disimpan di server).
     suspend fun getPricingStrategies(unitId: Int, productId: String): ApiResponse<List<PricingStrategy>> =
-        client.get("api/app/products/pricing") {
-            parameter("unitId", unitId)
-            parameter("productId", productId)
-        }.body()
+        ApiResponse(true, null, emptyList())
 
-    suspend fun applyPricingStrategy(unitId: Int, strategy: PricingStrategy): ApiResponse<Unit> =
-        client.post("api/app/products/pricing") {
+    /** type: FIXED (harga jual) | PERCENTAGE (markup % dari harga beli) | MARGIN (% margin) */
+    suspend fun applyPricingStrategy(unitId: Int, strategy: PricingStrategy): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/products/pricing") {
             parameter("unitId", unitId)
-            setBody(strategy)
+            setBody(buildJsonObject {
+                put("productId", strategy.productId)
+                put("type", strategy.type)
+                put("value", strategy.value)
+            })
         }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
 
     suspend fun deletePricingStrategy(unitId: Int, strategyId: String): ApiResponse<Unit> =
-        client.delete("api/app/products/pricing") {
-            parameter("unitId", unitId)
-            parameter("strategyId", strategyId)
-        }.body()
+        ApiResponse(false, "Strategi harga tidak disimpan — harga sudah langsung diterapkan ke produk")
 
     suspend fun rollbackBulkOperation(unitId: Int, operationId: String): ApiResponse<Unit> =
         client.post("api/app/products/bulk/rollback") {

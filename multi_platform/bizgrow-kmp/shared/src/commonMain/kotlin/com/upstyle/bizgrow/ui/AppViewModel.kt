@@ -2410,7 +2410,11 @@ class AppViewModel(
         }
         try {
             val result = api.applyPricingStrategy(unitId, strategy)
-            if (result.success) loadPricingStrategies(strategy.productId)
+            if (result.success) {
+                loadPricingStrategies(strategy.productId)
+                loadProducts()
+                _uiState.update { it.copy(successMessage = result.message ?: "Harga jual diperbarui") }
+            }
             else _productVariantsState.update { it.copy(error = result.error) }
         } catch (e: Exception) {
             _productVariantsState.update { it.copy(error = e.message) }

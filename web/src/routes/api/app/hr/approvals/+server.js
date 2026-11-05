@@ -384,7 +384,7 @@ export async function PUT({ request, cookies }) {
                     unitId: Number(unitId),
                     pesan: `${request.module} request ditolak: ${request.referenceId}`,
                     kategori: 'HR',
-                    tipe: 'warning'
+                    tipe: 'info'
                 });
             });
 

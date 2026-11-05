@@ -458,7 +458,7 @@ export async function POST({ request, cookies }) {
                 userId,
                 unitId: Number(unitId),
                 pesan: `Approval request #${requestId} ditolak`,
-                tipe: 'warning',
+                tipe: 'info',
                 kategori: 'HR'
             });
 
@@ -493,7 +493,7 @@ export async function DELETE({ url, cookies, request }) {
 
         // Save action log
         await db.insert(riwayatAksi).values({
-            userId, unitId: Number(unitId), pesan: `Karyawan ${emp.fullName} dinonaktifkan`, kategori: 'HR', tipe: 'warning'
+            userId, unitId: Number(unitId), pesan: `Karyawan ${emp.fullName} dinonaktifkan`, kategori: 'HR', tipe: 'info'
         });
 
         return json({ success: true, message: "Karyawan berhasil dinonaktifkan" });

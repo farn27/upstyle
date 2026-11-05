@@ -103,7 +103,7 @@ export async function DELETE({ params, cookies, request }) {
 
         await db.insert(riwayatAksi).values({
             userId, unitId: contact.unitId,
-            pesan: `Kontak CRM dihapus: ${contact.nama}`, kategori: 'CRM', tipe: 'warning'
+            pesan: `Kontak CRM dihapus: ${contact.nama}`, kategori: 'CRM', tipe: 'info'
         });
 
         return json({ success: true, message: 'Kontak berhasil dihapus' });

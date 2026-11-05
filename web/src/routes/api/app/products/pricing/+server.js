@@ -178,3 +178,59 @@ export async function PUT({ request, cookies }) {
         return json({ success: false, message: err.message || "Gagal memperbarui harga produk" }, { status: 500 });
     }
 }
+
+/**
+ * Hitung harga jual dengan rumus kalkulator harga web (produk/pricing):
+ *   FIXED      → value = harga jual
+ *   PERCENTAGE → markup: hargaBeli × (1 + value%)
+ *   MARGIN     → hargaBeli ÷ (1 − value%)
+ * @param {string} tipe @param {number} nilai @param {number} hargaBeli
+ * @returns {number | null}
+ */
+function hitungHargaJual(tipe, nilai, hargaBeli) {
+    if (!Number.isFinite(nilai) || nilai < 0) return null;
+    if (tipe === 'FIXED') return Math.round(nilai);
+    if (tipe === 'PERCENTAGE' || tipe === 'MARKUP') return Math.round(hargaBeli * (1 + nilai / 100));
+    if (tipe === 'MARGIN') return nilai < 100 ? Math.round(hargaBeli / (1 - nilai / 100)) : null;
+    return null;
+}
+
+// POST: Terapkan harga (app mobile "pricing strategy") ke satu produk
+// body: { productId, type: FIXED | PERCENTAGE | MARGIN, value }   query/body: unitId
+export async function POST({ url, request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+    try {
+        const body = await request.json();
+        const unitId = Number(url.searchParams.get('unitId') || body?.unitId);
+        const productId = String(body?.productId || '');
+        const tipe = String(body?.type || '').toUpperCase();
+        if (!unitId || !productId) {
+            return json({ success: false, message: "unitId dan productId wajib diisi" }, { status: 400 });
+        }
+
+        const produk = await db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.unitId, unitId))
+        });
+        if (!produk) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
+
+        const hargaBaru = hitungHargaJual(tipe, Number(body?.value), Number(produk.hargaBeli || 0));
+        if (hargaBaru === null) {
+            return json({ success: false, message: "Tipe harus FIXED, PERCENTAGE (markup) atau MARGIN (< 100%) dengan nilai ≥ 0" }, { status: 422 });
+        }
+
+        await db.update(products)
+            .set({ hargaJual: String(hargaBaru) })
+            .where(and(eq(products.id, productId), eq(products.unitId, unitId)));
+
+        return json({
+            success: true,
+            message: `Harga jual ${produk.nama} jadi Rp ${hargaBaru.toLocaleString('id-ID')}`,
+            data: { productId, hargaJualLama: Number(produk.hargaJual || 0), hargaJual: hargaBaru }
+        });
+    } catch (err) {
+        log.product.error({ err }, 'API POST PRODUCT PRICING ERROR');
+        return json({ success: false, message: "Gagal menerapkan harga" }, { status: 500 });
+    }
+}

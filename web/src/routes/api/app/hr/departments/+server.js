@@ -202,7 +202,7 @@ export async function DELETE({ url, cookies, request }) {
             unitId: Number(dept[0].unitId),
             pesan: `Departemen dihapus: ${dept[0].name}`,
             kategori: 'HR',
-            tipe: 'warning'
+            tipe: 'info'
         });
 
         return json({ success: true, message: 'Departemen berhasil dihapus' });
