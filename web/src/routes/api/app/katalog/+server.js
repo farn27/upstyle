@@ -19,7 +19,8 @@ export async function GET({ url, cookies, request }) {
 
         let whereConditions = [
             eq(products.unitId, Number(unitId)),
-            isNull(products.deletedAt)
+            isNull(products.deletedAt),
+            eq(products.jenis, 'BARANG_JADI')
         ];
 
         if (publishedOnly) {

@@ -13,6 +13,7 @@ export async function load(event) {
 				id: products.id,
 				nama: products.nama,
 				sku: products.sku,
+				jenis: products.jenis,
 				stok: products.stok,
 				minStok: products.minStok,
 				hargaBeli: products.hargaBeli,

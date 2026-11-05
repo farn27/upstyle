@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
+import { bisaDijual } from '$lib/jenisProduk';
 import { nowWIB } from '$lib/server/dateUtils';
 
 // 1. GET: Ambil list order POS dan customer POS untuk unitId
@@ -315,6 +316,9 @@ export async function POST({ request, cookies }) {
                     const prod = await tx.query.products.findFirst({
                         where: and(eq(products.id, item.productId), eq(products.unitId, Number(unitId)))
                     });
+                    if (prod && !bisaDijual(prod.jenis)) {
+                        throw new Error(`${prod.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
+                    }
 
                     if (prod) {
                         const newStock = Math.max(0, (prod.stok || 0) - qty);

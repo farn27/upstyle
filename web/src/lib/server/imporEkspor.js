@@ -10,6 +10,7 @@ import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
 import { products, kategoriProduk, transaksi, crmContacts } from '$lib/server/schema';
 import { exportProdukExcel, exportTransaksiExcel } from '$lib/server/excelExport.js';
 import { generateLaporanPDF } from '$lib/server/pdfGenerator.js';
+import { normalisasiJenis } from '$lib/jenisProduk';
 
 export class ImporEksporError extends Error {
 	/** @param {string} message @param {number} [status] */
@@ -67,7 +68,9 @@ export function normalisasiProduk(/** @type {Record<string, any>} */ row) {
 		stok: Math.trunc(angka(r.stok ?? r.stock)),
 		minStok: Math.trunc(angka(r.min_stok ?? r.minstok ?? r.min_stock, 5)),
 		barcode: teks(r.barcode),
-		status: ['active', 'draft', 'archived'].includes(status) ? status : 'active'
+		status: ['active', 'draft', 'archived'].includes(status) ? status : 'active',
+		// Kolom opsional "jenis": barang_jadi / bahan_baku / kemasan / perlengkapan (kosong = barang jadi)
+		jenis: normalisasiJenis(r.jenis ?? r.jenis_barang ?? r.type)
 	};
 }
 
@@ -103,7 +106,7 @@ export function validasiImpor(dataType, rows) {
 	/** @type {Record<string, string>} */
 	const suggestedMapping = {};
 	const peta = dataType === 'products'
-		? { nama: ['nama', 'name'], harga_jual: ['harga_jual', 'hargajual', 'sale_price'], harga_beli: ['harga_beli', 'hargabeli', 'purchase_price'], stok: ['stok', 'stock'], kategori: ['kategori', 'category'], sku: ['sku'] }
+		? { nama: ['nama', 'name'], harga_jual: ['harga_jual', 'hargajual', 'sale_price'], harga_beli: ['harga_beli', 'hargabeli', 'purchase_price'], stok: ['stok', 'stock'], kategori: ['kategori', 'category'], sku: ['sku'], jenis: ['jenis', 'jenis_barang', 'type'] }
 		: { nama: ['nama', 'name', 'nama_pelanggan'], telepon: ['telepon', 'phone', 'hp', 'no_hp'], email: ['email'], perusahaan: ['perusahaan', 'company'] };
 	for (const [tujuan, alias] of Object.entries(peta)) {
 		const ketemu = kolom.find((k) => alias.includes(k));
@@ -164,6 +167,7 @@ export async function imporProduk(db, { userId, unitId, rows }) {
 				slug,
 				barcode: row.barcode || null,
 				status: row.status,
+				jenis: row.jenis,
 				hargaBeli: String(row.hargaBeli),
 				hargaJual: String(row.hargaJual),
 				stok: row.stok,

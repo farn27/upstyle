@@ -120,7 +120,7 @@ export const load = async ({ params, cookies }) => {
 
     // Load products untuk preview di builder
     const productList = await db.query.products.findMany({
-        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt)),
+        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt), eq(products.jenis, 'BARANG_JADI')),
         columns: { id: true, nama: true, hargaJual: true, foto: true, stok: true },
         limit: 20
     });

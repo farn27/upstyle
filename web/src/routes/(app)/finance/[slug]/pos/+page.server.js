@@ -7,6 +7,7 @@ import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { pusherServer } from '$lib/server/pusher';
 import { getActivePosFeatures } from '$lib/posFeatures';
 import { log } from '$lib/server/logger';
+import { JENIS_DIJUAL } from '$lib/jenisProduk';
 
 export async function load({ params, cookies, locals }) {
     const ownerUserId = locals.user?.id ?? await getCurrentUserId(cookies);
@@ -161,7 +162,7 @@ export async function load({ params, cookies, locals }) {
         })
         .from(products)
         .leftJoin(kategoriProduk, eq(products.kategoriId, kategoriProduk.id))
-        .where(and(eq(products.unitId, unitId), eq(products.showInPos, 1)));
+        .where(and(eq(products.unitId, unitId), eq(products.showInPos, 1), eq(products.jenis, JENIS_DIJUAL)));
 
         const customersData = await db.select({
             id: posCustomers.id,

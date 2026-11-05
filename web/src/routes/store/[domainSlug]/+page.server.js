@@ -7,7 +7,7 @@ export const load = async ({ parent }) => {
 
     // Fetch active products for this store's unitId
     const productsList = await db.query.products.findMany({
-        where: (p, { eq, and }) => and(eq(p.unitId, store.unitId), eq(p.status, 'active')),
+        where: (p, { eq, and, isNull }) => and(eq(p.unitId, store.unitId), eq(p.status, 'active'), eq(p.jenis, 'BARANG_JADI'), isNull(p.deletedAt)),
         orderBy: [desc(products.createdAt)],
         with: {
             kategori: true

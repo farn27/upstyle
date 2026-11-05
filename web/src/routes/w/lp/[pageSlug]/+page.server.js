@@ -12,7 +12,7 @@ export const load = async ({ params }) => {
 
     // Load produk dari unit yang sama
     const productList = await db.query.products.findMany({
-        where: and(eq(products.unitId, page.unitId), isNull(products.deletedAt)),
+        where: and(eq(products.unitId, page.unitId), isNull(products.deletedAt), eq(products.jenis, 'BARANG_JADI')),
         columns: { id: true, nama: true, hargaJual: true, foto: true, stok: true },
         limit: 12
     });

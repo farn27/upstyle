@@ -45,7 +45,7 @@ export const load = async ({ params }) => {
 
     // Ambil produk aktif yang tidak di-delete
     const activeProducts = await db.query.products.findMany({
-        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt), eq(products.status, 'active')),
+        where: and(eq(products.unitId, unit.id), isNull(products.deletedAt), eq(products.status, 'active'), eq(products.jenis, 'BARANG_JADI')),
         with: {
             kategoriProduk: true
         }

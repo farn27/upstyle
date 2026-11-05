@@ -10,7 +10,7 @@ export async function load(event) {
 	const [daftarSupplier, daftarProduk] = await Promise.all([
 		db.select({ id: suppliers.id, namaSupplier: suppliers.namaSupplier }).from(suppliers).where(and(eq(suppliers.unitId, unit.id), eq(suppliers.isActive, 1))).orderBy(suppliers.namaSupplier),
 		db
-			.select({ id: products.id, nama: products.nama, sku: products.sku, hargaBeli: products.hargaBeli, stok: products.stok, minStok: products.minStok })
+			.select({ id: products.id, nama: products.nama, sku: products.sku, jenis: products.jenis, hargaBeli: products.hargaBeli, stok: products.stok, minStok: products.minStok })
 			.from(products)
 			.where(and(eq(products.unitId, unit.id), isNull(products.deletedAt)))
 			.orderBy(products.nama)
@@ -24,7 +24,7 @@ export async function load(event) {
 		for (const bagian of permintaan) {
 			const [id, qty] = decodeURIComponent(bagian).split(':');
 			const p = peta.get(id);
-			if (p) awal.items.push({ productId: p.id, nama: p.nama, sku: p.sku, qty: Math.max(1, Number(qty) || 1), unitPrice: Number(p.hargaBeli || 0) });
+			if (p) awal.items.push({ productId: p.id, nama: p.nama, sku: p.sku, jenis: p.jenis, qty: Math.max(1, Number(qty) || 1), unitPrice: Number(p.hargaBeli || 0) });
 		}
 	}
 

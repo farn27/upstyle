@@ -38,7 +38,7 @@ export const load = async ({ params, cookies, depends }) => {
                 columns: { id: true, nama: true, telepon: true }
             }),
             db.query.products.findMany({
-                where: eq(products.unitId, unit.id),
+                where: and(eq(products.unitId, unit.id), eq(products.jenis, 'BARANG_JADI')),
                 columns: { id: true, nama: true, hargaJual: true, stok: true }
             })
         ]);

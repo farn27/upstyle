@@ -14,7 +14,7 @@ export async function load(event) {
 	const [daftarSupplier, daftarProduk] = await Promise.all([
 		db.select({ id: suppliers.id, namaSupplier: suppliers.namaSupplier }).from(suppliers).where(and(eq(suppliers.unitId, unit.id), eq(suppliers.isActive, 1))).orderBy(suppliers.namaSupplier),
 		db
-			.select({ id: products.id, nama: products.nama, sku: products.sku, hargaBeli: products.hargaBeli, stok: products.stok })
+			.select({ id: products.id, nama: products.nama, sku: products.sku, jenis: products.jenis, hargaBeli: products.hargaBeli, stok: products.stok })
 			.from(products)
 			.where(and(eq(products.unitId, unit.id), isNull(products.deletedAt)))
 			.orderBy(products.nama)

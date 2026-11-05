@@ -7,6 +7,7 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { contextMap } from '$lib/bussinesConfig';
     import { stockUpdate } from '$lib/realtimeStore';
+    import { DAFTAR_JENIS, JENIS_PRODUK, JENIS_DIJUAL, normalisasiJenis } from '$lib/jenisProduk';
 
     export let data; 
     
@@ -28,6 +29,7 @@
     let showOnlyLowStock = false;
     let viewMode = "list"; // 'list' atau 'grid'
     let selectedStatus = "ANY";
+    let selectedJenis = "ALL";
     let minPrice = '';
     let maxPrice = '';
     let minStock = '';
@@ -110,6 +112,7 @@
                 if (p.kategoriId !== categoryId) return false;
             }
             if (selectedStatus !== 'ANY' && String(p.status || 'active') !== selectedStatus) return false;
+            if (selectedJenis !== 'ALL' && normalisasiJenis(p.jenis) !== selectedJenis) return false;
             if (minPrice && Number(p.hargaJual || 0) < Number(minPrice)) return false;
             if (maxPrice && Number(p.hargaJual || 0) > Number(maxPrice)) return false;
             if (minStock && Number(p.stok || 0) < Number(minStock)) return false;
@@ -322,6 +325,12 @@
                     <option value="draft">Draft</option>
                     <option value="archived">Archived</option>
                 </select>
+                <select bind:value={selectedJenis} aria-label="Jenis barang" class="border border-slate-200 dark:border-slate-700 rounded-md text-xs font-bold px-3 py-2 bg-white dark:bg-slate-800 outline-none focus:border-indigo-500 shadow-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                    <option value="ALL">Semua Jenis</option>
+                    {#each DAFTAR_JENIS as j}
+                        <option value={j}>{JENIS_PRODUK[j].singkat}</option>
+                    {/each}
+                </select>
                 <div class="flex gap-2 items-center">
                     <div class="grid grid-cols-2 gap-2">
                         <input type="number" bind:value={minPrice} placeholder="Min Harga" class="border border-slate-200 dark:border-slate-700 rounded-md text-xs px-3 py-2 bg-white dark:bg-slate-800 outline-none focus:border-indigo-500" />
@@ -385,6 +394,10 @@
                                                 <div class="flex items-center gap-2 mt-1 flex-wrap">
                                                     {#if p.kategoriProduk}
                                                         <span class="text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded uppercase">{p.kategoriProduk?.namaKategori || 'UMUM'}</span>
+                                                    {/if}
+                                                    {#if normalisasiJenis(p.jenis) !== JENIS_DIJUAL}
+                                                        {@const j = JENIS_PRODUK[normalisasiJenis(p.jenis)]}
+                                                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {j.warna}" title="Tidak dijual di kasir & toko">{j.singkat}</span>
                                                     {/if}
                                                     <span class="text-[10px] font-mono text-slate-300">{p.sku || 'N/A'}</span>
                                                     {#if p.productVariants && p.productVariants.length > 0}
@@ -489,6 +502,10 @@
                                     <div class="flex-1 min-w-0">
                                         <p class="font-black text-slate-800 dark:text-slate-100 text-sm uppercase tracking-tight truncate">{p.nama}</p>
                                         <span class="text-[9px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-1 rounded uppercase tracking-tighter">{p.kategoriProduk?.namaKategori || 'UMUM'}</span>
+                                        {#if normalisasiJenis(p.jenis) !== JENIS_DIJUAL}
+                                            {@const j = JENIS_PRODUK[normalisasiJenis(p.jenis)]}
+                                            <span class="text-[9px] font-bold px-1 rounded {j.warna}">{j.singkat}</span>
+                                        {/if}
                                     </div>
                                 </div>
                                 <div class="space-y-2">

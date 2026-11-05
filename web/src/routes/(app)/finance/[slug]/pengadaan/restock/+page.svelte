@@ -2,6 +2,7 @@
 	import PageLayout from '$lib/components/PageLayout.svelte';
 	import PengadaanNav from '$lib/components/pengadaan/PengadaanNav.svelte';
 	import { rp } from '$lib/pengadaan';
+	import { JENIS_PRODUK, normalisasiJenis } from '$lib/jenisProduk';
 
 	export let data;
 
@@ -52,7 +53,7 @@
 						<td class="py-2.5 px-4"><input type="checkbox" aria-label="Pilih {p.nama}" bind:checked={pilih[p.id]} /></td>
 						<td class="py-2.5 px-4 font-medium text-slate-800 dark:text-slate-100">
 							{p.nama}
-							{#if p.sku}<span class="block text-xs font-normal text-slate-400">{p.sku}</span>{/if}
+							<span class="block text-xs font-normal text-slate-400">{p.sku ? `${p.sku} · ` : ''}<span class="font-bold px-1 rounded {JENIS_PRODUK[normalisasiJenis(p.jenis)].warna}">{JENIS_PRODUK[normalisasiJenis(p.jenis)].singkat}</span></span>
 						</td>
 						<td class="py-2.5 px-4 text-center font-bold text-amber-600">{p.stok ?? 0}</td>
 						<td class="py-2.5 px-4 text-center">{p.minStok}</td>
