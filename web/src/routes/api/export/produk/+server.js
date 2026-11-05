@@ -8,7 +8,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 import { exportProdukExcel } from '$lib/server/excelExport.js';
 
-export async function GET({ url, cookies }) {
+export async function GET({ url, cookies, request }) {
   const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 

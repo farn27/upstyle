@@ -1,22 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { products, kategoriProduk, unitBisnis } from '$lib/server/schema';
+import { unitBisnis } from '$lib/server/schema';
 import { and, eq } from 'drizzle-orm';
-import crypto from 'crypto';
 import * as XLSX from 'xlsx';
 import { redis } from '$lib/server/redis';
 import { log } from '$lib/server/logger';
-
-function createSlug(text) {
-    return text
-        .toString()
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^\w\-]+/g, '')
-        .replace(/\-\-+/g, '-')
-        .replace(/^-+|-+$/g, '');
-}
+import { imporProduk } from '$lib/server/imporEkspor';
 
 function normalizeRow(row) {
     return {
@@ -79,70 +68,22 @@ export async function POST({ request, params, locals }) {
         return json({ error: 'Unit bisnis tidak ditemukan atau akses ditolak.' }, { status: 404 });
     }
 
-    const insertedNames = [];
-
+    let hasil;
     try {
-        await db.transaction(async (tx) => {
-            for (const row of parsedRows) {
-                let kategoriId = null;
-
-                if (row.kategori) {
-                    const existingCategory = await tx.query.kategoriProduk.findFirst({
-                        where: eq(kategoriProduk.namaKategori, row.kategori),
-                        columns: { id: true }
-                    });
-
-                    if (existingCategory) {
-                        kategoriId = existingCategory.id;
-                    } else {
-                        const [newCategory] = await tx.insert(kategoriProduk).values({
-                            namaKategori: row.kategori
-                        }).$returningId();
-                        kategoriId = newCategory.id;
-                    }
-                }
-
-                const baseSlug = createSlug(row.nama);
-                let slug = baseSlug || `produk-${crypto.randomUUID().slice(0, 5)}`;
-                let suffix = 0;
-                while (await tx.query.products.findFirst({ where: eq(products.slug, slug) })) {
-                    suffix += 1;
-                    slug = `${baseSlug}-${suffix}`;
-                }
-
-                await tx.insert(products).values({
-                    id: crypto.randomUUID(),
-                    userId: user.id,
-                    unitId: unit.id,
-                    kategoriId: kategoriId,
-                    nama: row.nama,
-                    sku: row.sku || `SKU-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-                    slug,
-                    barcode: row.barcode || null,
-                    status: row.status || 'active',
-                    hargaBeli: row.hargaBeli,
-                    hargaJual: row.hargaJual,
-                    stok: row.stok,
-                    minStok: row.minStok,
-                    metadata: { imported: true },
-                    createdAt: new Date(),
-                    hasVariant: 0
-                });
-
-                insertedNames.push(row.nama);
-            }
-        });
-
-        await redis.del(`cache:products_page_v4:${params.slug.toLowerCase()}:none:${user.id}`);
-        await redis.del(`cache:products_page_v4:${params.slug.toLowerCase()}:all:${user.id}`);
+        // Logika bersama dengan import dari app: kategori dicari/dibuat di unit ini saja
+        hasil = await imporProduk(db, { userId: user.id, unitId: unit.id, rows });
+        if (redis) {
+            await redis.del(`cache:products_page_v4:${params.slug.toLowerCase()}:none:${user.id}`);
+            await redis.del(`cache:products_page_v4:${params.slug.toLowerCase()}:all:${user.id}`);
+        }
     } catch (error) {
-        log.api.error({ err: error.message }, '[import] Gagal import produk');
+        log.api.error({ err: error instanceof Error ? error.message : String(error) }, '[import] Gagal import produk');
         return json({ error: 'Gagal melakukan import produk. Periksa kembali format file.' }, { status: 500 });
     }
 
     return json({
         success: true,
-        message: `${insertedNames.length} produk berhasil diimpor.`,
-        importedCount: insertedNames.length
+        message: `${hasil.successRows} produk berhasil diimpor.`,
+        importedCount: hasil.successRows
     });
 }

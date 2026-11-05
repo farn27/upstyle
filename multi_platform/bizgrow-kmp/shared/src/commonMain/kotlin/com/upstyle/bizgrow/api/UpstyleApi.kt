@@ -194,14 +194,15 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
         }.body()
 
-    suspend fun getCrmActivities(unitId: Int): ApiResponse<List<CrmActivity>> =
-        client.get("api/app/crm") {
+    // Aktivitas CRM → api/app/crm/activities
+    suspend fun getCrmActivities(unitId: Int, kontakId: Int? = null): ApiResponse<List<CrmActivity>> =
+        client.get("api/app/crm/activities") {
             parameter("unitId", unitId)
-            parameter("type", "activities")
+            kontakId?.let { parameter("kontakId", it) }
         }.body()
 
     suspend fun createActivity(req: CreateActivityRequest): ApiResponse<Unit> =
-        client.post("api/app/crm") { setBody(req) }.body()
+        tanpaData(client.post("api/app/crm/activities") { setBody(req) }.body())
 
     // ─── SCM ──────────────────────────────────────────────────────────────────
 
@@ -523,10 +524,12 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Export / Import (unitId-scoped) ──────────────────────────────────────
 
+    /** dataType: products | finance | customers — format: excel | csv | pdf (pdf hanya finance).
+     *  Balasan berisi downloadUrl (berlaku 10 menit) yang bisa dibuka di browser HP. */
     suspend fun exportData(unitId: Int, dataType: String, format: String, startDate: String? = null, endDate: String? = null): ApiResponse<ExportResult> =
         client.post("api/app/export") {
-            setBody(buildMap {
-                put("unitId", unitId.toString())
+            setBody(buildJsonObject {
+                put("unitId", unitId)
                 put("dataType", dataType)
                 put("format", format)
                 startDate?.let { put("startDate", it) }

@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -124,6 +125,20 @@ private fun ExportTab(
             Icon(Icons.Default.Download, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Export Data")
+        }
+
+        // Link unduhan dari server (berlaku 10 menit) — dibuka di browser HP
+        state.lastExportResult?.downloadUrl?.let { url ->
+            val uriHandler = LocalUriHandler.current
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { uriHandler.openUri(url) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.OpenInBrowser, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Unduh ${state.lastExportResult?.fileName ?: "file"}")
+            }
         }
 
         Spacer(Modifier.height(16.dp))

@@ -11,7 +11,7 @@ import { exportTransaksiExcel } from '$lib/server/excelExport.js';
 import { generateLaporanPDF } from '$lib/server/pdfGenerator.js';
 import { checkRateLimit, getClientIP, EXPORT_LIMIT } from '$lib/server/rateLimit';
 
-export async function GET({ url, cookies }) {
+export async function GET({ url, cookies, request }) {
   const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 
