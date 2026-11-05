@@ -1,4 +1,4 @@
-import { GOOGLE_CLIENT_ID } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/drizzle';
 import { users } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
@@ -54,7 +54,7 @@ export async function POST({ request }) {
                 sub: 'mock-google-id-' + email.split('@')[0],
                 name: email.split('@')[0].toUpperCase(),
                 picture: '',
-                aud: GOOGLE_CLIENT_ID
+                aud: env.GOOGLE_CLIENT_ID
             };
         } else {
             // Verifikasi Google ID Token via Google API
@@ -69,7 +69,7 @@ export async function POST({ request }) {
             profile = await verifyRes.json();
 
             // Trim possible surrounding quotes from env var
-            const expectedAud = GOOGLE_CLIENT_ID.replace(/^"|"$/g, '');
+            const expectedAud = env.GOOGLE_CLIENT_ID.replace(/^"|"$/g, '');
             if (profile.aud !== expectedAud) {
                 return apiError('Token bukan untuk aplikasi ini', 401, 'WRONG_AUDIENCE');
             }

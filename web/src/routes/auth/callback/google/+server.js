@@ -1,5 +1,4 @@
 import { redirect } from '@sveltejs/kit';
-import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '$env/static/private';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/drizzle';
 import { users } from '$lib/server/schema';
@@ -23,8 +22,8 @@ export async function GET({ url, cookies }) {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
                 code,
-                client_id: GOOGLE_CLIENT_ID,
-                client_secret: GOOGLE_CLIENT_SECRET,
+                client_id: env.GOOGLE_CLIENT_ID,
+                client_secret: env.GOOGLE_CLIENT_SECRET,
                 redirect_uri: redirectUri,
                 grant_type: 'authorization_code'
             })

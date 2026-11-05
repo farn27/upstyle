@@ -5,11 +5,11 @@ import { eq, and, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { DEFAULT_COAS } from '$lib/server/defaultCoa';
 import { Groq } from 'groq-sdk';
-import { GROQ_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { isiCoaStandar, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
-const groq = new Groq({ apiKey: GROQ_API_KEY });
+const groq = new Groq({ apiKey: env.GROQ_API_KEY });
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
