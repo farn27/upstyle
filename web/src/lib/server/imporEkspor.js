@@ -5,12 +5,13 @@
  * Jenis data: products (produk), finance (transaksi), customers (kontak CRM).
  */
 import crypto from 'crypto';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
 import { products, kategoriProduk, transaksi, crmContacts } from '$lib/server/schema';
 import { exportProdukExcel, exportTransaksiExcel } from '$lib/server/excelExport.js';
 import { generateLaporanPDF } from '$lib/server/pdfGenerator.js';
 import { normalisasiJenis } from '$lib/jenisProduk';
+import { todayStrWIB } from '$lib/server/dateUtils';
 
 export class ImporEksporError extends Error {
 	/** @param {string} message @param {number} [status] */
@@ -27,17 +28,98 @@ const MAKS_BARIS_IMPOR = 2000;
 
 // ─── Baca file ────────────────────────────────────────────────────────────
 
-/** @param {Buffer} buffer @returns {Record<string, any>[]} */
-export function bacaBarisFile(buffer) {
-	let wb;
+/**
+ * Nilai sel ExcelJS → nilai sederhana seperti hasil sheet_to_json lama (string / angka / boolean).
+ * @param {any} v
+ */
+function nilaiSel(v) {
+	if (v === null || v === undefined) return '';
+	if (v instanceof Date) return v.toISOString().slice(0, 10);
+	if (typeof v === 'object') {
+		if ('result' in v) return nilaiSel(v.result); // rumus → hasilnya
+		if (Array.isArray(v.richText)) return v.richText.map((/** @type {any} */ r) => r.text).join('');
+		if ('text' in v) return String(v.text); // hyperlink
+		if ('error' in v) return '';
+		return String(v);
+	}
+	return v;
+}
+
+/**
+ * CSV sederhana (RFC 4180: tanda kutip, koma/titik koma, baris baru di dalam kutip).
+ * @param {string} teks
+ * @returns {string[][]}
+ */
+function parseCsv(teks) {
+	const isi = teks.replace(/^\uFEFF/, '');
+	const barisPertama = isi.split(/\r?\n/, 1)[0] || '';
+	const pemisah = (barisPertama.match(/;/g) || []).length > (barisPertama.match(/,/g) || []).length ? ';' : ',';
+	/** @type {string[][]} */
+	const hasil = [];
+	/** @type {string[]} */
+	let baris = [];
+	let sel = '';
+	let dalamKutip = false;
+	for (let i = 0; i < isi.length; i++) {
+		const c = isi[i];
+		if (dalamKutip) {
+			if (c === '"' && isi[i + 1] === '"') { sel += '"'; i++; }
+			else if (c === '"') dalamKutip = false;
+			else sel += c;
+		} else if (c === '"') dalamKutip = true;
+		else if (c === pemisah) { baris.push(sel); sel = ''; }
+		else if (c === '\n' || c === '\r') {
+			if (c === '\r' && isi[i + 1] === '\n') i++;
+			baris.push(sel); hasil.push(baris); baris = []; sel = '';
+		} else sel += c;
+	}
+	if (sel !== '' || baris.length > 0) { baris.push(sel); hasil.push(baris); }
+	return hasil.filter((b) => b.some((x) => String(x).trim() !== ''));
+}
+
+/**
+ * Baca file .xlsx / .csv jadi array objek (baris pertama = nama kolom, sel kosong = '').
+ * Pakai ExcelJS, bukan paket npm "xlsx" 0.18.5 yang punya celah prototype pollution & ReDoS
+ * saat membaca file buatan penyerang (paket itu tidak lagi diperbarui di npm).
+ * @param {Buffer} buffer
+ * @returns {Promise<Record<string, any>[]>}
+ */
+export async function bacaBarisFile(buffer) {
+	/** @type {any[][]} */
+	let grid = [];
+	const isXlsx = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b; // file zip "PK"
 	try {
-		wb = XLSX.read(buffer, { type: 'buffer' });
-	} catch {
+		if (isXlsx) {
+			const wb = new ExcelJS.Workbook();
+			await wb.xlsx.load(/** @type {any} */ (buffer));
+			const ws = wb.worksheets[0];
+			if (!ws) throw new ImporEksporError('File tidak memiliki sheet yang valid.', 400);
+			ws.eachRow({ includeEmpty: false }, (row) => {
+				const nilai = /** @type {any[]} */ (row.values);
+				grid.push(nilai.slice(1).map(nilaiSel));
+			});
+		} else {
+			grid = parseCsv(buffer.toString('utf8'));
+		}
+	} catch (err) {
+		if (err instanceof ImporEksporError) throw err;
 		throw new ImporEksporError('Gagal membaca file. Pastikan file .xlsx atau .csv valid.', 400);
 	}
-	const sheet = wb.SheetNames[0] ? wb.Sheets[wb.SheetNames[0]] : null;
-	if (!sheet) throw new ImporEksporError('File tidak memiliki sheet yang valid.', 400);
-	return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+	if (grid.length === 0) return [];
+	const header = grid[0].map((h) => String(h ?? '').trim());
+	/** @type {Record<string, any>[]} */
+	const hasil = [];
+	for (const baris of grid.slice(1)) {
+		/** @type {Record<string, any>} */
+		const obj = Object.create(null);
+		header.forEach((kolom, i) => {
+			if (!kolom || kolom === '__proto__' || kolom === 'constructor' || kolom === 'prototype') return;
+			const v = baris[i];
+			obj[kolom] = v === undefined || v === null ? '' : v;
+		});
+		if (Object.values(obj).some((v) => String(v).trim() !== '')) hasil.push({ ...obj });
+	}
+	return hasil;
 }
 
 /** @param {string} base64 */
@@ -211,11 +293,12 @@ function keCsv(kolom, baris) {
 }
 
 /** @param {string} judul @param {string[]} kolom @param {any[][]} baris */
-function keXlsx(judul, kolom, baris) {
-	const ws = XLSX.utils.aoa_to_sheet([kolom, ...baris]);
-	const wb = XLSX.utils.book_new();
-	XLSX.utils.book_append_sheet(wb, ws, judul.slice(0, 31));
-	return /** @type {Buffer} */ (XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+async function keXlsx(judul, kolom, baris) {
+	const wb = new ExcelJS.Workbook();
+	const ws = wb.addWorksheet(judul.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Data');
+	ws.addRow(kolom);
+	for (const b of baris) ws.addRow(b);
+	return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
 const JENIS_FILE = {
@@ -236,7 +319,7 @@ export async function buatFileEkspor(db, { unitId, unitName, dataType, format, s
 	const tgl = (/** @type {any} */ v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : null);
 	const dari = tgl(startDate);
 	const sampai = tgl(endDate);
-	const stempel = new Date().toISOString().slice(0, 10);
+	const stempel = todayStrWIB();
 	const namaFile = `${dataType}-${slugDari(unitName) || unitId}-${stempel}.${JENIS_FILE[/** @type {'excel'|'csv'|'pdf'} */ (format)].ext}`;
 	const contentType = JENIS_FILE[/** @type {'excel'|'csv'|'pdf'} */ (format)].type;
 
@@ -277,6 +360,6 @@ export async function buatFileEkspor(db, { unitId, unitName, dataType, format, s
 	const list = await db.select().from(crmContacts).where(eq(crmContacts.unitId, unitId)).orderBy(desc(crmContacts.id));
 	const kolom = ['nama', 'telepon', 'email', 'perusahaan', 'stage', 'sumber'];
 	const baris = list.map((/** @type {any} */ c) => [c.nama, c.telepon || '', c.email || '', c.perusahaan || '', c.stage || '', c.sumber || '']);
-	const buffer = format === 'excel' ? keXlsx('Pelanggan', kolom, baris) : keCsv(kolom, baris);
+	const buffer = format === 'excel' ? await keXlsx('Pelanggan', kolom, baris) : keCsv(kolom, baris);
 	return { buffer, contentType, fileName: namaFile, recordCount: list.length };
 }

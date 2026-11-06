@@ -8,7 +8,7 @@ export async function POST({ request, cookies }) {
 	if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 	try {
 		const body = await request.json();
-		const rows = bacaBarisFile(bacaBase64(body?.fileBase64));
+		const rows = await bacaBarisFile(bacaBase64(body?.fileBase64));
 		const hasil = validasiImpor(/** @type {any} */ (String(body?.dataType || '').toLowerCase()), rows);
 		return json({ success: true, message: hasil.isValid ? 'File siap diimpor' : 'File perlu diperbaiki', data: hasil });
 	} catch (err) {
