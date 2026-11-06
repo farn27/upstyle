@@ -1,6 +1,6 @@
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, products, kategoriProduk, posCustomers, posShifts, posCashTransactions } from '$lib/server/schema';
-import { eq, and, or, asc, desc } from 'drizzle-orm';
+import { eq, and, or, asc, desc, sql } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
@@ -8,6 +8,7 @@ import { pusherServer } from '$lib/server/pusher';
 import { getActivePosFeatures } from '$lib/posFeatures';
 import { log } from '$lib/server/logger';
 import { JENIS_DIJUAL } from '$lib/jenisProduk';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 
 export async function load({ params, cookies, locals }) {
     const ownerUserId = locals.user?.id ?? await getCurrentUserId(cookies);
@@ -236,7 +237,7 @@ export const actions = {
             await db.insert(posShifts).values({
                 unitId,
                 userId,
-                waktuBuka: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                waktuBuka: nowSqlWIB(),
                 modalAwal: modalAwal,
                 kasAkhir: modalAwal,
                 status: 'OPEN'
@@ -278,7 +279,7 @@ export const actions = {
             const selisih = kasAkhir - Number(shiftRecord.kasAkhir);
 
             await db.update(posShifts).set({
-                waktuTutup: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                waktuTutup: nowSqlWIB(),
                 kasAkhirAktual: String(kasAkhir),
                 selisih: String(selisih),
                 catatan,
@@ -314,7 +315,7 @@ export const actions = {
         const amount = parseFloat(data.get('amount') || '0');
         const description = data.get('description') || null;
 
-        if (!shiftId || !type || amount <= 0) return { success: false, error: 'Data tidak valid' };
+        if (!shiftId || !['CASH_IN', 'CASH_OUT'].includes(String(type)) || !(amount > 0)) return { success: false, error: 'Data tidak valid' };
 
         try {
             await db.transaction(async (tx) => {
@@ -323,6 +324,17 @@ export const actions = {
                 });
                 if (!shiftRecord) throw new Error('Shift tidak ditemukan');
 
+                // Shift harus milik unit yang boleh diakses (staff unit ini / owner unit ini)
+                let bolehAkses = Boolean(staffSession && Number(staffSession.unit_id) === Number(shiftRecord.unitId));
+                if (!bolehAkses && ownerUserId) {
+                    const unitMilikOwner = await tx.query.unitBisnis.findFirst({
+                        where: and(eq(unitBisnis.id, shiftRecord.unitId), eq(unitBisnis.userId, ownerUserId))
+                    });
+                    bolehAkses = Boolean(unitMilikOwner);
+                }
+                if (!bolehAkses) throw new Error('Shift tidak ditemukan');
+                if (shiftRecord.status && shiftRecord.status !== 'OPEN') throw new Error('Shift sudah ditutup');
+
                 await tx.insert(posCashTransactions).values({
                     shiftId,
                     type,
@@ -330,13 +342,10 @@ export const actions = {
                     description
                 });
 
-                // Update saldo kasAkhir (expected cash in drawer)
-                let newKasAkhir = Number(shiftRecord.kasAkhir);
-                if (type === 'CASH_IN') newKasAkhir += amount;
-                else if (type === 'CASH_OUT') newKasAkhir -= amount;
-
+                // Update saldo kasAkhir (expected cash in drawer) — atomik di SQL supaya tidak saling timpa
+                const delta = type === 'CASH_IN' ? amount : -amount;
                 await tx.update(posShifts)
-                    .set({ kasAkhir: String(newKasAkhir) })
+                    .set({ kasAkhir: sql`${posShifts.kasAkhir} + ${delta}` })
                     .where(eq(posShifts.id, shiftId));
             });
 

@@ -1,22 +1,27 @@
 import { db } from '$lib/server/drizzle';
-import { unitBisnis, vouchers } from '$lib/server/schema';
-import { eq, and, or } from 'drizzle-orm';
-import { getCurrentUserId } from '$lib/server/getUser';
+import { vouchers } from '$lib/server/schema';
+import { eq, and } from 'drizzle-orm';
+import { error } from '@sveltejs/kit';
+import { resolvePosUnitAccess } from '$lib/server/posAuth';
 
-export async function load({ cookies, params }) {
-    const userId = await getCurrentUserId(cookies);
-    const { slug } = params;
+/**
+ * Hanya pemilik unit, atau karyawan unit ini dengan peran owner/manager/admin, yang boleh kelola promo.
+ * Dulu unit dicari dari slug saja → user mana pun bisa melihat/membuat/menghapus voucher unit lain.
+ * @param {any} event
+ */
+async function unitPromo({ cookies, params, locals }) {
+    const akses = await resolvePosUnitAccess(cookies, params, locals);
+    if (akses.isStaff && !['owner', 'manager', 'admin'].includes(String(akses.staffSession?.role || ''))) {
+        throw error(403, 'Hanya manajer yang boleh mengelola promo');
+    }
+    return akses.unit;
+}
 
-    const units = await db.select({ id: unitBisnis.id })
-        .from(unitBisnis)
-        .where(or(eq(unitBisnis.slug, slug), eq(unitBisnis.loginSlug, slug)));
-    
-    if (!units.length) return { error: 'Unit tidak ditemukan' };
-    const unitId = units[0].id;
-
+export async function load(event) {
+    const unit = await unitPromo(event);
     const promos = await db.select()
         .from(vouchers)
-        .where(eq(vouchers.unitId, unitId));
+        .where(eq(vouchers.unitId, unit.id));
 
     return {
         promos
@@ -24,15 +29,9 @@ export async function load({ cookies, params }) {
 }
 
 export const actions = {
-    create: async ({ request, cookies, params }) => {
-        const userId = await getCurrentUserId(cookies);
-        if (!userId) return { success: false, error: 'Unauthorized' };
-
-        const { slug } = params;
-        const units = await db.select({ id: unitBisnis.id })
-            .from(unitBisnis)
-            .where(or(eq(unitBisnis.slug, slug), eq(unitBisnis.loginSlug, slug)));
-        if (!units.length) return { success: false, error: 'Unit tidak ditemukan' };
+    create: async (event) => {
+        const { request } = event;
+        const unit = await unitPromo(event);
         
         const data = await request.formData();
         const code = data.get('code')?.toString().toUpperCase();
@@ -45,7 +44,7 @@ export const actions = {
 
         try {
             await db.insert(vouchers).values({
-                unitId: units[0].id,
+                unitId: unit.id,
                 code,
                 discountType,
                 discountValue,
@@ -56,38 +55,34 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return { success: false, error: 'Kode promo sudah dipakai atau data tidak valid' };
         }
     },
-    toggle: async ({ request, cookies }) => {
-        const userId = await getCurrentUserId(cookies);
-        if (!userId) return { success: false, error: 'Unauthorized' };
-
-        const data = await request.formData();
-        const id = data.get('id');
+    toggle: async (event) => {
+        const unit = await unitPromo(event);
+        const data = await event.request.formData();
+        const id = Number(data.get('id'));
         const isActive = data.get('isActive') === 'true';
 
         try {
             await db.update(vouchers)
                 .set({ isActive })
-                .where(eq(vouchers.id, id));
+                .where(and(eq(vouchers.id, id), eq(vouchers.unitId, unit.id)));
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return { success: false, error: 'Gagal mengubah status promo' };
         }
     },
-    delete: async ({ request, cookies }) => {
-        const userId = await getCurrentUserId(cookies);
-        if (!userId) return { success: false, error: 'Unauthorized' };
-
-        const data = await request.formData();
-        const id = data.get('id');
+    delete: async (event) => {
+        const unit = await unitPromo(event);
+        const data = await event.request.formData();
+        const id = Number(data.get('id'));
 
         try {
-            await db.delete(vouchers).where(eq(vouchers.id, id));
+            await db.delete(vouchers).where(and(eq(vouchers.id, id), eq(vouchers.unitId, unit.id)));
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return { success: false, error: 'Gagal menghapus promo' };
         }
     }
 };

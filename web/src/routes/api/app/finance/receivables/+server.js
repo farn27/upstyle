@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { triggerEvent } from '$lib/server/pusher';
+import { buatPiutang, bayarPiutang, PiutangError } from '$lib/server/piutang';
 
 export async function GET({ url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
@@ -57,33 +58,18 @@ export async function POST({ request, cookies }) {
 			return json({ success: false, message: 'Data tidak lengkap' }, { status: 400 });
 		}
 
-		const [inserted] = await db.insert(receivables).values({
-			unitId: Number(unitId),
-			contactId: Number(contactId),
-			nomorInvoice,
-			tanggal,
-			jatuhTempo,
-			nominal: String(nominal),
-			sudahDibayar: '0',
-			status: 'BELUM_BAYAR',
-			keterangan: keterangan || null
-		});
+		// Pelanggan wajib milik unit; invoice langsung dijurnal (Debit Piutang / Kredit Pendapatan)
+		const hasil = await buatPiutang(db, { unitId: Number(unitId), userId }, { contactId, nomorInvoice, tanggal, jatuhTempo, nominal, keterangan });
 
 		try {
-			await triggerEvent(`unit-${unitId}`, 'receivable-created', {
-				id: inserted.insertId,
-				nomorInvoice
-			});
+			await triggerEvent(`unit-${unitId}`, 'receivable-created', { id: hasil.id, nomorInvoice: hasil.nomorInvoice });
 		} catch (e) {
 			// ignore pusher notification errors
 		}
 
-		return json({
-			success: true,
-			message: 'Piutang berhasil dibuat',
-			data: { id: inserted.insertId }
-		});
+		return json({ success: true, message: 'Piutang berhasil dibuat', data: { id: hasil.id } });
 	} catch (err) {
+		if (err instanceof PiutangError) return json({ success: false, message: err.message }, { status: err.status });
 		log.finance.error({ err }, 'API POST RECEIVABLE ERROR');
 		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
 	}
@@ -97,7 +83,7 @@ export async function PUT({ request, cookies }) {
 
 	try {
 		const body = await request.json();
-		const { invoiceId, nominalBayar } = body;
+		const { invoiceId, nominalBayar, kasCoaId } = body;
 
 		if (!invoiceId || nominalBayar == null) {
 			return json({ success: false, message: 'invoiceId dan nominalBayar wajib diisi' }, { status: 400 });
@@ -111,29 +97,14 @@ export async function PUT({ request, cookies }) {
 			return json({ success: false, message: 'Data piutang tidak ditemukan' }, { status: 404 });
 		}
 
-		const bayar = Number(nominalBayar);
-		if (isNaN(bayar) || bayar <= 0) {
-			return json({ success: false, message: 'Nominal bayar harus lebih dari 0' }, { status: 400 });
-		}
-
-		const currentSudahDibayar = Number(receivable.sudahDibayar || 0);
-		const newSudahDibayar = currentSudahDibayar + bayar;
-		const totalNominal = Number(receivable.nominal);
-
-		const newStatus = newSudahDibayar >= totalNominal ? 'LUNAS' : 'SEBAGIAN';
-
-		await db.update(receivables)
-			.set({
-				sudahDibayar: String(newSudahDibayar),
-				status: newStatus
-			})
-			.where(eq(receivables.id, Number(invoiceId)));
+		// Nominal tidak boleh melebihi sisa; invoice berjurnal → pembayaran juga dijurnal ke kas
+		const hasil = await bayarPiutang(db, { unitId: receivable.unitId, userId }, receivable.id, { nominal: nominalBayar, kasCoaId });
 
 		try {
 			await triggerEvent(`unit-${receivable.unitId}`, 'receivable-updated', {
 				id: receivable.id,
-				sudahDibayar: newSudahDibayar,
-				status: newStatus
+				sudahDibayar: hasil.sudahDibayar,
+				status: hasil.status
 			});
 		} catch (e) {
 			// ignore pusher error
@@ -144,11 +115,12 @@ export async function PUT({ request, cookies }) {
 			message: 'Pembayaran piutang berhasil dicatat',
 			data: {
 				id: receivable.id,
-				sudahDibayar: newSudahDibayar,
-				status: newStatus
+				sudahDibayar: hasil.sudahDibayar,
+				status: hasil.status
 			}
 		});
 	} catch (err) {
+		if (err instanceof PiutangError) return json({ success: false, message: err.message }, { status: err.status });
 		log.finance.error({ err }, 'API PUT RECEIVABLE ERROR');
 		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
 	}

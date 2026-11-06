@@ -2,13 +2,23 @@ import { json } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { db } from '$lib/server/drizzle';
-import { transaksi, unitBisnis, products, riwayatAksi, abcCategories, posCustomers, posOrders, posOrderItems, chartOfAccounts, journalEntries, journalEntryLines, posPayments, vouchers } from '$lib/server/schema';
+import { transaksi, unitBisnis, products, productVariants, riwayatAksi, posCustomers, posOrders, posOrderItems, chartOfAccounts, journalEntries, journalEntryLines, posPayments, vouchers } from '$lib/server/schema';
 import { log } from '$lib/server/logger.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, or, sql, gte, lt, isNull } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
 import { pusherServer } from '$lib/server/pusher';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { bisaDijual } from '$lib/jenisProduk';
+import { getActivePosFeatures } from '$lib/posFeatures';
+
+/** Error POS yang pesannya aman ditampilkan ke kasir */
+class PosError extends Error {
+    /** @param {string} message @param {number} [status] */
+    constructor(message, status = 400) {
+        super(message);
+        this.status = status;
+    }
+}
 
 export async function POST({ request, cookies, params, locals }) {
     try {
@@ -102,12 +112,16 @@ export async function POST({ request, cookies, params, locals }) {
                 });
             }
 
-            if (!unit) throw new Error('Unit tidak ditemukan');
+            if (!unit) throw new PosError('Unit tidak ditemukan', 404);
 
             const isOwner = ownerUserId && Number(unit.userId) === Number(ownerUserId);
             const isStaff = staffSession && Number(unit.id) === Number(staffSession.unit_id);
-            if (!isOwner && !isStaff) throw new Error('Akses ditolak untuk melakukan transaksi POS');
+            if (!isOwner && !isStaff) throw new PosError('Akses ditolak untuk melakukan transaksi POS', 403);
             posUnitId = unit.id;
+            // Kolom user_id / created_by / cashier_id mereferensikan tabel users (pemilik), BUKAN karyawan.
+            // Dulu ID karyawan dimasukkan ke sini → gagal foreign key atau tercatat atas nama user lain.
+            const pemilikId = Number(unit.userId);
+            const namaKasir = isStaff && !isOwner ? (staffSession?.full_name || 'Kasir') : null;
 
             let customerId = null;
             if (customer_id) {
@@ -136,7 +150,43 @@ export async function POST({ request, cookies, params, locals }) {
             }
 
             orderNumber = `POS-${unit.id}-${Date.now()}`;
-            const orderSubtotal = cart.reduce((sum, item) => sum + (Number(item.harga_jual || item.harga || 0) * Number(item.qty || 1)), 0);
+            const fitur = getActivePosFeatures(unit.kategori, unit.posFeatureOverride);
+
+            // Keranjang dinormalisasi di server: produk HARUS milik unit ini dan harga diambil dari database.
+            // Harga kiriman kasir hanya dipakai kalau fitur "harga bebas" (openPrice) aktif untuk unit ini.
+            if (!Array.isArray(cart) || cart.length === 0) throw new PosError('Keranjang kosong');
+            const barisKeranjang = [];
+            for (const item of cart) {
+                const qty = Number(item?.qty);
+                if (!Number.isInteger(qty) || qty <= 0 || qty > 1_000_000) {
+                    throw new PosError(`Jumlah ${item?.nama || 'barang'} tidak valid`);
+                }
+                const produk = await tx.query.products.findFirst({
+                    where: and(eq(products.id, String(item?.id ?? '')), eq(products.unitId, unit.id), isNull(products.deletedAt))
+                });
+                if (!produk) throw new PosError(`Produk ${item?.nama || ''} tidak ditemukan di unit ini`.trim(), 404);
+                if (!bisaDijual(produk.jenis)) throw new PosError(`${produk.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
+
+                let hargaDb = Number(produk.hargaJual || 0);
+                let namaItem = produk.nama;
+                if (item.variantId) {
+                    const varian = await tx.query.productVariants.findFirst({
+                        where: and(eq(productVariants.id, String(item.variantId)), eq(productVariants.productId, produk.id))
+                    });
+                    if (!varian) throw new PosError(`Varian ${produk.nama} tidak ditemukan`, 404);
+                    // pos_order_items.variant_id bertipe INT sedangkan ID varian UUID → simpan namanya saja
+                    namaItem = `${produk.nama} - ${varian.namaVariasi}`;
+                    if (Number(varian.hargaJual) > 0) hargaDb = Number(varian.hargaJual);
+                }
+
+                let unitPrice = hargaDb;
+                if (fitur.openPrice) {
+                    const hargaKasir = Number(item.harga_jual ?? item.harga);
+                    if (Number.isFinite(hargaKasir) && hargaKasir >= 0) unitPrice = hargaKasir;
+                }
+                barisKeranjang.push({ produk, qty, unitPrice, namaItem });
+            }
+            const orderSubtotal = barisKeranjang.reduce((sum, b) => sum + b.unitPrice * b.qty, 0);
             
             let finalDiscountValue = 0;
             if (voucher_id) {
@@ -144,7 +194,7 @@ export async function POST({ request, cookies, params, locals }) {
                     where: and(eq(vouchers.id, Number(voucher_id)), eq(vouchers.unitId, unit.id))
                 });
                 if (voucher && voucher.isActive) {
-                    const today = new Date().toISOString().split('T')[0];
+                    const today = todayStrWIB();
                     const isValidDate = voucher.validFrom <= today && voucher.validUntil >= today;
                     const isValidUsage = voucher.maxUsage === 0 || voucher.currentUsage < voucher.maxUsage;
                     const isMinPurchaseMet = orderSubtotal >= Number(voucher.minPurchase);
@@ -157,13 +207,12 @@ export async function POST({ request, cookies, params, locals }) {
                         }
                     }
                 }
-            } else if (discount_value) {
-                // If there's no voucher but there is a manual discount (maybe from a manager override feature in the future)
-                // We'll trust it for now as per current implementation, but usually, it should be validated.
+            } else if (fitur.manualDiscount && discount_value) {
+                // Diskon manual hanya kalau fitur diskon manual aktif untuk unit ini
                 finalDiscountValue = Number(discount_value);
-            } else if (keterangan?.discount) {
-                finalDiscountValue = Number(keterangan.discount);
             }
+            if (!Number.isFinite(finalDiscountValue) || finalDiscountValue < 0) finalDiscountValue = 0;
+            finalDiscountValue = Math.min(finalDiscountValue, orderSubtotal);
 
             const orderTotal = Math.max(0, orderSubtotal - finalDiscountValue);
             posOrderTotal = orderTotal;
@@ -172,8 +221,8 @@ export async function POST({ request, cookies, params, locals }) {
                 orderNumber,
                 unitId: unit.id,
                 customerId,
-                createdBy: actorId,
-                cashierId: staffSession?.id || null,
+                createdBy: pemilikId,
+                cashierId: isOwner ? pemilikId : null,
                 subtotal: String(orderSubtotal),
                 discount: String(finalDiscountValue),
                 total: String(orderTotal),
@@ -189,11 +238,16 @@ export async function POST({ request, cookies, params, locals }) {
                 notes: keterangan || null
             });
             
-            if (voucher_id) {
-                // Update voucher usage
-                await tx.update(vouchers)
+            if (voucher_id && finalDiscountValue > 0) {
+                // Pemakaian voucher dinaikkan secara atomik: gagal kalau kuota sudah habis (dua kasir bersamaan)
+                const [pakai] = await tx.update(vouchers)
                     .set({ currentUsage: sql`current_usage + 1` })
-                    .where(eq(vouchers.id, Number(voucher_id)));
+                    .where(and(
+                        eq(vouchers.id, Number(voucher_id)),
+                        eq(vouchers.unitId, unit.id),
+                        or(eq(vouchers.maxUsage, 0), lt(vouchers.currentUsage, vouchers.maxUsage))
+                    ));
+                if (!pakai?.affectedRows) throw new PosError('Kuota voucher sudah habis', 409);
             }
             
             const orderId = orderInsertResult.insertId;
@@ -216,26 +270,24 @@ export async function POST({ request, cookies, params, locals }) {
                 });
             }
 
-            for (const item of cart) {
-                const qty = Number(item.qty || 1);
-                const unitPrice = Number(item.harga_jual || item.harga || 0);
+            for (const { produk, qty, unitPrice, namaItem } of barisKeranjang) {
                 const nominal = unitPrice * qty;
 
-                const produk = await tx.query.products.findFirst({
-                    where: eq(products.id, item.id)
-                });
-                if (!produk) throw new Error(`Produk ${item.nama} tidak ditemukan`);
-                if (!bisaDijual(produk.jenis)) throw new Error(`${produk.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
-                if (produk.stok < qty) {
-                    throw new Error(`Stok ${produk.nama} tidak mencukupi! (Sisa: ${produk.stok})`);
+                // Kurangi stok secara atomik: gagal kalau stok kurang (aman untuk dua kasir bersamaan)
+                const [hasilStok] = await tx.update(products)
+                    .set({ stok: sql`${products.stok} - ${qty}` })
+                    .where(and(eq(products.id, produk.id), eq(products.unitId, unit.id), gte(products.stok, qty)));
+                if (!hasilStok?.affectedRows) {
+                    const [sisa] = await tx.select({ stok: products.stok }).from(products).where(eq(products.id, produk.id));
+                    throw new PosError(`Stok ${produk.nama} tidak mencukupi! (Sisa: ${sisa?.stok ?? 0})`, 409);
                 }
 
                 await tx.insert(posOrderItems).values({
                     orderId: orderId,
-                    productId: String(item.id),
-                    variantId: item.variantId || null,
-                    productName: item.nama,
-                    sku: item.sku || produk.sku || null,
+                    productId: String(produk.id),
+                    variantId: null,
+                    productName: namaItem,
+                    sku: produk.sku || null,
                     qty: qty,
                     price: String(unitPrice),
                     total: String(nominal),
@@ -243,29 +295,25 @@ export async function POST({ request, cookies, params, locals }) {
                     createdAt: nowWIB()
                 });
 
-                await tx.update(products)
-                    .set({ stok: produk.stok - qty })
-                    .where(eq(products.id, item.id));
-
                 await tx.insert(transaksi).values({
-                    userId: actorId,
+                    userId: pemilikId,
                     unitId: unit.id,
                     tanggal: nowWIB(),
-                    keterangan: `Penjualan ${item.nama} (${qty}x)`,
+                    keterangan: `Penjualan ${produk.nama} (${qty}x)`,
                     nominal: String(nominal),
                     totalHarga: String(nominal),
                     kategoriTrx: 'MASUK',
                     metodeBayar: payment_method?.toUpperCase() || 'CASH',
-                    productId: item.id,
+                    productId: produk.id,
                     qty,
                     hppTotal: String(Number(produk.hargaBeli || 0) * qty)
                 });
             }
 
             await tx.insert(riwayatAksi).values({
-                userId: actorId,
+                userId: pemilikId,
                 unitId: unit.id,
-                pesan: `Transaksi POS: ${customerNameSafe || 'Pelanggan Umum'} | Total ${orderTotal}`,
+                pesan: `Transaksi POS: ${customerNameSafe || 'Pelanggan Umum'} | Total ${orderTotal}${namaKasir ? ` | Kasir: ${namaKasir}` : ''}`,
                 kategori: 'POS',
                 link: `/finance/${slug}/history`,
                 tipe: 'success',
@@ -289,7 +337,7 @@ export async function POST({ request, cookies, params, locals }) {
                 // Header Jurnal
                 const [jurnalResult] = await tx.insert(journalEntries).values({
                     unitId: unit.id,
-                    userId: String(actorId),
+                    userId: pemilikId,
                     tanggal: nowWIB(),
                     nomorJurnal: `JRN-POS-${orderNumber}`,
                     referensi: orderNumber,
@@ -368,10 +416,11 @@ export async function POST({ request, cookies, params, locals }) {
             log.pos.warn({ err: signalErr.message }, 'POS: Pusher trigger failed');
         }
 
-        return json({ success: true, message: "Transaksi berhasil!", orderNumber: orderNumber, orderId: finalOrderId });
+        return json({ success: true, message: "Transaksi berhasil!", orderNumber: orderNumber, orderId: finalOrderId, total: posOrderTotal });
 
     } catch (err) {
+        if (err instanceof PosError) return json({ error: err.message }, { status: err.status });
         log.pos.error({ err: err.message }, 'POS transaction error');
-        return json({ error: err.message }, { status: 500 });
+        return json({ error: 'Transaksi gagal diproses. Coba lagi.' }, { status: 500 });
     }
 }

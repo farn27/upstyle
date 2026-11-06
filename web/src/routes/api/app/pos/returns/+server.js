@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { posReturns, posReturnItems, posOrders, posOrderItems, products } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { posReturns } from '$lib/server/schema';
+import { eq, desc } from 'drizzle-orm';
+import { prosesReturPos, ReturError } from '$lib/server/posRetur';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 
@@ -33,7 +34,7 @@ export async function GET({ url, cookies, request }) {
     }
 }
 
-// POST: Create a return
+// POST: Create a return — nominal refund & batas qty dihitung server (lihat $lib/server/posRetur)
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return json({ success: false, message: "Unauthorized" }, { status: 401 });
@@ -46,80 +47,24 @@ export async function POST({ request, cookies }) {
             return json({ success: false, message: "Data retur tidak lengkap" }, { status: 400 });
         }
 
-        const totalRefund = items.reduce((sum, item) => {
-            const qty = Number(item.quantity || item.qtyReturned || 0);
-            const price = Number(item.priceAtSale || item.refundAmount || 0);
-            return sum + (qty * price);
-        }, 0);
-
-        const returnNumber = 'RET-' + Date.now().toString().slice(-6) + '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
-
-        const result = await db.transaction(async (tx) => {
-            // Verify order exists
-            const order = await tx.query.posOrders.findFirst({
-                where: and(eq(posOrders.id, Number(orderId)), eq(posOrders.unitId, Number(unitId)))
-            });
-
-            if (!order) {
-                throw new Error("Order tidak ditemukan atau bukan milik unit ini");
-            }
-
-            const [ret] = await tx.insert(posReturns).values({
-                returnNumber,
-                orderId: Number(orderId),
-                unitId: Number(unitId),
-                handledBy: String(userId),
-                totalRefund: String(totalRefund),
-                reason: reason || null,
-                status: 'COMPLETED'
-            });
-
-            const returnId = ret.insertId;
-
-            for (const item of items) {
-                const qty = Number(item.quantity || item.qtyReturned || 1);
-                const price = Number(item.priceAtSale || item.refundAmount || 0);
-                const itemRefundAmount = qty * price;
-
-                let orderItemId = item.orderItemId || item.order_item_id;
-                if (!orderItemId && item.productId) {
-                    const foundOrderItem = await tx.query.posOrderItems.findFirst({
-                        where: and(eq(posOrderItems.orderId, Number(orderId)), eq(posOrderItems.productId, String(item.productId)))
-                    });
-                    if (foundOrderItem) orderItemId = foundOrderItem.id;
-                }
-                if (!orderItemId) {
-                    const anyOrderItem = await tx.query.posOrderItems.findFirst({
-                        where: eq(posOrderItems.orderId, Number(orderId))
-                    });
-                    if (anyOrderItem) orderItemId = anyOrderItem.id;
-                }
-
-                await tx.insert(posReturnItems).values({
-                    returnId,
-                    orderItemId: orderItemId || 0,
-                    productId: item.productId ? String(item.productId) : null,
-                    qtyReturned: qty,
-                    refundAmount: String(itemRefundAmount)
-                });
-
-                if (item.productId) {
-                    await tx.update(products)
-                        .set({ stok: sql`stok + ${qty}` })
-                        .where(and(eq(products.id, String(item.productId)), eq(products.unitId, Number(unitId))));
-                }
-            }
-
-            return { returnId, returnNumber, totalRefund };
+        const result = await prosesReturPos(db, { unitId: Number(unitId), pemilikId: userId, handledBy: String(userId) }, {
+            orderId,
+            reason,
+            items: items.map((/** @type {any} */ item) => ({
+                orderItemId: item.orderItemId || item.order_item_id,
+                productId: item.productId,
+                qty: item.quantity ?? item.qtyReturned ?? 1
+            }))
         });
 
         return json({
             success: true,
             message: "Retur POS berhasil dibuat",
-            data: result
+            data: { returnId: result.returnId, returnNumber: result.returnNumber, totalRefund: result.totalRefund }
         });
     } catch (err) {
+        if (err instanceof ReturError) return json({ success: false, message: err.message }, { status: err.status });
         log.pos.error({ err }, 'API POST POS RETURNS ERROR');
-        return json({ success: false, message: err.message || "Gagal membuat retur POS" }, { status: 500 });
+        return json({ success: false, message: "Gagal membuat retur POS" }, { status: 500 });
     }
 }
