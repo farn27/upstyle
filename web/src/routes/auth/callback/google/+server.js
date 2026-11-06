@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { secureCookieOptions } from '$lib/server/cookieOptions';
 import { createSession } from '$lib/server/session';
 import { log } from '$lib/server/logger';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 
 export async function GET({ url, cookies }) {
     try {
@@ -59,8 +60,8 @@ export async function GET({ url, cookies }) {
                 avatarUrl: profile.picture || null,
                 role: 'free',
                 companyId: null,
-                emailVerifiedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-                createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
+                emailVerifiedAt: nowSqlWIB(),
+                createdAt: nowSqlWIB()
             });
             userId = result.insertId;
         } else {

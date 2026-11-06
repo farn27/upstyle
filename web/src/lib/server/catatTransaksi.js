@@ -16,7 +16,7 @@ import {
 	riwayatAksi
 } from '$lib/server/schema';
 import { normalizeKategoriTrx } from '$lib/server/kategoriTrx';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
 
 /** Error yang aman ditampilkan ke pengguna (status HTTP ikut dibawa) */
 export class TransaksiError extends Error {
@@ -166,7 +166,7 @@ export async function catatTransaksi(tx, input) {
 	}
 
 	// 3. Jurnal double-entry
-	const tanggalJurnal = nowWIB().toISOString().split('T')[0];
+	const tanggalJurnal = todayStrWIB(); // dulu tanggal UTC: transaksi 00:00–06:59 WIB masuk hari sebelumnya
 	const [jurnal] = await tx.insert(journalEntries).values({
 		unitId,
 		userId,

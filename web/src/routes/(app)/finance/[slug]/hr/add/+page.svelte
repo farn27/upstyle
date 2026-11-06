@@ -6,7 +6,7 @@
 
     export let data;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD WIB
 
     onMount(() => {
         if ($page.url.searchParams.has('pesan')) {

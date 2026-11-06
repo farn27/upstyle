@@ -9,7 +9,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 import { normalisasiJenis } from '$lib/jenisProduk';
 
 // 1. GET: Ambil semua produk & variasi untuk unitId (with pagination)
@@ -327,7 +327,7 @@ export async function DELETE({ url, cookies, request }) {
         const unitId = existingProduct.unitId;
 
         await db.update(products)
-            .set({ deletedAt: nowWIB().toISOString(), status: 'archived' })
+            .set({ deletedAt: nowSqlWIB(), status: 'archived' })
             .where(eq(products.id, productId));
 
         triggerEvent(`unit-${unitId}`, 'stock-updated', { message: 'Produk dihapus dari HP', unitId: Number(unitId) });

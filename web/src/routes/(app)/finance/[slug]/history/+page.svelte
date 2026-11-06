@@ -191,7 +191,7 @@
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Jurnal Transaksi");
-        XLSX.writeFile(wb, `Laporan_${$page.params.slug}_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `Laporan_${$page.params.slug}_${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })}.xlsx`);
     }
 
     // --- 5. SALDO BERJALAN (BARU) ---
