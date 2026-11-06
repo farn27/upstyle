@@ -20,8 +20,12 @@ data class ApiResponse<T>(
 data class PaginatedResponse<T>(
     val success: Boolean,
     val data: List<T> = emptyList(),
-    val pagination: Pagination? = null
-)
+    val pagination: Pagination? = null,
+    val message: String? = null
+) {
+    /** Alias so call sites can use either `.error` or `.message` (sama seperti ApiResponse). */
+    val error: String? get() = message
+}
 
 @Serializable
 data class Pagination(
@@ -1777,6 +1781,7 @@ data class UsageMetrics(
     val userCount: Int get() = users
     val maxProducts: Int get() = limits.maxProducts
     val maxUsers: Int get() = limits.maxUsers
+    val maxStorageMb: Long get() = limits.maxStorageMb
 }
 
 @Serializable
