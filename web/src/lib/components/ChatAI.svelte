@@ -177,7 +177,7 @@
 			[idx]: {
 				kas_coa_id: defaultKas,
 				coa_id: firstCoa ? String(firstCoa.id) : '',
-				tanggal: trxData.tanggal || new Date().toISOString().split('T')[0],
+				tanggal: trxData.tanggal || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }),
 				metode: trxData.metode || 'Tunai',
 				isSaving: false,
 				error: ''
@@ -387,7 +387,7 @@
 
 	// ─── Reactive ──────────────────────────────────────────────────────────────
 	$: if (browser && userId && userUnits.length === 0) {
-		fetch(`/api/units?userId=${userId}`)
+		fetch(`/api/units`)
 			.then(r => r.json())
 			.then(d => {
 				if (d?.units) { userUnits = d.units; syncSlugFromPage(userUnits); }

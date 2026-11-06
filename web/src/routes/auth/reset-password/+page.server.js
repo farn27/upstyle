@@ -7,6 +7,7 @@ import { checkRateLimit, getClientIP } from '$lib/server/rateLimit';
 import { z } from 'zod';
 import argon2 from 'argon2';
 import { log } from '$lib/server/logger';
+import { hapusSemuaSesiUser } from '$lib/server/session';
 
 const resetSchema = z.object({
 	password: z
@@ -74,6 +75,8 @@ export const actions = {
 		try {
 			const hashedPassword = await argon2.hash(parsed.data.password);
 			await db.update(users).set({ password: hashedPassword }).where(eq(users.id, userId));
+			// Password berubah → semua sesi lama diakhiri
+			await hapusSemuaSesiUser(userId);
 		} catch (err) {
 			log.auth.error({ err }, '[ResetPassword] Error');
 			return fail(500, { message: 'Terjadi kesalahan. Coba lagi nanti.', token });

@@ -16,13 +16,16 @@ import { json } from '@sveltejs/kit';
 import { groqChatCompletion } from '$lib/server/groq.js';
 import { getCurrentUserId } from '$lib/server/getUser.js';
 import { apiUnauthorized, apiError, apiSuccess } from '$lib/server/apiResponse.js';
-import { checkRateLimit, getClientIP } from '$lib/server/rateLimit.js';
+import { checkRateLimit, getClientIP, cekKuotaAI } from '$lib/server/rateLimit.js';
 import { ALL_BUSINESS_CATEGORIES } from '$lib/server/businessPlanTemplates.js';
 import { log } from '$lib/server/logger';
 
 export async function POST({ request, cookies }) {
   const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
+
+  const kuota = await cekKuotaAI(userId);
+  if (!kuota.allowed) return new Response(JSON.stringify({ success: false, message: kuota.pesan, code: 'AI_RATE_LIMITED' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(kuota.retryAfter) } });
 
   // Rate limit: max 20 AI call per jam per user (hemat token)
   const ip = getClientIP(request);

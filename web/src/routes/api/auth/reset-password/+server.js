@@ -6,8 +6,8 @@ import argon2 from 'argon2';
 import { apiSuccess, apiError, apiValidationError } from '$lib/server/apiResponse';
 import { checkRateLimit, getClientIP, API_LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { z } from 'zod';
-import { redis } from '$lib/server/redis';
-import { log } from '$lib/server/logger';
+import { consumeResetToken } from '$lib/server/emailToken';
+import { hapusSemuaSesiUser } from '$lib/server/session';
 
 const resetSchema = z.object({
     token: z.string().min(1),
@@ -38,19 +38,19 @@ export async function POST({ request }) {
     }
 
     const { token, password } = parsed.data;
-    let stored;
+    // Token sekali pakai yang sama dengan alur web (dibuat oleh /api/auth/forgot-password)
+    let userId = null;
     try {
-        if (!redis) throw new Error('Redis tidak tersedia');
-        const raw = await redis.get(`pwdreset:${token}`);
-        if (!raw) return apiError('Token reset tidak valid atau kadaluarsa', 400, 'INVALID_TOKEN');
-        stored = JSON.parse(raw);
+        userId = await consumeResetToken(token);
     } catch {
-        return apiError('Token reset tidak valid', 400, 'INVALID_TOKEN');
+        userId = null;
     }
+    if (!userId) return apiError('Token reset tidak valid atau kadaluarsa', 400, 'INVALID_TOKEN');
 
     const hashed = await argon2.hash(password);
-    await db.update(users).set({ password: hashed }).where(eq(users.id, stored.userId));
-    await redis.del(`pwdreset:${token}`);
+    await db.update(users).set({ password: hashed }).where(eq(users.id, userId));
+    // Password berubah → semua sesi lama (mungkin dipegang orang lain) diakhiri
+    await hapusSemuaSesiUser(userId);
 
     return apiSuccess(null, 'Password berhasil direset');
 }

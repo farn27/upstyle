@@ -9,6 +9,7 @@ import { redis } from '$lib/server/redis';
 import { guardUnitApiApp } from '$lib/server/apiUnitGuard';
 import { bacaKunciIdempoten, mulaiIdempoten, selesaiIdempoten } from '$lib/server/idempotency';
 import { log } from '$lib/server/logger';
+import { peranDiizinkan } from '$lib/server/rbac';
 
 const PROTECTED_PATHS = [
 	'/finance',
@@ -32,7 +33,10 @@ const SECURITY_HEADERS = {
 	'X-XSS-Protection': '1; mode=block',
 	'Referrer-Policy': 'strict-origin-when-cross-origin',
 	'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-	'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
+	'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+	// CSP minimal yang tidak mengganggu script/style yang ada: larang plugin (<object>),
+	// cegah <base> disuntik, dan larang halaman di-iframe situs lain (clickjacking).
+	'Content-Security-Policy': "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 };
 
 function getAllowedOrigins() {
@@ -67,16 +71,6 @@ function resolveCorsOrigin(requestOrigin) {
 
 	return null;
 }
-
-const rolePermissions = {
-	CASHIER: [],
-	STAFF: [],
-	MANAGER: ['.*'],
-	ADMIN: ['.*'],
-	OWNER: ['.*'],
-	USER: ['.*'],
-	FREE: ['.*']
-};
 
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
@@ -159,8 +153,7 @@ export async function handle({ event, resolve }) {
 	// RBAC Check for authenticated users
 	if (isProtected && event.locals.user) {
 		const userRole = event.locals.user.role?.toUpperCase() || 'STAFF';
-		const allowedPatterns = rolePermissions[userRole] || rolePermissions['STAFF'];
-		const isAllowed = allowedPatterns.some(pattern => new RegExp(pattern).test(pathname));
+		const isAllowed = peranDiizinkan(userRole, pathname);
 
 		if (!isAllowed) {
 			if (pathname.startsWith('/api') || event.request.method !== 'GET') {

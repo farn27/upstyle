@@ -8,6 +8,7 @@ import { Groq } from 'groq-sdk';
 import { env } from '$env/dynamic/private';
 import { isiCoaStandar, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 
 function getGroqClient() {
     if (!env.GROQ_API_KEY) {
@@ -177,6 +178,8 @@ export const actions = {
     generateAiCoa: async ({ request, params, cookies }) => {
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { message: 'Unauthorized' });
+        const kuota = await cekKuotaAI(userId);
+        if (!kuota.allowed) return fail(429, { message: kuota.pesan });
 
         const { slug } = params;
         const formData = await request.formData();

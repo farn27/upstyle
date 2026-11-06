@@ -6,7 +6,8 @@ import { pusherServer } from '$lib/server/pusher';
 import { log } from '$lib/server/logger';
 import { redis } from '$lib/server/redis';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { nowWIB } from '$lib/server/dateUtils';
+import { cekBatasUnit } from '$lib/server/planLimits';
+import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 
 export async function load({ cookies }) {
     const userId = await getCurrentUserId(cookies);
@@ -46,6 +47,9 @@ export const actions = {
         if (!nama_unit?.trim()) throw error(400, 'Nama unit wajib diisi');
         if (!alamat?.trim()) throw error(400, 'Alamat wajib diisi');
         if (!is_cabang && !kategori) throw error(400, 'Kategori harus dipilih');
+
+        const batas = await cekBatasUnit(db, userId);
+        if (!batas.boleh) throw error(403, batas.pesan);
 
         // 2. Generate slug
         const slug = nama_unit.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -147,7 +151,7 @@ await pusherServer.trigger(`unit-${unitId}`, 'notification', {
     kategori: 'Unit Bisnis',
     link: linkSorot,
     tipe: 'success',
-    waktu: nowWIB().toISOString()
+    waktu: nowSqlWIB()
 });
 
 // --- 3. BERSIHKAN CACHE REDIS ---

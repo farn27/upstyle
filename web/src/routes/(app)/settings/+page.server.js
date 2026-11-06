@@ -3,6 +3,8 @@ import { db } from '$lib/server/drizzle';
 import { users, unitBisnis } from '$lib/server/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { cekBatasUnit } from '$lib/server/planLimits';
+import { hapusSemuaSesiUser } from '$lib/server/session';
 import argon2 from 'argon2';
 import { z } from 'zod';
 import { log } from '$lib/server/logger';
@@ -156,6 +158,8 @@ export const actions = {
 
 			const newHash = await argon2.hash(parsed.data.newPassword);
 			await db.update(users).set({ password: newHash }).where(eq(users.id, userId));
+			// Akhiri sesi di perangkat lain; sesi yang sedang dipakai tetap jalan
+			await hapusSemuaSesiUser(userId, { kecuali: cookies.get('session_id') });
 
 			return { passwordSuccess: true, message: 'Password berhasil diubah' };
 		} catch (err) {
@@ -183,6 +187,8 @@ export const actions = {
 		}
 
 		const { namaUnit, kategori, alamat, telepon, modalAwal } = parsed.data;
+		const batas = await cekBatasUnit(db, userId);
+		if (!batas.boleh) return fail(403, { message: batas.pesan });
 		const slug = generateSlug(namaUnit);
 
 		try {
