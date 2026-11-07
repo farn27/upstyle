@@ -42,6 +42,21 @@ private fun tujuanNotif(n: RiwayatAksi): Screen? {
         "hr" in t || "karyawan" in t || "absensi" in t || "payroll" in t -> Screen.Hr
         "order" in t || "pesanan" in t -> Screen.Orders
         "billing" in t || "langganan" in t -> Screen.SubscriptionPlans
+        "jurnal" in t -> Screen.JurnalUmum
+        "buku-besar" in t -> Screen.BukuBesar
+        "laporan" in t -> Screen.Laporan
+        "anggaran" in t || "budget" in t -> Screen.Budget
+        "pajak" in t || "tax" in t -> Screen.TaxRates
+        "aset" in t || "asset" in t -> Screen.FixedAssets
+        "coa" in t || "master-data" in t -> Screen.Coa
+        "tutup-buku" in t || "closing" in t -> Screen.ClosingPeriod
+        "planning" in t || "business-plan" in t -> Screen.BusinessPlan
+        "marketing" in t || "campaign" in t -> Screen.Marketing
+        "sosmed" in t -> Screen.Sosmed
+        "website" in t -> Screen.WebsiteBuilder
+        "katalog" in t -> Screen.Katalog
+        "tiket" in t || "ticket" in t || "/cs" in t -> Screen.Cs
+        "settings" in t || "pengaturan" in t -> Screen.Settings
         "finance" in t || "keuangan" in t || "transaksi" in t || "history" in t -> Screen.Finance
         else -> null
     }
@@ -83,6 +98,9 @@ private fun waktuNotif(raw: String): Pair<LocalDate?, String> {
 @Composable
 fun NotificationScreen(viewModel: AppViewModel) {
     val semua by viewModel.notifications.collectAsState()
+    val adaLagi by viewModel.notifAdaLagi.collectAsState()
+    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
+    val unitAktif by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var kategori by remember { mutableStateOf<String?>(null) }
     var hanyaBelumDibaca by remember { mutableStateOf(false) }
@@ -156,10 +174,21 @@ fun NotificationScreen(viewModel: AppViewModel) {
                             )
                         }
                         itemsIndexed(isi, key = { _, n -> n.id }) { i, n ->
-                            NotifRow(n, Modifier.padding(horizontal = 14.dp).animateItem().enterAnimation(i)) {
+                            NotifRow(n, units.size > 1, Modifier.padding(horizontal = 14.dp).animateItem().enterAnimation(i)) {
                                 if (n.isRead == 0) viewModel.markNotifRead(n.id)
-                                tujuanNotif(n)?.let { viewModel.navigate(it) }
+                                tujuanNotif(n)?.let { tujuan ->
+                                    // Buka dalam konteks unit asal notifikasi
+                                    if (n.unitId != 0 && n.unitId != unitAktif?.id) viewModel.selectUnit(n.unitId)
+                                    viewModel.navigate(tujuan)
+                                }
                             }
+                        }
+                    }
+                }
+                if (adaLagi && kategori == null && !hanyaBelumDibaca) {
+                    item(key = "muat-lagi") {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            TextButton(onClick = { viewModel.loadMoreNotifications() }) { Text("Muat notifikasi lebih lama") }
                         }
                     }
                 }
@@ -169,7 +198,7 @@ fun NotificationScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-private fun NotifRow(n: RiwayatAksi, modifier: Modifier, onClick: () -> Unit) {
+private fun NotifRow(n: RiwayatAksi, tampilUnit: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val (ikon, warna) = gayaNotif(n)
     val baru = n.isRead == 0
     Row(
@@ -197,7 +226,10 @@ private fun NotifRow(n: RiwayatAksi, modifier: Modifier, onClick: () -> Unit) {
                     StatusChip(n.kategori, warna)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(waktuNotif(n.waktu).second, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    listOfNotNull(n.unitNama.takeIf { tampilUnit && it.isNotBlank() }, waktuNotif(n.waktu).second.takeIf { it.isNotBlank() }).joinToString(" • "),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1
+                )
             }
         }
         if (baru) {

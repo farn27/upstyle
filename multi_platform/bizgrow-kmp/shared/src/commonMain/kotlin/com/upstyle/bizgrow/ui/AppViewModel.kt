@@ -330,9 +330,8 @@ class AppViewModel(
     private val _notifications = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>>(emptyList())
     val notifications: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>> = _notifications.asStateFlow()
     fun markAllRead() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
         try {
-            api.markAllNotificationsRead(unitId)
+            api.markAllNotificationsRead()
             loadNotifications()
         } catch (e: Exception) { Napier.e("markAllRead error", e) }
     }
@@ -2528,16 +2527,33 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadLowStock error", e) }
     }
 
+    private val _notifAdaLagi = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val notifAdaLagi: kotlinx.coroutines.flow.StateFlow<Boolean> = _notifAdaLagi.asStateFlow()
+
+    /** Muat notifikasi terbaru semua unit (halaman pertama). */
     fun loadNotifications() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
         try {
-            val res = api.getNotifications(unitId)
+            val res = api.getNotifications(limit = 30)
             if (res.success) {
-                _notifications.value = res.data ?: emptyList()
-                _unreadCount.value = res.data?.count { it.isRead == 0 } ?: 0
+                val data = res.data ?: emptyList()
+                _notifications.value = data
+                _notifAdaLagi.value = data.size >= 30
+                _unreadCount.value = data.count { it.isRead == 0 }
             }
         } catch (e: Exception) { Napier.e("loadNotifications error", e) }
+    }
+
+    /** Halaman berikutnya (id lebih kecil dari yang sudah dimuat). */
+    fun loadMoreNotifications() = viewModelScope.launch {
+        val terakhir = _notifications.value.minOfOrNull { it.id } ?: return@launch
+        try {
+            val res = api.getNotifications(limit = 30, before = terakhir)
+            if (res.success) {
+                val tambahan = res.data ?: emptyList()
+                _notifications.value = (_notifications.value + tambahan).distinctBy { it.id }
+                _notifAdaLagi.value = tambahan.size >= 30
+            }
+        } catch (e: Exception) { Napier.e("loadMoreNotifications error", e) }
     }
     fun logout() = viewModelScope.launch {
         session.clearSession()

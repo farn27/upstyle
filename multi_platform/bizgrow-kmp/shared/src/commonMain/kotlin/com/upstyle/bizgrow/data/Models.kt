@@ -122,7 +122,9 @@ data class RiwayatAksi(
     val waktu: String = "",
     val kategori: String = "",
     val isRead: Int = 0,
-    val link: String? = null
+    val link: String? = null,
+    /** Nama unit asal notifikasi (daftar notifikasi lintas unit). */
+    val unitNama: String = ""
 )
 
 @Serializable

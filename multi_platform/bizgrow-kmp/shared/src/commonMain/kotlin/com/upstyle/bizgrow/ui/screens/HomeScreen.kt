@@ -128,7 +128,7 @@ fun HomeScreen(viewModel: AppViewModel) {
         }
     }
 
-    LaunchedEffect(Unit) { viewModel.loadUnits() }
+    LaunchedEffect(Unit) { viewModel.loadUnits(); viewModel.loadNotifications() }
 
     val tampil = remember(units, query) {
         val q = query.trim().lowercase()

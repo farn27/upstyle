@@ -53,7 +53,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
     // Pengganti realtime web: perbarui angka dashboard tiap menit selama layar terbuka
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); viewModel.loadDashboard() } }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); viewModel.loadDashboard(); viewModel.loadNotifications() } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

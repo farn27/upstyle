@@ -409,19 +409,18 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Notifications ────────────────────────────────────────────────────────
 
-    suspend fun getNotifications(unitId: Int, limit: Int = 30): ApiResponse<List<RiwayatAksi>> =
+    /** Notifikasi semua unit milik user (seperti lonceng web); [before] = id terkecil yang sudah dimuat. */
+    suspend fun getNotifications(limit: Int = 30, before: Int? = null): ApiResponse<List<RiwayatAksi>> =
         client.get("api/app/notifications") {
-            parameter("unitId", unitId)
             parameter("limit", limit)
+            before?.let { parameter("before", it) }
         }.body()
 
     suspend fun markNotificationRead(notifId: Int): ApiResponse<Unit> =
         client.put("api/app/notifications/$notifId/read").body()
 
-    suspend fun markAllNotificationsRead(unitId: Int): ApiResponse<Unit> =
-        client.put("api/app/notifications/read-all") {
-            parameter("unitId", unitId)
-        }.body()
+    suspend fun markAllNotificationsRead(): ApiResponse<Unit> =
+        client.put("api/app/notifications/read-all").body()
 
     // ─── AI Chat ──────────────────────────────────────────────────────────────
 
