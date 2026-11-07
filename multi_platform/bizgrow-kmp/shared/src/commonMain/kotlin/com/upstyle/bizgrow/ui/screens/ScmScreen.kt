@@ -1,261 +1,284 @@
 package com.upstyle.bizgrow.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.collectAsState
-import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.data.PurchaseOrder
+import com.upstyle.bizgrow.data.Supplier
 import com.upstyle.bizgrow.ui.AppViewModel
-import com.upstyle.bizgrow.ui.Screen
-import com.upstyle.bizgrow.ui.components.*
-import com.upstyle.bizgrow.ui.currentTimeMillis
+import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
+private fun statusPo(s: String): Pair<String, Color> = when (s.uppercase()) {
+    "DRAFT" -> "Draft" to Color(0xFF64748B)
+    "SENT", "ORDERED" -> "Dikirim" to BizgrowColors.Info
+    "PARTIAL" -> "Diterima sebagian" to BizgrowColors.Warning
+    "RECEIVED" -> "Diterima" to BizgrowColors.Success
+    "CLOSED" -> "Selesai" to BizgrowColors.Success
+    "CANCELLED" -> "Dibatalkan" to BizgrowColors.Danger
+    else -> s to BizgrowColors.Primary
+}
+
+/** Modul Pengadaan: supplier & purchase order (terima barang menambah stok). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScmScreen(viewModel: AppViewModel) {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Supplier", "Purchase Orders")
-    val scmData by viewModel.scmData.collectAsState(initial = viewModel.scmData.value)
+    val scm by viewModel.scmData.collectAsState(initial = viewModel.scmData.value)
     val products by viewModel.products.collectAsState(initial = viewModel.products.value)
-    var showAddSupplier by remember { mutableStateOf(false) }
-    var showAddPo by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(0) }
+    var showPo by remember { mutableStateOf(false) }
+    var showSupplier by remember { mutableStateOf(false) }
+    var konfirmasi by remember { mutableStateOf<Pair<PurchaseOrder, String>?>(null) }
+    var filter by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadScmData(); viewModel.loadProducts() }
+    val pos = scm?.purchaseOrders.orEmpty()
+    val suppliers = scm?.suppliers.orEmpty()
+    val terbuka = pos.filter { it.status.uppercase() in setOf("DRAFT", "SENT", "ORDERED", "PARTIAL") }
+    val tampilPo = if (filter == null) pos else pos.filter { statusPo(it.status).first == filter }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Column {
-                    Text("SCM & Supplier", fontWeight = FontWeight.Bold)
-                    Text("${scmData?.suppliers?.size ?: 0} supplier terdaftar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }},
-                navigationIcon = { IconButton(onClick = { viewModel.navigateBack() }) { Icon(Icons.Default.ArrowBack, null) } }
-            )
-        },
+    BizScreen(
+        "Pengadaan",
+        subtitle = "Supplier & purchase order",
+        onBack = { viewModel.navigateBack() },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { if (selectedTab == 0) showAddSupplier = true else showAddPo = true },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text(if (selectedTab == 0) "Tambah Supplier" else "Buat PO") }
+                onClick = { if (tab == 0) showPo = true else showSupplier = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(18.dp),
+                icon = { Icon(Icons.Rounded.Add, null) },
+                text = { Text(if (tab == 0) "Buat PO" else "Supplier") }
             )
-        },
-        bottomBar = { BottomNavBar(viewModel, Screen.Scm) }
+        }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-
-            // Summary
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Supplier", "${scmData?.suppliers?.size ?: 0}", icon = Icons.Default.LocalShipping, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
-                StatCard("PO Pending", "${scmData?.purchaseOrders?.count { it.status == "DRAFT" || it.status == "SENT" } ?: 0}", icon = Icons.Default.ShoppingBag, gradient = BizgrowColors.GradWarning, modifier = Modifier.weight(1f))
-            }
-
-            TabRow(selectedTabIndex = selectedTab) {
-                tabs.forEachIndexed { i, t -> Tab(selected = selectedTab == i, onClick = { selectedTab = i }, text = { Text(t) }) }
-            }
-
-            when (selectedTab) {
-                0 -> SupplierTab(scmData?.suppliers ?: emptyList())
-                1 -> PurchaseOrderTab(scmData?.purchaseOrders ?: emptyList(), onUpdateStatus = { id, status -> viewModel.updatePoStatus(id, status) })
-            }
-        }
-    }
-
-    if (showAddSupplier) AddSupplierSheet(onDismiss = { showAddSupplier = false }) { name, contact, phone, email, category, address ->
-        viewModel.createSupplier(name, contact, phone, email, category, address)
-        showAddSupplier = false
-    }
-
-    if (showAddPo) AddPurchaseOrderSheet(
-        suppliers = scmData?.suppliers ?: emptyList(),
-        products = products,
-        onDismiss = { showAddPo = false }
-    ) { poNumber, supplierId, productId, qty, unitCost, totalAmount ->
-        val unitId = viewModel.activeUnitId.value
-        // viewModel.createPurchaseOrder(...)
-        showAddPo = false
-    }
-}
-
-@Composable
-fun SupplierTab(suppliers: List<Supplier>) {
-    if (suppliers.isEmpty()) { EmptyState(Icons.Default.LocalShipping, "Belum ada supplier", "Tambah supplier pertama"); return }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(suppliers, key = { it.id }) { supplier ->
-            BizCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(46.dp).clip(CircleShape)
-                            .background(Brush.linearGradient(BizgrowColors.GradPrimary)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(supplier.name.first().toString(), color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(supplier.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(supplier.category.ifEmpty { "Umum" }, style = MaterialTheme.typography.labelMedium, color = BizgrowColors.Primary)
-                        if (supplier.phone.isNotEmpty()) Text(supplier.phone, style = MaterialTheme.typography.bodySmall)
-                        if (supplier.contactName.isNotEmpty()) Text("Contact: ${supplier.contactName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                if (supplier.address.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    InfoRow("Alamat", supplier.address, Icons.Default.LocationOn)
-                }
-                if (supplier.email.isNotEmpty()) {
-                    InfoRow("Email", supplier.email, Icons.Default.Email)
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp)) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 14.dp)) {
+                    StatTile("PO terbuka", "${terbuka.size}", Icons.Rounded.PendingActions, BizgrowColors.Warning, Modifier.weight(1f))
+                    StatTile("Nilai terbuka", terbuka.sumOf { it.totalAmount }.rupiahRingkas(), Icons.Rounded.Payments, BizgrowColors.Primary, Modifier.weight(1f))
+                    StatTile("Supplier", "${suppliers.size}", Icons.Rounded.Storefront, BizgrowColors.Success, Modifier.weight(1f))
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun PurchaseOrderTab(orders: List<PurchaseOrder>, onUpdateStatus: (String, String) -> Unit) {
-    if (orders.isEmpty()) { EmptyState(Icons.Default.ShoppingBag, "Belum ada purchase order"); return }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(orders, key = { it.id }) { po ->
-            BizCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(po.poNumber, fontWeight = FontWeight.Bold)
-                        Text("${po.supplierName} · ${po.productName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${po.qty}x @ ${po.unitCost.toRupiah()}", style = MaterialTheme.typography.bodySmall)
-                        Text(po.totalAmount.toRupiah(), fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
-                    }
-                    StatusBadge(po.status)
-                }
-                if (po.status != "RECEIVED" && po.status != "CANCELLED") {
-                    Spacer(Modifier.height(10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val nextStatuses = when (po.status) {
-                            "DRAFT" -> listOf("SENT")
-                            "SENT" -> listOf("RECEIVED")
-                            else -> emptyList()
-                        }
-                        items(nextStatuses) { next ->
-                            OutlinedButton(onClick = { onUpdateStatus(po.id, next) }, shape = RoundedCornerShape(10.dp)) {
-                                Icon(Icons.Default.ArrowForward, null, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Ubah ke $next", style = MaterialTheme.typography.labelSmall)
-                            }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(4.dp)
+                ) {
+                    listOf("Purchase order", "Supplier").forEachIndexed { i, label ->
+                        val aktif = tab == i
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                .background(if (aktif) MaterialTheme.colorScheme.surface else Color.Transparent)
+                                .pressClick { tab = i }.padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelLarge, color = if (aktif) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (tab == 0) {
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                        item { FilterPill("Semua", filter == null, { filter = null }) }
+                        items(listOf("Draft", "Dikirim", "Diterima", "Dibatalkan")) { f -> FilterPill(f, filter == f, { filter = if (filter == f) null else f }) }
+                    }
+                }
+                if (tampilPo.isEmpty()) item {
+                    EmptyView("Belum ada purchase order", "Buat PO ke supplier. Saat barang diterima, stok bertambah otomatis.", Icons.Rounded.LocalShipping, "Buat PO", { showPo = true })
+                }
+                itemsIndexed(tampilPo, key = { _, po -> po.id }) { i, po ->
+                    PoCard(po, Modifier.padding(vertical = 5.dp).enterAnimation(i)) { aksi -> konfirmasi = po to aksi }
+                }
+            } else {
+                if (suppliers.isEmpty()) item {
+                    EmptyView("Belum ada supplier", "Tambahkan pemasok barang agar bisa membuat purchase order.", Icons.Rounded.Storefront, "Tambah supplier", { showSupplier = true })
+                }
+                itemsIndexed(suppliers, key = { _, s -> s.id }) { i, s ->
+                    SupplierCard(s, Modifier.padding(vertical = 5.dp).enterAnimation(i)) { viewModel.deleteSupplier(s.id) }
+                }
+            }
+        }
+    }
+
+    if (showPo) {
+        ModalBottomSheet({ showPo = false }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            PoForm(suppliers, products.filter { it.status != "archived" }) { supplierId, productId, qty, harga ->
+                viewModel.createPurchaseOrder(supplierId, productId, qty, harga) { ok -> if (ok) showPo = false }
+            }
+        }
+    }
+    if (showSupplier) {
+        ModalBottomSheet({ showSupplier = false }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            SupplierForm { nama, kontak, telp, email, alamat ->
+                viewModel.createSupplier(nama, kontak, telp, email, "Umum", alamat)
+                showSupplier = false
+            }
+        }
+    }
+    konfirmasi?.let { (po, aksi) ->
+        val (judul, pesan) = when (aksi) {
+            "SENT" -> "Kirim PO ke supplier?" to "Status berubah menjadi Dikirim."
+            "RECEIVED" -> "Terima semua barang?" to "Stok ${po.productName} bertambah ${po.qty} dan harga pokok diperbarui."
+            else -> "Batalkan PO?" to "PO ${po.poNumber} tidak bisa diproses lagi."
+        }
+        AlertDialog(
+            onDismissRequest = { konfirmasi = null },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text(judul) },
+            text = { Text(pesan) },
+            confirmButton = { TextButton(onClick = { viewModel.updatePoStatus(po.id, aksi); konfirmasi = null }) { Text("Ya, lanjutkan") } },
+            dismissButton = { TextButton(onClick = { konfirmasi = null }) { Text("Batal") } }
+        )
+    }
+}
+
+@Composable
+private fun PoCard(po: PurchaseOrder, modifier: Modifier, onAksi: (String) -> Unit) {
+    val (label, warna) = statusPo(po.status)
+    BizSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Rounded.LocalShipping, warna)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(po.poNumber, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(po.supplierName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            StatusChip(label, warna)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(po.productName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${po.qty} × ${po.unitCost.rupiah()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(po.totalAmount.rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        val aksi = when (po.status.uppercase()) {
+            "DRAFT" -> listOf("SENT" to "Kirim", "CANCELLED" to "Batalkan")
+            "SENT", "ORDERED", "PARTIAL" -> listOf("RECEIVED" to "Terima semua", "CANCELLED" to "Batalkan")
+            else -> emptyList()
+        }
+        if (aksi.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                aksi.forEach { (kode, teks) ->
+                    if (kode == "CANCELLED") BizOutlineButton(teks, { onAksi(kode) }, tint = BizgrowColors.Danger, height = 42.dp, modifier = Modifier.weight(1f))
+                    else BizButton(teks, { onAksi(kode) }, height = 42.dp, icon = if (kode == "RECEIVED") Icons.Rounded.Inventory else Icons.Rounded.Send, modifier = Modifier.weight(1f))
+                }
             }
         }
     }
 }
 
-// ─── Sheets ───────────────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddSupplierSheet(onDismiss: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var contactName by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Tambah Supplier", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(name, { name = it }, label = { Text("Nama Supplier *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(contactName, { contactName = it }, label = { Text("Nama Kontak") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
+private fun SupplierCard(s: Supplier, modifier: Modifier, onHapus: () -> Unit) {
+    var tanya by remember { mutableStateOf(false) }
+    BizSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProductThumb(s.name, null, Modifier.size(44.dp), RoundedCornerShape(14.dp), fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(s.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(listOf(s.contactName, s.phone).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Tanpa kontak" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (s.address.isNotBlank()) Text(s.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-                OutlinedTextField(category, { category = it }, label = { Text("Kategori") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-            }
-            OutlinedTextField(address, { address = it }, label = { Text("Alamat") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-            Button(
-                onClick = { if (name.isNotBlank()) onSave(name, contactName, phone, email, category, address) },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
-            ) { Text("Simpan Supplier", fontWeight = FontWeight.Bold) }
+            IconButton(onClick = { tanya = true }) { Icon(Icons.Rounded.DeleteOutline, "Hapus", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+    }
+    if (tanya) {
+        AlertDialog(
+            onDismissRequest = { tanya = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Hapus ${s.name}?") },
+            text = { Text("Supplier yang sudah punya PO tidak bisa dihapus.") },
+            confirmButton = { TextButton(onClick = { tanya = false; onHapus() }) { Text("Hapus", color = BizgrowColors.Danger) } },
+            dismissButton = { TextButton(onClick = { tanya = false }) { Text("Batal") } }
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddPurchaseOrderSheet(
-    suppliers: List<Supplier>,
-    products: List<com.upstyle.bizgrow.data.Product>,
-    onDismiss: () -> Unit,
-    onSave: (String, String, String, Int, Double, Double) -> Unit
-) {
-    var selectedSupplierId by remember { mutableStateOf<String?>(null) }
-    var selectedProductId by remember { mutableStateOf<String?>(null) }
+private fun PoForm(suppliers: List<Supplier>, products: List<com.upstyle.bizgrow.data.Product>, onSimpan: (String, String, Int, Double) -> Unit) {
+    var supplier by remember { mutableStateOf(suppliers.firstOrNull()) }
+    var cari by remember { mutableStateOf("") }
+    var produk by remember { mutableStateOf<com.upstyle.bizgrow.data.Product?>(null) }
     var qty by remember { mutableStateOf("1") }
-    var unitCost by remember { mutableStateOf("") }
-    var expandedSupplier by remember { mutableStateOf(false) }
-    var expandedProduct by remember { mutableStateOf(false) }
-
-    val selectedSupplier = suppliers.find { it.id == selectedSupplierId }
-    val selectedProduct = products.find { it.id == selectedProductId }
-    val total = (qty.toIntOrNull() ?: 0) * (unitCost.toDoubleOrNull() ?: 0.0)
-    val poNumber = "PO-${currentTimeMillis().toString().takeLast(6)}"
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Buat Purchase Order", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("No PO: $poNumber", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            ExposedDropdownMenuBox(expandedSupplier, { expandedSupplier = it }) {
-                OutlinedTextField(selectedSupplier?.name ?: "Pilih Supplier", {}, readOnly = true, label = { Text("Supplier *") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedSupplier) }, modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-                ExposedDropdownMenu(expandedSupplier, { expandedSupplier = false }) {
-                    suppliers.forEach { s -> DropdownMenuItem(text = { Text(s.name) }, onClick = { selectedSupplierId = s.id; expandedSupplier = false }) }
+    var harga by remember { mutableStateOf("") }
+    val uiQty = qty.toIntOrNull() ?: 0
+    val uiHarga = harga.toDoubleOrNull() ?: 0.0
+    Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Purchase order baru", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        if (suppliers.isEmpty()) {
+            Text("Tambahkan supplier terlebih dahulu.", color = BizgrowColors.Danger)
+        } else {
+        Text("Supplier", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(suppliers) { s -> FilterPill(s.name, supplier?.id == s.id, { supplier = s }) } }
+        Text("Barang", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+        if (produk == null) {
+            BizSearchField(cari, { cari = it }, "Cari barang (termasuk bahan baku)")
+            Column(Modifier.heightIn(max = 220.dp)) {
+                LazyColumn {
+                    items(products.filter { cari.isBlank() || it.nama.contains(cari, true) }.take(30), key = { it.id }) { p ->
+                        ListRow(p.nama, subtitle = "Stok ${p.stok} • beli ${p.hargaBeli.rupiah()}", icon = Icons.Rounded.Inventory2, tint = BizgrowColors.Warning, onClick = {
+                            produk = p; harga = p.hargaBeli.toLong().takeIf { it > 0 }?.toString() ?: ""
+                        })
+                    }
                 }
             }
-
-            ExposedDropdownMenuBox(expandedProduct, { expandedProduct = it }) {
-                OutlinedTextField(selectedProduct?.nama ?: "Pilih Produk", {}, readOnly = true, label = { Text("Produk *") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedProduct) }, modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-                ExposedDropdownMenu(expandedProduct, { expandedProduct = false }) {
-                    products.forEach { p -> DropdownMenuItem(text = { Column { Text(p.nama); Text(p.hargaBeli.toRupiah(), style = MaterialTheme.typography.bodySmall) } }, onClick = { selectedProductId = p.id; unitCost = p.hargaBeli.toString(); expandedProduct = false }) }
-                }
-            }
-
+        } else {
+            ListRow(produk!!.nama, subtitle = "Ketuk untuk ganti barang", icon = Icons.Rounded.Inventory2, tint = BizgrowColors.Warning, showChevron = true, onClick = { produk = null })
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(qty, { qty = it }, label = { Text("Qty") }, modifier = Modifier.weight(0.6f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(unitCost, { unitCost = it }, label = { Text("Harga Satuan") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                BizTextField(qty, { qty = it.filter(Char::isDigit) }, "Jumlah", Modifier.weight(1f), keyboardType = KeyboardType.Number)
+                BizTextField(harga, { harga = it.filter(Char::isDigit) }, "Harga beli satuan", Modifier.weight(1.4f), keyboardType = KeyboardType.Number)
             }
-
-            BizCard { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                Text("Total PO", fontWeight = FontWeight.SemiBold)
-                Text(total.toRupiah(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            }}
-
-            Button(
-                onClick = {
-                    if (selectedSupplierId != null && selectedProductId != null && qty.isNotBlank())
-                        onSave(poNumber, selectedSupplierId!!, selectedProductId!!, qty.toIntOrNull() ?: 1, unitCost.toDoubleOrNull() ?: 0.0, total)
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
-            ) { Text("Buat Purchase Order", fontWeight = FontWeight.Bold) }
+            Text("Total ${(uiQty * uiHarga).rupiah()}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         }
+        BizButton(
+            "Buat purchase order",
+            { onSimpan(supplier!!.id, produk!!.id, uiQty, uiHarga) },
+            enabled = supplier != null && produk != null && uiQty > 0 && uiHarga > 0,
+            icon = Icons.Rounded.Check,
+            modifier = Modifier.fillMaxWidth()
+        )
+        }
+    }
+}
+
+@Composable
+private fun SupplierForm(onSimpan: (String, String, String, String, String) -> Unit) {
+    var nama by remember { mutableStateOf("") }
+    var kontak by remember { mutableStateOf("") }
+    var telp by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var alamat by remember { mutableStateOf("") }
+    Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Supplier baru", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        BizTextField(nama, { nama = it }, "Nama supplier", leadingIcon = Icons.Rounded.Storefront)
+        BizTextField(kontak, { kontak = it }, "Nama kontak", leadingIcon = Icons.Rounded.Person)
+        BizTextField(telp, { telp = it }, "Telepon", leadingIcon = Icons.Rounded.Phone, keyboardType = KeyboardType.Phone)
+        BizTextField(email, { email = it }, "Email (opsional)", leadingIcon = Icons.Rounded.MailOutline, keyboardType = KeyboardType.Email)
+        BizTextField(alamat, { alamat = it }, "Alamat (opsional)", leadingIcon = Icons.Rounded.Place)
+        BizButton("Simpan supplier", { onSimpan(nama.trim(), kontak.trim(), telp.trim(), email.trim(), alamat.trim()) }, enabled = nama.isNotBlank(), icon = Icons.Rounded.Check, modifier = Modifier.fillMaxWidth())
     }
 }

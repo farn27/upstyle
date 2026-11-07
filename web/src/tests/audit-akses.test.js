@@ -318,6 +318,19 @@ describe.skipIf(!TEST_DB)('Audit: harga, isolasi unit, piutang, retur', () => {
 		}
 	});
 
+	it('Pengadaan mobile: PO dengan produk / supplier unit lain ditolak', async () => {
+		const scm = await import('../routes/api/app/scm/+server.js');
+		const [supA] = await db.insert(s.suppliers).values({ unitId: id.unitA, namaSupplier: 'Supplier A' });
+		const [supB] = await db.insert(s.suppliers).values({ unitId: id.unitB, namaSupplier: 'Supplier B' });
+		login.userId = id.userA;
+		const buat = (/** @type {any} */ po) => scm.POST({ request: req('POST', { action: 'create-po', po: { poNumber: `PO-T-${Date.now()}`, unitId: id.unitA, qty: 2, unitCost: 1000, ...po } }), cookies });
+		expect((await buat({ supplierId: supA.insertId, productId: id.pB })).status).toBe(404);
+		expect((await buat({ supplierId: supB.insertId, productId: id.pA })).status).toBe(404);
+		expect((await buat({ supplierId: supA.insertId, productId: id.pA, qty: -3 })).status).toBe(422);
+		const ok = await buat({ supplierId: supA.insertId, productId: id.pA });
+		expect(ok.status).toBe(200);
+	});
+
 	it('Batas paket: akun free maksimal 3 unit', async () => {
 		expect((await r.plan.cekBatasUnit(db, id.userA)).boleh).toBe(true);
 		id.unitTambahan = [];

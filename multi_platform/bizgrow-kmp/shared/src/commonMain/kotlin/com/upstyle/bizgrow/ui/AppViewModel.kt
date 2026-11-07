@@ -726,6 +726,14 @@ class AppViewModel(
         setSuccess("Offline: data disimpan di HP dan dikirim otomatis saat online")
     }
 
+    /** Isi antrean offline yang belum terkirim (untuk layar Sinkronisasi). */
+    fun daftarAntreanOffline(): List<com.upstyle.bizgrow.data.SyncQueueItem> = antreanOffline.getAll()
+    /** Data offline yang ditolak server (tidak akan dikirim ulang). */
+    fun daftarAntreanGagal(): List<com.upstyle.bizgrow.data.SyncQueueItem> = antreanOffline.getGagal()
+    fun hapusAntreanGagal() { antreanOffline.hapusGagal() }
+    /** true kalau sinkronisasi sedang berjalan */
+    val sedangSinkronOffline: Boolean get() = sedangSinkron
+
     /** Kirim antrean offline. Aman dipanggil kapan saja (berulang tidak membuat data dobel). */
     fun sinkronkanOffline() = viewModelScope.launch {
         if (sedangSinkron || antreanOffline.isEmpty()) return@launch
@@ -1141,10 +1149,35 @@ class AppViewModel(
     }
     fun updatePoStatus(poId: String, status: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
+        setLoading(true)
         try {
-            api.updatePoStatus(UpdatePoStatusRequest(poId, status, unitId))
-            loadScmData()
-        } catch (e: Exception) { Napier.e("updatePoStatus error", e) }
+            val res = api.updatePoStatus(UpdatePoStatusRequest(poId, status, unitId))
+            if (res.success) {
+                loadScmData()
+                if (status == "RECEIVED") loadProducts() // stok bertambah
+                setSuccess(res.message ?: "Status PO diperbarui")
+            } else setError(res.message ?: "Gagal mengubah status PO")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    /** Buat purchase order satu barang (API mobile /api/app/scm action create-po). */
+    fun createPurchaseOrder(supplierId: String, productId: String, qty: Int, unitCost: Double, onDone: (Boolean) -> Unit = {}) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        setLoading(true)
+        try {
+            val nomor = "PO-M${currentTimeMillis().toString().takeLast(8)}"
+            val res = api.createPurchaseOrder(CreatePoRequest(po = CreatePoBody(nomor, supplierId, productId, qty, unitCost, unitCost * qty, unitId)))
+            if (res.success) { loadScmData(); setSuccess("Purchase order $nomor dibuat"); onDone(true) }
+            else { setError(res.message ?: "Gagal membuat PO"); onDone(false) }
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onDone(false) }
+    }
+    fun deleteSupplier(supplierId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        setLoading(true)
+        try {
+            val res = api.deleteSupplier(supplierId, unitId)
+            if (res.success) { loadScmData(); setSuccess("Supplier dihapus") }
+            else setError(res.message ?: "Supplier tidak bisa dihapus")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun createSupplier(name: String, contactName: String, phone: String, email: String, category: String, address: String) = viewModelScope.launch {
         setLoading(true)

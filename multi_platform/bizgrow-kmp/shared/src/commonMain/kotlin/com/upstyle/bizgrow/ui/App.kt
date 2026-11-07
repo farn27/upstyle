@@ -186,6 +186,13 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Subscription & Billing
                     is Screen.SubscriptionPlans -> SubscriptionPlansScreen(viewModel)
                     is Screen.PlanUpgrade       -> PlanUpgradeScreen(viewModel)
+                    is Screen.InvoiceHistory    -> InvoiceHistoryScreen(viewModel)
+                    is Screen.UsageMetrics      -> UsageMetricsScreen(viewModel)
+
+                    // Produk lanjutan & sinkronisasi (dulu kosong)
+                    is Screen.ProductVariants   -> ProductVariantsScreen(viewModel, target.productId)
+                    is Screen.BulkOperations    -> BulkOperationsScreen(viewModel)
+                    is Screen.SyncStatus        -> SyncStatusScreen(viewModel)
 
                     // AI Features
                     is Screen.TransactionEntry -> TransactionEntryScreen(viewModel)
