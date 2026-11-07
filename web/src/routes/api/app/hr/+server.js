@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
 import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi, approvalRequests, shifts } from '$lib/server/schema';
 import { eq, and, desc, inArray, like, isNull, sql, gte } from 'drizzle-orm';
@@ -354,7 +355,7 @@ export async function POST({ request, cookies }) {
             const encryptedTaxId = encryptField(taxId || '', true); // Encrypt tax ID
             const encryptedBankAccount = encryptField(bankAccountNumber || '', true); // Encrypt bank account
             
-            const slug = `${fullName.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
+            const slug = await slugKaryawanUnik(db, fullName);
 
             const [result] = await db.insert(employees).values({
                 companyId: Number(unitId), 

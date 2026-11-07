@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
 import * as schema from '$lib/server/schema';
 import { eq, and, sql } from 'drizzle-orm';
@@ -102,7 +103,7 @@ export async function POST({ request, params, cookies }) {
         const pinHash = await hashEmployeePassword(pin);
 
         const slugKaryawan = slugify(fullName);
-        const finalSlug = `${slugKaryawan}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const finalSlug = await slugKaryawanUnik(db, slugKaryawan);
 
         await db.insert(schema.employees).values({
                 companyId: unitId,

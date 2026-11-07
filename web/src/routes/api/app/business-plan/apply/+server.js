@@ -14,6 +14,7 @@
  * 9. Budget awal (opsional)
  */
 import { json } from '@sveltejs/kit';
+import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
@@ -156,8 +157,7 @@ export async function POST({ request, cookies }) {
       for (const emp of empTemplates) {
         const pinHash = await hashEmployeePassword(emp.pin || '1234');
         const encryptedPin = encryptField(emp.pin || '1234', true);
-        const slug = emp.fullName.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
-          + '-' + Math.floor(1000 + Math.random() * 9000);
+        const slug = await slugKaryawanUnik(tx, emp.fullName);
         try {
           await tx.insert(employees).values({
             companyId: unitId, userId,
