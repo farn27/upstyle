@@ -188,10 +188,7 @@ export async function PUT({ request, cookies }) {
         }
 
         const deal = await db.query.crmDeals.findFirst({
-            where: eq(crmDeals.id, Number(dealId)),
-            with: {
-                crmContact: true
-            }
+            where: eq(crmDeals.id, Number(dealId))
         });
         if (!deal || !(await unitMilikUser(db, userId, deal.unitId))) {
             return json({ success: false, message: "Deal tidak ditemukan" }, { status: 404 });
@@ -212,7 +209,7 @@ export async function PUT({ request, cookies }) {
             await tx.insert(riwayatAksi).values({
                 userId,
                 unitId: deal.unitId,
-                pesan: `Deal ${deal.crmContact?.nama || 'Pelanggan'} (Rp ${String(deal.nilai || 0)}) diperbarui ke tahap: ${stage.toUpperCase()}`,
+                pesan: `Deal ${deal.namaDeal || 'Pelanggan'} (Rp ${String(deal.nilai || 0)}) diperbarui ke tahap: ${stage.toUpperCase()}`,
                 kategori: 'CRM',
                 tipe: stage.toUpperCase() === 'WON' ? 'success' : 'info'
             });

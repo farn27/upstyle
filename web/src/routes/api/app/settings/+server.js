@@ -8,6 +8,14 @@ import { log } from '$lib/server/logger';
 import { z } from 'zod';
 
 // GET /api/app/settings/profile
+/** Riwayat hanya dicatat bila user punya unit (FK unit_id); kegagalan log tidak boleh menggagalkan simpan. */
+async function catatRiwayat(userId, unitId, pesan) {
+    if (!unitId) return;
+    try {
+        await db.insert(riwayatAksi).values({ userId, unitId, pesan, kategori: 'SETTINGS', tipe: 'info' });
+    } catch (e) { console.error('catatRiwayat gagal', e?.message); }
+}
+
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return apiUnauthorized();
@@ -79,7 +87,7 @@ export async function PUT({ request, cookies }) {
 
             const existing = await db.query.users.findFirst({
                 where: eq(users.id, userId),
-                columns: { id: true, email: true }
+                columns: { id: true, email: true, companyId: true }
             });
             if (!existing) return apiUnauthorized('User tidak ditemukan');
 
@@ -89,13 +97,7 @@ export async function PUT({ request, cookies }) {
 
             await db.update(users).set(updateData).where(eq(users.id, userId));
 
-            await db.insert(riwayatAksi).values({
-                userId,
-                unitId: existing.companyId ?? 0,
-                pesan: 'Profil pengguna diperbarui',
-                kategori: 'SETTINGS',
-                tipe: 'info'
-            });
+            await catatRiwayat(userId, existing.companyId, 'Profil pengguna diperbarui');
 
             return apiSuccess({ message: 'Profil berhasil diperbarui' }, 'OK');
         }
@@ -114,7 +116,7 @@ export async function PUT({ request, cookies }) {
 
             const { currentPassword, newPassword } = parsed.data;
 
-            const [user] = await db.select({ id: true, password: true, companyId: true })
+            const [user] = await db.select({ id: users.id, password: users.password, companyId: users.companyId })
                	.from(users)
                	.where(eq(users.id, userId));
 
@@ -129,13 +131,7 @@ export async function PUT({ request, cookies }) {
                	.set({ password: newPassword })
                	.where(eq(users.id, userId));
 
-            await db.insert(riwayatAksi).values({
-                userId,
-                unitId: user.companyId ?? 0,
-                pesan: 'Kata sandi diubah',
-                kategori: 'SETTINGS',
-                tipe: 'info'
-            });
+            await catatRiwayat(userId, user.companyId, 'Kata sandi diubah');
 
             return apiSuccess({ message: 'Kata sandi berhasil diubah' }, 'OK');
         }

@@ -187,7 +187,8 @@ export async function PUT({ request, cookies }) {
         }
 
         if (action === 'validate-voucher') {
-            const { voucherCode, unitId, purchaseAmount } = body;
+            const { unitId, purchaseAmount } = body;
+            const voucherCode = body.voucherCode ?? body.code; // app mobile mengirim `code`
 
             if (!voucherCode || !unitId || purchaseAmount === undefined) {
                 return json({ success: false, message: 'voucherCode, unitId, dan purchaseAmount wajib diisi' }, { status: 400 });

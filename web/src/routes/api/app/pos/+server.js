@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { posOrders, posOrderItems, posCustomers, products, productVariants, transaksi, riwayatAksi, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees, vouchers } from '$lib/server/schema';
-import { eq, and, desc, isNull, sql } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { log } from '$lib/server/logger';
@@ -67,7 +67,7 @@ export async function GET({ url, cookies, request }) {
                 .from(posOrders)
                 .where(and(
                     eq(posOrders.unitId, Number(unitId)),
-                    isNull(posOrders.queueNumber).not(),
+                    isNotNull(posOrders.queueNumber),
                     sql`${posOrders.fulfillmentStatus} != 'COMPLETED'`
                 ))
                 .orderBy(posOrders.queueNumber);

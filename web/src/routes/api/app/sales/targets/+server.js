@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { salesTargets, salesCommissions, salesOrders, riwayatAksi, users } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
@@ -59,15 +59,14 @@ export async function GET({ url, cookies, request }) {
                             id: true,
                             namaLengkap: true
                         }
-                    },
-                    salesOrder: {
-                        columns: {
-                            orderNumber: true,
-                            totalAmount: true
-                        }
                     }
                 }
             });
+
+            // salesCommissions tidak punya relasi ke sales order: ambil nomor pesanan terpisah.
+            const soIds = [...new Set(commissions.map((c) => c.salesOrderId).filter(Boolean))];
+            const soList = soIds.length ? await db.select({ id: salesOrders.id, orderNumber: salesOrders.orderNumber }).from(salesOrders).where(inArray(salesOrders.id, soIds)) : [];
+            const soMap = new Map(soList.map((o) => [o.id, o.orderNumber]));
 
             return json({ 
                 success: true, 
@@ -75,7 +74,7 @@ export async function GET({ url, cookies, request }) {
                     id: c.id,
                     unitId: c.unitId,
                     salesOrderId: c.salesOrderId,
-                    orderNumber: c.salesOrder?.orderNumber || '',
+                    orderNumber: soMap.get(c.salesOrderId) || '',
                     userId: c.userId,
                     userName: c.user?.namaLengkap || 'User',
                     amount: Number(c.amount || 0),
@@ -157,7 +156,7 @@ export async function POST({ request, cookies }) {
                 action: z.literal('create-target'),
                 target: z.object({
                     unitId: z.coerce.number().int().positive(),
-                    targetUserId: z.coerce.number().int().positive(),
+                    targetUserId: z.coerce.number().int().positive().optional(),
                     targetAmount: z.coerce.number().min(0),
                     periodMonth: z.coerce.number().int().min(1).max(12),
                     periodYear: z.coerce.number().int().min(2020),
@@ -191,7 +190,9 @@ export async function POST({ request, cookies }) {
         // ──────────────────────────────────────────────────────────────────────
 
         if (action === 'create-target') {
-            const { unitId, targetUserId, targetAmount, periodMonth, periodYear, komisiPersen } = body.target;
+            const { unitId, targetAmount, periodMonth, periodYear, komisiPersen } = body.target;
+            // App mobile tidak memilih user: target dicatat atas nama pemilik yang login.
+            const targetUserId = body.target.targetUserId ?? userId;
 
             // Check if target already exists for this user and period
             const existing = await db.query.salesTargets.findFirst({
