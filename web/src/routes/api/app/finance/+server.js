@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { transaksi, riwayatAksi, unitBisnis } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines } from '$lib/server/schema';
+import { eq, and, desc, sql, lte, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { hitungSaldoKas, targetBulananOtomatis, labelMetodeBayar } from '$lib/financeDashboard';
 import { z } from 'zod';
 import { log } from '$lib/server/logger.js';
 import { catatTransaksi, pastikanCoaStandar, pilihAkunDefault, TransaksiError } from '$lib/server/catatTransaksi';
@@ -43,11 +44,35 @@ export async function GET({ url, cookies, request }) {
         });
         const modalAwal = Number(unit?.modalAwal || 10000000.0);
 
-        // Fetch transactions
-        const txList = await db.query.transaksi.findMany({
-            where: eq(transaksi.unitId, Number(unitId)),
-            orderBy: [desc(transaksi.id)]
-        });
+        // Rentang tanggal opsional (YYYY-MM-DD) — sama seperti filter periode di dashboard web
+        const mulai = url.searchParams.get('start');
+        const akhir = url.searchParams.get('end');
+        const tglValid = (v) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+        const adaRentang = tglValid(mulai) && tglValid(akhir);
+        let filterTrx = eq(transaksi.unitId, Number(unitId));
+        if (adaRentang) {
+            filterTrx = and(filterTrx, sql`DATE(${transaksi.tanggal}) >= ${mulai}`, sql`DATE(${transaksi.tanggal}) <= ${akhir}`);
+        }
+
+        // Fetch transactions (100 terbaru pada rentang yang dipilih)
+        const txList = await db.select().from(transaksi).where(filterTrx).orderBy(desc(transaksi.tanggal), desc(transaksi.id)).limit(100);
+
+        // metodeBayar dari form entry berisi ID akun kas → ambil nama akunnya
+        const idAkunKas = [...new Set(txList.map(t => String(t.metodeBayar || '')).filter(v => /^\d+$/.test(v)))];
+        const namaAkunById = {};
+        if (idAkunKas.length > 0) {
+            const akun = await db.select({ id: chartOfAccounts.id, namaAkun: chartOfAccounts.namaAkun })
+                .from(chartOfAccounts)
+                .where(and(eq(chartOfAccounts.unitId, Number(unitId)), inArray(chartOfAccounts.id, idAkunKas.map(Number))));
+            for (const a of akun) namaAkunById[String(a.id)] = a.namaAkun;
+        }
+
+        // ── Ringkasan periode (sama dengan dashboard web) ──
+        const [ringkas] = await db.select({
+            total_masuk: sql`COALESCE(SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            total_keluar: sql`COALESCE(SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%keluar%' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            total_hpp: sql`COALESCE(SUM(COALESCE(${transaksi.hppTotal}, 0)), 0)`
+        }).from(transaksi).where(filterTrx);
 
         // Fetch audit logs
         const logsList = await db.query.riwayatAksi.findMany({
@@ -68,7 +93,8 @@ export async function GET({ url, cookies, request }) {
             abcCategoryId: t.abcCategoryId || null,
             productId: t.productId || '',
             qty: Number(t.qty || 1),
-            hppTotal: Number(t.hppTotal || 0)
+            hppTotal: Number(t.hppTotal || 0),
+            metodeLabel: labelMetodeBayar(t.metodeBayar, namaAkunById)
         }));
 
         // Map audit logs to mobile DTO
@@ -82,8 +108,8 @@ export async function GET({ url, cookies, request }) {
         }));
 
         // Calculate BI metrics matching mobile logic
-        const totalMasuk = mappedTransactions.filter(t => t.kategoriTrx === 'MASUK').reduce((sum, t) => sum + t.nominal, 0);
-        const totalKeluar = mappedTransactions.filter(t => t.kategoriTrx === 'KELUAR').reduce((sum, t) => sum + t.nominal, 0);
+        const totalMasuk = Number(ringkas?.total_masuk || 0);
+        const totalKeluar = Number(ringkas?.total_keluar || 0);
         const netProfit = totalMasuk - totalKeluar;
         const margin = totalMasuk > 0 ? (netProfit / totalMasuk * 100) : 0.0;
         const efficiency = totalMasuk > 0 ? (totalKeluar / totalMasuk * 100) : 0.0;
@@ -116,12 +142,56 @@ export async function GET({ url, cookies, request }) {
             aiConfidence
         };
 
+        // Saldo kas = sepanjang waktu; KPI = bulan berjalan (WIB) — tidak ikut filter periode
+        const awalBulanIni = `${todayStrWIB().slice(0, 7)}-01`;
+        const [totalUnit] = await db.select({
+            masukSemua: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'MASUK' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            keluarSemua: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'KELUAR' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            masukBulanIni: sql`COALESCE(SUM(CASE WHEN ${transaksi.kategoriTrx} = 'MASUK' AND DATE(${transaksi.tanggal}) >= ${awalBulanIni} THEN ${transaksi.nominal} ELSE 0 END), 0)`
+        }).from(transaksi).where(eq(transaksi.unitId, Number(unitId)));
+
+        const summary = {
+            total_masuk: Number(ringkas?.total_masuk || 0),
+            total_keluar: Number(ringkas?.total_keluar || 0),
+            total_hpp: Number(ringkas?.total_hpp || 0),
+            saldoKas: hitungSaldoKas({ modalAwal: unit?.modalAwal, totalMasuk: totalUnit?.masukSemua, totalKeluar: totalUnit?.keluarSemua })
+        };
+
+        // Peringatan: stok menipis, piutang & hutang jatuh tempo
+        const produkUnit = await db.select({ id: products.id, nama: products.nama, stok: products.stok, minStok: products.minStok })
+            .from(products).where(eq(products.unitId, Number(unitId)));
+        const stokMenipis = produkUnit.filter(p => p.stok <= (p.minStok ?? 5));
+        const hariIni = todayStrWIB();
+        const piutangLewat = await db.select({ id: receivables.id }).from(receivables)
+            .where(and(eq(receivables.unitId, Number(unitId)), inArray(receivables.status, ['BELUM_BAYAR', 'SEBAGIAN']), lte(receivables.jatuhTempo, hariIni)));
+        const hutangLewat = await db.select({ id: payables.id }).from(payables)
+            .where(and(eq(payables.unitId, Number(unitId)), inArray(payables.status, ['BELUM_BAYAR', 'SEBAGIAN']), lte(payables.jatuhTempo, hariIni)));
+
+        // Rincian saldo kas & bank dari jurnal (double entry)
+        const bankRaw = await db.select({
+            namaAkun: chartOfAccounts.namaAkun,
+            kodeAkun: chartOfAccounts.kodeAkun,
+            totalDebit: sql`COALESCE(SUM(${journalEntryLines.debit}), 0)`,
+            totalKredit: sql`COALESCE(SUM(${journalEntryLines.kredit}), 0)`
+        })
+            .from(journalEntryLines)
+            .innerJoin(journalEntries, eq(journalEntryLines.journalId, journalEntries.id))
+            .innerJoin(chartOfAccounts, eq(journalEntryLines.coaId, chartOfAccounts.id))
+            .where(and(eq(journalEntries.unitId, Number(unitId)), eq(chartOfAccounts.tipeAkun, 'ASET_LANCAR')))
+            .groupBy(chartOfAccounts.id, chartOfAccounts.kodeAkun, chartOfAccounts.namaAkun);
+        const bankBalances = bankRaw.map(b => ({ nama: b.namaAkun, kode: b.kodeAkun, saldo: Number(b.totalDebit) - Number(b.totalKredit) }));
+
         return json({
             success: true,
             data: {
                 transactions: mappedTransactions,
                 riwayatAksi: mappedLogs,
-                biMetrics
+                biMetrics,
+                summary,
+                alerts: { receivables: piutangLewat.length, payables: hutangLewat.length, lowStock: stokMenipis.length },
+                lowStockItems: stokMenipis.slice(0, 20).map(p => ({ nama: p.nama, stok: p.stok })),
+                bankBalances,
+                kpi: { target: targetBulananOtomatis(unit?.modalAwal), current: Number(totalUnit?.masukBulanIni || 0) }
             }
         });
 

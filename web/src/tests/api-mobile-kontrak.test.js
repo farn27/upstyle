@@ -30,6 +30,7 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		r.katalog = await import('../routes/api/app/katalog/+server.js');
 		r.plan = await import('../routes/api/app/business-plan/+server.js');
 		r.marketing = await import('../routes/api/app/marketing/+server.js');
+		r.finance = await import('../routes/api/app/finance/+server.js');
 
 		const t = Date.now();
 		const [a] = await db.insert(s.users).values({ username: `ka${t}`, email: `ka${t}@contoh.id` });
@@ -77,6 +78,26 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		const body = await res.json();
 		expect(body.data.settings).toMatchObject({ unitId: id.unit, namaPortal: 'Toko Kontrak', totalProducts: 1, publishedProducts: 1 });
 		expect(body.data.products[0]).toMatchObject({ nama: 'Kopi', hargaJual: 2, isPublished: true, stok: 3 });
+	});
+
+	it('finance: dashboard mengirim summary, alerts, kpi, bankBalances & hormati rentang tanggal', async () => {
+		login.userId = id.user;
+		const tgl = new Date().toISOString().slice(0, 10);
+		await db.insert(s.transaksi).values({ unitId: id.unit, userId: id.user, kategoriTrx: 'MASUK', nominal: '300000', totalHarga: '300000', keterangan: 'JUAL', tanggal: `${tgl} 10:00:00`, metodeBayar: 'KAS' });
+		await db.insert(s.transaksi).values({ unitId: id.unit, userId: id.user, kategoriTrx: 'KELUAR', nominal: '100000', totalHarga: '100000', keterangan: 'BELI', tanggal: `${tgl} 11:00:00`, metodeBayar: 'KAS' });
+		const ambil = async (q) => (await (await r.finance.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const d = await ambil('');
+		expect(d.summary).toMatchObject({ total_masuk: 300000, total_keluar: 100000, saldoKas: 200000 });
+		expect(d.alerts).toMatchObject({ receivables: 0, payables: 0 });
+		expect(d.kpi.target).toBeGreaterThanOrEqual(10_000_000);
+		expect(d.kpi.current).toBe(300000);
+		expect(Array.isArray(d.bankBalances)).toBe(true);
+		expect(d.transactions[0]).toHaveProperty('metodeLabel');
+		// rentang di masa lalu → ringkasan 0, tetapi saldo kas tetap sepanjang waktu
+		const lama = await ambil('&start=2000-01-01&end=2000-01-02');
+		expect(lama.summary.total_masuk).toBe(0);
+		expect(lama.summary.saldoKas).toBe(200000);
+		expect(lama.transactions).toHaveLength(0);
 	});
 
 	it('business plan: daftar memuat deskripsi & ringkasan untuk app', async () => {

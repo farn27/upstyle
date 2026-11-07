@@ -108,7 +108,9 @@ data class Transaction(
     val abcCategoryId: Int? = null,
     val productId: String? = null,
     val qty: Int = 1,
-    val hppTotal: Double = 0.0
+    val hppTotal: Double = 0.0,
+    /** Nama akun kas/metode bayar yang sudah diterjemahkan server (mis. "Kas Tunai", "QRIS"). */
+    val metodeLabel: String? = null
 )
 
 @Serializable
@@ -152,7 +154,9 @@ data class FinanceData(
 data class FinanceSummary(
     @SerialName("total_masuk") val totalMasuk: Double = 0.0,
     @SerialName("total_keluar") val totalKeluar: Double = 0.0,
-    @SerialName("total_hpp") val totalHpp: Double = 0.0
+    @SerialName("total_hpp") val totalHpp: Double = 0.0,
+    /** Saldo kas sepanjang waktu (modal awal + masuk − keluar); tidak ikut filter periode. */
+    val saldoKas: Double? = null
 )
 
 @Serializable
@@ -174,6 +178,9 @@ data class FinanceKpi(
     val target: Double = 0.0,
     val current: Double = 0.0
 )
+
+/** Rentang periode dashboard — sama dengan preset web (zona WIB). */
+val PresetPeriode = listOf("Semua", "Hari Ini", "Kemarin", "7 Hari", "Bulan Ini")
 
 @Serializable
 data class CreateTransactionRequest(val transaction: TransactionBody)

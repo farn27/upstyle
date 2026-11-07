@@ -137,7 +137,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
                             val warna = if (masukT) BizgrowColors.Success else BizgrowColors.Danger
                             ListRow(
                                 title = t.keterangan.ifBlank { if (masukT) "Pemasukan" else "Pengeluaran" },
-                                subtitle = t.metodeBayar.takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let { "via $it" } ?: if (masukT) "Pemasukan" else "Pengeluaran",
+                                subtitle = (t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let { "via $it" } ?: if (masukT) "Pemasukan" else "Pengeluaran",
                                 icon = if (masukT) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
                                 tint = warna,
                                 modifier = Modifier.padding(horizontal = 16.dp).animateItem().enterAnimation(i),

@@ -48,6 +48,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
     val unread by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
     val dashState by viewModel.dashboardState.collectAsState(initial = viewModel.dashboardState.value)
     var sembunyi by remember { mutableStateOf(false) }
+    val periode by viewModel.periodeDashboard.collectAsState()
+    val metrik = remember(financeData, periode) { MetrikKinerja(financeData, periode == "Bulan Ini") }
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
 
@@ -84,9 +86,16 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 item {
                     PerluPerhatian(financeData, lowStock, viewModel, Modifier.enterAnimation(2))
                 }
+                item { PeriodeDashboard(viewModel, Modifier.padding(top = 16.dp, bottom = 12.dp)) }
+                item { RingkasanKinerja(metrik, sembunyi, Modifier.padding(horizontal = 20.dp)) }
+                item { BannerAnalisis(metrik, periode, Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
                 item {
                     ArusKasCard(financeData, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp).enterAnimation(3))
                 }
+                item { TargetBulanIni(financeData, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+                item { RiskAssessment(metrik, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+                item { TagihanJatuhTempo(financeData, viewModel, Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
+                item { StokMenipisCard(lowStock, { viewModel.navigate(Screen.Products) }, Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
                 val bank = financeData?.bankBalances.orEmpty()
                 if (bank.isNotEmpty()) {
                     item {
@@ -133,6 +142,11 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         TransaksiRow(t, sembunyi, Modifier.padding(horizontal = 16.dp).enterAnimation(i))
                     }
                 }
+                item { KalenderDeadline(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
+                item { KabarTerbaru(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
+                item { BizgrowAcademy(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
+                item { BantuanSistem(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+                item { AuditLogCard(financeData?.riwayatAksi.orEmpty(), Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) }
             }
         }
     }
@@ -408,7 +422,7 @@ private fun TransaksiRow(t: Transaction, sembunyi: Boolean, modifier: Modifier) 
     val tgl = tanggalTransaksi(t.tanggal)
     ListRow(
         title = t.keterangan.ifBlank { if (masuk) "Pemasukan" else "Pengeluaran" },
-        subtitle = listOfNotNull(tgl?.let { "${it.dayOfMonth} ${namaBulanPendek(it.monthNumber)}" }, t.metodeBayar.takeIf { it.isNotBlank() && it.toIntOrNull() == null }).joinToString(" • "),
+        subtitle = listOfNotNull(tgl?.let { "${it.dayOfMonth} ${namaBulanPendek(it.monthNumber)}" }, (t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null }).joinToString(" • "),
         icon = if (masuk) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
         tint = warna,
         modifier = modifier,
