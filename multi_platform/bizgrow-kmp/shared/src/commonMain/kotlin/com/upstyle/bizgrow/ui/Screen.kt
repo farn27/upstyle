@@ -32,6 +32,7 @@ sealed class Screen {
     object PosVouchers : Screen()
     object PosQueue : Screen()
     object PoDetail : Screen()
+    object EmployeeDetail : Screen()
     object CrmTasks : Screen()
     object Neraca : Screen()
     object Budget : Screen()

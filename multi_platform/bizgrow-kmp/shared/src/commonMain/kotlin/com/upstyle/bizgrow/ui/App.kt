@@ -171,6 +171,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.PosVouchers -> PosVouchersScreen(viewModel)
                     is Screen.PosQueue -> PosQueueScreen(viewModel)
                     is Screen.PoDetail -> PoDetailScreen(viewModel)
+                    is Screen.EmployeeDetail -> EmployeeDetailScreen(viewModel)
 
                     // Marketing / Katalog
                     is Screen.Katalog  -> KatalogScreen(viewModel)

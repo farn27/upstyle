@@ -96,9 +96,10 @@ fun HrScreen(viewModel: AppViewModel) {
                     },
                     onCheckOut = { id ->
                         viewModel.checkOut(id, todayDate(), currentTime())
-                    }
+                    },
+                    onDetail = { viewModel.bukaKaryawan(it) }
                 )
-                1 -> AttendanceTab(hrData?.attendance ?: emptyList())
+                1 -> AttendanceTab(hrData?.attendance ?: emptyList(), hrData?.employees ?: emptyList())
                 2 -> PayrollHistoryTab(hrData?.payroll ?: emptyList())
                 3 -> LeaveTab(hrData?.leaveRequests ?: emptyList())
             }
@@ -127,7 +128,8 @@ fun EmployeeTab(
     onToggle: (Int) -> Unit,
     onDelete: (Int) -> Unit,
     onCheckIn: (Int) -> Unit,
-    onCheckOut: (Int) -> Unit
+    onCheckOut: (Int) -> Unit,
+    onDetail: (Int) -> Unit = {}
 ) {
     if (employees.isEmpty()) { EmptyState(Icons.Default.People, "Belum ada karyawan", "Tambah karyawan pertama Anda"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -158,6 +160,8 @@ fun EmployeeTab(
                     InfoRow("Status Kerja", emp.employmentStatus ?: "-", Icons.Default.Work)
                     InfoRow("Tanggal Bergabung", emp.joinDate ?: "-", Icons.Default.CalendarToday)
                     Spacer(modifier = Modifier.height(12.dp))
+                    BizButton("Lihat profil lengkap", { onDetail(emp.id) }, Modifier.fillMaxWidth(), icon = Icons.Default.Person, height = 44.dp)
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onCheckIn(emp.id) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) {
                             Icon(Icons.Default.Login, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Check In")
@@ -176,7 +180,7 @@ fun EmployeeTab(
 }
 
 @Composable
-fun AttendanceTab(records: List<AttendanceRecord>) {
+fun AttendanceTab(records: List<AttendanceRecord>, employees: List<Employee> = emptyList()) {
     if (records.isEmpty()) { EmptyState(Icons.Default.AccessTime, "Belum ada data absensi", "Data absensi akan muncul di sini"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(records, key = { it.id }) { rec ->
@@ -193,7 +197,7 @@ fun AttendanceTab(records: List<AttendanceRecord>) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
+                        Text(employees.firstOrNull { it.id == rec.employeeId }?.fullName ?: "Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
                         Text("${rec.date}  ·  Masuk: ${rec.checkIn}${rec.checkOut?.let { "  Keluar: $it" } ?: ""}", style = MaterialTheme.typography.bodySmall)
                     }
                     StatusBadge(rec.status)

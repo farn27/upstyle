@@ -807,6 +807,26 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body()
 
+    suspend fun getHrDetail(employeeId: Int): ApiResponse<HrDetailData> =
+        client.get("api/app/hr/$employeeId").body()
+
+    suspend fun updateHrKaryawan(employeeId: Int, data: JsonObject): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/hr/$employeeId") { setBody(data) }.body())
+
+    suspend fun updateDepartmentName(departmentId: Int, unitId: Int, name: String): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/hr/departments") {
+            setBody(buildJsonObject { put("departmentId", departmentId); put("unitId", unitId); put("name", name) })
+        }.body())
+
+    suspend fun markPayrollPaid(unitId: Int, ids: List<Int>): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/hr/payroll") {
+            setBody(buildJsonObject {
+                put("action", "mark-paid")
+                put("unitId", unitId)
+                put("payrollIds", kotlinx.serialization.json.JsonArray(ids.map { kotlinx.serialization.json.JsonPrimitive(it) }))
+            })
+        }.body())
+
     suspend fun getCrmTasks(unitId: Int): ApiResponse<List<CrmTask>> =
         client.get("api/app/crm/tasks") { parameter("unitId", unitId) }.body()
 

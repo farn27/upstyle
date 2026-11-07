@@ -27,6 +27,7 @@ fun DepartmentsScreen(viewModel: AppViewModel) {
     val departments by viewModel.departments.collectAsState(initial = viewModel.departments.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var showCreateDialog by remember { mutableStateOf(false) }
+    var editDept by remember { mutableStateOf<com.upstyle.bizgrow.data.Department?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadDepartments()
@@ -66,13 +67,21 @@ fun DepartmentsScreen(viewModel: AppViewModel) {
                     items(departments, key = { it.id }) { department ->
                         DepartmentCard(
                             department = department,
-                            onEdit = { /* TODO: Implement edit */ },
+                            onEdit = { editDept = it },
                             onDelete = { viewModel.deleteDepartment(it) }
                         )
                     }
                 }
             }
         }
+    }
+
+    editDept?.let { d ->
+        var nama by remember(d) { mutableStateOf(d.name) }
+        com.upstyle.bizgrow.ui.design.FormSheet(
+            "Ubah departemen", onDismiss = { editDept = null }, simpanAktif = nama.isNotBlank(),
+            onSimpan = { viewModel.updateDepartmentName(d.id, nama.trim()); editDept = null }
+        ) { com.upstyle.bizgrow.ui.design.BizTextField(nama, { nama = it }, "Nama departemen") }
     }
 
     if (showCreateDialog) {

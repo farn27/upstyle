@@ -616,6 +616,44 @@ class AppViewModel(
             else setError(res.message ?: "Gagal tambah departemen")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    fun updateDepartmentName(id: Int, name: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateDepartmentName(id, unitId, name)
+            if (res.success) { loadDepartments(); setSuccess("Departemen diperbarui") } else setError(res.message ?: "Gagal ubah departemen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun tandaiPayrollLunas(ids: List<Int>) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (ids.isEmpty()) return@launch
+        setLoading(true)
+        try {
+            val res = api.markPayrollPaid(unitId, ids)
+            if (res.success) { loadHrData(); setSuccess("${ids.size} payroll ditandai lunas") } else setError(res.message ?: "Gagal menandai lunas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Detail karyawan ───
+    private val _hrDetail = MutableStateFlow<HrDetailData?>(null)
+    val hrDetail: StateFlow<HrDetailData?> = _hrDetail.asStateFlow()
+    private var karyawanDipilih = 0
+    fun bukaKaryawan(id: Int) { karyawanDipilih = id; _hrDetail.value = null; navigate(Screen.EmployeeDetail) }
+    fun loadHrDetail() = viewModelScope.launch {
+        if (karyawanDipilih == 0) return@launch
+        try {
+            val res = api.getHrDetail(karyawanDipilih)
+            if (res.success) _hrDetail.value = res.data else setError(res.message ?: "Gagal memuat karyawan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun simpanKaryawan(data: kotlinx.serialization.json.JsonObject) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updateHrKaryawan(karyawanDipilih, data)
+            if (res.success) { loadHrDetail(); loadHrData(); setSuccess("Data karyawan diperbarui") } else setError(res.message ?: "Gagal menyimpan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     private val _unreadCount = kotlinx.coroutines.flow.MutableStateFlow(0)
     val unreadCount: kotlinx.coroutines.flow.StateFlow<Int> = _unreadCount.asStateFlow()
     

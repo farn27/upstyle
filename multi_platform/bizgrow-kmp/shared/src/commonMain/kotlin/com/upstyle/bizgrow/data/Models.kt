@@ -2231,3 +2231,44 @@ data class PoDetail(
     val retur: List<PoRetur> = emptyList(),
     val akunKas: List<PoAkunKas> = emptyList()
 )
+
+// ─── Detail karyawan (api/app/hr/[employeeId]) ───────────────────────────────
+
+@Serializable
+data class HrKaryawan(
+    val id: Int = 0,
+    val fullName: String = "",
+    val position: String = "",
+    val salary: Double = 0.0,
+    val joinDate: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val division: String = "",
+    val status: String = "active",
+    val employmentStatus: String = "",
+    val contractStart: String = "",
+    val contractEnd: String = "",
+    val bankName: String = "",
+    val bankAccountNumber: String = "",
+    val address: String = "",
+    val emergencyContact: String = "",
+    val jobGrade: String = "",
+    val placementLocation: String = ""
+)
+
+@Serializable
+data class HrKpi(val id: Int = 0, val periodMonth: Int = 0, val periodYear: Int = 0, val score: Double = 0.0, val notes: String = "")
+
+@Serializable
+data class HrRiwayatJabatan(val id: Int = 0, val oldPosition: String = "", val newPosition: String = "", val changeDate: String = "", val reason: String = "")
+
+@Serializable
+data class HrDokumen(val id: Int = 0, val documentType: String = "", val fileName: String = "", val uploadedAt: String = "")
+
+@Serializable
+data class HrDetailData(
+    val employee: HrKaryawan = HrKaryawan(),
+    val kpis: List<HrKpi> = emptyList(),
+    val history: List<HrRiwayatJabatan> = emptyList(),
+    val documents: List<HrDokumen> = emptyList()
+)

@@ -43,7 +43,11 @@ fun PayrollScreen(viewModel: AppViewModel) {
     LaunchedEffect(Unit) { viewModel.loadHrData() }
 
     val payrollRecords = hrData?.payroll ?: emptyList()
-    val filteredRecords = payrollRecords.filter { it.monthYear.startsWith(selectedMonth) }
+    val filteredRecords = payrollRecords.filter { r ->
+        val (y, m) = selectedMonth.split("-").let { it[0].toInt() to it[1].toInt() }
+        r.periodYear == y && r.periodMonth == m
+    }
+    val belumLunas = filteredRecords.filter { !it.status.equals("DIBAYAR", true) && !it.status.equals("PAID", true) }
     val totalPayroll = filteredRecords.sumOf { it.netSalary }
     val employees = hrData?.employees ?: emptyList()
 
@@ -122,8 +126,14 @@ fun PayrollScreen(viewModel: AppViewModel) {
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (belumLunas.isNotEmpty()) item {
+                        com.upstyle.bizgrow.ui.design.BizButton(
+                            "Tandai semua lunas (${belumLunas.size})", { viewModel.tandaiPayrollLunas(belumLunas.map { it.id }) },
+                            Modifier.fillMaxWidth(), icon = Icons.Default.DoneAll, height = 46.dp
+                        )
+                    }
                     items(filteredRecords) { record ->
-                        PayrollRecordCard(record, employees)
+                        PayrollRecordCard(record, employees, onLunas = { viewModel.tandaiPayrollLunas(listOf(record.id)) })
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -275,9 +285,9 @@ fun ProcessPayrollSheet(
 }
 
 @Composable
-fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>) {
+fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>, onLunas: (() -> Unit)? = null) {
     val employee = employees.firstOrNull { it.id == record.employeeId }
-    val isPaid = record.status.equals("PAID", ignoreCase = true)
+    val isPaid = record.status.equals("PAID", ignoreCase = true) || record.status.equals("DIBAYAR", ignoreCase = true)
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -324,6 +334,12 @@ fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Gaji Bersih", fontWeight = FontWeight.Bold)
                 Text(formatCurrency(record.netSalary), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
+            }
+            if (!isPaid && onLunas != null) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = onLunas, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Default.CheckCircle, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Tandai lunas")
+                }
             }
         }
     }
