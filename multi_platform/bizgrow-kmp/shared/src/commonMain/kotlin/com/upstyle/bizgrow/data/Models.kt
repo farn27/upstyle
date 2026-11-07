@@ -1222,6 +1222,16 @@ data class PosFeatureOverride(
 // â”€â”€â”€ POS Shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Serializable
+data class UpdatePortalRequest(
+    val unitId: Int,
+    val generateNewSlug: Boolean,
+    val action: String
+)
+
+@Serializable
+data class PortalResult(val loginSlug: String = "", val portalPath: String = "")
+
+@Serializable
 data class UpdateUnitSettingsRequest(
     val unitId: Int,
     val action: String = "updateBusiness",

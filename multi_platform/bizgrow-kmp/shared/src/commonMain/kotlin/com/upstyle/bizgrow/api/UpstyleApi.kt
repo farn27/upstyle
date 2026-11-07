@@ -66,6 +66,12 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(req)
         }.body()
 
+    /** Link login staff: simpan (buat bila belum ada) atau buat ulang loginSlug. */
+    suspend fun updatePortal(unitId: Int, buatBaru: Boolean): ApiResponse<PortalResult> =
+        client.put("api/app/business") {
+            setBody(UpdatePortalRequest(unitId, buatBaru, "updatePortal"))
+        }.body()
+
     // ─── Finance ──────────────────────────────────────────────────────────────
 
     suspend fun getFinanceData(unitId: Int, startDate: String? = null, endDate: String? = null): ApiResponse<FinanceData> =

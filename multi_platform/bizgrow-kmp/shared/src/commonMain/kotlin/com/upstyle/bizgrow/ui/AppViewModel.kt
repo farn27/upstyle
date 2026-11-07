@@ -568,6 +568,18 @@ class AppViewModel(
             else setError(res.message ?: "Gagal simpan pengaturan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    /** Buat / buat ulang link login staff; hasilnya (loginSlug) dikirim ke [onSelesai]. */
+    fun updatePortal(unitId: Int, buatBaru: Boolean, onSelesai: (String) -> Unit = {}) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updatePortal(unitId, buatBaru)
+            if (res.success) {
+                loadUnits()
+                setSuccess(if (buatBaru) "Link login staff diperbarui" else "Link login staff dibuat")
+                onSelesai(res.data?.loginSlug ?: "")
+            } else setError(res.message ?: "Gagal memperbarui link login staff")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     fun deleteEmployee(employeeId: Int) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
