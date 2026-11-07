@@ -517,3 +517,63 @@ fun PosVouchersScreen(viewModel: AppViewModel) {
         KonfirmasiHapus("Nonaktifkan voucher?", "Kode ${v.code} tidak bisa dipakai lagi di kasir.", { viewModel.deletePosVoucher(v.id); hapus = null }, { hapus = null })
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Antrean & dapur (padanan pos/antrean di web)
+// ═══════════════════════════════════════════════════════════════════════════
+
+private val alurAntrean = listOf("PENDING" to "Menunggu", "PREPARING" to "Diproses", "READY" to "Siap diambil")
+
+@Composable
+fun PosQueueScreen(viewModel: AppViewModel) {
+    val antrean by viewModel.posQueue.collectAsState()
+    var filter by remember { mutableStateOf("SEMUA") }
+    // Segarkan otomatis tiap 15 detik selama layar terbuka
+    LaunchedEffect(Unit) {
+        while (true) { viewModel.loadPosQueue(); kotlinx.coroutines.delay(15_000) }
+    }
+    val tampil = antrean.filter { filter == "SEMUA" || it.fulfillmentStatus == filter }
+
+    BizScreen("Antrean & Dapur", subtitle = "${antrean.size} pesanan aktif", onBack = { viewModel.navigateBack() },
+        actions = { BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadPosQueue() }; Spacer(Modifier.width(8.dp)) }
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill("Semua (${antrean.size})", filter == "SEMUA", { filter = "SEMUA" })
+                alurAntrean.forEach { (k, l) -> FilterPill("$l (${antrean.count { it.fulfillmentStatus == k }})", filter == k, { filter = k }) }
+            }
+            if (tampil.isEmpty()) {
+                EmptyView("Tidak ada antrean", "Pesanan dengan nomor antrean dari kasir akan muncul di sini.", Icons.Rounded.SoupKitchen)
+            } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                itemsIndexed(tampil, key = { _, q -> q.id }) { i, q ->
+                    val (warna, langkah, labelLangkah) = when (q.fulfillmentStatus) {
+                        "PREPARING" -> Triple(BizgrowColors.Info, "READY", "Siap diambil")
+                        "READY" -> Triple(BizgrowColors.Success, "COMPLETED", "Selesaikan pesanan")
+                        else -> Triple(BizgrowColors.Warning, "PREPARING", "Mulai proses")
+                    }
+                    BizSurface(Modifier.fillMaxWidth().enterAnimation(i), contentPadding = PaddingValues(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)).background(warna.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                                Text(q.queueNumber, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = warna, maxLines = 1)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(q.orderNumber, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    listOfNotNull(
+                                        when (q.orderType) { "DINE_IN" -> "Dine in"; "DELIVERY" -> "Delivery"; else -> "Takeaway" },
+                                        q.tableNumber?.takeIf { it.isNotBlank() }?.let { "Meja $it" }
+                                    ).joinToString(" • "),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(q.total.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        BizButton(labelLangkah, onClick = { viewModel.ubahStatusAntrean(q.id, langkah) }, modifier = Modifier.fillMaxWidth(), height = 46.dp, colors = listOf(warna, warna.copy(alpha = 0.85f)))
+                    }
+                }
+            }
+        }
+    }
+}

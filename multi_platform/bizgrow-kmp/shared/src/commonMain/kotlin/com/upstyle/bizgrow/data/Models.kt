@@ -329,6 +329,7 @@ data class CheckoutBody(
     val voucherCode: String? = null,
     val orderType: String = "TAKEAWAY", // DINE_IN | TAKEAWAY | DELIVERY
     val tableNumber: String? = null,
+    val queueNumber: String? = null,
     val notes: String? = null,
     val amountPaid: Double? = null,
     val changeAmount: Double? = null,
@@ -2155,3 +2156,20 @@ data class LaporanLengkap(
     val labaRugi: LaporanLabaRugi = LaporanLabaRugi(),
     val neraca: LaporanNeraca = LaporanNeraca()
 )
+
+// ─── Antrean dapur / kasir ───────────────────────────────────────────────────
+
+@Serializable
+data class PosQueueItem(
+    val id: Int = 0,
+    val orderNumber: String = "",
+    val queueNumber: String = "",
+    val fulfillmentStatus: String = "PENDING",
+    val orderType: String = "TAKEAWAY",
+    val tableNumber: String? = null,
+    val total: Double = 0.0,
+    val createdAt: String? = null
+)
+
+@Serializable
+data class PosQueueData(val queue: List<PosQueueItem> = emptyList())

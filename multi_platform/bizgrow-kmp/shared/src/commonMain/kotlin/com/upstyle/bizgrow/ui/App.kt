@@ -169,6 +169,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
 
                     // Advanced POS
                     is Screen.PosVouchers -> PosVouchersScreen(viewModel)
+                    is Screen.PosQueue -> PosQueueScreen(viewModel)
 
                     // Marketing / Katalog
                     is Screen.Katalog  -> KatalogScreen(viewModel)

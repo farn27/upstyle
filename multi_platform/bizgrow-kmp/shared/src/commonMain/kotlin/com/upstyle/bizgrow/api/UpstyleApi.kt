@@ -13,6 +13,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -674,6 +679,21 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
 
+    suspend fun getPosQueue(unitId: Int): ApiResponse<PosQueueData> =
+        client.get("api/app/pos") {
+            parameter("unitId", unitId)
+            parameter("action", "queue")
+        }.body()
+
+    suspend fun updatePosQueueStatus(orderId: Int, status: String): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/pos") {
+            setBody(buildJsonObject {
+                put("action", "update-queue-status")
+                put("orderId", orderId)
+                put("status", status)
+            })
+        }.body())
+
     // POS shift → api/app/pos (action=shifts | open-shift | close-shift)
     suspend fun getPosShifts(unitId: Int): ApiResponse<List<PosShift>> =
         client.get("api/app/pos") {
@@ -828,6 +848,22 @@ class UpstyleApi(private val client: HttpClient) {
 
     suspend fun getPosVouchers(unitId: Int): ApiResponse<List<PosVoucher>> =
         client.get("api/app/pos/vouchers") { parameter("unitId", unitId) }.body()
+
+    /** Cek kode voucher untuk total belanja tertentu. Mengembalikan (pesan, potongan Rp) — potongan 0 bila tidak valid. */
+    suspend fun validatePosVoucher(unitId: Int, kode: String, totalBelanja: Double): Pair<String, Double?> {
+        val res: JsonObject = client.put("api/app/pos/vouchers") {
+            setBody(buildJsonObject {
+                put("action", "validate-voucher")
+                put("unitId", unitId)
+                put("code", kode)
+                put("purchaseAmount", totalBelanja)
+            })
+        }.body()
+        val ok = res["success"]?.jsonPrimitive?.booleanOrNull == true
+        val pesan = res["message"]?.jsonPrimitive?.contentOrNull ?: if (ok) "Voucher valid" else "Voucher tidak valid"
+        val potongan = res["voucher"]?.jsonObject?.get("discountAmount")?.jsonPrimitive?.doubleOrNull
+        return pesan to (if (ok) potongan else null)
+    }
 
     suspend fun createPosVoucher(v: PosVoucher): ApiResponse<Unit> =
         tanpaData(client.post("api/app/pos/vouchers") {

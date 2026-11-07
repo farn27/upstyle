@@ -883,6 +883,23 @@ class AppViewModel(
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
 
+    private val _posQueue = MutableStateFlow<List<PosQueueItem>>(emptyList())
+    val posQueue: StateFlow<List<PosQueueItem>> = _posQueue.asStateFlow()
+    fun loadPosQueue() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosQueue(unitId)
+            if (res.success) _posQueue.value = res.data?.queue.orEmpty()
+        } catch (e: Exception) { Napier.e("loadPosQueue error", e) }
+    }
+    fun ubahStatusAntrean(orderId: Int, status: String) = viewModelScope.launch {
+        try {
+            val res = api.updatePosQueueStatus(orderId, status)
+            if (res.success) loadPosQueue() else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun createPosVoucher(v: PosVoucher) =
         jalankanMasterData("Voucher dibuat", { loadPosVouchers() }) { api.createPosVoucher(v.copy(unitId = it)) }
     fun updatePosVoucher(v: PosVoucher) =
@@ -1054,7 +1071,26 @@ class AppViewModel(
         _cart.value = current
     }
     
-    fun checkout(metode: String, onSuccess: (Boolean) -> Unit) = viewModelScope.launch {
+    /** Pilihan tambahan saat bayar di kasir (jenis pesanan, meja, voucher, bayar terpisah, catatan). */
+    data class PosCheckoutOpsi(
+        val orderType: String = "TAKEAWAY",
+        val meja: String? = null,
+        val antrean: String? = null,
+        val catatan: String? = null,
+        val voucherKode: String? = null,
+        val diterima: Double? = null,
+        val kembalian: Double? = null,
+        val split: List<SplitPayment>? = null
+    )
+
+    /** Validasi voucher ke server: (pesan, potongan) — potongan null bila tidak valid. */
+    suspend fun cekVoucher(kode: String, totalBelanja: Double): Pair<String, Double?> {
+        val unitId = _activeUnitId.value
+        return try { api.validatePosVoucher(unitId, kode.trim().uppercase(), totalBelanja) }
+        catch (e: Exception) { "Koneksi gagal: ${e.message}" to null }
+    }
+
+    fun checkout(metode: String, opsi: PosCheckoutOpsi = PosCheckoutOpsi(), onSuccess: (Boolean) -> Unit) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
         val cartItems = _cart.value
@@ -1075,8 +1111,16 @@ class AppViewModel(
                 subtotal = subtotal,
                 diskon = diskon,
                 total = total,
-                paymentMethod = metode,
-                items = items
+                paymentMethod = if (!opsi.split.isNullOrEmpty()) "SPLIT" else metode,
+                items = items,
+                voucherCode = opsi.voucherKode?.takeIf { it.isNotBlank() },
+                orderType = opsi.orderType,
+                tableNumber = opsi.meja?.takeIf { it.isNotBlank() },
+                queueNumber = opsi.antrean?.takeIf { it.isNotBlank() },
+                notes = opsi.catatan?.takeIf { it.isNotBlank() },
+                amountPaid = opsi.diterima,
+                changeAmount = opsi.kembalian,
+                payments = opsi.split?.takeIf { it.isNotEmpty() }
             ))
             val res = api.checkout(req)
             if (res.success) {
