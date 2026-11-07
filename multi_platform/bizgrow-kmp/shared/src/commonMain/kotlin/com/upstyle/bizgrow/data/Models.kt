@@ -217,8 +217,12 @@ data class Product(
     val status: String = "active",
     val hasVariant: Int = 0,
     val showInPos: Int = 1,
-    val variants: List<ProductVariant> = emptyList()
-)
+    val variants: List<ProductVariant> = emptyList(),
+    /** BARANG_JADI (dijual) | BAHAN_BAKU | KEMASAN | PERLENGKAPAN — hanya barang jadi yang boleh di kasir */
+    val jenis: String = "BARANG_JADI"
+) {
+    val bisaDijual: Boolean get() = jenis.isBlank() || jenis.equals("BARANG_JADI", ignoreCase = true)
+}
 
 @Serializable
 data class ProductVariant(
