@@ -43,6 +43,7 @@ val ModuleCatalog: List<ModuleGroup> = listOf(
             ModuleEntry("Neraca", Icons.Rounded.Balance, Amber, Screen.Neraca, "aset liabilitas ekuitas"),
             ModuleEntry("Anggaran", Icons.Rounded.Savings, Emerald, Screen.Budget, "budget"),
             ModuleEntry("Aset Tetap", Icons.Rounded.Domain, Slate, Screen.FixedAssets, "penyusutan"),
+            ModuleEntry("Kontak Akuntansi", Icons.Rounded.Contacts, Teal, Screen.AccountingContacts, "pelanggan supplier vendor piutang hutang"),
             ModuleEntry("Akun (COA)", Icons.Rounded.AccountTree, Violet, Screen.Coa, "chart of account bagan akun"),
             ModuleEntry("Pajak", Icons.Rounded.Percent, Rose, Screen.TaxRates, "ppn pph tarif"),
             ModuleEntry("Tutup Buku", Icons.Rounded.LockClock, Slate, Screen.ClosingPeriod, "periode closing"),

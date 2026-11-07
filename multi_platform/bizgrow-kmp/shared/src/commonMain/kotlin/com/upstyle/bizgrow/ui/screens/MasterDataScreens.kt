@@ -644,3 +644,85 @@ fun PosReportScreen(viewModel: AppViewModel) {
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Kontak akuntansi (pelanggan & supplier untuk piutang/hutang) — master-data/kontak
+// ═══════════════════════════════════════════════════════════════════════════
+
+private val tipeKontak = listOf("CUSTOMER" to "Customer (Pembeli)", "SUPPLIER" to "Supplier (Pemasok)", "BOTH" to "Keduanya")
+private val termin = listOf("0" to "Tunai", "15" to "15 hari (Net 15)", "30" to "30 hari (Net 30)", "45" to "45 hari (Net 45)", "60" to "60 hari (Net 60)")
+
+@Composable
+fun AccountingContactsScreen(viewModel: AppViewModel) {
+    val daftar by viewModel.accountingContacts.collectAsState()
+    var edit by remember { mutableStateOf<AccountingContact?>(null) }
+    var tambah by remember { mutableStateOf(false) }
+    var hapus by remember { mutableStateOf<AccountingContact?>(null) }
+    var cari by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf("SEMUA") }
+    LaunchedEffect(Unit) { viewModel.loadAccountingContacts() }
+    val tampil = daftar.filter { (cari.isBlank() || it.namaKontak.contains(cari, true)) && (filter == "SEMUA" || it.tipeKontak.uppercase() == filter || it.tipeKontak.uppercase() == "BOTH") }
+
+    BizScreen("Kontak Akuntansi", subtitle = "${daftar.size} kontak", onBack = { viewModel.navigateBack() },
+        floatingActionButton = { FabTambah("Kontak baru") { tambah = true } }
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            BizSearchField(cari, { cari = it }, "Cari nama kontak", Modifier.padding(horizontal = 16.dp))
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill("Semua", filter == "SEMUA", { filter = "SEMUA" }); FilterPill("Customer", filter == "CUSTOMER", { filter = "CUSTOMER" }); FilterPill("Supplier", filter == "SUPPLIER", { filter = "SUPPLIER" })
+            }
+            if (tampil.isEmpty()) {
+                EmptyView("Belum ada kontak", "Tambahkan pelanggan atau supplier agar bisa dipilih saat membuat piutang/hutang.", Icons.Rounded.Contacts, "Tambah kontak", { tambah = true })
+            } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(tampil, key = { _, c -> c.id }) { i, c ->
+                    BizSurface(Modifier.fillMaxWidth().enterAnimation(i), onClick = { edit = c }, contentPadding = PaddingValues(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(if (c.tipeKontak.uppercase() == "SUPPLIER") Icons.Rounded.LocalShipping else Icons.Rounded.Person, BizgrowColors.Info)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(c.namaKontak, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(listOfNotNull(c.telepon?.takeIf { it.isNotBlank() }, c.email?.takeIf { it.isNotBlank() }).joinToString(" • ").ifBlank { "Tanpa kontak" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                StatusChip(tipeKontak.firstOrNull { it.first == c.tipeKontak.uppercase() }?.second?.substringBefore(" (") ?: c.tipeKontak, BizgrowColors.Primary)
+                                Text("Net ${c.termPembayaran}" + if (c.limitKredit > 0) " • limit ${c.limitKredit.rupiahRingkas()}" else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (tambah || edit != null) {
+        val awal = edit
+        var nama by remember(awal) { mutableStateOf(awal?.namaKontak ?: "") }
+        var tipe by remember(awal) { mutableStateOf(awal?.tipeKontak?.uppercase() ?: "CUSTOMER") }
+        var email by remember(awal) { mutableStateOf(awal?.email ?: "") }
+        var telp by remember(awal) { mutableStateOf(awal?.telepon ?: "") }
+        var alamat by remember(awal) { mutableStateOf(awal?.alamat ?: "") }
+        var npwp by remember(awal) { mutableStateOf(awal?.npwp ?: "") }
+        var limit by remember(awal) { mutableStateOf(awal?.limitKredit?.toLong()?.toString() ?: "0") }
+        var term by remember(awal) { mutableStateOf((awal?.termPembayaran ?: 30).toString()) }
+        val emailOk = email.isBlank() || ('@' in email && '.' in email.substringAfter('@'))
+        FormSheet(
+            if (awal == null) "Kontak baru" else "Ubah kontak", onDismiss = { tambah = false; edit = null },
+            simpanAktif = nama.isNotBlank() && emailOk,
+            onHapus = awal?.let { { hapus = it; edit = null } },
+            onSimpan = {
+                viewModel.simpanKontakAkuntansi(AccountingContact(awal?.id ?: 0, 0, nama.trim(), tipe, email.trim(), telp.trim(), alamat.trim(), npwp.trim(), limit.toDoubleOrNull() ?: 0.0, term.toIntOrNull() ?: 30))
+                tambah = false; edit = null
+            }
+        ) {
+            BizTextField(nama, { nama = it }, "Nama lengkap / perusahaan", placeholder = "PT. Global Niaga")
+            PilihanPil("Jenis kontak", tipeKontak, tipe) { tipe = it }
+            BizTextField(email, { email = it }, "Email", isError = !emailOk, supportingText = if (!emailOk) "Format email belum benar" else null)
+            BizTextField(telp, { telp = it }, "Telepon")
+            BizTextField(alamat, { alamat = it }, "Alamat lengkap", singleLine = false)
+            BizTextField(npwp, { npwp = it }, "NPWP (opsional)")
+            PilihanField("Jatuh tempo default", termin, term, { term = it })
+            AngkaField(limit, { limit = it }, "Limit kredit piutang (Rp)", desimal = false, supporting = "0 = tanpa batas")
+        }
+    }
+    hapus?.let { c -> KonfirmasiHapus("Hapus kontak?", "\"${c.namaKontak}\" akan dihapus (bila belum punya piutang/hutang).", { viewModel.hapusKontakAkuntansi(c.id); hapus = null }, { hapus = null }) }
+}

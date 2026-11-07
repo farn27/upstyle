@@ -751,7 +751,9 @@ data class CreatePayableRequest(
 @Serializable
 data class PayInvoiceRequest(
     val invoiceId: Int,
-    val nominalBayar: Double
+    val nominalBayar: Double,
+    /** Akun kas/bank penerima (piutang) atau sumber bayar (hutang); kosong = akun kas default */
+    val kasCoaId: Int? = null
 )
 
 // â”€â”€â”€ Double Entry / Jurnal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

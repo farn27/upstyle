@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { triggerEvent } from '$lib/server/pusher';
+import { bayarTagihan, PengadaanError } from '$lib/server/pengadaan';
 
 export async function GET({ url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
@@ -97,7 +98,7 @@ export async function PUT({ request, cookies }) {
 
 	try {
 		const body = await request.json();
-		const { invoiceId, nominalBayar } = body;
+		const { invoiceId, nominalBayar, kasCoaId } = body;
 
 		if (!invoiceId || nominalBayar == null) {
 			return json({ success: false, message: 'invoiceId dan nominalBayar wajib diisi' }, { status: 400 });
@@ -114,6 +115,21 @@ export async function PUT({ request, cookies }) {
 		const bayar = Number(nominalBayar);
 		if (isNaN(bayar) || bayar <= 0) {
 			return json({ success: false, message: 'Nominal bayar harus lebih dari 0' }, { status: 400 });
+		}
+
+		// Tagihan dari modul Pengadaan sudah punya jurnal hutang → pembayaran harus ikut dijurnal (kas keluar)
+		if (payable.journalId) {
+			try {
+				await bayarTagihan(db, { unitId: payable.unitId, userId }, payable.id, { nominal: bayar, kasCoaId });
+			} catch (e) {
+				if (e instanceof PengadaanError) return json({ success: false, message: e.message }, { status: e.status });
+				throw e;
+			}
+			return json({ success: true, message: 'Pembayaran hutang berhasil dicatat' });
+		}
+
+		if (Number(payable.sudahDibayar || 0) + bayar > Number(payable.nominal) + 0.5) {
+			return json({ success: false, message: 'Nominal melebihi sisa tagihan' }, { status: 409 });
 		}
 
 		const currentSudahDibayar = Number(payable.sudahDibayar || 0);

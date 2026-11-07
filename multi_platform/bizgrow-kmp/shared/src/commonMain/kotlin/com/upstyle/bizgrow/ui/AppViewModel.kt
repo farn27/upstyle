@@ -1007,6 +1007,11 @@ class AppViewModel(
     fun deletePosVoucher(id: Int) =
         jalankanMasterData("Voucher dinonaktifkan", { loadPosVouchers() }) { api.deletePosVoucher(id) }
 
+    fun simpanKontakAkuntansi(c: AccountingContact) =
+        jalankanMasterData(if (c.id == 0) "Kontak ditambahkan" else "Kontak diperbarui", { loadAccountingContacts() }) { api.simpanKontakAkuntansi(it, c) }
+    fun hapusKontakAkuntansi(id: Int) =
+        jalankanMasterData("Kontak dihapus", { loadAccountingContacts() }) { api.hapusKontakAkuntansi(it, id) }
+
     fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
         jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
 
@@ -1869,19 +1874,19 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadAccountingContacts error", e) }
     }
 
-    fun payReceivable(invoiceId: Int, nominalBayar: Double) = viewModelScope.launch {
+    fun payReceivable(invoiceId: Int, nominalBayar: Double, kasCoaId: Int? = null) = viewModelScope.launch {
         setLoading(true)
         try {
-            val res = api.payReceivable(PayInvoiceRequest(invoiceId, nominalBayar))
+            val res = api.payReceivable(PayInvoiceRequest(invoiceId, nominalBayar, kasCoaId))
             if (res.success) { loadReceivables(); setSuccess("Pembayaran piutang berhasil!") }
             else setError(res.message ?: "Gagal bayar piutang")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
-    fun payPayable(invoiceId: Int, nominalBayar: Double) = viewModelScope.launch {
+    fun payPayable(invoiceId: Int, nominalBayar: Double, kasCoaId: Int? = null) = viewModelScope.launch {
         setLoading(true)
         try {
-            val res = api.payPayable(PayInvoiceRequest(invoiceId, nominalBayar))
+            val res = api.payPayable(PayInvoiceRequest(invoiceId, nominalBayar, kasCoaId))
             if (res.success) { loadPayables(); setSuccess("Pembayaran hutang berhasil!") }
             else setError(res.message ?: "Gagal bayar hutang")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }

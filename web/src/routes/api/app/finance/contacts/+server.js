@@ -44,7 +44,9 @@ export async function POST({ request, cookies }) {
         email: z.string().email().optional().or(z.literal('')),
         telepon: z.string().optional(),
         alamat: z.string().optional(),
-        termPembayaran: z.coerce.number().optional().default(30)
+        termPembayaran: z.coerce.number().optional().default(30),
+        npwp: z.string().max(30).optional(),
+        limitKredit: z.coerce.number().min(0).optional().default(0)
     });
 
     try {
@@ -54,12 +56,12 @@ export async function POST({ request, cookies }) {
             const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input kontak akuntansi tidak valid';
             return json({ success: false, message: msg }, { status: 422 });
         }
-        const { namaKontak, tipeKontak, unitId, email, telepon, alamat, termPembayaran } = parsed.data;
+        const { namaKontak, tipeKontak, unitId, email, telepon, alamat, termPembayaran, npwp, limitKredit } = parsed.data;
 
         const [result] = await db.insert(accountingContacts).values({
             unitId: Number(unitId), namaKontak, tipeKontak,
             email: email || null, telepon: telepon || null, alamat: alamat || null,
-            termPembayaran: termPembayaran || 30, isActive: 1
+            termPembayaran: termPembayaran || 30, npwp: npwp || null, limitKredit: String(limitKredit || 0), isActive: 1
         });
 
         await db.insert(riwayatAksi).values({

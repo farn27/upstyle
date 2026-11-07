@@ -34,6 +34,8 @@ fun PiutangScreen(viewModel: AppViewModel) {
     var showPaymentSheet by remember { mutableStateOf(false) }
     var showAddSheet by remember { mutableStateOf(false) }
     var paymentAmount by remember { mutableStateOf("") }
+    val kasAkun by viewModel.kasAccounts.collectAsState()
+    var kasDipilih by remember { mutableStateOf<String?>(null) }
     
     // Form states
     var newContactId by remember { mutableStateOf<Int?>(null) }
@@ -44,6 +46,7 @@ fun PiutangScreen(viewModel: AppViewModel) {
     var expandedContact by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
+        viewModel.loadCoa()
         viewModel.loadReceivables()
         viewModel.loadAccountingContacts()
     }
@@ -137,12 +140,14 @@ fun PiutangScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp)
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                com.upstyle.bizgrow.ui.design.PilihanField("Diterima ke akun kas/bank", kasAkun.map { it.id.toString() to "${it.kodeAkun} · ${it.namaAkun}" }, kasDipilih, { kasDipilih = it }, placeholder = "Otomatis (kas utama)")
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
                     onClick = {
                         val amount = paymentAmount.toDoubleOrNull() ?: 0.0
                         if (amount > 0) {
-                            viewModel.payReceivable(selectedReceivable!!.id, amount)
+                            viewModel.payReceivable(selectedReceivable!!.id, amount, kasDipilih?.toIntOrNull())
                             showPaymentSheet = false
                         }
                     },

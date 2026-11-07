@@ -254,7 +254,7 @@ class UpstyleApi(private val client: HttpClient) {
 
     suspend fun payReceivable(req: PayInvoiceRequest): ApiResponse<Unit> =
         client.post("api/app/finance/receivables") {
-            setBody(mapOf("action" to "pay", "invoiceId" to req.invoiceId, "nominalBayar" to req.nominalBayar))
+            setBody(buildJsonObject { put("action", "pay"); put("invoiceId", req.invoiceId); put("nominalBayar", req.nominalBayar); req.kasCoaId?.let { put("kasCoaId", it) } })
         }.body()
 
     // ─── Finance AP (Hutang) ──────────────────────────────────────────────────
@@ -272,7 +272,7 @@ class UpstyleApi(private val client: HttpClient) {
 
     suspend fun payPayable(req: PayInvoiceRequest): ApiResponse<Unit> =
         client.post("api/app/finance/payables") {
-            setBody(mapOf("action" to "pay", "invoiceId" to req.invoiceId, "nominalBayar" to req.nominalBayar))
+            setBody(buildJsonObject { put("action", "pay"); put("invoiceId", req.invoiceId); put("nominalBayar", req.nominalBayar); req.kasCoaId?.let { put("kasCoaId", it) } })
         }.body()
 
     // ─── Accounting Contacts ──────────────────────────────────────────────────
@@ -287,6 +287,26 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
             setBody(contact)
         }.body()
+
+    suspend fun simpanKontakAkuntansi(unitId: Int, c: AccountingContact): ApiResponse<Unit> {
+        val isi = buildJsonObject {
+            if (c.id != 0) put("contactId", c.id)
+            put("unitId", unitId)
+            put("namaKontak", c.namaKontak)
+            put("tipeKontak", c.tipeKontak.uppercase())
+            put("email", c.email ?: "")
+            put("telepon", c.telepon ?: "")
+            put("alamat", c.alamat ?: "")
+            put("npwp", c.npwp ?: "")
+            put("limitKredit", c.limitKredit)
+            put("termPembayaran", c.termPembayaran)
+        }
+        return tanpaData(if (c.id == 0) client.post("api/app/finance/contacts") { setBody(isi) }.body()
+        else client.put("api/app/finance/contacts") { setBody(isi) }.body())
+    }
+
+    suspend fun hapusKontakAkuntansi(unitId: Int, id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/contacts") { parameter("contactId", id); parameter("unitId", unitId) }.body())
 
     // ─── Journal / Jurnal Umum ────────────────────────────────────────────────
 

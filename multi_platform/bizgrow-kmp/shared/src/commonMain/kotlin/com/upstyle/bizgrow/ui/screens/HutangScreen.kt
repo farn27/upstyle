@@ -34,6 +34,8 @@ fun HutangScreen(viewModel: AppViewModel) {
     var showPaymentSheet by remember { mutableStateOf(false) }
     var showAddSheet by remember { mutableStateOf(false) }
     var paymentAmount by remember { mutableStateOf("") }
+    val kasAkun by viewModel.kasAccounts.collectAsState()
+    var kasDipilih by remember { mutableStateOf<String?>(null) }
     
     // Form states
     var newContactId by remember { mutableStateOf<Int?>(null) }
@@ -45,6 +47,7 @@ fun HutangScreen(viewModel: AppViewModel) {
     var expandedContact by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
+        viewModel.loadCoa()
         viewModel.loadPayables()
         viewModel.loadAccountingContacts()
     }
@@ -138,12 +141,14 @@ fun HutangScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp)
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                com.upstyle.bizgrow.ui.design.PilihanField("Dibayar dari akun kas/bank", kasAkun.map { it.id.toString() to "${it.kodeAkun} · ${it.namaAkun}" }, kasDipilih, { kasDipilih = it }, placeholder = "Otomatis (kas utama)")
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
                     onClick = {
                         val amount = paymentAmount.toDoubleOrNull() ?: 0.0
                         if (amount > 0) {
-                            viewModel.payPayable(selectedPayable!!.id, amount)
+                            viewModel.payPayable(selectedPayable!!.id, amount, kasDipilih?.toIntOrNull())
                             showPaymentSheet = false
                         }
                     },
