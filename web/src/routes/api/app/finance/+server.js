@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines } from '$lib/server/schema';
-import { eq, and, desc, sql, lte, inArray } from 'drizzle-orm';
+import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines, abcCategories } from '$lib/server/schema';
+import { eq, and, asc, desc, sql, lte, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
@@ -54,8 +54,55 @@ export async function GET({ url, cookies, request }) {
             filterTrx = and(filterTrx, sql`DATE(${transaksi.tanggal}) >= ${mulai}`, sql`DATE(${transaksi.tanggal}) <= ${akhir}`);
         }
 
-        // Fetch transactions (100 terbaru pada rentang yang dipilih)
-        const txList = await db.select().from(transaksi).where(filterTrx).orderBy(desc(transaksi.tanggal), desc(transaksi.id)).limit(100);
+        // Filter riwayat (opsional): jenis, kata kunci, kategori ABC
+        const jenis = (url.searchParams.get('jenis') || '').toLowerCase();
+        if (jenis === 'masuk' || jenis === 'keluar') filterTrx = and(filterTrx, sql`LOWER(${transaksi.kategoriTrx}) LIKE ${'%' + jenis + '%'}`);
+        const kataKunci = (url.searchParams.get('q') || '').trim().slice(0, 100);
+        if (kataKunci) filterTrx = and(filterTrx, sql`LOWER(${transaksi.keterangan}) LIKE ${'%' + kataKunci.toLowerCase().replace(/[%_]/g, '') + '%'}`);
+        const abcId = Number(url.searchParams.get('abcId') || 0);
+        if (abcId > 0) filterTrx = and(filterTrx, eq(transaksi.abcCategoryId, abcId));
+
+        // Halaman transaksi: default 100 terbaru, bisa dimuat bertahap (limit maks 300 + offset)
+        const batas = Math.min(Math.max(Number(url.searchParams.get('limit') || 100), 1), 300);
+        const geser = Math.max(Number(url.searchParams.get('offset') || 0), 0);
+        const urut = url.searchParams.get('urut') || 'terbaru';
+        const urutan = urut === 'terlama' ? [asc(transaksi.tanggal), asc(transaksi.id)]
+            : urut === 'nominal_desc' ? [desc(transaksi.nominal), desc(transaksi.id)]
+            : urut === 'nominal_asc' ? [asc(transaksi.nominal), desc(transaksi.id)]
+            : [desc(transaksi.tanggal), desc(transaksi.id)];
+        const txPlus = await db.select().from(transaksi).where(filterTrx).orderBy(...urutan).limit(batas + 1).offset(geser);
+        const adaLagi = txPlus.length > batas;
+        const txList = txPlus.slice(0, batas);
+
+        // Saldo kas setelah tiap transaksi (modal awal + akumulasi seluruh transaksi unit sampai baris itu),
+        // dihitung dari akumulasi sebelum baris paling lama pada halaman ini — tetap benar walau difilter/dipaginasi
+        const delta = sql`CASE WHEN UPPER(${transaksi.kategoriTrx}) = 'MASUK' THEN ${transaksi.nominal} WHEN UPPER(${transaksi.kategoriTrx}) = 'KELUAR' THEN -${transaksi.nominal} ELSE 0 END`;
+        const saldoSetelah = new Map();
+        if (txList.length > 0) {
+            const kronologis = [...txList].sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || a.id - b.id);
+            const tertua = kronologis[0];
+            const [sebelum] = await db.select({ total: sql`COALESCE(SUM(${delta}), 0)` }).from(transaksi).where(and(
+                eq(transaksi.unitId, Number(unitId)),
+                sql`(${transaksi.tanggal} < ${tertua.tanggal} OR (${transaksi.tanggal} = ${tertua.tanggal} AND ${transaksi.id} < ${tertua.id}))`
+            ));
+            // Baris di antara yang difilter tetap dihitung: ambil seluruh baris unit dari 'tertua' ke 'terbaru'
+            const terbaru = kronologis[kronologis.length - 1];
+            const rentangPenuh = await db.select({ id: transaksi.id, kategoriTrx: transaksi.kategoriTrx, nominal: transaksi.nominal }).from(transaksi).where(and(
+                eq(transaksi.unitId, Number(unitId)),
+                sql`(${transaksi.tanggal} > ${tertua.tanggal} OR (${transaksi.tanggal} = ${tertua.tanggal} AND ${transaksi.id} >= ${tertua.id}))`,
+                sql`(${transaksi.tanggal} < ${terbaru.tanggal} OR (${transaksi.tanggal} = ${terbaru.tanggal} AND ${transaksi.id} <= ${terbaru.id}))`
+            )).orderBy(transaksi.tanggal, transaksi.id);
+            let berjalan = modalAwal + Number(sebelum?.total || 0);
+            for (const r of rentangPenuh) {
+                const k = String(r.kategoriTrx || '').toUpperCase();
+                berjalan += k === 'MASUK' ? Number(r.nominal) : k === 'KELUAR' ? -Number(r.nominal) : 0;
+                saldoSetelah.set(r.id, berjalan);
+            }
+        }
+
+        // Nama & level kategori ABC
+        const abcList = await db.select({ id: abcCategories.id, nama: abcCategories.namaKategori, level: abcCategories.abcLevel }).from(abcCategories);
+        const abcById = new Map(abcList.map((a) => [a.id, a]));
 
         // metodeBayar dari form entry berisi ID akun kas → ambil nama akunnya
         const idAkunKas = [...new Set(txList.map(t => String(t.metodeBayar || '')).filter(v => /^\d+$/.test(v)))];
@@ -94,7 +141,10 @@ export async function GET({ url, cookies, request }) {
             productId: t.productId || '',
             qty: Number(t.qty || 1),
             hppTotal: Number(t.hppTotal || 0),
-            metodeLabel: labelMetodeBayar(t.metodeBayar, namaAkunById)
+            metodeLabel: labelMetodeBayar(t.metodeBayar, namaAkunById),
+            abcNama: abcById.get(t.abcCategoryId)?.nama || null,
+            abcLevel: abcById.get(t.abcCategoryId)?.level || null,
+            saldoSetelah: saldoSetelah.has(t.id) ? saldoSetelah.get(t.id) : null
         }));
 
         // Map audit logs to mobile DTO
@@ -216,6 +266,8 @@ export async function GET({ url, cookies, request }) {
                 grafik,
                 produkTerlaris,
                 perJam,
+                adaLagi,
+                abcOptions: abcList.map((a) => ({ id: a.id, nama: a.nama, level: a.level || 'C' })),
                 bankBalances,
                 kpi: { target: targetBulananOtomatis(unit?.modalAwal), current: Number(totalUnit?.masukBulanIni || 0) }
             }

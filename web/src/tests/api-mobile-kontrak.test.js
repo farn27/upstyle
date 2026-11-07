@@ -110,6 +110,33 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		expect(lama.transactions).toHaveLength(0);
 	});
 
+	it('finance: riwayat dipaginasi, difilter server & saldo berjalan tetap akurat', async () => {
+		login.userId = id.user;
+		const ambil = async (q) => (await (await r.finance.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const h1 = await ambil('&limit=1');
+		expect(h1.transactions).toHaveLength(1);
+		expect(h1.adaLagi).toBe(true);
+		expect(h1.transactions[0].keterangan).toBe('BELI');
+		expect(h1.transactions[0].saldoSetelah).toBe(200000);
+		const h2 = await ambil('&limit=1&offset=1');
+		expect(h2.transactions[0].keterangan).toBe('JUAL');
+		expect(h2.transactions[0].saldoSetelah).toBe(300000);
+		expect(h2.adaLagi).toBe(false);
+		// filter jenis & kata kunci → saldo berjalan tidak ikut berubah oleh filter
+		const masuk = await ambil('&jenis=masuk');
+		expect(masuk.transactions.map((t) => t.keterangan)).toEqual(['JUAL']);
+		expect(masuk.transactions[0].saldoSetelah).toBe(300000);
+		const cari = await ambil('&q=beli');
+		expect(cari.transactions.map((t) => t.keterangan)).toEqual(['BELI']);
+		expect(cari.transactions[0].saldoSetelah).toBe(200000);
+		expect(Array.isArray(cari.abcOptions)).toBe(true);
+		const lama = await ambil('&urut=terlama');
+		expect(lama.transactions.map((t) => t.keterangan)).toEqual(['JUAL', 'BELI']);
+		const nom = await ambil('&urut=nominal_asc');
+		expect(nom.transactions.map((t) => t.keterangan)).toEqual(['BELI', 'JUAL']);
+		expect(nom.transactions.map((t) => t.saldoSetelah)).toEqual([200000, 300000]);
+	});
+
 	it('laporan: type=report memuat dashboard, laba rugi & neraca', async () => {
 		login.userId = id.user;
 		const res = await r.laporan.GET({ url: new URL(`http://x?unitId=${id.unit}&type=report&tahun=${new Date().getFullYear()}`), cookies, request: new Request('http://x') });

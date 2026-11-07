@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.upstyle.bizgrow.data.Transaction
+import com.upstyle.bizgrow.data.RiwayatFilter
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.ModuleCatalog
 import com.upstyle.bizgrow.ui.Screen
@@ -30,59 +31,64 @@ import kotlinx.datetime.*
 
 private fun isMasuk(t: Transaction) = t.kategoriTrx.uppercase() in setOf("MASUK", "PEMASUKAN")
 
+private fun tglWib() = Clock.System.now().toLocalDateTime(TimeZone.of("Asia/Jakarta")).date
+
+/** Rentang tanggal (WIB) untuk pilihan periode riwayat; null,null = semua. */
+private fun rentangRiwayat(periode: String, bulan: Pair<Int, Int>?, kustom: Pair<String, String>?): Pair<String?, String?> {
+    val hari = tglWib()
+    return when (periode) {
+        "Hari ini" -> hari.toString() to hari.toString()
+        "Kemarin" -> hari.minus(1, DateTimeUnit.DAY).let { it.toString() to it.toString() }
+        "7 hari" -> hari.minus(6, DateTimeUnit.DAY).toString() to hari.toString()
+        "Bulan ini" -> LocalDate(hari.year, hari.monthNumber, 1).toString() to hari.toString()
+        "Bulan" -> bulan?.let { (y, m) ->
+            val awal = LocalDate(y, m, 1)
+            awal.toString() to awal.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY).toString()
+        } ?: (null to null)
+        "Rentang" -> kustom?.let { it.first to it.second } ?: (null to null)
+        else -> null to null
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceScreen(viewModel: AppViewModel) {
     val financeData by viewModel.riwayat.collectAsState(initial = viewModel.riwayat.value)
-    val dash by viewModel.dashboardState.collectAsState(initial = viewModel.dashboardState.value)
+    val memuat by viewModel.riwayatMemuat.collectAsState()
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("Semua") }
     var hapus by remember { mutableStateOf<Transaction?>(null) }
     var periode by remember { mutableStateOf("Semua") }
     var bulanDipilih by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var kustom by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var dialogRentang by remember { mutableStateOf(false) }
+    var abcId by remember { mutableStateOf(0) }
     var urutan by remember { mutableStateOf("Terbaru") }
     var detail by remember { mutableStateOf<Transaction?>(null) }
     var menuBulan by remember { mutableStateOf(false) }
     var menuUrut by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { viewModel.loadFinanceData() }
+    val hariIni = remember { tglWib() }
+    val rentang = rentangRiwayat(periode, bulanDipilih, kustom)
+    val filterServer = RiwayatFilter(
+        start = rentang.first, end = rentang.second,
+        jenis = when (filter) { "Masuk" -> "masuk"; "Keluar" -> "keluar"; else -> "" },
+        q = query.trim(), abcId = abcId,
+        urut = when (urutan) { "Terlama" -> "terlama"; "Nominal ↓" -> "nominal_desc"; "Nominal ↑" -> "nominal_asc"; else -> "terbaru" }
+    )
+    // Filter diproses server (data lengkap, bukan hanya 100 terbaru); kata kunci diberi jeda ketik
+    LaunchedEffect(filterServer) {
+        if (filterServer.q.isNotEmpty()) kotlinx.coroutines.delay(350)
+        viewModel.loadFinanceData(filterServer)
+    }
 
-    val semuaMentah = financeData?.transactions.orEmpty()
-    val hariIni = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
-    val kemarin = hariIni.minus(1, DateTimeUnit.DAY)
-    // Saldo setelah tiap transaksi: mundur dari saldo kas sepanjang waktu (daftar urut terbaru → terlama)
-    val saldoSetelah = remember(semuaMentah, financeData) {
-        var saldo = financeData?.summary?.saldoKas
-        val peta = mutableMapOf<Int, Double>()
-        if (saldo != null) semuaMentah.forEach { t -> peta[t.id] = saldo!!; saldo = saldo!! - (if (isMasuk(t)) t.nominal else -t.nominal) }
-        peta
-    }
-    val tampil = remember(semuaMentah, query, filter, periode, bulanDipilih, urutan) {
-        semuaMentah.filter { t ->
-            val tgl = tanggalTransaksi(t.tanggal)
-            (query.isBlank() || t.keterangan.contains(query, true)) &&
-                when (filter) { "Masuk" -> isMasuk(t); "Keluar" -> !isMasuk(t); else -> true } &&
-                when (periode) {
-                    "Hari ini" -> tgl == hariIni
-                    "Kemarin" -> tgl == kemarin
-                    "7 hari" -> tgl != null && tgl >= hariIni.minus(6, DateTimeUnit.DAY) && tgl <= hariIni
-                    "Bulan ini" -> tgl != null && tgl.year == hariIni.year && tgl.monthNumber == hariIni.monthNumber
-                    "Bulan" -> bulanDipilih?.let { (y, m) -> tgl != null && tgl.year == y && tgl.monthNumber == m } ?: true
-                    else -> true
-                }
-        }.let { daftar ->
-            when (urutan) {
-                "Terlama" -> daftar.sortedBy { it.id }
-                "Nominal ↓" -> daftar.sortedByDescending { it.nominal }
-                "Nominal ↑" -> daftar.sortedBy { it.nominal }
-                else -> daftar
-            }
-        }
-    }
-    val semua = tampil
-    val masuk = semua.filter(::isMasuk).sumOf { it.nominal }
-    val keluar = semua.filterNot(::isMasuk).sumOf { it.nominal }
+    val tampil = financeData?.transactions.orEmpty()
+    val semuaMentah = tampil
+    val ringkas = financeData?.summary
+    val masuk = ringkas?.totalMasuk ?: 0.0
+    val keluar = ringkas?.totalKeluar ?: 0.0
     val perTanggal = remember(tampil) { tampil.groupBy { tanggalTransaksi(it.tanggal) } }
+    val semuaFilterAktif = periode != "Semua" || filter != "Semua" || query.isNotBlank() || abcId != 0
     val modulKeuangan = ModuleCatalog.first { it.title == "Keuangan" }.modules.filter { it.screen != Screen.Finance && it.screen != Screen.TransactionEntry }
 
     BizScreen(
@@ -106,12 +112,12 @@ fun FinanceScreen(viewModel: AppViewModel) {
             )
         }
     ) { padding ->
-        PullToRefreshBox(dash.isLoading, { viewModel.loadFinanceData() }, Modifier.fillMaxSize().padding(padding)) {
+        PullToRefreshBox(memuat, { viewModel.loadFinanceData(filterServer) }, Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                 item {
                     GradientCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth().enterAnimation(0)) {
                         Column {
-                            Text(if (periode == "Semua" && filter == "Semua" && query.isBlank()) "Selisih kas" else "Selisih kas (terfilter)", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                            Text(if (!semuaFilterAktif) "Selisih kas" else "Selisih kas (terfilter)", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
                             AnimatedAmount(masuk - keluar, MaterialTheme.typography.headlineLarge, Color.White)
                             Spacer(Modifier.height(14.dp))
                             Row {
@@ -125,7 +131,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Text("Transaksi", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.75f))
-                                    Text("${semua.size}", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                    Text("${tampil.size}" + if (financeData?.adaLagi == true) "+" else "", style = MaterialTheme.typography.titleMedium, color = Color.White)
                                 }
                             }
                         }
@@ -143,6 +149,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
                     BizSearchField(query, { query = it }, "Cari keterangan transaksi", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Semua", "Hari ini", "Kemarin", "7 hari", "Bulan ini").forEach { p -> FilterPill(p, periode == p, { periode = p }) }
+                        FilterPill(kustom?.let { "${it.first.takeLast(5)} → ${it.second.takeLast(5)}" } ?: "Rentang tanggal", periode == "Rentang", { dialogRentang = true })
                         Box {
                             FilterPill(
                                 bulanDipilih?.let { (y, m) -> "${namaBulanPendek(m)} $y" } ?: "Pilih bulan",
@@ -177,15 +184,22 @@ fun FinanceScreen(viewModel: AppViewModel) {
                             }
                         }
                     }
-                    if (periode != "Semua" || filter != "Semua" || query.isNotBlank()) {
+                    val abcOpsi = financeData?.abcOptions.orEmpty()
+                    if (abcOpsi.isNotEmpty()) {
+                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterPill("Semua kategori", abcId == 0, { abcId = 0 })
+                            abcOpsi.forEach { a -> FilterPill("[${a.level}] ${a.nama}", abcId == a.id, { abcId = if (abcId == a.id) 0 else a.id }) }
+                        }
+                    }
+                    if (semuaFilterAktif) {
                         Text(
                             "Reset filter", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(8.dp)).pressClick { periode = "Semua"; filter = "Semua"; query = ""; bulanDipilih = null }.padding(4.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(8.dp)).pressClick { periode = "Semua"; filter = "Semua"; query = ""; bulanDipilih = null; kustom = null; abcId = 0 }.padding(4.dp)
                         )
                     }
                 }
                 when {
-                    dash.isLoading && financeData == null -> item { SkeletonList(rows = 6) }
+                    memuat && financeData == null -> item { SkeletonList(rows = 6) }
                     tampil.isEmpty() -> item {
                         EmptyView(
                             if (semuaMentah.isEmpty()) "Belum ada transaksi" else "Tidak ada transaksi ditemukan",
@@ -193,7 +207,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
                             Icons.Rounded.ReceiptLong
                         )
                     }
-                    else -> perTanggal.entries.sortedByDescending { it.key }.forEach { (tgl, list) ->
+                    else -> (if (urutan == "Terlama") perTanggal.entries.sortedBy { it.key } else if (urutan.startsWith("Nominal")) perTanggal.entries.toList() else perTanggal.entries.sortedByDescending { it.key }).forEach { (tgl, list) ->
                         item(key = "d-$tgl") {
                             val label = when (tgl) {
                                 null -> "Tanpa tanggal"
@@ -212,7 +226,10 @@ fun FinanceScreen(viewModel: AppViewModel) {
                             val warna = if (masukT) BizgrowColors.Success else BizgrowColors.Danger
                             ListRow(
                                 title = t.keterangan.ifBlank { if (masukT) "Pemasukan" else "Pengeluaran" },
-                                subtitle = (t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let { "via $it" } ?: if (masukT) "Pemasukan" else "Pengeluaran",
+                                subtitle = listOfNotNull(
+                                    ((t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let { "via $it" } ?: if (masukT) "Pemasukan" else "Pengeluaran"),
+                                    t.abcNama?.let { "[${t.abcLevel ?: "C"}] $it" }
+                                ).joinToString(" • "),
                                 icon = if (masukT) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
                                 tint = warna,
                                 modifier = Modifier.padding(horizontal = 16.dp).animateItem().enterAnimation(i),
@@ -229,8 +246,39 @@ fun FinanceScreen(viewModel: AppViewModel) {
                         }
                     }
                 }
+                if (financeData?.adaLagi == true) {
+                    item(key = "muat-lagi") {
+                        LaunchedEffect(tampil.size) { viewModel.muatRiwayatLagi() }
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            if (memuat) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                            else TextButton(onClick = { viewModel.muatRiwayatLagi() }) { Text("Muat transaksi lebih lama") }
+                        }
+                    }
+                }
             }
         }
+    }
+
+    if (dialogRentang) {
+        var dari by remember { mutableStateOf(kustom?.first ?: hariIni.minus(6, DateTimeUnit.DAY).toString()) }
+        var sampai by remember { mutableStateOf(kustom?.second ?: hariIni.toString()) }
+        AlertDialog(
+            onDismissRequest = { dialogRentang = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Rentang tanggal") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TanggalField("Dari", dari) { dari = it }
+                    TanggalField("Sampai", sampai) { sampai = it }
+                    if (dari > sampai) Text("Tanggal awal harus sebelum tanggal akhir", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Danger)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = dari <= sampai, onClick = { kustom = dari to sampai; periode = "Rentang"; dialogRentang = false }) { Text("Terapkan", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { dialogRentang = false }) { Text("Batal") } }
+        )
     }
 
     hapus?.let { t ->
@@ -264,10 +312,10 @@ fun FinanceScreen(viewModel: AppViewModel) {
                 BarisDetail("Keterangan lengkap", t.keterangan.ifBlank { "-" })
                 BarisDetail("Tanggal", tgl?.let { "${it.dayOfMonth} ${namaBulanPendek(it.monthNumber)} ${it.year}" } ?: "-")
                 BarisDetail("Metode bayar", (t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null } ?: "Kas")
-                t.abcCategoryId?.let { BarisDetail("Kategori ABC", "#$it") }
+                t.abcNama?.let { BarisDetail("Kategori ABC", "[${t.abcLevel ?: "C"}] $it") }
                 if (!t.productId.isNullOrBlank()) BarisDetail("Produk", "${t.productId} × ${t.qty}")
                 if (t.hppTotal > 0) BarisDetail("HPP", t.hppTotal.rupiah())
-                saldoSetelah[t.id]?.let { BarisDetail("Saldo setelah transaksi", it.rupiah()) }
+                t.saldoSetelah?.let { BarisDetail("Saldo setelah transaksi", it.rupiah()) }
                 BarisDetail("ID transaksi", "#${t.id}")
                 Spacer(Modifier.height(14.dp))
                 BizOutlineButton("Hapus transaksi", onClick = { hapus = t; detail = null }, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.DeleteOutline, tint = BizgrowColors.Danger)

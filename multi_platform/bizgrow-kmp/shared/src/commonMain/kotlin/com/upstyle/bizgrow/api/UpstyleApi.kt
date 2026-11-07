@@ -72,6 +72,20 @@ class UpstyleApi(private val client: HttpClient) {
             endDate?.let { parameter("end", it) }
         }.body()
 
+    /** Riwayat transaksi dengan filter server + paginasi (offset = jumlah baris yang sudah dimuat). */
+    suspend fun getRiwayatTransaksi(unitId: Int, f: RiwayatFilter, offset: Int = 0, limit: Int = 50): ApiResponse<FinanceData> =
+        client.get("api/app/finance") {
+            parameter("unitId", unitId)
+            f.start?.let { parameter("start", it) }
+            f.end?.let { parameter("end", it) }
+            if (f.jenis.isNotBlank()) parameter("jenis", f.jenis)
+            if (f.q.isNotBlank()) parameter("q", f.q)
+            if (f.abcId > 0) parameter("abcId", f.abcId)
+            parameter("urut", f.urut)
+            parameter("limit", limit)
+            parameter("offset", offset)
+        }.body()
+
     suspend fun createTransaction(req: CreateTransactionRequest): ApiResponse<TransaksiTersimpan> =
         client.post("api/app/finance") { setBody(req) }.body()
 

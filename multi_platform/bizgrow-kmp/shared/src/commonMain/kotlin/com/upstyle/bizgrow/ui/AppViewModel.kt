@@ -756,13 +756,37 @@ class AppViewModel(
     /** Data untuk layar Riwayat Transaksi — selalu sepanjang waktu, terpisah dari filter periode dashboard. */
     val riwayat: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _riwayat.asStateFlow()
 
-    fun loadFinanceData() = viewModelScope.launch {
+    private var riwayatFilter = com.upstyle.bizgrow.data.RiwayatFilter()
+    private val _riwayatMemuat = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val riwayatMemuat: kotlinx.coroutines.flow.StateFlow<Boolean> = _riwayatMemuat.asStateFlow()
+
+    /** Muat halaman pertama riwayat (tanpa filter, atau dengan [filter]). */
+    fun loadFinanceData(filter: com.upstyle.bizgrow.data.RiwayatFilter = com.upstyle.bizgrow.data.RiwayatFilter()) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        riwayatFilter = filter
+        _riwayatMemuat.value = true
         try {
-            val res = api.getFinanceData(unitId)
+            val res = api.getRiwayatTransaksi(unitId, filter, offset = 0)
             if (res.success) _riwayat.value = res.data
         } catch (e: Exception) { Napier.e("loadFinanceData error", e) }
+        _riwayatMemuat.value = false
+    }
+
+    /** Halaman berikutnya dengan filter yang sedang aktif. */
+    fun muatRiwayatLagi() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        val sekarang = _riwayat.value ?: return@launch
+        if (unitId == 0 || !sekarang.adaLagi || _riwayatMemuat.value) return@launch
+        _riwayatMemuat.value = true
+        try {
+            val res = api.getRiwayatTransaksi(unitId, riwayatFilter, offset = sekarang.transactions.size)
+            val baru = res.data
+            if (res.success && baru != null) {
+                _riwayat.value = sekarang.copy(transactions = (sekarang.transactions + baru.transactions).distinctBy { it.id }, adaLagi = baru.adaLagi)
+            }
+        } catch (e: Exception) { Napier.e("muatRiwayatLagi error", e) }
+        _riwayatMemuat.value = false
     }
     // ─── Sinkron offline (opsi B: antrean dikirim ulang ke API biasa) ─────────
     private val jsonAntrean = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
@@ -863,7 +887,7 @@ class AppViewModel(
             val res = api.createTransaction(req)
             if (res.success) {
                 loadDashboard()
-                loadFinanceData()
+                loadFinanceData(riwayatFilter)
                 setSuccess("Transaksi berhasil disimpan!")
                 navigateBack()
                 sinkronkanOffline()
@@ -880,6 +904,7 @@ class AppViewModel(
             val res = api.deleteTransaction(transactionId, unitId)
             if (res.success) {
                 loadDashboard()
+                loadFinanceData(riwayatFilter)
                 setSuccess("Transaksi berhasil dihapus")
             } else setError(res.message ?: "Gagal hapus transaksi")
         } catch (e: Exception) {
@@ -1533,7 +1558,7 @@ class AppViewModel(
             units = { _units.value },
             activeUnit = { activeUnit.value },
             onError = { setError(it) },
-            onTransaksiTersimpan = { loadDashboard(); loadFinanceData(); setSuccess("Transaksi tersimpan") }
+            onTransaksiTersimpan = { loadDashboard(); loadFinanceData(riwayatFilter); setSuccess("Transaksi tersimpan") }
         )
     }
 

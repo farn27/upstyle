@@ -27,6 +27,13 @@ import com.upstyle.bizgrow.data.ChartOfAccount
 import com.upstyle.bizgrow.data.Product
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.design.BizTextField
+import com.upstyle.bizgrow.ui.design.FormSheet
+import com.upstyle.bizgrow.ui.design.ListRow
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.AddCircleOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Tag
 import kotlinx.coroutines.launch
 
 /**
@@ -69,6 +76,9 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
     var showCoaMenu by remember { mutableStateOf(false) }
     var showKasMenu by remember { mutableStateOf(false) }
     var showProductMenu by remember { mutableStateOf(false) }
+    var tambahKas by remember { mutableStateOf(false) }
+    var membuatCoa by remember { mutableStateOf(false) }
+    val unitAktif by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -157,6 +167,18 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
     val canSubmit = selectedCoa != null && selectedKasCoa != null && nominalDouble > 0 && !stokKurang && qtyAngka > 0 && !uiState.isLoading
 
     // ─── UI ───────────────────────────────────────────────────────────────────
+    if (tambahKas) {
+        TambahKasSheet(chartOfAccounts, { tambahKas = false }) { kode, nama ->
+            val err = viewModel.simpanCoaBaru(kode, nama, "ASET_LANCAR", "DEBIT", null)
+            if (err == null) {
+                // pilih akun yang baru dibuat setelah daftar COA dimuat ulang
+                kotlinx.coroutines.delay(600)
+                viewModel.kasAccounts.value.firstOrNull { it.namaAkun == nama }?.let { selectedKasCoa = it }
+            }
+            err
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -267,8 +289,25 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                             Text("COA belum di-setup", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BizgrowColors.WarningDark)
                             Text("Chart of Accounts diperlukan untuk entri transaksi double-entry.", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.WarningDark)
                         }
-                        TextButton(onClick = { viewModel.navigate(Screen.Coa) }) {
-                            Text("Setup COA")
+                        Column(horizontalAlignment = Alignment.End) {
+                            TextButton(
+                                enabled = !membuatCoa,
+                                onClick = {
+                                    membuatCoa = true
+                                    coroutineScope.launch {
+                                        val t = (unitAktif?.type ?: "").uppercase()
+                                        val jenis = when {
+                                            "COFFEE" in t || "CAFE" in t -> "CAFE"
+                                            t.startsWith("FNB") -> "RESTORAN"
+                                            t == "RETAIL_MINIMARKET" -> "MINIMARKET"
+                                            else -> "LAINNYA"
+                                        }
+                                        viewModel.buatCoaTemplate(jenis)?.let { snackbarHostState.showSnackbar(it) }
+                                        membuatCoa = false
+                                    }
+                                }
+                            ) { Text(if (membuatCoa) "Membuat…" else "Buat COA standar") }
+                            TextButton(onClick = { viewModel.navigate(Screen.Coa) }) { Text("Kelola COA") }
                         }
                     }
                 }
@@ -335,7 +374,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                     // Akun Kas/Bank Dropdown
                     ExposedDropdownMenuBox(
                         expanded = showKasMenu,
-                        onExpandedChange = { if (kasAccounts.isNotEmpty()) showKasMenu = it }
+                        onExpandedChange = { if (hasCoa) showKasMenu = it }
                     ) {
                         OutlinedTextField(
                             value = selectedKasCoa?.namaAkun ?: "",
@@ -346,7 +385,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showKasMenu) },
                             modifier = Modifier.fillMaxWidth().menuAnchor(),
                             shape = RoundedCornerShape(12.dp),
-                            enabled = kasAccounts.isNotEmpty()
+                            enabled = hasCoa
                         )
                         ExposedDropdownMenu(expanded = showKasMenu, onDismissRequest = { showKasMenu = false }) {
                             kasAccounts.forEach { kas ->
@@ -355,6 +394,11 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                                     onClick = { selectedKasCoa = kas; showKasMenu = false }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text("Tambah akun kas / bank…", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = BizgrowColors.Primary) },
+                                leadingIcon = { Icon(Icons.Rounded.AddCircleOutline, null, tint = BizgrowColors.Primary) },
+                                onClick = { showKasMenu = false; tambahKas = true }
+                            )
                         }
                     }
 
@@ -516,5 +560,54 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+/** Preset akun kas/bank (sama dengan halaman entri web). */
+private val presetKas = listOf(
+    "Kas Tunai" to "Uang cash di tangan",
+    "Bank BCA" to "Rekening / transfer BCA",
+    "Bank Mandiri" to "Rekening / transfer Mandiri",
+    "Bank BNI" to "Rekening / transfer BNI",
+    "Bank BRI" to "Rekening / transfer BRI",
+    "QRIS / Dompet Digital" to "GoPay, OVO, Dana, ShopeePay",
+)
+
+/** Kode berikutnya yang belum dipakai di kelompok kas & bank (1-1xxxx). */
+private fun kodeKasBerikutnya(akun: List<ChartOfAccount>): String {
+    val terpakai = akun.mapNotNull { it.kodeAkun.removePrefix("1-").toIntOrNull() }.filter { it in 10000..19999 }
+    return "1-" + ((terpakai.maxOrNull() ?: 10000) + 1)
+}
+
+@Composable
+private fun TambahKasSheet(akun: List<ChartOfAccount>, onDismiss: () -> Unit, onSimpan: suspend (kode: String, nama: String) -> String?) {
+    var nama by remember { mutableStateOf("") }
+    var kode by remember { mutableStateOf(kodeKasBerikutnya(akun)) }
+    var galat by remember { mutableStateOf<String?>(null) }
+    var proses by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    FormSheet(
+        judul = "Tambah akun kas / bank",
+        subjudul = "Muncul sebagai pilihan metode bayar di semua transaksi",
+        onDismiss = onDismiss,
+        simpanAktif = nama.trim().length >= 2 && kode.isNotBlank() && !proses,
+        labelSimpan = if (proses) "Menyimpan…" else "Simpan",
+        onSimpan = {
+            proses = true; galat = null
+            scope.launch {
+                val err = onSimpan(kode.trim(), nama.trim())
+                proses = false
+                if (err == null) onDismiss() else galat = err
+            }
+        }
+    ) {
+        Text("Rekomendasi", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        presetKas.forEach { (n, d) ->
+            val sudah = akun.any { it.namaAkun.equals(n, true) }
+            ListRow(n, subtitle = if (sudah) "Sudah ada" else d, icon = Icons.Rounded.AccountBalanceWallet, onClick = if (sudah) null else ({ nama = n }))
+        }
+        BizTextField(nama, { nama = it }, "Nama akun *", leadingIcon = Icons.Rounded.Edit, placeholder = "mis. Bank Jago")
+        BizTextField(kode, { kode = it }, "Kode akun *", leadingIcon = Icons.Rounded.Tag, supportingText = "Otomatis berikutnya yang belum dipakai")
+        galat?.let { Text(it, color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall) }
     }
 }

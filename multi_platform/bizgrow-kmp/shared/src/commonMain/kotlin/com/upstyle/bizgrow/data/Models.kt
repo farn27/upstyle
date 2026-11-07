@@ -112,7 +112,12 @@ data class Transaction(
     val qty: Int = 1,
     val hppTotal: Double = 0.0,
     /** Nama akun kas/metode bayar yang sudah diterjemahkan server (mis. "Kas Tunai", "QRIS"). */
-    val metodeLabel: String? = null
+    val metodeLabel: String? = null,
+    /** Kategori ABC (nama & level A/B/C) bila transaksi dikategorikan. */
+    val abcNama: String? = null,
+    val abcLevel: String? = null,
+    /** Saldo kas setelah transaksi ini (dihitung server, akurat walau daftar difilter). */
+    val saldoSetelah: Double? = null
 )
 
 @Serializable
@@ -155,7 +160,23 @@ data class FinanceData(
     /** Titik grafik arus kas periode terpilih (per jam bila satu hari, selain itu per tanggal). */
     val grafik: List<TitikGrafik> = emptyList(),
     val produkTerlaris: List<ProdukTerlaris> = emptyList(),
-    val perJam: Boolean = false
+    val perJam: Boolean = false,
+    /** Masih ada transaksi lebih lama untuk dimuat (paginasi riwayat). */
+    val adaLagi: Boolean = false,
+    val abcOptions: List<AbcOpsi> = emptyList()
+)
+
+@Serializable
+data class AbcOpsi(val id: Int = 0, val nama: String = "", val level: String = "C")
+
+/** Filter daftar riwayat transaksi (diproses server). */
+data class RiwayatFilter(
+    val start: String? = null,
+    val end: String? = null,
+    val jenis: String = "",
+    val q: String = "",
+    val abcId: Int = 0,
+    val urut: String = "terbaru"
 )
 
 @Serializable
