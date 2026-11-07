@@ -94,6 +94,10 @@ class AppViewModel(
     private val navigationManager = NavigationManager()
     val screen = navigationManager.screen
     val screenStack: List<Screen> get() = navigationManager.screenStack.value
+    /** Ukuran back stack (untuk arah animasi transisi maju / mundur). */
+    val screenStackFlow: StateFlow<Int> = navigationManager.screenStack
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, navigationManager.screenStack.value.size)
     val canNavigateBack: Boolean get() = navigationManager.canNavigateBack
     fun navigate(s: Screen) = navigationManager.navigate(s)
     fun navigateBack() = navigationManager.navigateBack()

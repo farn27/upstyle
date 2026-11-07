@@ -1,4 +1,4 @@
-﻿package com.upstyle.bizgrow.ui
+package com.upstyle.bizgrow.ui
 
 sealed class Screen {
     object Login : Screen()
@@ -14,6 +14,8 @@ sealed class Screen {
     object Cs : Screen()
     object Home : Screen()
     object Dashboard : Screen()
+    /** Hub "Semua Fitur" (tab Fitur di bottom nav) */
+    object Modules : Screen()
     object Finance : Screen()
     object Hr : Screen()
     object Crm : Screen()
