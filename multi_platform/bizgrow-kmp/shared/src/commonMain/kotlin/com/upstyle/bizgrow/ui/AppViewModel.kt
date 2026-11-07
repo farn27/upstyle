@@ -484,6 +484,22 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadLabaRugi error", e) }
     }
     
+    private val _laporanLengkap = MutableStateFlow<LaporanLengkap?>(null)
+    val laporanLengkap: StateFlow<LaporanLengkap?> = _laporanLengkap.asStateFlow()
+    private val _laporanMemuat = MutableStateFlow(false)
+    val laporanMemuat: StateFlow<Boolean> = _laporanMemuat.asStateFlow()
+    fun loadLaporanLengkap(tahun: Int, bulan: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _laporanMemuat.value = true
+        try {
+            val res = api.getLaporanLengkap(unitId, tahun, bulan)
+            if (res.success) _laporanLengkap.value = res.data else setError(res.message ?: "Gagal memuat laporan")
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        } finally { _laporanMemuat.value = false }
+    }
+
     private val _katalogData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.KatalogData?>(null)
     val katalogData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.KatalogData?> = _katalogData.asStateFlow()
     fun loadKatalog() = viewModelScope.launch {
@@ -532,7 +548,7 @@ class AppViewModel(
             if (res.success) {
                 if (_activeUnitId.value == unitId) {
                     _activeUnitId.value = 0
-                    _financeData.value = null
+                    _financeData.value = null; _riwayat.value = null
                 }
                 loadUnits()
                 setSuccess("Bisnis berhasil dihapus")
@@ -696,12 +712,16 @@ class AppViewModel(
     }
     private val _financeData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
     val financeData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _financeData.asStateFlow()
+    private val _riwayat = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
+    /** Data untuk layar Riwayat Transaksi — selalu sepanjang waktu, terpisah dari filter periode dashboard. */
+    val riwayat: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _riwayat.asStateFlow()
+
     fun loadFinanceData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
         try {
             val res = api.getFinanceData(unitId)
-            if (res.success) _financeData.value = res.data
+            if (res.success) _riwayat.value = res.data
         } catch (e: Exception) { Napier.e("loadFinanceData error", e) }
     }
     // ─── Sinkron offline (opsi B: antrean dikirim ulang ke API biasa) ─────────
@@ -1464,7 +1484,7 @@ class AppViewModel(
             if (unitId > 0) {
                 SocketManager.joinUnit(unitId)
                 // Reset all module data so they reload fresh for the new unit
-                _financeData.value = null
+                _financeData.value = null; _riwayat.value = null
                 _hrData.value = null
                 _scmData.value = null
                 _marketingData.value = null

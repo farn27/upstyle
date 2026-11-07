@@ -315,6 +315,15 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("end", endDate)
         }.body()
 
+    /** Laporan lengkap (dashboard analisis + laba rugi + neraca). bulan = "all" atau 1..12. */
+    suspend fun getLaporanLengkap(unitId: Int, tahun: Int, bulan: String): ApiResponse<LaporanLengkap> =
+        client.get("api/app/finance/laporan") {
+            parameter("unitId", unitId)
+            parameter("type", "report")
+            parameter("tahun", tahun)
+            parameter("bulan", bulan)
+        }.body()
+
     suspend fun getArusKas(unitId: Int, startDate: String, endDate: String): ApiResponse<ArusKasData> =
         client.get("api/app/finance/laporan") {
             parameter("unitId", unitId)

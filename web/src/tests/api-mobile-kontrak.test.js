@@ -31,6 +31,7 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		r.plan = await import('../routes/api/app/business-plan/+server.js');
 		r.marketing = await import('../routes/api/app/marketing/+server.js');
 		r.finance = await import('../routes/api/app/finance/+server.js');
+		r.laporan = await import('../routes/api/app/finance/laporan/+server.js');
 
 		const t = Date.now();
 		const [a] = await db.insert(s.users).values({ username: `ka${t}`, email: `ka${t}@contoh.id` });
@@ -98,6 +99,18 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		expect(lama.summary.total_masuk).toBe(0);
 		expect(lama.summary.saldoKas).toBe(200000);
 		expect(lama.transactions).toHaveLength(0);
+	});
+
+	it('laporan: type=report memuat dashboard, laba rugi & neraca', async () => {
+		login.userId = id.user;
+		const res = await r.laporan.GET({ url: new URL(`http://x?unitId=${id.unit}&type=report&tahun=${new Date().getFullYear()}`), cookies, request: new Request('http://x') });
+		const body = await res.json();
+		expect(body.success).toBe(true);
+		expect(body.data.dashboard.summary).toMatchObject({ totalMasuk: 300000, totalKeluar: 100000 });
+		expect(body.data.dashboard.arusKas).toHaveLength(12);
+		expect(Array.isArray(body.data.dashboard.metodeBayarStats)).toBe(true);
+		expect(body.data.labaRugi).toHaveProperty('labaBersih');
+		expect(body.data.neraca).toHaveProperty('totalAset');
 	});
 
 	it('business plan: daftar memuat deskripsi & ringkasan untuk app', async () => {

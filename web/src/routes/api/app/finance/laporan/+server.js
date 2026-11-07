@@ -4,6 +4,8 @@ import { transaksi, journalEntries, journalEntryLines, chartOfAccounts } from '$
 import { eq, and, desc, sql, gte, lte } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { buatLaporanKeuangan } from '$lib/server/laporanKeuangan';
+import { thisMonthWIB } from '$lib/server/dateUtils';
 
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -26,6 +28,38 @@ export async function GET({ url, cookies, request }) {
     const end = url.searchParams.get('end');
 
     try {
+        // Laporan lengkap sama dengan halaman web: dashboard analisis + laba rugi + neraca (double-entry)
+        if (type === 'report') {
+            const tahun = parseInt(url.searchParams.get('tahun') || String(thisMonthWIB().year));
+            const bulanParam = url.searchParams.get('bulan') || 'all';
+            const bulan = bulanParam === 'all' || (Number(bulanParam) >= 1 && Number(bulanParam) <= 12) ? bulanParam : 'all';
+            if (!Number.isInteger(tahun) || tahun < 2000 || tahun > 2100) {
+                return json({ success: false, message: 'tahun tidak valid' }, { status: 400 });
+            }
+            const { dashboard, labaRugi, neraca } = await buatLaporanKeuangan({ id: unitId }, tahun, bulan);
+            return json({
+                success: true,
+                data: {
+                    tahun,
+                    bulan,
+                    dashboard: {
+                        ...dashboard,
+                        produkTerlaris: dashboard.produkTerlaris.map(p => ({
+                            productId: p.productId, namaProduk: p.namaProduk || p.productId,
+                            totalRevenue: Number(p.totalRevenue || 0), totalQty: Number(p.totalQty || 0)
+                        })),
+                        metodeBayarStats: dashboard.metodeBayarStats.map(m => ({ metode: m.metode || 'KAS', total: Number(m.total || 0) })),
+                        riwayatTrx: dashboard.riwayatTrx.map(t => ({
+                            id: t.id, kategoriTrx: t.kategoriTrx, nominal: Number(t.nominal || 0),
+                            keterangan: t.keterangan || '', tanggal: t.tanggal ? new Date(t.tanggal).getTime() : null
+                        }))
+                    },
+                    labaRugi,
+                    neraca
+                }
+            });
+        }
+
         if (type === 'laba-rugi') {
             const whereConditions = [eq(transaksi.unitId, unitId)];
             if (start && end) {

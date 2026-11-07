@@ -2060,3 +2060,90 @@ data class SyncQueueFlushRequest(
     val unitId: Int,
     val items: List<SyncQueueItem>
 )
+
+// ─── Laporan lengkap (sama dengan halaman Laporan web) ───────────────────────
+
+@Serializable
+data class AkunSaldo(val id: Int = 0, val kodeAkun: String = "", val namaAkun: String = "", val saldo: Double = 0.0)
+
+@Serializable
+data class LaporanSummary(
+    val totalMasuk: Double = 0.0,
+    val totalKeluar: Double = 0.0,
+    val totalHpp: Double = 0.0,
+    val jumlahTrx: Int = 0,
+    val labaKotor: Double = 0.0
+)
+
+@Serializable
+data class LaporanArusBulan(val bulan: Int = 0, val masuk: Double = 0.0, val keluar: Double = 0.0)
+
+@Serializable
+data class LaporanProdukLaris(
+    val productId: String? = null,
+    val namaProduk: String? = null,
+    val totalRevenue: Double = 0.0,
+    val totalQty: Double = 0.0
+)
+
+@Serializable
+data class LaporanMetodeBayar(val metode: String = "KAS", val total: Double = 0.0)
+
+@Serializable
+data class LaporanTrxTerbaru(
+    val id: Int = 0,
+    val kategoriTrx: String = "",
+    val nominal: Double = 0.0,
+    val keterangan: String = "",
+    val tanggal: Long? = null
+)
+
+@Serializable
+data class LaporanDashboard(
+    val summary: LaporanSummary = LaporanSummary(),
+    val arusKas: List<LaporanArusBulan> = emptyList(),
+    val produkTerlaris: List<LaporanProdukLaris> = emptyList(),
+    val metodeBayarStats: List<LaporanMetodeBayar> = emptyList(),
+    val riwayatTrx: List<LaporanTrxTerbaru> = emptyList()
+)
+
+@Serializable
+data class LaporanLabaRugi(
+    val pendapatan: List<AkunSaldo> = emptyList(),
+    val hpp: List<AkunSaldo> = emptyList(),
+    val beban: List<AkunSaldo> = emptyList(),
+    val pendapatanLainnya: List<AkunSaldo> = emptyList(),
+    val bebanLainnya: List<AkunSaldo> = emptyList(),
+    val totalPendapatan: Double = 0.0,
+    val totalHpp: Double = 0.0,
+    val totalBeban: Double = 0.0,
+    val totalPendapatanLainnya: Double = 0.0,
+    val totalBebanLainnya: Double = 0.0,
+    val labaKotor: Double = 0.0,
+    val labaBersih: Double = 0.0
+)
+
+@Serializable
+data class LaporanNeraca(
+    val asetLancar: List<AkunSaldo> = emptyList(),
+    val asetTetap: List<AkunSaldo> = emptyList(),
+    val liabilitasLancar: List<AkunSaldo> = emptyList(),
+    val liabilitasJangkaPanjang: List<AkunSaldo> = emptyList(),
+    val ekuitas: List<AkunSaldo> = emptyList(),
+    val totalAsetLancar: Double = 0.0,
+    val totalAsetTetap: Double = 0.0,
+    val totalAset: Double = 0.0,
+    val totalLiabilitasLancar: Double = 0.0,
+    val totalLiabilitasPanjang: Double = 0.0,
+    val totalLiabilitas: Double = 0.0,
+    val totalEkuitas: Double = 0.0
+)
+
+@Serializable
+data class LaporanLengkap(
+    val tahun: Int = 0,
+    val bulan: String = "all",
+    val dashboard: LaporanDashboard = LaporanDashboard(),
+    val labaRugi: LaporanLabaRugi = LaporanLabaRugi(),
+    val neraca: LaporanNeraca = LaporanNeraca()
+)
