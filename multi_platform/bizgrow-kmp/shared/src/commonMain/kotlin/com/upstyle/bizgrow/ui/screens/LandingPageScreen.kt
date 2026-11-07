@@ -146,7 +146,7 @@ fun LandingPageCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "/${page.pageSlug}",
+                        text = "/w/lp/${page.pageSlug}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )

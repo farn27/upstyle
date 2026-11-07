@@ -35,7 +35,7 @@ export async function GET({ url, cookies, request }) {
             caption: p.caption,
             imageUrl: p.imageUrl || '',
             scheduledAt: p.scheduledAt || '',
-            status: p.status || 'draft',
+            status: statusNorm(p.status || 'draft'),
             createdAt: p.createdAt || ''
         }));
 
@@ -46,13 +46,26 @@ export async function GET({ url, cookies, request }) {
     }
 }
 
+/** Jadwal dari app ("YYYY-MM-DD HH:mm" atau ISO) → string SQL WIB; null = kosong, undefined = format salah. */
+function waktuSql(v) {
+    if (v === undefined || v === null || String(v).trim() === '') return null;
+    const t = String(v).trim();
+    const m = t.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+    if (m) return `${m[1]} ${m[2]}:${m[3]}:00`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return `${t} 00:00:00`;
+    return undefined;
+}
+
+const STATUS_POST = ['DRAFT', 'SCHEDULED', 'PUBLISHED'];
+const statusNorm = (v) => String(v ?? '').trim().toUpperCase();
+
 const postSchema = z.object({
     unitId: z.coerce.number().int().positive(),
     platform: z.string().min(1),
     caption: z.string().min(1),
     imageUrl: z.string().optional(),
     scheduledAt: z.string().optional(),
-    status: z.string().default('draft')
+    status: z.string().default('DRAFT')
 });
 
 export async function POST({ request, cookies }) {
@@ -72,13 +85,17 @@ export async function POST({ request, cookies }) {
         });
         if (!unit) return apiError('Unit tidak ditemukan', 404);
 
+        const jadwal = waktuSql(parsed.data.scheduledAt);
+        if (jadwal === undefined) return apiError('Format jadwal harus YYYY-MM-DD HH:mm', 422);
+        const statusPost = statusNorm(parsed.data.status);
+        if (!STATUS_POST.includes(statusPost)) return apiError('Status harus DRAFT, SCHEDULED, atau PUBLISHED', 422);
         const [result] = await db.insert(socialPosts).values({
             unitId: Number(parsed.data.unitId),
             platform: parsed.data.platform,
             caption: parsed.data.caption,
             imageUrl: parsed.data.imageUrl || null,
-            scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
-            status: parsed.data.status
+            scheduledAt: jadwal,
+            status: statusPost
         });
 
         return apiSuccess({ id: result.insertId }, 'Postingan berhasil dibuat');
@@ -122,7 +139,13 @@ export async function PUT({ request, cookies }) {
         const { id, scheduledAt, ...rest } = parsed.data;
         const cleanData = { ...rest };
         if (scheduledAt !== undefined) {
-            cleanData.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+            const jadwal = waktuSql(scheduledAt);
+            if (jadwal === undefined) return apiError('Format jadwal harus YYYY-MM-DD HH:mm', 422);
+            cleanData.scheduledAt = jadwal;
+        }
+        if (cleanData.status !== undefined) {
+            cleanData.status = statusNorm(cleanData.status);
+            if (!STATUS_POST.includes(cleanData.status)) return apiError('Status harus DRAFT, SCHEDULED, atau PUBLISHED', 422);
         }
 
         await db.update(socialPosts).set(cleanData).where(eq(socialPosts.id, Number(id)));
