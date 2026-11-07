@@ -58,6 +58,15 @@ describe.skipIf(!TEST_DB)('Unit bisnis app', () => {
 		const daftar = await (await api.GET({ cookies: { get() {} }, request: new Request('http://x/') })).json();
 		expect(daftar.data.find((u) => u.id === uc.id).cabangDari).toBe(u1.id);
 
+		// link portal staff: mengisi login_slug, slug unit TIDAK berubah
+		const put = async (body) => (await (await api.PUT({ request: new Request('http://x/', { method: 'PUT', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }), cookies: { get() {} } })).json());
+		const slugAsal = (await db.select().from(s.unitBisnis).where(eq(s.unitBisnis.id, uc.id)))[0].slug;
+		const portal = await put({ action: 'updatePortal', unitId: uc.id, generateNewSlug: false });
+		expect(portal.data.loginSlug).toMatch(/^kopi-senja-cabang-/);
+		const portal2 = await put({ action: 'updatePortal', unitId: uc.id, generateNewSlug: true });
+		expect(portal2.data.loginSlug).not.toBe(portal.data.loginSlug);
+		expect((await db.select().from(s.unitBisnis).where(eq(s.unitBisnis.id, uc.id)))[0]).toMatchObject({ slug: slugAsal, loginSlug: portal2.data.loginSlug });
+
 		// hapus induk → cabang tetap ada (cabang_dari menjadi null)
 		const del = await api.DELETE(req('DELETE', null, `unitId=${u1.id}`));
 		expect((await del.json()).success).toBe(true);

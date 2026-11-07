@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
+import argon2 from 'argon2';
 
 // GET /api/app/settings/profile
 /** Riwayat hanya dicatat bila user punya unit (FK unit_id); kegagalan log tidak boleh menggagalkan simpan. */
@@ -120,15 +121,17 @@ export async function PUT({ request, cookies }) {
                	.from(users)
                	.where(eq(users.id, userId));
 
-            if (!user || !user.password) {
-                return apiError('User tidak ditemukan atau tidak memiliki kata sandi', 404);
-            }
+            if (!user) return apiError('User tidak ditemukan', 404);
+            if (!user.password) return apiError('Akun ini login via Google dan tidak punya kata sandi lokal', 400);
 
-            const ok = currentPassword === user.password;
+            // Kata sandi tersimpan sebagai hash argon2 (sama dengan login & halaman pengaturan web).
+            // Dulu dibandingkan sebagai teks biasa sehingga selalu 'tidak cocok' — dan bila lolos akan menyimpan teks biasa.
+            let ok = false;
+            try { ok = await argon2.verify(user.password, currentPassword); } catch { ok = false; }
             if (!ok) return apiError('Kata sandi lama tidak cocok', 400, 'INVALID_CREDENTIALS');
 
             await db.update(users)
-               	.set({ password: newPassword })
+               	.set({ password: await argon2.hash(newPassword) })
                	.where(eq(users.id, userId));
 
             await catatRiwayat(userId, user.companyId, 'Kata sandi diubah');

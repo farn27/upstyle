@@ -177,50 +177,32 @@ export async function PUT({ request, cookies }) {
                 return json({ success: false, message: 'Unit bisnis tidak ditemukan' }, { status: 404 });
             }
 
-            let newSlug = unit.slug;
-            if (generateNewSlug || !unit.slug) {
-                // Generate new unique slug
-                const baseSlug = unit.namaUnit.toLowerCase()
-                    .replace(/[^a-z0-9\s-]/g, '')
-                    .replace(/\s+/g, '-')
-                    .slice(0, 50);
-                
-                const timestamp = Date.now().toString().slice(-6);
-                newSlug = `${baseSlug}-${timestamp}`;
-
-                // Ensure uniqueness
-                let counter = 1;
-                let finalSlug = newSlug;
-                while (true) {
-                    const existing = await db.query.unitBisnis.findFirst({
-                        where: eq(unitBisnis.slug, finalSlug)
-                    });
-                    if (!existing) break;
-                    finalSlug = `${newSlug}-${counter}`;
-                    counter++;
+            // Link login staff (/portal/<loginSlug>) — kolom login_slug, BUKAN slug unit (dulu slug unit ikut berubah
+            // sehingga seluruh alamat halaman unit di web berganti). Format sama dengan tombol di Pengaturan Bisnis web.
+            let loginSlug = unit.loginSlug;
+            if (generateNewSlug || !loginSlug) {
+                const bersih = unit.namaUnit.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().replace(/\s+/g, '-').substring(0, 30) || 'unit';
+                for (let i = 0; i < 5; i++) {
+                    const kandidat = `${bersih}-${Math.random().toString(36).substring(2, 7)}`;
+                    const bentrok = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.loginSlug, kandidat), columns: { id: true } });
+                    if (!bentrok) { loginSlug = kandidat; break; }
                 }
-                newSlug = finalSlug;
-
-                await db.update(unitBisnis)
-                    .set({ slug: newSlug })
-                    .where(eq(unitBisnis.id, Number(unitId)));
+                if (!loginSlug || loginSlug === unit.loginSlug) loginSlug = `${bersih}-${Date.now().toString(36)}`;
+                await db.update(unitBisnis).set({ loginSlug }).where(eq(unitBisnis.id, Number(unitId)));
             }
 
             await db.insert(riwayatAksi).values({
                 userId,
                 unitId: Number(unitId),
-                pesan: generateNewSlug ? `Portal slug diperbarui: ${newSlug}` : 'Portal diaktifkan',
+                pesan: generateNewSlug ? `Link portal staff diperbarui: /portal/${loginSlug}` : 'Link portal staff diaktifkan',
                 kategori: 'PORTAL',
                 tipe: 'success'
             });
 
-            return json({ 
-                success: true, 
-                message: 'Portal berhasil diperbarui',
-                data: {
-                    slug: newSlug,
-                    portalUrl: `https://portal.bizgrow.id/${newSlug}` // adjust domain as needed
-                }
+            return json({
+                success: true,
+                message: 'Link portal staff berhasil diperbarui',
+                data: { loginSlug, portalPath: `/portal/${loginSlug}` }
             });
         }
 

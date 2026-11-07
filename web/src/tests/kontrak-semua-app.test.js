@@ -224,6 +224,13 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 
 		// ── Pengaturan akun & rencana bisnis ─────────────────────────────────
 		await uji('profil: simpan', 'settings', 'PUT', { body: { mode: 'profile', name: 'Uji', phone: '08' } });
+		// ubah kata sandi: harus memakai hash argon2 (sama dengan login)
+		const argon = (await import('argon2')).default;
+		await db.update(s.users).set({ password: await argon.hash('lama123') }).where(eq(s.users.id, usr.insertId));
+		await uji('sandi: salah ditolak', 'settings', 'PUT', { body: { mode: 'password', currentPassword: 'salah', newPassword: 'baru1234' }, ok: (j, st) => st === 400 });
+		await uji('sandi: ubah', 'settings', 'PUT', { body: { mode: 'password', currentPassword: 'lama123', newPassword: 'baru1234' } });
+		const [u2] = await db.select().from(s.users).where(eq(s.users.id, usr.insertId));
+		if (!(await argon.verify(u2.password, 'baru1234'))) hasil.push('GAGAL  sandi: tidak tersimpan sebagai hash argon2');
 		await uji('preferensi: simpan', 'settings', 'PUT', { body: { mode: 'preferences', darkMode: true, notifPref: true } });
 		const bp = await uji('rencana bisnis: simpan', 'business-plan', 'POST', { body: { namaBisnis: 'Kedai', kategori: 'FNB_RESTO', deskripsi: 'x', targetPasar: 'y', status: 'DRAFT' } });
 		await uji('rencana bisnis: wizard simpan lagi', 'business-plan', 'POST', { body: { id: bp?.data?.id, namaBisnis: 'Kedai', kategori: 'FNB_RESTO', modalAwal: 1000000, estimasiHarga: 20000, estimasiVolumePerBulan: 100, channelPenjualan: ['offline'], platformOnline: [], currentStep: 5, status: 'COMPLETE' } });
