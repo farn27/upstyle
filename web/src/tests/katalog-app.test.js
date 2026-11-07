@@ -48,6 +48,15 @@ describe.skipIf(!TEST_DB)('Katalog app', () => {
 		g = (await jalan(kat.GET, mk('GET', null, `unitId=${unit}`))).j.data.settings;
 		expect(g.isActive).toBe(true);
 
+		// website: ubah alamat ke yang dipakai unit lain → 409; alamat dirapikan
+		const web = await import('../routes/api/app/website/+server.js');
+		const [ua2] = await db.insert(s.unitBisnis).values({ userId: a.insertId, namaUnit: 'Katalog A2', slug: `kat-a2-${t}`, kategori: 'RETAIL_TOKO' });
+		const wk = (body) => ({ request: new Request('http://x/', { method: 'PUT', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }), cookies: { get() {} }, url: new URL('http://x/') });
+		expect((await jalan(web.PUT, wk({ unitId: ua2.insertId, domainSlug: situs.domainSlug }))).st).toBe(409);
+		expect((await jalan(web.PUT, wk({ unitId: ua2.insertId, domainSlug: `Toko Baru ${t}!`, heroTitle: 'Halo' }))).j.success).toBe(true);
+		const [w2] = await db.select().from(s.websiteSettings).where(eq(s.websiteSettings.unitId, ua2.insertId));
+		expect(w2).toMatchObject({ domainSlug: `toko-baru-${t}`, heroTitle: 'Halo' });
+
 		// user lain tidak bisa mengubah
 		login.userId = b.insertId;
 		expect((await jalan(kat.PUT, mk('PUT', { action: 'update-katalog-settings', unitId: unit, settings: { isActive: false } }))).st).toBe(404);

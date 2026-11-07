@@ -10,7 +10,7 @@ import { websiteSettings, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
-import { domainSlugUnik } from '$lib/server/unitBaru';
+import { domainSlugUnik, slugDasar } from '$lib/server/unitBaru';
 import { z } from 'zod';
 
 const updateSchema = z.object({
@@ -87,6 +87,19 @@ export async function PUT({ request, cookies }) {
         if (!unit) return apiError('Unit tidak ditemukan', 404);
 
         const { unitId, ...rest } = parsed.data;
+        // Alamat situs /w/<slug> harus unik se-server dan berformat rapi
+        const slug = slugDasar(rest.domainSlug).slice(0, 100);
+        if (!slug) return apiError('Alamat situs tidak valid', 422);
+        const dipakai = await db.query.websiteSettings.findFirst({ where: eq(websiteSettings.domainSlug, slug), columns: { unitId: true } });
+        if (dipakai && dipakai.unitId !== Number(unitId)) return apiError('Alamat situs sudah dipakai, pilih yang lain', 409);
+        rest.domainSlug = slug;
+
+        const ada = await db.query.websiteSettings.findFirst({ where: eq(websiteSettings.unitId, Number(unitId)), columns: { id: true } });
+        if (!ada) {
+            // belum pernah dibuka sebelumnya → buat dulu (sebelumnya UPDATE tanpa baris = tidak menyimpan apa pun)
+            await db.insert(websiteSettings).values({ unitId: Number(unitId), ...rest });
+            return apiSuccess(null, 'Pengaturan website berhasil disimpan');
+        }
         await db.update(websiteSettings).set(rest).where(eq(websiteSettings.unitId, Number(unitId)));
         return apiSuccess(null, 'Pengaturan website berhasil diperbarui');
     } catch (err) {
