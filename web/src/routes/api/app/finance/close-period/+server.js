@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { closingPeriods, transaksi, riwayatAksi } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -47,8 +47,14 @@ export async function POST({ request, cookies }) {
         if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
         const { unitId, periodStart, periodEnd, keterangan } = parsed.data;
 
-        // Calculate laba/rugi for the period
-        const trxList = await db.query.transaksi.findMany({ where: eq(transaksi.unitId, Number(unitId)) });
+        if (periodStart > periodEnd) return json({ success: false, message: 'Tanggal mulai tidak boleh setelah tanggal akhir' }, { status: 422 });
+
+        // Laba/rugi HANYA untuk periode yang dikunci (bukan seluruh riwayat transaksi)
+        const trxList = await db.select().from(transaksi).where(and(
+            eq(transaksi.unitId, Number(unitId)),
+            sql`DATE(${transaksi.tanggal}) >= ${periodStart}`,
+            sql`DATE(${transaksi.tanggal}) <= ${periodEnd}`
+        ));
         const totalMasuk = trxList.filter(t => t.kategoriTrx === 'MASUK').reduce((s, t) => s + Number(t.nominal || 0), 0);
         const totalKeluar = trxList.filter(t => t.kategoriTrx === 'KELUAR').reduce((s, t) => s + Number(t.nominal || 0), 0);
         const labaRugi = totalMasuk - totalKeluar;

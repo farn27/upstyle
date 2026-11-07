@@ -1111,6 +1111,42 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
         client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()
 
+    suspend fun createClosingPeriod(unitId: Int, mulai: String, akhir: String, keterangan: String?): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/close-period") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("periodStart", mulai)
+                put("periodEnd", akhir)
+                keterangan?.takeIf { it.isNotBlank() }?.let { put("keterangan", it) }
+            })
+        }.body())
+
+    // COA → api/app/finance/coa (tambah / ubah nama-deskripsi-status / nonaktifkan)
+    suspend fun createCoa(unitId: Int, kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/coa") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("kodeAkun", kode)
+                put("namaAkun", nama)
+                put("tipeAkun", tipe)
+                put("normalBalance", normalBalance)
+                deskripsi?.takeIf { it.isNotBlank() }?.let { put("deskripsi", it) }
+            })
+        }.body())
+
+    suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/finance/coa") {
+            setBody(buildJsonObject {
+                put("id", id)
+                put("namaAkun", nama)
+                put("deskripsi", deskripsi ?: "")
+                put("isActive", aktif)
+            })
+        }.body())
+
+    suspend fun deleteCoa(id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/coa") { parameter("coaId", id) }.body())
+
     // Persetujuan → api/app/hr/approvals
     suspend fun getApprovals(unitId: Int): ApiResponse<ApprovalsData> =
         client.get("api/app/hr/approvals") { parameter("unitId", unitId) }.body()

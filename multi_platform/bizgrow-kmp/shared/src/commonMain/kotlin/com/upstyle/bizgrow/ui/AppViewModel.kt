@@ -883,6 +883,16 @@ class AppViewModel(
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
 
+    fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
+        jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
+
+    fun createCoa(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?) =
+        jalankanMasterData("Akun COA dibuat", { loadChartOfAccounts() }) { api.createCoa(it, kode, nama, tipe, normalBalance, deskripsi) }
+    fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean) =
+        jalankanMasterData("Akun COA diperbarui", { loadChartOfAccounts() }) { api.updateCoa(id, nama, deskripsi, aktif) }
+    fun deleteCoa(id: Int) =
+        jalankanMasterData("Akun COA dinonaktifkan", { loadChartOfAccounts() }) { api.deleteCoa(id) }
+
     fun seedDefaultCoa(type: String = "LAINNYA") =
         jalankanMasterData("COA standar dibuat", { loadChartOfAccounts() }) { api.seedDefaultCoa(it, type) }
 
