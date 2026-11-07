@@ -947,6 +947,9 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body()
 
+    suspend fun komponenGaji(employeeId: Int, body: JsonObject): ApiResponse<JsonObject> =
+        client.post("api/app/hr/$employeeId") { setBody(body) }.body()
+
     suspend fun getHrDetail(employeeId: Int): ApiResponse<HrDetailData> =
         client.get("api/app/hr/$employeeId").body()
 

@@ -157,6 +157,8 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		await uji('absen masuk', 'hr', 'POST', { body: { action: 'check-in', employeeId: emp?.id, unitId, date: hari, time: '08:00' } });
 		await uji('absen keluar', 'hr', 'POST', { body: { action: 'check-out', employeeId: emp?.id, date: hari, time: '17:00' } });
 		await uji('payroll: proses', 'hr', 'POST', { body: { action: 'process-payroll', payroll: { employeeId: emp?.id, monthYear: '08/2026', periodMonth: 8, periodYear: 2026, salary: 1000000, allowance: 0, deduction: 0, netSalary: 1000000, unitId } } });
+		await uji('payroll: tolak proses ganda', 'hr', 'POST', { body: { action: 'process-payroll', payroll: { employeeId: emp?.id, monthYear: '08/2026', periodMonth: 8, periodYear: 2026, salary: 1000000, allowance: 0, deduction: 0, netSalary: 1000000, unitId } }, ok: (j, st) => st === 409 });
+		await uji('payroll: tolak net tidak konsisten', 'hr', 'POST', { body: { action: 'process-payroll', payroll: { employeeId: emp?.id, monthYear: '09/2026', periodMonth: 9, periodYear: 2026, salary: 1000000, allowance: 100000, deduction: 0, netSalary: 5000000, unitId } }, ok: (j, st) => st === 422 });
 		const [pr] = await db.select().from(s.payrolls).limit(1);
 		await uji('payroll: tandai lunas', 'hr/payroll', 'PUT', { body: { action: 'mark-paid', unitId, payrollIds: [pr?.id] }, lateral: true });
 		await uji('departemen: buat', 'hr/departments', 'POST', { body: { unitId, name: 'Gudang' } });
@@ -166,6 +168,11 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		await uji('persetujuan: ajukan reimburse', 'hr/approvals', 'POST', { body: { action: 'create-reimbursement-request', unitId, employeeId: emp?.id, amount: 50000, category: 'LAINNYA', description: 'Bensin', expenseDate: hari } });
 		const [ap1] = await db.select().from(s.approvalRequests).where(eq(s.approvalRequests.unitId, unitId)).limit(1);
 		await uji('persetujuan: setujui', 'hr/approvals', 'PUT', { body: { action: 'approve-request', requestId: ap1?.id, unitId } });
+		await uji('komponen gaji: tambah', `hr/[employeeId]`, 'POST', { params: { employeeId: String(emp?.id) }, body: { action: 'add-component', component: { name: 'Tunjangan transport', amount: 150000, type: 'addition' } } });
+		await uji('komponen gaji: tambah potongan', `hr/[employeeId]`, 'POST', { params: { employeeId: String(emp?.id) }, body: { action: 'add-component', component: { name: 'BPJS', amount: 50000, type: 'deduction' } } });
+		await uji('komponen gaji: tolak nominal 0', `hr/[employeeId]`, 'POST', { params: { employeeId: String(emp?.id) }, body: { action: 'add-component', component: { name: 'X', amount: 0, type: 'addition' } }, ok: (j, st) => st === 422 });
+		const [komp] = await db.select().from(s.salaryComponents).where(eq(s.salaryComponents.employeeId, emp?.id)).limit(1);
+		await uji('komponen gaji: hapus', `hr/[employeeId]`, 'POST', { params: { employeeId: String(emp?.id) }, body: { action: 'delete-component', componentId: komp?.id } });
 		await uji('karyawan: hapus', 'hr', 'DELETE', { q: { employeeId: emp?.id, unitId } });
 
 		// ── CRM ───────────────────────────────────────────────────────────────

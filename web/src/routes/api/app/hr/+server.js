@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi, approvalRequests, shifts } from '$lib/server/schema';
-import { eq, and, desc, inArray, like, isNull, sql } from 'drizzle-orm';
+import { eq, and, desc, inArray, like, isNull, sql, gte } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
@@ -10,6 +10,7 @@ import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { thisMonthWIB } from '$lib/server/dateUtils';
+import { ringkasanHr } from '$lib/server/ringkasanHr';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -58,8 +59,10 @@ export async function GET({ url, cookies, request }) {
         // Get attendance (filter by employee IDs, not company_id)
         let attendanceList = [];
         if (employeeIds.length > 0) {
+            // 45 hari terakhir saja (dulu seluruh riwayat → muatan terus membesar)
+            const sejak = new Date(Date.now() + 7 * 3600e3 - 45 * 86400e3).toISOString().slice(0, 10);
             attendanceList = await db.query.attendance.findMany({
-                where: inArray(attendance.employeeId, employeeIds),
+                where: and(inArray(attendance.employeeId, employeeIds), gte(attendance.checkIn, `${sejak} 00:00:00`)),
                 orderBy: [desc(attendance.id)],
                 with: {
                     employee: true
@@ -70,8 +73,11 @@ export async function GET({ url, cookies, request }) {
         // Get payrolls (filter by employee IDs, not company_id)
         let payrollList = [];
         if (employeeIds.length > 0) {
+            // 12 bulan terakhir
+            const nowWib = thisMonthWIB();
+            const batasBulan = nowWib.year * 12 + nowWib.month - 12;
             payrollList = await db.query.payrolls.findMany({
-                where: inArray(payrolls.employeeId, employeeIds),
+                where: and(inArray(payrolls.employeeId, employeeIds), sql`(${payrolls.periodYear} * 12 + ${payrolls.periodMonth}) > ${batasBulan}`),
                 orderBy: [desc(payrolls.id)],
                 with: {
                     employee: true
@@ -180,9 +186,13 @@ export async function GET({ url, cookies, request }) {
             type: sc.type || 'addition'
         }));
 
+        // Ringkasan eksekutif (kartu di atas halaman HR) — dari seluruh karyawan unit, bukan hanya halaman ini
+        const ringkasan = await ringkasanHr(db, Number(unitId));
+
         return json({
             success: true,
             data: {
+                ringkasan,
                 employees: mappedEmployees,
                 attendance: mappedAttendance,
                 payroll: mappedPayroll,
@@ -417,6 +427,15 @@ export async function POST({ request, cookies }) {
         if (action === 'process-payroll') {
             const { employeeId, monthYear, periodMonth, periodYear, salary, allowance, deduction, netSalary, unitId } = body.payroll;
             const { month, year } = parseMonthYear(monthYear);
+
+            // Nominal harus konsisten & tidak boleh diproses dua kali untuk karyawan + periode yang sama
+            const bulanGaji = Number(periodMonth || month);
+            const tahunGaji = Number(periodYear || year);
+            if (Math.abs((Number(salary) + Number(allowance) - Number(deduction)) - Number(netSalary)) > 0.5) {
+                return json({ success: false, message: 'Gaji bersih tidak sama dengan gaji pokok + tunjangan − potongan' }, { status: 422 });
+            }
+            const sudahAda = await db.query.payrolls.findFirst({ where: and(eq(payrolls.employeeId, Number(employeeId)), eq(payrolls.periodMonth, bulanGaji), eq(payrolls.periodYear, tahunGaji)) });
+            if (sudahAda) return json({ success: false, message: `Payroll karyawan ini untuk ${monthYear} sudah diproses` }, { status: 409 });
 
             await db.transaction(async (tx) => {
                 await tx.insert(payrolls).values({

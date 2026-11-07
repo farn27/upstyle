@@ -487,11 +487,32 @@ data class LeaveRequest(
 
 @Serializable
 data class HrData(
+    val ringkasan: RingkasanHr = RingkasanHr(),
+    val salaryComponents: List<SalaryComponent> = emptyList(),
     val employees: List<Employee> = emptyList(),
     val attendance: List<AttendanceRecord> = emptyList(),
     val payroll: List<PayrollRecord> = emptyList(),
     val leaveRequests: List<LeaveRequest> = emptyList()
 )
+
+/** Ringkasan eksekutif HR dari server (seluruh karyawan unit, bukan hanya halaman yang dimuat). */
+@Serializable
+data class RingkasanHr(
+    val totalKaryawan: Int = 0,
+    val karyawanAktif: Int = 0,
+    val bebanGaji: Double = 0.0,
+    val hadirHariIni: Int = 0,
+    val cutiMenunggu: Int = 0,
+    val kontrakSegeraHabis: Int = 0,
+    val kontrakLewat: Int = 0,
+    val kpiRataRata: Double? = null,
+    val payrollBulanIni: RingkasanPayroll = RingkasanPayroll(),
+    val bulan: Int = 0,
+    val tahun: Int = 0
+)
+
+@Serializable
+data class RingkasanPayroll(val dibayar: Int = 0, val belumDibayar: Int = 0, val nominalDibayar: Double = 0.0, val nominalBelum: Double = 0.0)
 
 @Serializable
 data class CreateEmployeeRequest(
@@ -2373,6 +2394,7 @@ data class HrDokumen(val id: Int = 0, val documentType: String = "", val fileNam
 @Serializable
 data class HrDetailData(
     val employee: HrKaryawan = HrKaryawan(),
+    val components: List<SalaryComponent> = emptyList(),
     val kpis: List<HrKpi> = emptyList(),
     val history: List<HrRiwayatJabatan> = emptyList(),
     val documents: List<HrDokumen> = emptyList()

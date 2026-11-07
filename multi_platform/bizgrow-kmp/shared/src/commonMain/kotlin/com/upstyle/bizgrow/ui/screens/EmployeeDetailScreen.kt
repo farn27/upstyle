@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.upstyle.bizgrow.data.*
+import kotlinx.coroutines.launch
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
@@ -31,6 +32,9 @@ private val namaBulanKpi = listOf("", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
 fun EmployeeDetailScreen(viewModel: AppViewModel) {
     val detail by viewModel.hrDetail.collectAsState()
     var edit by remember { mutableStateOf(false) }
+    var tambahKomponen by remember { mutableStateOf(false) }
+    var hapusKomponen by remember { mutableStateOf<SalaryComponent?>(null) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { viewModel.loadHrDetail() }
 
     BizScreen(detail?.employee?.fullName ?: "Karyawan", subtitle = detail?.employee?.position, onBack = { viewModel.navigateBack() },
@@ -67,6 +71,24 @@ fun EmployeeDetailScreen(viewModel: AppViewModel) {
             item { KartuInfo("Kontrak", listOf("Status kerja" to e.employmentStatus, "Mulai" to e.contractStart.take(10), "Berakhir" to e.contractEnd.take(10))) }
             item { KartuInfo("Kompensasi", listOf("Gaji pokok" to e.salary.rupiah(), "Bank" to e.bankName, "No. rekening" to topeng(e.bankAccountNumber))) }
 
+            // Komponen gaji (dipakai saat proses payroll)
+            val tunjangan = d.components.filter { it.type == "addition" }
+            val potongan = d.components.filter { it.type == "deduction" }
+            item {
+                SectionTitle("Komponen gaji", subtitle = "Gaji bersih ${(e.salary + tunjangan.sumOf { it.amount } - potongan.sumOf { it.amount }).rupiah()}", actionLabel = "+ Tambah", onAction = { tambahKomponen = true })
+            }
+            if (d.components.isEmpty()) item { Text("Belum ada tunjangan/potongan. Payroll memakai gaji pokok saja.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            items(d.components.size) { n ->
+                val c = d.components[n]
+                val plus = c.type == "addition"
+                ListRow(
+                    c.name, subtitle = if (plus) "Tunjangan" else "Potongan", icon = if (plus) Icons.Rounded.AddCircleOutline else Icons.Rounded.RemoveCircleOutline,
+                    tint = if (plus) BizgrowColors.Success else BizgrowColors.Danger,
+                    trailing = { Text((if (plus) "+ " else "− ") + c.amount.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = if (plus) BizgrowColors.Success else BizgrowColors.Danger) },
+                    onClick = { hapusKomponen = c }
+                )
+            }
+
             item { SectionTitle("KPI", subtitle = "${d.kpis.size} penilaian") }
             if (d.kpis.isEmpty()) item { Text("Belum ada penilaian KPI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(d.kpis.size) { n ->
@@ -94,6 +116,26 @@ fun EmployeeDetailScreen(viewModel: AppViewModel) {
                 val doc = d.documents[n]
                 ListRow(doc.documentType.ifBlank { "Dokumen" }, subtitle = listOf(doc.fileName, doc.uploadedAt.take(10)).filter { it.isNotBlank() }.joinToString(" • "), icon = Icons.Rounded.Description, tint = BizgrowColors.Violet)
             }
+        }
+
+        if (tambahKomponen) {
+            var nama by remember { mutableStateOf("") }
+            var nominal by remember { mutableStateOf("") }
+            var jenis by remember { mutableStateOf("addition") }
+            var galat by remember { mutableStateOf<String?>(null) }
+            FormSheet(
+                "Komponen gaji", subjudul = "Tunjangan menambah, potongan mengurangi gaji bersih", onDismiss = { tambahKomponen = false },
+                simpanAktif = nama.isNotBlank() && (nominal.toDoubleOrNull() ?: 0.0) > 0,
+                onSimpan = { scope.launch { val err = viewModel.tambahKomponenGaji(nama.trim(), nominal.toDouble(), jenis == "deduction"); if (err == null) tambahKomponen = false else galat = err } }
+            ) {
+                PilihanPil("Jenis", listOf("addition" to "Tunjangan", "deduction" to "Potongan"), jenis) { jenis = it }
+                BizTextField(nama, { nama = it }, "Nama komponen", placeholder = if (jenis == "addition") "mis. Tunjangan transport" else "mis. BPJS Kesehatan")
+                AngkaField(nominal, { nominal = it }, "Nominal per bulan (Rp)", desimal = false)
+                galat?.let { Text(it, color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        hapusKomponen?.let { c ->
+            KonfirmasiHapus("Hapus komponen?", "\"${c.name}\" (${c.amount.rupiah()}) tidak lagi dipakai pada payroll berikutnya.", { viewModel.hapusKomponenGaji(c.id); hapusKomponen = null }, { hapusKomponen = null })
         }
 
         if (edit) {

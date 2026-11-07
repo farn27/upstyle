@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.upstyle.bizgrow.api.UpstyleApi
 import com.upstyle.bizgrow.api.createHttpClient
 import com.upstyle.bizgrow.data.*
+import kotlinx.serialization.json.put
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -648,6 +649,24 @@ class AppViewModel(
             if (res.success) _hrDetail.value = res.data else setError(res.message ?: "Gagal memuat karyawan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    /** Tambah komponen gaji (tunjangan/potongan); mengembalikan pesan galat (null = berhasil). */
+    suspend fun tambahKomponenGaji(nama: String, nominal: Double, potongan: Boolean): String? = try {
+        val res = api.komponenGaji(karyawanDipilih, kotlinx.serialization.json.buildJsonObject {
+            put("action", "add-component")
+            put("component", kotlinx.serialization.json.buildJsonObject {
+                put("name", nama); put("amount", nominal); put("type", if (potongan) "deduction" else "addition")
+            })
+        })
+        if (res.success) { loadHrDetail(); null } else (res.message ?: "Gagal menambah komponen")
+    } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+
+    fun hapusKomponenGaji(id: Int) = viewModelScope.launch {
+        try {
+            val res = api.komponenGaji(karyawanDipilih, kotlinx.serialization.json.buildJsonObject { put("action", "delete-component"); put("componentId", id) })
+            if (res.success) loadHrDetail() else setError(res.message ?: "Gagal menghapus komponen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun simpanKaryawan(data: kotlinx.serialization.json.JsonObject) = viewModelScope.launch {
         setLoading(true)
         try {
