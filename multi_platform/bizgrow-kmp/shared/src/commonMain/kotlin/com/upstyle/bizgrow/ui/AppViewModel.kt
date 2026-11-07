@@ -900,6 +900,26 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    // ─── Detail PO (terima barang, tagihan, retur, bayar) ───
+    private val _poDetail = MutableStateFlow<PoDetail?>(null)
+    val poDetail: StateFlow<PoDetail?> = _poDetail.asStateFlow()
+    private var poDipilih = 0
+    fun bukaPo(poId: String) { poDipilih = poId.toIntOrNull() ?: 0; _poDetail.value = null; navigate(Screen.PoDetail) }
+    fun loadPoDetail() = viewModelScope.launch {
+        if (poDipilih == 0) return@launch
+        try {
+            val res = api.getPoDetail(poDipilih)
+            if (res.success) _poDetail.value = res.data else setError(res.message ?: "Gagal memuat PO")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun aksiPo(aksi: String, pesan: String, tambahan: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.aksiPo(poDipilih, aksi, tambahan)
+            if (res.success) { loadPoDetail(); loadScmData(); setSuccess(pesan) } else setError(res.message ?: "Gagal memproses")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun createPosVoucher(v: PosVoucher) =
         jalankanMasterData("Voucher dibuat", { loadPosVouchers() }) { api.createPosVoucher(v.copy(unitId = it)) }
     fun updatePosVoucher(v: PosVoucher) =

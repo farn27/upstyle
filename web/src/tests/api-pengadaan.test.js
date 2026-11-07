@@ -18,6 +18,7 @@ describe.skipIf(!TEST_DB)('modul Pengadaan', () => {
 	/** @type {any} */ let p;
 	/** @type {any} */ let eq;
 	/** @type {any} */ let scm;
+	/** @type {any} */ let scmPo;
 	/** @type {any} */ let ctx;
 	/** @type {any} */ let ctxLain;
 	/** @type {Record<string, any>} */
@@ -54,6 +55,7 @@ describe.skipIf(!TEST_DB)('modul Pengadaan', () => {
 		({ eq } = await import('drizzle-orm'));
 		p = await import('../lib/server/pengadaan.js');
 		scm = await import('../routes/api/app/scm/+server.js');
+		scmPo = await import('../routes/api/app/scm/po/+server.js');
 
 		const [u1] = await db.insert(s.users).values({ username: `beli1${akhiran}`, email: `beli1${akhiran}@tes.local`, password: 'x' });
 		const [u2] = await db.insert(s.users).values({ username: `beli2${akhiran}`, email: `beli2${akhiran}@tes.local`, password: 'x' });
@@ -428,6 +430,40 @@ describe.skipIf(!TEST_DB)('modul Pengadaan', () => {
 			});
 			expect(res.status).toBe(409);
 			expect(await db.select().from(s.suppliers).where(eq(s.suppliers.id, id.supplier))).toHaveLength(1);
+		});
+	});
+
+	describe('API mobile detail PO (scm/po)', () => {
+		const kuki = { get: () => undefined };
+		const post = (/** @type {any} */ body) => scmPo.POST({ cookies: kuki, request: new Request('http://x/', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }) });
+
+		it('terima sebagian lalu tagih & retur lewat API, detail ikut berubah', async () => {
+			login.userId = id.user;
+			const { poId } = await poTerkirim();
+			const detail = async () => (await (await scmPo.GET({ url: new URL(`http://x/?poId=${poId}`), cookies: kuki, request: new Request('http://x/') })).json()).data;
+			const awal = await detail();
+			expect(awal.status).toBe('SENT');
+			const itemA = awal.items.find((/** @type {any} */ i) => i.productId === id.produkA);
+			expect((await post({ poId, action: 'terima', items: [{ itemId: itemA.id, qty: 4 }] })).status).toBe(200);
+			const setelah = await detail();
+			expect(setelah.status).toBe('PARTIAL');
+			expect(setelah.penerimaan).toHaveLength(1);
+			expect(setelah.items.find((/** @type {any} */ i) => i.id === itemA.id).qtyReceived).toBe(4);
+			expect((await post({ poId, action: 'tagih', nomorFaktur: `F-${akhiran}`, tanggal: '2026-01-01', jatuhTempo: '2026-01-31', items: [{ itemId: itemA.id, qty: 4 }] })).status).toBe(200);
+			const ditagih = await detail();
+			expect(ditagih.tagihan[0]).toMatchObject({ total: 4000, nominalHutang: 4000, sudahDibayar: 0 });
+			// jumlah melebihi sisa ditolak server
+			expect((await post({ poId, action: 'terima', items: [{ itemId: itemA.id, qty: 999 }] })).status).toBeGreaterThanOrEqual(400);
+		});
+
+		it('PO milik user lain tidak bisa dibuka/diubah', async () => {
+			login.userId = id.user;
+			const { poId } = await poTerkirim();
+			login.userId = id.userLain ?? 999999999;
+			const res = await scmPo.GET({ url: new URL(`http://x/?poId=${poId}`), cookies: kuki, request: new Request('http://x/') });
+			expect(res.status).toBe(404);
+			expect((await post({ poId, action: 'tutup' })).status).toBe(404);
+			login.userId = id.user;
 		});
 	});
 });

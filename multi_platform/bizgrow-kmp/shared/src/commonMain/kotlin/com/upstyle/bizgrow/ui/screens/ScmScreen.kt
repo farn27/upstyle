@@ -15,6 +15,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +48,8 @@ fun ScmScreen(viewModel: AppViewModel) {
     var showPo by remember { mutableStateOf(false) }
     var showSupplier by remember { mutableStateOf(false) }
     var konfirmasi by remember { mutableStateOf<Pair<PurchaseOrder, String>?>(null) }
+    var presetProduk by remember { mutableStateOf<com.upstyle.bizgrow.data.Product?>(null) }
+    var showRestock by remember { mutableStateOf(false) }
     var filter by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadScmData(); viewModel.loadProducts() }
@@ -96,6 +101,22 @@ fun ScmScreen(viewModel: AppViewModel) {
             }
 
             if (tab == 0) {
+                val perluRestock = products.filter { it.status != "archived" && it.stok <= it.minStok && it.jenis != "PERLENGKAPAN" }
+                if (perluRestock.isNotEmpty()) item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(16.dp)).background(BizgrowColors.Warning.copy(alpha = 0.12f))
+                            .pressClick { showRestock = true }.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Inventory2, null, tint = BizgrowColors.WarningDark)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Saran restock: ${perluRestock.size} produk", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BizgrowColors.WarningDark)
+                            Text("Stok sudah di bawah atau sama dengan batas minimum", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Rounded.ChevronRight, null, tint = BizgrowColors.WarningDark)
+                    }
+                }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
                         item { FilterPill("Semua", filter == null, { filter = null }) }
@@ -106,7 +127,7 @@ fun ScmScreen(viewModel: AppViewModel) {
                     EmptyView("Belum ada purchase order", "Buat PO ke supplier. Saat barang diterima, stok bertambah otomatis.", Icons.Rounded.LocalShipping, "Buat PO", { showPo = true })
                 }
                 itemsIndexed(tampilPo, key = { _, po -> po.id }) { i, po ->
-                    PoCard(po, Modifier.padding(vertical = 5.dp).enterAnimation(i)) { aksi -> konfirmasi = po to aksi }
+                    PoCard(po, Modifier.padding(vertical = 5.dp).enterAnimation(i), onBuka = { viewModel.bukaPo(po.id) }) { aksi -> konfirmasi = po to aksi }
                 }
             } else {
                 if (suppliers.isEmpty()) item {
@@ -120,9 +141,25 @@ fun ScmScreen(viewModel: AppViewModel) {
     }
 
     if (showPo) {
-        ModalBottomSheet({ showPo = false }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            PoForm(suppliers, products.filter { it.status != "archived" }) { supplierId, productId, qty, harga ->
+        ModalBottomSheet({ showPo = false; presetProduk = null }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            PoForm(suppliers, products.filter { it.status != "archived" }, presetProduk) { supplierId, productId, qty, harga ->
                 viewModel.createPurchaseOrder(supplierId, productId, qty, harga) { ok -> if (ok) showPo = false }
+            }
+        }
+    }
+    if (showRestock) {
+        val daftar = products.filter { it.status != "archived" && it.stok <= it.minStok && it.jenis != "PERLENGKAPAN" }
+        ModalBottomSheet({ showRestock = false }, containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text("Saran restock", style = MaterialTheme.typography.titleLarge)
+                Text("Ketuk produk untuk membuat PO dengan jumlah yang disarankan (2× batas minimum).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(10.dp))
+                Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                    daftar.forEach { p ->
+                        ListRow(p.nama, subtitle = "Stok ${p.stok} • minimum ${p.minStok}", icon = Icons.Rounded.Inventory2, tint = BizgrowColors.Warning, showChevron = true,
+                            onClick = { presetProduk = p; showRestock = false; showPo = true })
+                    }
+                }
             }
         }
     }
@@ -153,9 +190,9 @@ fun ScmScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-private fun PoCard(po: PurchaseOrder, modifier: Modifier, onAksi: (String) -> Unit) {
+private fun PoCard(po: PurchaseOrder, modifier: Modifier, onBuka: () -> Unit, onAksi: (String) -> Unit) {
     val (label, warna) = statusPo(po.status)
-    BizSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
+    BizSurface(modifier.fillMaxWidth(), onClick = onBuka, contentPadding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(Icons.Rounded.LocalShipping, warna)
             Spacer(Modifier.width(12.dp))
@@ -219,12 +256,12 @@ private fun SupplierCard(s: Supplier, modifier: Modifier, onHapus: () -> Unit) {
 }
 
 @Composable
-private fun PoForm(suppliers: List<Supplier>, products: List<com.upstyle.bizgrow.data.Product>, onSimpan: (String, String, Int, Double) -> Unit) {
+private fun PoForm(suppliers: List<Supplier>, products: List<com.upstyle.bizgrow.data.Product>, produkAwal: com.upstyle.bizgrow.data.Product? = null, onSimpan: (String, String, Int, Double) -> Unit) {
     var supplier by remember { mutableStateOf(suppliers.firstOrNull()) }
     var cari by remember { mutableStateOf("") }
-    var produk by remember { mutableStateOf<com.upstyle.bizgrow.data.Product?>(null) }
-    var qty by remember { mutableStateOf("1") }
-    var harga by remember { mutableStateOf("") }
+    var produk by remember { mutableStateOf<com.upstyle.bizgrow.data.Product?>(produkAwal) }
+    var qty by remember { mutableStateOf(produkAwal?.let { (it.minStok * 2 - it.stok).coerceAtLeast(1).toString() } ?: "1") }
+    var harga by remember { mutableStateOf(produkAwal?.hargaBeli?.takeIf { it > 0 }?.toLong()?.toString() ?: "") }
     val uiQty = qty.toIntOrNull() ?: 0
     val uiHarga = harga.toDoubleOrNull() ?: 0.0
     Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {

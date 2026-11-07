@@ -218,6 +218,15 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun createSupplier(req: CreateSupplierRequest): ApiResponse<Unit> =
         client.post("api/app/scm") { setBody(req) }.body()
 
+    suspend fun getPoDetail(poId: Int): ApiResponse<PoDetail> =
+        client.get("api/app/scm/po") { parameter("poId", poId) }.body()
+
+    /** Aksi PO: kirim | batal | tutup | terima | tagih | bayar | retur. [tambahan] diisi sesuai aksi. */
+    suspend fun aksiPo(poId: Int, aksi: String, tambahan: JsonObject = JsonObject(emptyMap())): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/scm/po") {
+            setBody(JsonObject(tambahan + mapOf("poId" to kotlinx.serialization.json.JsonPrimitive(poId), "action" to kotlinx.serialization.json.JsonPrimitive(aksi))))
+        }.body())
+
     suspend fun createPurchaseOrder(req: CreatePoRequest): ApiResponse<Unit> =
         client.post("api/app/scm") { setBody(req) }.body()
 

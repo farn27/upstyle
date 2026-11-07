@@ -2173,3 +2173,61 @@ data class PosQueueItem(
 
 @Serializable
 data class PosQueueData(val queue: List<PosQueueItem> = emptyList())
+
+// ─── Detail Purchase Order (padanan pengadaan/po/[id] di web) ────────────────
+
+@Serializable
+data class PoItemDetail(
+    val id: Int = 0,
+    val productId: String = "",
+    val namaProduk: String = "",
+    val sku: String = "",
+    val qtyOrdered: Int = 0,
+    val qtyReceived: Int = 0,
+    val qtyInvoiced: Int = 0,
+    val qtyReturned: Int = 0,
+    val unitPrice: Double = 0.0,
+    val totalPrice: Double = 0.0
+)
+
+@Serializable
+data class PoPenerimaan(val id: Int = 0, val nomor: String = "", val tanggal: String = "", val noSuratJalan: String = "", val ringkasan: String = "")
+
+@Serializable
+data class PoTagihan(
+    val id: Int = 0,
+    val nomorFaktur: String = "",
+    val tanggal: String = "",
+    val jatuhTempo: String = "",
+    val total: Double = 0.0,
+    val payableId: Int = 0,
+    val nominalHutang: Double = 0.0,
+    val sudahDibayar: Double = 0.0,
+    val statusHutang: String = ""
+)
+
+@Serializable
+data class PoRetur(val id: Int = 0, val nomor: String = "", val tanggal: String = "", val alasan: String = "", val ringkasan: String = "")
+
+@Serializable
+data class PoAkunKas(val id: Int = 0, val kodeAkun: String = "", val namaAkun: String = "")
+
+@Serializable
+data class PoDetail(
+    val id: Int = 0,
+    val poNumber: String = "",
+    val status: String = "",
+    val supplierName: String = "",
+    val supplierPhone: String = "",
+    val notes: String = "",
+    val diskon: Double = 0.0,
+    val ongkir: Double = 0.0,
+    val ppnPersen: Double = 0.0,
+    val totalAmount: Double = 0.0,
+    val expectedDate: String? = null,
+    val items: List<PoItemDetail> = emptyList(),
+    val penerimaan: List<PoPenerimaan> = emptyList(),
+    val tagihan: List<PoTagihan> = emptyList(),
+    val retur: List<PoRetur> = emptyList(),
+    val akunKas: List<PoAkunKas> = emptyList()
+)
