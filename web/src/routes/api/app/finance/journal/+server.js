@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$lib/server/schema';
-import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 
@@ -27,36 +27,52 @@ export async function GET({ url, cookies, request }) {
             conditions.push(sql`MONTH(${journalEntries.tanggal}) = ${Number(bulan)}`);
         }
 
-        const entries = await db.query.journalEntries.findMany({
-            where: and(...conditions),
-            with: { journalEntryLines: true },
-            orderBy: [desc(journalEntries.tanggal), desc(journalEntries.id)]
-        });
+        const entries = await db.select().from(journalEntries)
+            .where(and(...conditions))
+            .orderBy(desc(journalEntries.tanggal), desc(journalEntries.id));
 
-        const mappedData = entries.map(entry => ({
-            id: entry.id,
-            unitId: entry.unitId,
-            userId: entry.userId,
-            tanggal: entry.tanggal,
-            nomorJurnal: entry.nomorJurnal,
-            referensi: entry.referensi,
-            memo: entry.memo,
-            status: entry.status,
-            totalDebit: Number(entry.totalDebit || 0),
-            totalKredit: Number(entry.totalKredit || 0),
-            sourceType: entry.sourceType,
-            sourceId: entry.sourceId,
-            createdAt: entry.createdAt,
-            journalEntryLines: (entry.journalEntryLines || entry.lines || []).map(line => ({
-                id: line.id,
-                journalId: line.journalId,
-                coaId: line.coaId,
-                keterangan: line.keterangan,
-                debit: Number(line.debit || 0),
-                kredit: Number(line.kredit || 0),
-                contactId: line.contactId
-            }))
-        }));
+        // Baris jurnal + data akun (kode, nama, tipe) dalam satu query
+        const idJurnal = entries.map((e) => e.id);
+        const barisRaw = idJurnal.length === 0 ? [] : await db.select({
+            id: journalEntryLines.id, journalId: journalEntryLines.journalId, coaId: journalEntryLines.coaId,
+            keterangan: journalEntryLines.keterangan, debit: journalEntryLines.debit, kredit: journalEntryLines.kredit,
+            contactId: journalEntryLines.contactId,
+            kodeAkun: chartOfAccounts.kodeAkun, namaAkun: chartOfAccounts.namaAkun, tipeAkun: chartOfAccounts.tipeAkun, normalBalance: chartOfAccounts.normalBalance
+        }).from(journalEntryLines)
+            .leftJoin(chartOfAccounts, eq(chartOfAccounts.id, journalEntryLines.coaId))
+            .where(inArray(journalEntryLines.journalId, idJurnal))
+            .orderBy(asc(journalEntryLines.id));
+        const perJurnal = new Map();
+        for (const l of barisRaw) {
+            const baris = {
+                id: l.id, journalId: l.journalId, coaId: l.coaId, keterangan: l.keterangan,
+                debit: Number(l.debit || 0), kredit: Number(l.kredit || 0), contactId: l.contactId,
+                account: l.kodeAkun ? { id: l.coaId, unitId: Number(unitId), kodeAkun: l.kodeAkun, namaAkun: l.namaAkun, tipeAkun: l.tipeAkun, normalBalance: l.normalBalance || 'DEBIT' } : null
+            };
+            if (!perJurnal.has(l.journalId)) perJurnal.set(l.journalId, []);
+            perJurnal.get(l.journalId).push(baris);
+        }
+
+        const mappedData = entries.map(entry => {
+            const lines = perJurnal.get(entry.id) || [];
+            return {
+                id: entry.id,
+                unitId: entry.unitId,
+                userId: entry.userId,
+                tanggal: entry.tanggal,
+                nomorJurnal: entry.nomorJurnal,
+                referensi: entry.referensi,
+                memo: entry.memo,
+                status: entry.status,
+                totalDebit: Number(entry.totalDebit || 0),
+                totalKredit: Number(entry.totalKredit || 0),
+                sourceType: entry.sourceType || 'MANUAL',
+                sourceId: entry.sourceId,
+                createdAt: entry.createdAt,
+                lines,
+                journalEntryLines: lines
+            };
+        });
 
         return json({
             success: true,
@@ -81,6 +97,26 @@ export async function POST({ request, cookies, url }) {
 
         if (!unitId || !tanggal || !Array.isArray(lines) || lines.length === 0) {
             return json({ success: false, message: 'Data input tidak lengkap (unitId, tanggal, lines wajib diisi)', data: null }, { status: 400 });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}/.test(String(tanggal))) {
+            return json({ success: false, message: 'Format tanggal harus YYYY-MM-DD', data: null }, { status: 400 });
+        }
+        if (lines.length < 2) {
+            return json({ success: false, message: 'Jurnal minimal harus memiliki 2 baris (debit & kredit)', data: null }, { status: 400 });
+        }
+        for (const l of lines) {
+            const d = Number(l.debit || 0), k = Number(l.kredit || 0);
+            if (!(Number(l.coaId) > 0)) return json({ success: false, message: 'Setiap baris harus memilih akun', data: null }, { status: 400 });
+            if (d < 0 || k < 0 || Number.isNaN(d) || Number.isNaN(k)) return json({ success: false, message: 'Nominal tidak boleh negatif', data: null }, { status: 400 });
+            if (d > 0 && k > 0) return json({ success: false, message: 'Satu baris hanya boleh diisi debit ATAU kredit', data: null }, { status: 400 });
+            if (d === 0 && k === 0) return json({ success: false, message: 'Setiap baris harus berisi nominal debit atau kredit', data: null }, { status: 400 });
+        }
+        // Semua akun harus milik unit ini (cegah merujuk akun unit/tenant lain)
+        const idAkun = [...new Set(lines.map((l) => Number(l.coaId)))];
+        const akunSah = await db.select({ id: chartOfAccounts.id }).from(chartOfAccounts)
+            .where(and(eq(chartOfAccounts.unitId, Number(unitId)), inArray(chartOfAccounts.id, idAkun)));
+        if (akunSah.length !== idAkun.length) {
+            return json({ success: false, message: 'Ada akun yang bukan milik unit ini', data: null }, { status: 400 });
         }
 
         let totalDebit = 0;

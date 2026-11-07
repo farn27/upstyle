@@ -856,6 +856,8 @@ data class CreateJournalLineBody(
 data class BukuBesarEntry(
     val tanggal: String,
     val keterangan: String,
+    val nomorJurnal: String = "",
+    val sumber: String = "MANUAL",
     val referensi: String? = null,
     val debit: Double = 0.0,
     val kredit: Double = 0.0,
@@ -867,6 +869,9 @@ data class BukuBesarData(
     val account: ChartOfAccount? = null,
     val coa: ChartOfAccount? = null,
     val entries: List<BukuBesarEntry> = emptyList(),
+    val saldoAwal: Double = 0.0,
+    val totalDebit: Double = 0.0,
+    val totalKredit: Double = 0.0,
     val saldoAkhir: Double = 0.0
 )
 

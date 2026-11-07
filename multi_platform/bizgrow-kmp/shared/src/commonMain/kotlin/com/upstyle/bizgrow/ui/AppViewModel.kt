@@ -1140,6 +1140,15 @@ class AppViewModel(
             else setError(res.message ?: "Gagal simpan jurnal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    /** Simpan jurnal manual; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun simpanJurnalManual(tanggal: String, memo: String?, referensi: String?, lines: List<CreateJournalLineBody>): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.createJournalEntry(unitId, CreateJournalRequest(tanggal, referensi, memo, lines))
+            if (res.success) { loadJournalEntries(); setSuccess("Jurnal berhasil disimpan"); null } else (res.message ?: "Gagal menyimpan jurnal")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
     private val _arusKasData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.ArusKasData?>(null)
     val arusKasData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.ArusKasData?> = _arusKasData.asStateFlow()
     fun loadArusKas(startDate: String, endDate: String) = viewModelScope.launch {
@@ -2677,11 +2686,11 @@ class AppViewModel(
 
     private val _bukuBesarData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.BukuBesarData?>(null)
     val bukuBesarData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.BukuBesarData?> = _bukuBesarData.asStateFlow()
-    fun loadBukuBesar(coaId: Int, tahun: Int? = null) = viewModelScope.launch {
+    fun loadBukuBesar(coaId: Int, tahun: Int? = null, bulan: Int? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
         try {
-            val res = api.getBukuBesar(unitId, coaId, tahun)
+            val res = api.getBukuBesar(unitId, coaId, tahun, bulan)
             if (res.success) _bukuBesarData.value = res.data
         } catch (e: Exception) { Napier.e("loadBukuBesar error", e) }
     }

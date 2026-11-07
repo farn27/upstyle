@@ -32,6 +32,8 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		r.marketing = await import('../routes/api/app/marketing/+server.js');
 		r.finance = await import('../routes/api/app/finance/+server.js');
 		r.laporan = await import('../routes/api/app/finance/laporan/+server.js');
+		r.jurnal = await import('../routes/api/app/finance/journal/+server.js');
+		r.bukuBesar = await import('../routes/api/app/finance/buku-besar/+server.js');
 
 		const t = Date.now();
 		const [a] = await db.insert(s.users).values({ username: `ka${t}`, email: `ka${t}@contoh.id` });
@@ -135,6 +137,51 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		const nom = await ambil('&urut=nominal_asc');
 		expect(nom.transactions.map((t) => t.keterangan)).toEqual(['BELI', 'JUAL']);
 		expect(nom.transactions.map((t) => t.saldoSetelah)).toEqual([200000, 300000]);
+	});
+
+	it('jurnal: baris memuat data akun, validasi seimbang & akun milik unit', async () => {
+		login.userId = id.user;
+		const { pastikanCoaStandar } = await import('../lib/server/catatTransaksi.js');
+		await pastikanCoaStandar(db, id.unit);
+		await pastikanCoaStandar(db, id.unitLain);
+		const akun = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unit));
+		const akunLain = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unitLain));
+		const kas = akun.find((a) => a.tipeAkun === 'ASET_LANCAR');
+		const modal = akun.find((a) => a.tipeAkun === 'EKUITAS');
+		const kirim = async (body) => { const res = await r.jurnal.POST({ request: new Request('http://x', { method: 'POST', body: JSON.stringify({ unitId: id.unit, ...body }), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') }); return { st: res.status, j: await res.json() }; };
+		const ok = await kirim({ tanggal: '2026-01-15', memo: 'Setor modal', referensi: 'REF-1', lines: [{ coaId: kas.id, debit: 500000, kredit: 0 }, { coaId: modal.id, debit: 0, kredit: 500000 }] });
+		expect(ok.j.success).toBe(true);
+		// tidak seimbang / satu baris / debit+kredit sekaligus / akun tenant lain
+		expect((await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10 }, { coaId: modal.id, kredit: 5 }] })).st).toBe(400);
+		expect((await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10 }] })).st).toBe(400);
+		expect((await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10, kredit: 10 }, { coaId: modal.id, kredit: 0, debit: 0 }] })).st).toBe(400);
+		const curi = await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10 }, { coaId: akunLain[0].id, kredit: 10 }] });
+		expect(curi.st).toBe(400);
+		expect(curi.j.message).toMatch(/bukan milik unit/);
+		// GET: 'lines' berisi akun lengkap + filter bulan/tahun
+		const ambil = async (q) => (await (await r.jurnal.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const jan = await ambil('&tahun=2026&bulan=1');
+		const e = jan.find((x) => x.memo === 'Setor modal');
+		expect(e.referensi).toBe('REF-1');
+		expect(e.lines).toHaveLength(2);
+		expect(e.lines[0].account).toMatchObject({ kodeAkun: kas.kodeAkun, namaAkun: kas.namaAkun });
+		expect((await ambil('&tahun=2026&bulan=2')).some((x) => x.memo === 'Setor modal')).toBe(false);
+
+		// buku besar: periode, saldo awal & saldo berjalan (kas bertambah 500.000 pada Januari 2026)
+		await kirim({ tanggal: '2026-02-10', memo: 'Tarik kas', lines: [{ coaId: modal.id, debit: 100000 }, { coaId: kas.id, kredit: 100000 }] });
+		const bb = async (q) => (await (await r.bukuBesar.GET({ url: new URL(`http://x?unitId=${id.unit}&coaId=${kas.id}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const janBB = await bb('&tahun=2026&bulan=1');
+		expect(janBB.saldoAwal).toBe(0);
+		expect(janBB.saldoAkhir).toBe(500000);
+		expect(janBB.entries.map((e) => e.saldo)).toEqual([500000]);
+		const febBB = await bb('&tahun=2026&bulan=2');
+		expect(febBB.saldoAwal).toBe(500000);
+		expect(febBB.entries).toHaveLength(1);
+		expect(febBB.saldoAkhir).toBe(400000);
+		expect(febBB.totalKredit).toBe(100000);
+		const setahun = await bb('&tahun=2026');
+		expect(setahun.entries.map((e) => e.saldo)).toEqual([500000, 400000]);
+		expect(setahun.entries[0].referensi).toBe('REF-1');
 	});
 
 	it('laporan: type=report memuat dashboard, laba rugi & neraca', async () => {

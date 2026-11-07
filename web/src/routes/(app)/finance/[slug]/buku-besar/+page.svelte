@@ -68,7 +68,7 @@
             <select bind:value={accountId} on:change={applyFilter} class="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none py-2 px-3 shadow-sm font-medium text-slate-700 dark:text-slate-200 w-full sm:w-64">
                 <option value="all">-- Pilih Akun --</option>
                 {#each accounts as acc}
-                    <option value={acc.id}>{acc.accountCode} - {acc.name}</option>
+                    <option value={acc.id}>{acc.kodeAkun} - {acc.namaAkun}</option>
                 {/each}
             </select>
             
@@ -105,7 +105,7 @@
         {:else}
             <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <div>
-                    <h3 class="font-black text-slate-900 dark:text-white text-lg">{selectedAccountData.accountCode} - {selectedAccountData.name}</h3>
+                    <h3 class="font-black text-slate-900 dark:text-white text-lg">{selectedAccountData.kodeAkun} - {selectedAccountData.namaAkun}</h3>
                     <p class="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mt-1">Saldo Normal: {selectedAccountData.normalBalance}</p>
                 </div>
                 <div class="text-right">

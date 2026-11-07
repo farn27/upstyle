@@ -347,11 +347,12 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Buku Besar ───────────────────────────────────────────────────────────
 
-    suspend fun getBukuBesar(unitId: Int, coaId: Int, tahun: Int? = null): ApiResponse<BukuBesarData> =
+    suspend fun getBukuBesar(unitId: Int, coaId: Int, tahun: Int? = null, bulan: Int? = null): ApiResponse<BukuBesarData> =
         client.get("api/app/finance/buku-besar") {
             parameter("unitId", unitId)
             parameter("coaId", coaId)
             tahun?.let { parameter("tahun", it) }
+            bulan?.let { parameter("bulan", it) }
         }.body()
 
     // ─── Laporan ──────────────────────────────────────────────────────────────
