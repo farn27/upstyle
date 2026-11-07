@@ -1,37 +1,28 @@
 package com.upstyle.bizgrow.ui.screens
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
-import com.upstyle.bizgrow.ui.theme.BizgrowColors
-import kotlinx.coroutines.delay
+import com.upstyle.bizgrow.ui.design.*
+import com.upstyle.bizgrow.ui.theme.LocalBizPalette
 
 @Composable
 fun LoginScreen(
@@ -41,315 +32,140 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
-    var isVisible by remember { mutableStateOf(false) }
-
     var showServerDialog by remember { mutableStateOf(false) }
     var serverUrlInput by remember { mutableStateOf(viewModel.session.getServerUrl()) }
+    val focus = LocalFocusManager.current
 
-    LaunchedEffect(Unit) {
-        isVisible = true
+    val emailValid = email.isBlank() || Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(email.trim())
+    val bisaMasuk = !uiState.isLoading && email.isNotBlank() && emailValid && password.isNotEmpty()
+
+    fun masuk() {
+        if (!bisaMasuk) return
+        focus.clearFocus()
+        errorMsg = null
+        viewModel.login(email.trim(), password) { ok, msg ->
+            if (!ok) errorMsg = pesanRamah(msg) ?: "Login gagal. Periksa email & password."
+        }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BizgrowColors.Background)
-    ) {
-        // Decorative background elements
-        Box(
-            modifier = Modifier
-                .offset(x = (-50).dp, y = (-50).dp)
-                .size(200.dp)
-                .background(BizgrowColors.PrimaryLight.copy(alpha = 0.5f), shape = RoundedCornerShape(100.dp))
-        )
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()) {
+            AuthHero(title = "Selamat datang 👋", subtitle = "Kelola bisnismu dalam satu genggaman")
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 50.dp, y = 100.dp)
-                .size(150.dp)
-                .background(BizgrowColors.SecondaryContainer.copy(alpha = 0.4f), shape = RoundedCornerShape(75.dp))
-        )
-
-        IconButton(
-            onClick = { showServerDialog = true },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Settings, contentDescription = "Pengaturan Server", tint = BizgrowColors.PrimaryDark)
-        }
-
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(animationSpec = tween(800)) + slideInVertically(
-                initialOffsetY = { 50 },
-                animationSpec = tween(800)
-            ),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
             Column(
-                modifier = Modifier
+                Modifier
+                    .offset(y = (-28).dp)
+                    .padding(horizontal = 16.dp)
                     .fillMaxWidth()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, LocalBizPalette.current.border, RoundedCornerShape(28.dp))
+                    .padding(22.dp)
+                    .enterAnimation()
             ) {
-                // Logo & Tagline
-                Text(
-                    text = "Bizgrow",
-                    color = BizgrowColors.PrimaryDark,
-                    fontSize = 42.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-1.5).sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Platform Bisnis UMKM Indonesia",
-                    color = BizgrowColors.Slate500,
-                    fontSize = 15.sp,
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Medium
-                )
+                Text("Masuk", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text("Gunakan akun Bizgrow kamu", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(20.dp))
 
-                Spacer(modifier = Modifier.height(48.dp))
-
-                // Email field
-                OutlinedTextField(
+                BizTextField(
                     value = email,
                     onValueChange = { email = it; errorMsg = null },
-                    placeholder = { Text("Email", color = BizgrowColors.Slate400) },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = BizgrowColors.Slate400) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BizgrowColors.Primary,
-                        unfocusedBorderColor = BizgrowColors.Slate200,
-                        focusedContainerColor = BizgrowColors.White,
-                        unfocusedContainerColor = BizgrowColors.White,
-                    )
+                    label = "Email",
+                    leadingIcon = Icons.Rounded.MailOutline,
+                    keyboardType = KeyboardType.Email,
+                    isError = !emailValid,
+                    supportingText = if (!emailValid) "Format email belum benar" else null
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Password field
-                OutlinedTextField(
+                Spacer(Modifier.height(12.dp))
+                BizTextField(
                     value = password,
                     onValueChange = { password = it; errorMsg = null },
-                    placeholder = { Text("Password", color = BizgrowColors.Slate400) },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BizgrowColors.Slate400) },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = null,
-                                tint = BizgrowColors.Slate400
-                            )
-                        }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BizgrowColors.Primary,
-                        unfocusedBorderColor = BizgrowColors.Slate200,
-                        focusedContainerColor = BizgrowColors.White,
-                        unfocusedContainerColor = BizgrowColors.White,
-                    )
+                    label = "Password",
+                    leadingIcon = Icons.Rounded.Lock,
+                    isPassword = true,
+                    imeAction = ImeAction.Done,
+                    onImeAction = { masuk() }
                 )
 
-                // Error Msg
-                if (errorMsg != null || uiState.error != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Text(
-                        text = errorMsg ?: uiState.error ?: "",
-                        color = BizgrowColors.Danger,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
+                        "Ubah server",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showServerDialog = true }.padding(8.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                AuthErrorBanner(errorMsg)
 
-                // Login Button
-                Button(
-                    onClick = {
-                        errorMsg = null
-                        viewModel.login(email.trim(), password) { ok, msg ->
-                            if (!ok) errorMsg = msg ?: "Login gagal"
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = BizgrowColors.Primary,
-                        contentColor = BizgrowColors.White
-                    ),
-                    enabled = !uiState.isLoading && email.isNotEmpty() && password.isNotEmpty()
-                ) {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(
-                            color = BizgrowColors.White,
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("Masuk", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Divider OR
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = BizgrowColors.Slate200)
-                    Text(
-                        text = " Atau ",
-                        fontSize = 13.sp,
-                        color = BizgrowColors.Slate400,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = BizgrowColors.Slate200)
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Biometric Manager instance
-                val biometricManager = com.upstyle.bizgrow.device.rememberBiometricManager()
-
-                // Google & Biometric Sign-In Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onGoogleSignIn?.invoke() },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        enabled = !uiState.isLoading && onGoogleSignIn != null,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = BizgrowColors.White,
-                            contentColor = BizgrowColors.Slate800
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Slate200)
-                    ) {
-                        Text(
-                            text = "G",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color(0xFF4285F4)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Google",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            biometricManager.authenticate(
-                                title = "Login Biometrik",
-                                subtitle = "Gunakan sidik jari atau wajah Anda",
-                                onSuccess = {
-                                    errorMsg = "Login Biometrik berhasil. (Namun fitur auto-fill kredensial belum tersedia)"
-                                },
-                                onError = { err -> errorMsg = err }
-                            )
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        enabled = !uiState.isLoading,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = BizgrowColors.White,
-                            contentColor = BizgrowColors.Slate800
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BizgrowColors.Slate200)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Biometrik",
-                            tint = BizgrowColors.Primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Biometrik",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Register link
-                Row(
-                    horizontalArrangement = Arrangement.Center,
+                Spacer(Modifier.height(16.dp))
+                BizButton(
+                    text = "Masuk",
+                    onClick = { masuk() },
+                    loading = uiState.isLoading,
+                    enabled = bisaMasuk,
+                    icon = Icons.Rounded.Login,
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Belum punya akun? ",
-                        color = BizgrowColors.Slate500,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "Daftar sekarang",
-                        color = BizgrowColors.Primary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        modifier = Modifier.clickable { viewModel.navigate(Screen.Register) }
-                    )
-                }
-            } // end Column
-        } // end AnimatedVisibility
+                )
 
-        if (showServerDialog) {
-            AlertDialog(
-                onDismissRequest = { showServerDialog = false },
-                title = { Text("Ubah URL Server", fontWeight = FontWeight.Bold) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = serverUrlInput,
-                            onValueChange = { serverUrlInput = it },
-                            label = { Text("URL Server") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
+                if (onGoogleSignIn != null) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        HorizontalDivider(Modifier.weight(1f), color = LocalBizPalette.current.border)
+                        Text("atau", Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        HorizontalDivider(Modifier.weight(1f), color = LocalBizPalette.current.border)
                     }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        viewModel.session.setServerUrl(serverUrlInput.trimEnd('/'))
-                        showServerDialog = false
-                    }) {
-                        Text("Simpan")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showServerDialog = false }) {
-                        Text("Batal")
-                    }
+                    BizOutlineButton(
+                        text = "Lanjutkan dengan Google",
+                        onClick = { if (!uiState.isLoading) onGoogleSignIn() },
+                        icon = Icons.Rounded.AccountCircle,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-            )
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Belum punya akun? ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Daftar gratis",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { viewModel.navigate(Screen.Register) }.padding(4.dp)
+                )
+            }
         }
-    } // end Box
-} // end LoginScreen
+    }
+
+    if (showServerDialog) {
+        AlertDialog(
+            onDismissRequest = { showServerDialog = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            icon = { IconBadge(Icons.Rounded.Dns, MaterialTheme.colorScheme.primary) },
+            title = { Text("Alamat server") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Ubah hanya jika diminta admin. Untuk server bawaan, biarkan seperti semula.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    BizTextField(serverUrlInput, { serverUrlInput = it }, label = "URL server", keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.session.setServerUrl(serverUrlInput.trimEnd('/'))
+                    showServerDialog = false
+                }) { Text("Simpan") }
+            },
+            dismissButton = { TextButton(onClick = { showServerDialog = false }) { Text("Batal") } }
+        )
+    }
+}

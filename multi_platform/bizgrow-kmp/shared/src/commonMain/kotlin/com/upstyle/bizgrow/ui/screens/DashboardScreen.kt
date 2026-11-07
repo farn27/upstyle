@@ -1,530 +1,425 @@
 package com.upstyle.bizgrow.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.rounded.TrendingDown
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
-import com.upstyle.bizgrow.data.BiMetrics
 import com.upstyle.bizgrow.data.FinanceData
+import com.upstyle.bizgrow.data.LowStockProduct
+import com.upstyle.bizgrow.data.Transaction
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.design.*
+import com.upstyle.bizgrow.ui.theme.BizMotion
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: AppViewModel) {
     val activeUnit by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
     val financeData by viewModel.financeData.collectAsState(initial = viewModel.financeData.value)
-    val lowStockProducts by viewModel.lowStockProducts.collectAsState(initial = viewModel.lowStockProducts.value)
-    val unreadCount by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
+    val lowStock by viewModel.lowStockProducts.collectAsState(initial = viewModel.lowStockProducts.value)
+    val unread by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
+    val dashState by viewModel.dashboardState.collectAsState(initial = viewModel.dashboardState.value)
+    var sembunyi by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
 
     Scaffold(
-        containerColor = BizgrowColors.Background,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { BottomNavBar(viewModel, Screen.Dashboard) },
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 24.dp)
+    ) { padding ->
+        PullToRefreshBox(
+            isRefreshing = dashState.isLoading,
+            onRefresh = { viewModel.refreshAll() },
+            modifier = Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())
         ) {
-            item {
-                // Header
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 24.dp, end = 24.dp, top = 48.dp, bottom = 16.dp)
-                ) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                item {
+                    DashboardHeader(
+                        unitName = activeUnit?.name ?: "Pilih bisnis",
+                        kategori = kategoriDari(activeUnit?.type).label,
+                        unread = unread,
+                        onSwitchUnit = { viewModel.navigateToRoot(Screen.Home) },
+                        onNotif = { viewModel.navigate(Screen.Notifications) }
+                    )
+                }
+                item {
+                    HeroSaldo(financeData, sembunyi, { sembunyi = !sembunyi }, Modifier.padding(horizontal = 20.dp).enterAnimation(0)) {
+                        viewModel.navigate(Screen.Laporan)
+                    }
+                }
+                item {
+                    Pintasan(viewModel, Modifier.padding(top = 18.dp).enterAnimation(1))
+                }
+                item {
+                    PerluPerhatian(financeData, lowStock, viewModel, Modifier.enterAnimation(2))
+                }
+                item {
+                    ArusKasCard(financeData, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp).enterAnimation(3))
+                }
+                val bank = financeData?.bankBalances.orEmpty()
+                if (bank.isNotEmpty()) {
+                    item {
+                        SectionTitle("Saldo kas & bank", Modifier.padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 8.dp))
+                        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            itemsIndexed(bank) { i, b ->
+                                BizSurface(Modifier.width(170.dp).enterAnimation(i), contentPadding = PaddingValues(14.dp)) {
+                                    IconBadge(
+                                        if (b.nama.contains("bank", true) || b.nama.contains("transfer", true)) Icons.Rounded.AccountBalance else Icons.Rounded.Payments,
+                                        BizgrowColors.ModuleColors[i % BizgrowColors.ModuleColors.size], size = 34.dp, iconSize = 18.dp
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+                                    Text(b.nama, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(if (sembunyi) "Rp ••••" else b.saldo.rupiahRingkas(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        }
+                    }
+                }
+                financeData?.let { fd ->
+                    item { InsightBisnis(fd, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+                }
+                item {
+                    SectionTitle(
+                        "Transaksi terbaru",
+                        Modifier.padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp),
+                        actionLabel = "Lihat semua",
+                        onAction = { viewModel.navigate(Screen.Finance) }
+                    )
+                }
+                val trx = financeData?.transactions.orEmpty().take(6)
+                when {
+                    dashState.isLoading && financeData == null -> item { SkeletonList(rows = 4) }
+                    trx.isEmpty() -> item {
+                        EmptyView(
+                            "Belum ada transaksi",
+                            "Catat penjualan atau pengeluaran pertamamu.",
+                            Icons.Rounded.ReceiptLong,
+                            actionLabel = "Catat transaksi",
+                            onAction = { viewModel.navigate(Screen.TransactionEntry) }
+                        )
+                    }
+                    else -> itemsIndexed(trx, key = { _, t -> t.id }) { i, t ->
+                        TransaksiRow(t, sembunyi, Modifier.padding(horizontal = 16.dp).enterAnimation(i))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardHeader(unitName: String, kategori: String, unread: Int, onSwitchUnit: () -> Unit, onNotif: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).pressClick(pressedScale = 0.98f, onClick = onSwitchUnit).padding(vertical = 2.dp)
+        ) {
+            Text("${sapaanWaktu()} 👋", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(unitName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Icon(Icons.Rounded.ExpandMore, "Ganti bisnis", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(kategori, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        BizIconButton(Icons.Rounded.NotificationsNone, "Notifikasi", badge = unread, onClick = onNotif)
+    }
+}
+
+@Composable
+private fun HeroSaldo(fd: FinanceData?, sembunyi: Boolean, onToggle: () -> Unit, modifier: Modifier, onClick: () -> Unit) {
+    val masuk = fd?.summary?.totalMasuk ?: 0.0
+    val keluar = fd?.summary?.totalKeluar ?: 0.0
+    val bersih = masuk - keluar
+    val margin = fd?.biMetrics?.margin ?: 0.0
+    GradientCard(modifier.fillMaxWidth(), colors = BizgrowColors.GradPrimary, onClick = onClick) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Laba bersih", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    if (sembunyi) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    "Sembunyikan angka",
+                    tint = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp).clip(CircleShape).pressClick(onClick = onToggle)
+                )
+                Spacer(Modifier.weight(1f))
+                if (margin != 0.0) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 9.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "👋 Selamat Pagi",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = BizgrowColors.Gray500,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = activeUnit?.name ?: "Bisnis",
-                                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 24.sp),
-                                    color = BizgrowColors.Gray950,
-                                )
-                                Surface(color = BizgrowColors.SuccessLight, shape = RoundedCornerShape(6.dp)) {
-                                    Text("Online", color = BizgrowColors.Success, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                }
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Box {
-                                IconButton(onClick = { viewModel.navigate(Screen.Notifications) }) {
-                                    Icon(Icons.Default.Notifications, "Notifikasi", tint = BizgrowColors.Gray500)
-                                }
-                                if (unreadCount > 0) {
-                                    Box(modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp).size(8.dp).background(BizgrowColors.Danger, CircleShape))
-                                }
-                            }
-                            IconButton(onClick = { viewModel.navigate(Screen.Settings) }) {
-                                Icon(Icons.Default.Settings, "Pengaturan", tint = BizgrowColors.Gray500)
-                            }
-                        }
+                        Icon(if (margin >= 0) Icons.AutoMirrored.Rounded.TrendingUp else Icons.AutoMirrored.Rounded.TrendingDown, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Margin ${(margin * 10).toLong() / 10.0}%", style = MaterialTheme.typography.labelSmall, color = Color.White)
                     }
                 }
             }
-            
-            // AI Insight strip
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = BizgrowColors.PrimaryLight),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(0.dp)
-                ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, "AI", tint = BizgrowColors.Primary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        val insight = remember(financeData) {
-                            val trxs = financeData?.transactions ?: emptyList()
-                            val income = trxs.filter { it.kategoriTrx == "MASUK" || it.kategoriTrx == "PEMASUKAN" }.sumOf { it.nominal }
-                            val count = trxs.size
-                            when {
-                                count == 0 -> "Belum ada transaksi hari ini. Mulai catat penjualan Anda!"
-                                income > 0 -> "Total pemasukan saat ini ${formatCurrency(income)} dari $count transaksi."
-                                else -> "Pantau keuangan bisnis Anda secara real-time."
-                            }
-                        }
-                        Text(
-                            text = "BizGrow AI: $insight",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = BizgrowColors.PrimaryDark,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
+            Spacer(Modifier.height(6.dp))
+            Crossfade(sembunyi, label = "saldo") { hide ->
+                if (hide) Text("Rp ••••••••", style = MaterialTheme.typography.displayMedium, color = Color.White)
+                else AnimatedAmount(bersih, MaterialTheme.typography.displayMedium, Color.White)
             }
-
-            // 1. Hero Finance Card — saldo utama
-            item { 
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                    DashboardHeroCard(financeData, viewModel) 
-                }
-            }
-
-            // 2. Quick Actions — aksi cepat paling sering dipakai
-            item {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
-                    Text("Quick Action", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        QuickActionCircle(Icons.Default.AddShoppingCart, "Kasir", BizgrowColors.Primary) { viewModel.navigate(Screen.Pos) }
-                        QuickActionCircle(Icons.Default.AddBox, "Produk", BizgrowColors.Success) { viewModel.navigate(Screen.Products) }
-                        QuickActionCircle(Icons.Default.PersonAdd, "Pelanggan", BizgrowColors.Warning) { viewModel.navigate(Screen.CrmContacts) }
-                        QuickActionCircle(Icons.Default.Receipt, "Piutang", BizgrowColors.Secondary) { viewModel.navigate(Screen.Piutang) }
-                        QuickActionCircle(Icons.Default.BarChart, "Laporan", BizgrowColors.Secondary) { viewModel.navigate(Screen.Laporan) }
-                    }
-                }
-            }
-
-            // 3. Cash Flow Chart
-            item { 
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                    FinanceChart(financeData) 
-                }
-            }
-
-            // 4. KPI Grid
-            item {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                    Text("Ringkasan Hari Ini", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
-                    Spacer(Modifier.height(12.dp))
-                    val trxs = financeData?.transactions ?: emptyList()
-                    val totalOrders = trxs.count()
-                    val alertReceivables = financeData?.alerts?.receivables ?: 0
-                    val alertPayables = financeData?.alerts?.payables ?: 0
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiBox(icon = Icons.Default.ShoppingCart, title = "$totalOrders", subtitle = "Transaksi", color = BizgrowColors.Primary, modifier = Modifier.weight(1f))
-                        KpiBox(icon = Icons.Default.TrendingUp, title = formatCurrency(financeData?.biMetrics?.netProfit ?: 0.0), subtitle = "Laba Bersih", color = BizgrowColors.Success, modifier = Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KpiBox(icon = Icons.Default.Inventory2, title = "$alertReceivables", subtitle = "Piutang Jatuh Tempo", color = BizgrowColors.Warning, modifier = Modifier.weight(1f))
-                        KpiBox(icon = Icons.Default.Payment, title = "$alertPayables", subtitle = "Hutang Belum Bayar", color = BizgrowColors.Danger, modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-
-            // 5. Alerts
-            item {
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                    AlertsSection(financeData = financeData, lowStockProducts = lowStockProducts, viewModel = viewModel)
-                }
-            }
-            
-            // 6. Recent transactions
-            item {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Aktivitas Terbaru", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
-                        TextButton(onClick = { viewModel.navigate(Screen.Finance) }) { Text("Lihat Semua", fontSize = 12.sp) }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-            financeData?.transactions?.take(5)?.let { transactions ->
-                if (transactions.isEmpty()) {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
-                            Text("Belum ada aktivitas", color = BizgrowColors.Gray500, fontSize = 13.sp)
-                        }
-                    }
-                } else {
-                    items(transactions) { trx -> 
-                        Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-                            TransactionItem(trx) 
-                        }
-                    }
-                }
-            }
-            
-            // 7. BI Metrics
-            financeData?.biMetrics?.let { metrics ->
-                item { 
-                    Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
-                        BiMetricsSection(metrics) 
-                    }
-                }
+            Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ArusMini("Pemasukan", masuk, Icons.Rounded.SouthWest, sembunyi, Modifier.weight(1f))
+                ArusMini("Pengeluaran", keluar, Icons.Rounded.NorthEast, sembunyi, Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-fun KpiBox(icon: ImageVector, title: String, subtitle: String, color: Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = BizgrowColors.White),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(title, fontWeight = FontWeight.Black, fontSize = 20.sp, color = BizgrowColors.Gray950)
-            Text(subtitle, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = BizgrowColors.Gray500)
-        }
-    }
-}
-
-@Composable
-fun QuickActionCircle(icon: ImageVector, label: String, color: Color, onClick: () -> Unit = {}) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .background(color.copy(alpha = 0.1f), CircleShape)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = BizgrowColors.Gray900)
-    }
-}
-
-// ─── Hero Card ────────────────────────────────────────────────────────────────
-@Composable
-fun DashboardHeroCard(financeData: FinanceData?, viewModel: AppViewModel) {
-    val trxs = financeData?.transactions ?: emptyList()
-    val totalIncome = trxs.filter { it.kategoriTrx == "MASUK" || it.kategoriTrx == "PEMASUKAN" }.sumOf { it.nominal }
-    val totalExpense = trxs.filter { it.kategoriTrx == "KELUAR" || it.kategoriTrx == "PENGELUARAN" }.sumOf { it.nominal }
-    val balance = totalIncome - totalExpense
-    val isPositive = balance >= 0
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = BizgrowColors.White),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Saldo Bersih", fontSize = 13.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-                val kpiTarget = financeData?.kpi?.target ?: 0.0
-                val kpiCurrent = financeData?.kpi?.current ?: 0.0
-                if (kpiTarget > 0) {
-                    val pct = (kpiCurrent / kpiTarget * 100).toInt()
-                    val isPositive = kpiCurrent >= 0
-                    Surface(color = if (isPositive) BizgrowColors.SuccessLight else BizgrowColors.DangerLight, shape = RoundedCornerShape(10.dp)) {
-                        Text(
-                            "${if (isPositive) "↑" else "↓"} $pct%",
-                            color = if (isPositive) BizgrowColors.Success else BizgrowColors.Danger,
-                            fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-            Text(
-                formatCurrency(balance),
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Black,
-                color = BizgrowColors.Gray950
-            )
-            HorizontalDivider(color = BizgrowColors.Gray100)
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                MiniStatChip("Masuk", formatCurrency(totalIncome), BizgrowColors.Success)
-                MiniStatChip("Keluar", formatCurrency(totalExpense), BizgrowColors.Danger)
-                MiniStatChip("Transaksi", "${trxs.size}", BizgrowColors.Primary)
-            }
-        }
-    }
-}
-
-@Composable
-fun MiniStatChip(label: String, value: String, valueColor: Color) {
-    Column {
-        Text(label, fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
-    }
-}
-
-// ─── Cash Flow Chart ──────────────────────────────────────────────────────────
-@Composable
-fun FinanceChart(financeData: FinanceData?) {
-    val dataPoints = remember(financeData) {
-        val trxs = financeData?.transactions ?: emptyList()
-        // tanggal is epoch millis (Long stored as String) — convert to date key for grouping
-        val grouped = trxs
-            .filter { it.kategoriTrx == "MASUK" || it.kategoriTrx == "PEMASUKAN" }
-            .sortedBy { it.tanggal.toLongOrNull() ?: 0L }
-            .groupBy {
-                // group by day: epoch ms -> "YYYY-MM-DD" approximation
-                val ms = it.tanggal.toLongOrNull() ?: 0L
-                // Use day bucket (ms / 86400000)
-                (ms / 86_400_000L).toString()
-            }
-            .entries.sortedBy { it.key.toLongOrNull() ?: 0L }
-            .takeLast(7)
-            .map { (_, v) -> v.sumOf { it.nominal }.toFloat() }
-        when {
-            grouped.isEmpty() -> listOf(0f, 0f, 0f, 0f, 0f, 0f, 0f)
-            grouped.size == 1 -> listOf(0f, grouped.first())
-            else -> grouped
-        }
-    }
-
-    val animProg = remember { Animatable(0f) }
-    LaunchedEffect(dataPoints) {
-        animProg.snapTo(0f)
-        animProg.animateTo(1f, tween(1000, easing = FastOutSlowInEasing))
-    }
-
-    val maxVal = dataPoints.maxOrNull()?.takeIf { it > 0 } ?: 1f
-    val totalStr = formatCurrency(dataPoints.sum().toDouble())
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = BizgrowColors.White),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Cash Flow", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = BizgrowColors.Gray950)
-                    Text("7 Hari Terakhir", fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-                }
-                Text(totalStr, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Primary)
-            }
-            Spacer(Modifier.height(20.dp))
-            Canvas(modifier = Modifier.fillMaxWidth().height(100.dp)) {
-                val w = size.width; val h = size.height
-                val count = dataPoints.size
-                if (count < 2) {
-                    drawLine(BizgrowColors.Primary.copy(alpha = 0.3f), Offset(0f, h * 0.5f), Offset(w, h * 0.5f), strokeWidth = 2.dp.toPx())
-                    return@Canvas
-                }
-                val spacing = w / (count - 1)
-                val pts = dataPoints.mapIndexed { i, v ->
-                    Offset(i * spacing, h - (v / maxVal) * h * 0.85f - h * 0.075f)
-                }
-                val fillPath = Path().apply {
-                    moveTo(pts[0].x, pts[0].y)
-                    for (i in 1 until pts.size) {
-                        val cp = (pts[i-1].x + pts[i].x) / 2f
-                        cubicTo(cp, pts[i-1].y, cp, pts[i].y, pts[i].x, pts[i].y)
-                    }
-                    lineTo(pts.last().x, h); lineTo(pts.first().x, h); close()
-                }
-                val linePath = Path().apply {
-                    moveTo(pts[0].x, pts[0].y)
-                    for (i in 1 until pts.size) {
-                        val cp = (pts[i-1].x + pts[i].x) / 2f
-                        cubicTo(cp, pts[i-1].y, cp, pts[i].y, pts[i].x, pts[i].y)
-                    }
-                }
-                clipRect(right = w * animProg.value) {
-                    drawPath(fillPath, Brush.verticalGradient(listOf(BizgrowColors.Primary.copy(alpha = 0.15f), Color.Transparent), 0f, h))
-                    drawPath(linePath, Brush.linearGradient(listOf(BizgrowColors.Primary, BizgrowColors.PrimaryMid)),
-                        style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    pts.forEach {
-                        drawCircle(Color.White, 4.dp.toPx(), it)
-                        drawCircle(BizgrowColors.Primary, 2.5.dp.toPx(), it)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ─── BI Metrics ───────────────────────────────────────────────────────────────
-@Composable
-fun BiMetricsSection(metrics: BiMetrics) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Business Insights", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
-            Surface(color = BizgrowColors.PrimaryLight, shape = RoundedCornerShape(12.dp)) {
-                Text(metrics.outlook, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BiMetricCard("Laba Bersih", formatCurrency(metrics.netProfit), Icons.Default.TrendingUp, BizgrowColors.PrimaryLight, BizgrowColors.Primary, Modifier.weight(1f))
-            BiMetricCard("Margin", "${metrics.margin}%", Icons.Default.PieChart, BizgrowColors.SuccessLight, BizgrowColors.Success, Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BiMetricCard("Customer", "${metrics.cashRunway}", Icons.Default.People, BizgrowColors.WarningLight, BizgrowColors.Warning, Modifier.weight(1f))
-            BiMetricCard("Health Score", "${metrics.integrityScore}", Icons.Default.Favorite, BizgrowColors.Gray100, BizgrowColors.Gray700, Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-fun BiMetricCard(title: String, value: String, icon: ImageVector, bgColor: Color, iconColor: Color, modifier: Modifier = Modifier) {
-    Card(modifier = modifier.height(90.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = BizgrowColors.White), elevation = CardDefaults.cardElevation(2.dp)) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(icon, null, Modifier.size(14.dp), tint = iconColor)
-                Text(title, fontSize = 11.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Medium)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(value, fontSize = 17.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Gray950, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-// ─── Alerts ───────────────────────────────────────────────────────────────────
-@Composable
-fun AlertsSection(financeData: FinanceData?, lowStockProducts: List<com.upstyle.bizgrow.data.LowStockProduct>, viewModel: AppViewModel) {
-    val alerts = buildList {
-        if ((financeData?.alerts?.receivables ?: 0) > 0)
-            add(Triple("${financeData?.alerts?.receivables} Invoice Jatuh Tempo", BizgrowColors.Warning, Screen.Piutang))
-        if ((financeData?.alerts?.payables ?: 0) > 0)
-            add(Triple("${financeData?.alerts?.payables} Hutang Belum Dibayar", BizgrowColors.Danger, Screen.Hutang))
-        if (lowStockProducts.isNotEmpty())
-            add(Triple("${lowStockProducts.size} Produk Hampir Habis", BizgrowColors.Warning, Screen.Products))
-    }
-    if (alerts.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Perlu Perhatian", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BizgrowColors.Gray950)
-        alerts.forEach { (msg, color, screen) ->
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { viewModel.navigate(screen) },
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
-                elevation = CardDefaults.cardElevation(0.dp)
-            ) {
-                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, null, Modifier.size(20.dp), tint = color)
-                    Spacer(Modifier.width(12.dp))
-                    Text(msg, color = color, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-// ─── Transaction Item ─────────────────────────────────────────────────────────
-@Composable
-fun TransactionItem(trx: com.upstyle.bizgrow.data.Transaction) {
-    val isMasuk = trx.kategoriTrx.equals("PEMASUKAN", ignoreCase = true) || trx.kategoriTrx.equals("MASUK", ignoreCase = true)
-    val color = if (isMasuk) BizgrowColors.Success else BizgrowColors.Danger
-
+private fun ArusMini(label: String, nilai: Double, icon: ImageVector, sembunyi: Boolean, modifier: Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.14f)).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(20.dp)).background(color.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                if (isMasuk) Icons.Default.Check else Icons.Default.Remove,
-                null, Modifier.size(20.dp), tint = color
-            )
+        Box(Modifier.size(30.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(trx.keterangan, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.Gray950, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(modifier = Modifier.height(2.dp))
-            val dateStr = trx.tanggal.toLongOrNull()?.let { ms ->
-                kotlinx.datetime.Instant.fromEpochMilliseconds(ms)
-                    .toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Jakarta"))
-                    .date.toString()
-            } ?: trx.tanggal.take(10).ifEmpty { "-" }
-            Text(dateStr, fontSize = 11.sp, color = BizgrowColors.Gray500)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                "${if (isMasuk) "+" else "-"}${formatCurrency(trx.nominal)}",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = color
-            )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+            Text(if (sembunyi) "••••" else nilai.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = Color.White, maxLines = 1)
         }
     }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-fun formatCurrency(amount: Double): String = "Rp ${"%,.0f".format(amount)}"
+@Composable
+private fun Pintasan(viewModel: AppViewModel, modifier: Modifier) {
+    val items = listOf(
+        Triple("Kasir", Icons.Rounded.PointOfSale, BizgrowColors.Success) to Screen.Pos,
+        Triple("Catat", Icons.Rounded.EditNote, BizgrowColors.Primary) to Screen.TransactionEntry,
+        Triple("Produk", Icons.Rounded.Inventory2, BizgrowColors.Warning) to Screen.Products,
+        Triple("Laporan", Icons.Rounded.Assessment, BizgrowColors.Info) to Screen.Laporan,
+        Triple("Piutang", Icons.Rounded.RequestQuote, BizgrowColors.Violet) to Screen.Piutang,
+        Triple("Pelanggan", Icons.Rounded.Groups, Color(0xFFEC4899)) to Screen.CrmContacts,
+        Triple("Karyawan", Icons.Rounded.Badge, Color(0xFF14B8A6)) to Screen.Hr,
+        Triple("Semua", Icons.Rounded.GridView, Color(0xFF64748B)) to Screen.Modules,
+    )
+    Column(modifier.padding(horizontal = 14.dp)) {
+        items.chunked(4).forEach { baris ->
+            Row(Modifier.fillMaxWidth()) {
+                baris.forEach { (meta, target) ->
+                    ModuleTile(meta.first, meta.second, meta.third, Modifier.weight(1f)) {
+                        if (target is Screen.Modules) viewModel.navigate(Screen.Modules) else viewModel.navigate(target)
+                    }
+                }
+            }
+        }
+    }
+}
 
+@Composable
+private fun PerluPerhatian(fd: FinanceData?, lowStock: List<LowStockProduct>, viewModel: AppViewModel, modifier: Modifier) {
+    data class Peringatan(val judul: String, val sub: String, val icon: ImageVector, val warna: Color, val target: Screen)
+    val list = buildList {
+        val ar = fd?.alerts?.receivables ?: 0
+        val ap = fd?.alerts?.payables ?: 0
+        if (ar > 0) add(Peringatan("$ar invoice", "Piutang jatuh tempo", Icons.Rounded.RequestQuote, BizgrowColors.Warning, Screen.Piutang))
+        if (ap > 0) add(Peringatan("$ap tagihan", "Hutang belum dibayar", Icons.Rounded.Payments, BizgrowColors.Danger, Screen.Hutang))
+        if (lowStock.isNotEmpty()) add(Peringatan("${lowStock.size} produk", "Stok hampir habis", Icons.Rounded.Inventory2, BizgrowColors.Violet, Screen.Products))
+    }
+    if (list.isEmpty()) return
+    Column(modifier) {
+        SectionTitle("Perlu perhatian", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(list) { p ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(p.warna.copy(alpha = 0.12f))
+                        .pressClick { viewModel.navigate(p.target) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(p.icon, null, tint = p.warna, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(p.judul, style = MaterialTheme.typography.titleSmall, color = p.warna, fontWeight = FontWeight.Bold)
+                        Text(p.sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Rounded.ChevronRight, null, tint = p.warna, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+/** Ambil tanggal (YYYY-MM-DD) dari teks MySQL "YYYY-MM-DD HH:MM:SS" / ISO, atau epoch millis. */
+internal fun tanggalTransaksi(raw: String): LocalDate? {
+    val s = raw.trim()
+    if (s.length >= 10 && s[4] == '-' && s[7] == '-') return runCatching { LocalDate.parse(s.substring(0, 10)) }.getOrNull()
+    val ms = s.toLongOrNull() ?: return null
+    return Instant.fromEpochMilliseconds(ms).toLocalDateTime(TimeZone.currentSystemDefault()).date
+}
+
+@Composable
+private fun ArusKasCard(fd: FinanceData?, sembunyi: Boolean, modifier: Modifier) {
+    val hariIni = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+    val hari = remember(hariIni) { (6 downTo 0).map { hariIni.minus(it, DateTimeUnit.DAY) } }
+    val data = remember(fd) {
+        val per = fd?.transactions.orEmpty().groupBy { tanggalTransaksi(it.tanggal) }
+        hari.map { d ->
+            val list = per[d].orEmpty()
+            val masuk = list.filter { it.kategoriTrx.uppercase() in setOf("MASUK", "PEMASUKAN") }.sumOf { it.nominal }
+            val keluar = list.filter { it.kategoriTrx.uppercase() in setOf("KELUAR", "PENGELUARAN") }.sumOf { it.nominal }
+            masuk to keluar
+        }
+    }
+    val maks = (data.maxOfOrNull { maxOf(it.first, it.second) } ?: 0.0).takeIf { it > 0 } ?: 1.0
+    val tumbuh = remember { Animatable(0f) }
+    LaunchedEffect(fd) { tumbuh.snapTo(0f); tumbuh.animateTo(1f, tween(800, easing = BizMotion.Emphasized)) }
+    val warnaMasuk = BizgrowColors.Success
+    val warnaKeluar = BizgrowColors.Danger.copy(alpha = 0.85f)
+    val grid = MaterialTheme.colorScheme.outlineVariant
+
+    BizSurface(modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Arus kas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text("7 hari terakhir", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Legenda("Masuk", warnaMasuk)
+            Spacer(Modifier.width(10.dp))
+            Legenda("Keluar", warnaKeluar)
+        }
+        Spacer(Modifier.height(16.dp))
+        Canvas(Modifier.fillMaxWidth().height(130.dp)) {
+            val n = data.size
+            val slot = size.width / n
+            val batang = (slot * 0.26f).coerceAtMost(14.dp.toPx())
+            for (g in 1..3) {
+                val y = size.height * g / 4f
+                drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+            }
+            data.forEachIndexed { i, (m, k) ->
+                val cx = slot * i + slot / 2
+                val hm = (m / maks).toFloat() * size.height * 0.95f * tumbuh.value
+                val hk = (k / maks).toFloat() * size.height * 0.95f * tumbuh.value
+                val r = CornerRadius(batang / 2, batang / 2)
+                drawRoundRect(warnaMasuk, Offset(cx - batang - 2f, size.height - hm), Size(batang, hm), r)
+                drawRoundRect(warnaKeluar, Offset(cx + 2f, size.height - hk), Size(batang, hk), r)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth()) {
+            hari.forEach { d ->
+                Text(
+                    namaHariPendek(d.dayOfWeek),
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (d == hariIni) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        val totalMasuk = data.sumOf { it.first }
+        val totalKeluar = data.sumOf { it.second }
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Row {
+            Column(Modifier.weight(1f)) {
+                Text("Total masuk", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (sembunyi) "••••" else totalMasuk.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = BizgrowColors.Success)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Total keluar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (sembunyi) "••••" else totalKeluar.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = BizgrowColors.Danger)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Selisih", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (sembunyi) "••••" else (totalMasuk - totalKeluar).rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+private fun namaHariPendek(d: DayOfWeek) = when (d) {
+    DayOfWeek.MONDAY -> "Sen"; DayOfWeek.TUESDAY -> "Sel"; DayOfWeek.WEDNESDAY -> "Rab"
+    DayOfWeek.THURSDAY -> "Kam"; DayOfWeek.FRIDAY -> "Jum"; DayOfWeek.SATURDAY -> "Sab"
+    else -> "Min"
+}
+
+@Composable
+private fun Legenda(label: String, warna: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(warna))
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun InsightBisnis(fd: FinanceData, modifier: Modifier) {
+    val bi = fd.biMetrics
+    val (outlookLabel, outlookWarna) = when (bi.outlook.uppercase()) {
+        "POSITIVE", "STRONG", "GOOD" -> "Positif" to BizgrowColors.Success
+        "NEGATIVE", "WEAK", "POOR" -> "Waspada" to BizgrowColors.Danger
+        else -> "Stabil" to BizgrowColors.Warning
+    }
+    Column(modifier) {
+        SectionTitle("Insight bisnis", Modifier.padding(top = 6.dp, bottom = 8.dp), subtitle = "Dihitung otomatis dari transaksimu")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Efisiensi", "${(bi.efficiency * 10).toLong() / 10.0}%", Icons.Rounded.Speed, BizgrowColors.Info, Modifier.weight(1f))
+            StatTile("Ketahanan kas", if (bi.cashRunway > 0) "${bi.cashRunway.toInt()} bln" else "-", Icons.Rounded.HourglassBottom, BizgrowColors.Violet, Modifier.weight(1f))
+            StatTile("Prospek", outlookLabel, Icons.Rounded.Insights, outlookWarna, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun TransaksiRow(t: Transaction, sembunyi: Boolean, modifier: Modifier) {
+    val masuk = t.kategoriTrx.uppercase() in setOf("MASUK", "PEMASUKAN")
+    val warna = if (masuk) BizgrowColors.Success else BizgrowColors.Danger
+    val tgl = tanggalTransaksi(t.tanggal)
+    ListRow(
+        title = t.keterangan.ifBlank { if (masuk) "Pemasukan" else "Pengeluaran" },
+        subtitle = listOfNotNull(tgl?.let { "${it.dayOfMonth} ${namaBulanPendek(it.monthNumber)}" }, t.metodeBayar.takeIf { it.isNotBlank() && it.toIntOrNull() == null }).joinToString(" • "),
+        icon = if (masuk) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
+        tint = warna,
+        modifier = modifier,
+        trailing = {
+            Text(
+                if (sembunyi) "••••" else (if (masuk) "+" else "-") + t.nominal.rupiahRingkas().removePrefix("-"),
+                style = MaterialTheme.typography.titleSmall,
+                color = warna
+            )
+        }
+    )
+}
+
+internal fun namaBulanPendek(m: Int) = listOf("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des").getOrElse(m - 1) { "" }
+
+/** Format Rupiah penuh (dipakai banyak layar lama). */
+fun formatCurrency(amount: Double): String = amount.rupiah()
