@@ -26,6 +26,7 @@ sealed class Screen {
     object Marketing : Screen()
     object Departments : Screen()
     object TrashProducts : Screen()
+    object KategoriProduk : Screen()
     object Quotations : Screen()
     object SalesOrders : Screen()
     object LeaveRequests : Screen()

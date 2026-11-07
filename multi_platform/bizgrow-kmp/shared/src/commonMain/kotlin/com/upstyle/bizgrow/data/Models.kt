@@ -278,6 +278,22 @@ data class ProductVariant(
     val minStok: Int = 0
 )
 
+/** Isi formulir produk (tambah / ubah). */
+data class ProdukForm(
+    val nama: String,
+    val jenis: String = "BARANG_JADI",
+    val kategoriId: Int? = null,
+    val kategoriBaru: String = "",
+    val sku: String = "",
+    val barcode: String = "",
+    val hargaBeli: Double = 0.0,
+    val hargaJual: Double = 0.0,
+    val stok: Int = 0,
+    val minStok: Int = 5,
+    val foto: String? = null,
+    val varian: List<ProductVariant> = emptyList()
+)
+
 @Serializable
 data class KategoriProduk(
     val id: Int,

@@ -12,6 +12,12 @@ import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 import { normalisasiJenis } from '$lib/jenisProduk';
 
+/** Hanya URL http(s) atau path /uploads yang boleh disimpan; URI lokal HP (content://, file://) diabaikan. */
+function fotoAman(v) {
+    const t = typeof v === 'string' ? v.trim() : '';
+    return /^https?:\/\//i.test(t) || t.startsWith('/uploads/') ? t : null;
+}
+
 // 1. GET: Ambil semua produk & variasi untuk unitId (with pagination)
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -131,6 +137,10 @@ export async function POST({ request, cookies }) {
             hargaJual: z.coerce.number().min(0).default(0),
             stok: z.coerce.number().int().min(0).default(0),
             kategori: z.string().optional(),
+            kategoriId: z.coerce.number().int().positive().nullable().optional(),
+            minStok: z.coerce.number().int().min(0).max(1000000).optional(),
+            barcode: z.string().max(100).nullable().optional(),
+            foto: z.string().nullable().optional(),
             variants: z.array(z.object({
                 namaVariasi: z.string().min(1),
                 sku: z.string().optional(),
@@ -153,8 +163,13 @@ export async function POST({ request, cookies }) {
         
         await db.transaction(async (tx) => {
             // Find or create category
+            // Kategori: id dari app (harus milik unit ini) atau nama (dibuat bila belum ada)
             let kategoriId = null;
-            if (kategori) {
+            if (parsed.data.kategoriId) {
+                const kat = await tx.query.kategoriProduk.findFirst({ where: and(eq(kategoriProduk.id, parsed.data.kategoriId), eq(kategoriProduk.unitId, Number(unitId))) });
+                if (!kat) throw new Error('Kategori tidak ditemukan di unit ini');
+                kategoriId = kat.id;
+            } else if (kategori) {
                 const cleanCatName = kategori.trim().toUpperCase();
                 const existingCat = await tx.query.kategoriProduk.findFirst({
                     where: and(eq(kategoriProduk.namaKategori, cleanCatName), eq(kategoriProduk.unitId, Number(unitId)))
@@ -186,7 +201,9 @@ export async function POST({ request, cookies }) {
                 hargaBeli: String(hargaBeli || 0),
                 hargaJual: String(hargaJual || 0),
                 stok: finalStok || 0,
-                minStok: 5,
+                minStok: parsed.data.minStok ?? 5,
+                barcode: parsed.data.barcode || null,
+                foto: fotoAman(parsed.data.foto),
                 hasVariant: hasVariant ? 1 : 0
             });
 
@@ -222,12 +239,14 @@ export async function PUT({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const { id, sku, nama, hargaBeli, hargaJual, stok, kategori, unitId, variants } = body;
+        const { id, sku, nama, hargaBeli, hargaJual, stok, kategori, variants } = body;
 
         const existingProduct = await db.query.products.findFirst({
             where: eq(products.id, id)
         });
         if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
+        // Selalu pakai unit milik produk (bukan unitId kiriman klien) untuk kategori & log stok
+        const unitId = existingProduct.unitId;
         if (Number(existingProduct.userId) !== Number(userId)) return json({ success: false, message: "Akses ditolak" }, { status: 403 });
 
         const stokLama = Number(existingProduct.stok || 0);
@@ -235,8 +254,16 @@ export async function PUT({ request, cookies }) {
         const selisih = stokBaru - stokLama;
 
         await db.transaction(async (tx) => {
-            let kategoriId = null;
-            if (kategori) {
+            // Kategori hanya diubah bila dikirim (dulu selalu dikosongkan jika klien tak mengirim nama kategori)
+            let kategoriId = existingProduct.kategoriId;
+            if (body.kategoriId !== undefined) {
+                if (body.kategoriId === null) kategoriId = null;
+                else {
+                    const kat = await tx.query.kategoriProduk.findFirst({ where: and(eq(kategoriProduk.id, Number(body.kategoriId)), eq(kategoriProduk.unitId, Number(unitId))) });
+                    if (!kat) throw new Error('Kategori tidak ditemukan di unit ini');
+                    kategoriId = kat.id;
+                }
+            } else if (kategori) {
                 const cleanCatName = kategori.trim().toUpperCase();
                 const existingCat = await tx.query.kategoriProduk.findFirst({
                     where: and(eq(kategoriProduk.namaKategori, cleanCatName), eq(kategoriProduk.unitId, Number(unitId)))
@@ -260,6 +287,9 @@ export async function PUT({ request, cookies }) {
                     hargaJual: String(hargaJual || 0),
                     stok: stokBaru,
                     kategoriId: kategoriId,
+                    ...(body.minStok !== undefined ? { minStok: Math.max(0, Number(body.minStok) || 0) } : {}),
+                    ...(body.barcode !== undefined ? { barcode: body.barcode || null } : {}),
+                    ...(body.foto === null || body.foto === '' ? { foto: null } : fotoAman(body.foto) ? { foto: fotoAman(body.foto) } : {}),
                     // App mobile versi lama tidak mengirim jenis: biarkan yang tersimpan
                     ...(body.jenis ? { jenis: normalisasiJenis(body.jenis) } : {})
                 })

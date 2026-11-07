@@ -153,6 +153,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Advanced Products
                     is Screen.StockOpname   -> StockOpnameScreen(viewModel)
                     is Screen.TrashProducts -> TrashProductsScreen(viewModel)
+                    is Screen.KategoriProduk -> KategoriProdukScreen(viewModel)
                     is Screen.Pricing       -> PricingScreen(viewModel)
 
                     // Advanced CRM / Sales

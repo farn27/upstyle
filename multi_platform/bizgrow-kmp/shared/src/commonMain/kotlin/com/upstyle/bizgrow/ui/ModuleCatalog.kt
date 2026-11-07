@@ -74,6 +74,7 @@ val ModuleCatalog: List<ModuleGroup> = listOf(
             ModuleEntry("Operasi Massal", Icons.Rounded.DynamicFeed, Violet, Screen.BulkOperations, "bulk update banyak"),
             ModuleEntry("Katalog", Icons.Rounded.Storefront, Pink, Screen.Katalog, "etalase"),
             ModuleEntry("Scan Barcode", Icons.Rounded.QrCodeScanner, Slate, Screen.BarcodeScanner, "qr kamera"),
+            ModuleEntry("Kategori Produk", Icons.Rounded.Category, Indigo, Screen.KategoriProduk, "kategori kelompok produk"),
             ModuleEntry("Sampah Produk", Icons.Rounded.DeleteOutline, Rose, Screen.TrashProducts, "arsip hapus pulihkan"),
         )
     ),

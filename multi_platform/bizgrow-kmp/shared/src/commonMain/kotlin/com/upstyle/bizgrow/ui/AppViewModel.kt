@@ -1354,6 +1354,39 @@ class AppViewModel(
     val currentUser: com.upstyle.bizgrow.data.UserInfo? get() = if (session.isLoggedIn()) com.upstyle.bizgrow.data.UserInfo(session.getUserId(), session.getUsername(), session.getEmail(), session.getRole()) else null
 
 
+    /** Tambah kategori produk; mengembalikan pesan galat (null = berhasil). */
+    suspend fun tambahKategoriProduk(nama: String): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.buatKategoriProduk(unitId, nama)
+            if (res.success) { loadKategoriProduk(); null } else (res.message ?: "Gagal menambah kategori")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    /** Hapus kategori (ditolak server bila masih dipakai produk); null = berhasil. */
+    suspend fun hapusKategoriProduk(id: Int): String? = try {
+        val res = api.hapusKategoriProduk(id)
+        if (res.success) { loadKategoriProduk(); null } else (res.message ?: "Gagal menghapus kategori")
+    } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+
+    /** Unggah foto produk; null bila gagal. */
+    suspend fun unggahFotoProduk(bytes: ByteArray): String? = try { api.uploadFotoProduk(bytes) } catch (e: Exception) { Napier.e("unggahFoto", e); null }
+
+    /** Simpan produk dari form lengkap; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun simpanProdukForm(form: com.upstyle.bizgrow.data.ProdukForm, id: String?): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.simpanProdukForm(unitId, form, id)
+            if (res.success) {
+                loadProducts(); loadKategoriProduk()
+                if (id != null) loadProductVariants(id)
+                setSuccess(if (id == null) "Produk berhasil ditambahkan" else "Produk berhasil diperbarui"); null
+            } else (res.message ?: "Gagal menyimpan produk")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
     fun addProduct(nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, minStok: Int, sku: String, barcode: String?, kategoriId: Int?, fotoUri: String?, onResult: (Boolean) -> Unit) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value

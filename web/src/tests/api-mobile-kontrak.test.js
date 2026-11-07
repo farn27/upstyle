@@ -36,6 +36,7 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		r.bukuBesar = await import('../routes/api/app/finance/buku-besar/+server.js');
 		r.anggaran = await import('../routes/api/app/finance/budget/+server.js');
 		r.tutupBuku = await import('../routes/api/app/finance/close-period/+server.js');
+		r.produk = await import('../routes/api/app/products/+server.js');
 
 		const t = Date.now();
 		const [a] = await db.insert(s.users).values({ username: `ka${t}`, email: `ka${t}@contoh.id` });
@@ -236,6 +237,32 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		expect((await tutup('DELETE', null, `id=${kunci.j.data.id}&unitId=${id.unit}`)).j.success).toBe(true);
 		expect((await jurnal('2025-06-20')).j.success).toBe(true);
 		expect((await hapusTrx()).j.success).toBe(true);
+	});
+
+	it('produk: kategoriId, minStok, barcode, foto tersimpan; ubah produk tidak menghapus kategori', async () => {
+		login.userId = id.user;
+		const kirim = async (method, body) => { const res = await r.produk[method]({ request: new Request('http://x', { method, body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') }); return { st: res.status, j: await res.json() }; };
+		const [kat] = await db.insert(s.kategoriProduk).values({ unitId: id.unit, namaKategori: `MINUMAN-${Date.now()}` });
+		const [katLain] = await db.insert(s.kategoriProduk).values({ unitId: id.unitLain, namaKategori: `LAIN-${Date.now()}` });
+		const buat = await kirim('POST', { id: '0', nama: 'Es Teh', unitId: id.unit, hargaBeli: 1000, hargaJual: 3000, stok: 10, minStok: 2, sku: `ET-${Date.now()}`, barcode: '8991234', kategoriId: kat.insertId, foto: 'https://x/foto.jpg' });
+		expect(buat.j.success).toBe(true);
+		const [p] = await db.select().from(s.products).where(eq(s.products.id, buat.j.id));
+		expect(p).toMatchObject({ kategoriId: kat.insertId, minStok: 2, barcode: '8991234', foto: 'https://x/foto.jpg', jenis: 'BARANG_JADI' });
+		// foto berupa URI lokal HP diabaikan (tidak berguna di server)
+		const lokal = await kirim('POST', { nama: 'Foto Lokal', unitId: id.unit, foto: 'content://media/external/1' });
+		expect((await db.select().from(s.products).where(eq(s.products.id, lokal.j.id)))[0].foto).toBeNull();
+		// kategori milik unit lain ditolak
+		expect((await kirim('POST', { nama: 'X', unitId: id.unit, kategoriId: katLain.insertId })).st).toBe(500);
+		// ubah harga tanpa mengirim kategori → kategori tetap
+		const ubah = await kirim('PUT', { id: buat.j.id, nama: 'Es Teh Manis', unitId: id.unit, sku: p.sku, hargaBeli: 1000, hargaJual: 3500, stok: 10 });
+		expect(ubah.j.success).toBe(true);
+		const [p2] = await db.select().from(s.products).where(eq(s.products.id, buat.j.id));
+		expect(p2).toMatchObject({ nama: 'Es Teh Manis', kategoriId: kat.insertId, minStok: 2, barcode: '8991234' });
+		expect(Number(p2.hargaJual)).toBe(3500);
+		// ubah kategori & min stok eksplisit
+		await kirim('PUT', { id: buat.j.id, nama: 'Es Teh Manis', unitId: id.unit, sku: p.sku, hargaBeli: 1000, hargaJual: 3500, stok: 10, kategoriId: null, minStok: 7 });
+		const [p3] = await db.select().from(s.products).where(eq(s.products.id, buat.j.id));
+		expect(p3).toMatchObject({ kategoriId: null, minStok: 7 });
 	});
 
 	it('laporan: type=report memuat dashboard, laba rugi & neraca', async () => {

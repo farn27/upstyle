@@ -4,6 +4,9 @@ import com.upstyle.bizgrow.data.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.submitFormWithBinaryData
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.putJsonArray
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.*
 import kotlinx.datetime.Clock
@@ -104,6 +107,51 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("limit", 50)
         }.body()
 
+    /** Unggah foto produk (multipart) → URL publik, atau null bila gagal. */
+    suspend fun uploadFotoProduk(bytes: ByteArray, namaFile: String = "produk.jpg"): String? {
+        val res: JsonObject = client.submitFormWithBinaryData(
+            url = "api/uploads/product-image",
+            formData = io.ktor.client.request.forms.formData {
+                append("image", bytes, io.ktor.http.Headers.build {
+                    append(io.ktor.http.HttpHeaders.ContentType, "image/jpeg")
+                    append(io.ktor.http.HttpHeaders.ContentDisposition, "filename=\"$namaFile\"")
+                })
+            }
+        ).body()
+        return res["data"]?.jsonObject?.get("url")?.jsonPrimitive?.contentOrNull
+    }
+
+    /** Simpan produk dari form lengkap: tambah (varian ikut) atau ubah. kategoriId null saat ubah = lepas kategori. */
+    suspend fun simpanProdukForm(unitId: Int, f: ProdukForm, id: String?): ApiResponse<JsonObject> =
+        client.request("api/app/products") {
+            method = if (id == null) io.ktor.http.HttpMethod.Post else io.ktor.http.HttpMethod.Put
+            setBody(buildJsonObject {
+                put("id", id ?: "0")
+                put("unitId", unitId)
+                put("nama", f.nama)
+                put("jenis", f.jenis)
+                put("sku", f.sku)
+                put("hargaBeli", f.hargaBeli)
+                put("hargaJual", f.hargaJual)
+                put("stok", f.stok)
+                put("minStok", f.minStok)
+                put("barcode", f.barcode.ifBlank { null })
+                if (f.kategoriBaru.isNotBlank()) put("kategori", f.kategoriBaru.trim())
+                else if (id != null || f.kategoriId != null) put("kategoriId", f.kategoriId)
+                if (f.foto != null || id != null) put("foto", f.foto)
+                if (id == null && f.varian.isNotEmpty()) {
+                    putJsonArray("variants") {
+                        f.varian.forEach { v ->
+                            add(buildJsonObject {
+                                put("namaVariasi", v.namaVariasi); put("sku", v.sku)
+                                put("hargaBeli", v.hargaBeli); put("hargaJual", v.hargaJual); put("stok", v.stok)
+                            })
+                        }
+                    }
+                }
+            })
+        }.body()
+
     suspend fun createProduct(product: Product): ApiResponse<Unit> =
         client.post("api/app/products") { setBody(product) }.body()
 
@@ -117,6 +165,14 @@ class UpstyleApi(private val client: HttpClient) {
         client.get("api/app/products/categories") {
             parameter("unitId", unitId)
         }.body()
+
+    suspend fun buatKategoriProduk(unitId: Int, nama: String): ApiResponse<JsonObject> =
+        client.post("api/app/products/categories") {
+            setBody(buildJsonObject { put("unitId", unitId); put("namaKategori", nama) })
+        }.body()
+
+    suspend fun hapusKategoriProduk(id: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/products/categories") { parameter("categoryId", id) }.body()
 
     suspend fun getStockLogs(unitId: Int, productId: String? = null): ApiResponse<List<StockLog>> =
         client.get("api/app/products") {
