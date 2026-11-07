@@ -1486,6 +1486,39 @@ class AppViewModel(
             else { setError(res.message ?: "Gagal membuat PO"); onDone(false) }
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onDone(false) }
     }
+    private val _laporanPembelian = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.LaporanPembelian?>(null)
+    val laporanPembelian: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.LaporanPembelian?> = _laporanPembelian.asStateFlow()
+    fun loadLaporanPembelian(dari: String, sampai: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getLaporanPembelian(unitId, dari, sampai)
+            if (res.success) _laporanPembelian.value = res.data
+        } catch (e: Exception) { Napier.e("loadLaporanPembelian error", e) }
+    }
+
+    /** Buat PO lengkap; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun buatPoLengkap(supplierId: String, items: List<Triple<String, Int, Double>>, diskon: Double, ongkir: Double, ppnPersen: Double, expectedDate: String?, catatan: String?): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.buatPoLengkap(unitId, supplierId, items, diskon, ongkir, ppnPersen, expectedDate, catatan)
+            if (res.success) { loadScmData(); setSuccess(res.message ?: "Purchase order dibuat"); null } else (res.message ?: "Gagal membuat PO")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    suspend fun ubahSupplier(s: Supplier, nama: String, kontak: String, telp: String, email: String, alamat: String, termin: Int): String? = try {
+        val res = api.ubahSupplier(s.id, nama, kontak, telp, email, alamat, s.category, s.npwp, termin)
+        if (res.success) { loadScmData(); setSuccess("Supplier diperbarui"); null } else (res.message ?: "Gagal memperbarui supplier")
+    } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+
+    fun aturSupplierAktif(s: Supplier, aktif: Boolean) = viewModelScope.launch {
+        try {
+            val res = api.aturSupplierAktif(s.id, aktif)
+            if (res.success) { loadScmData(); setSuccess(if (aktif) "Supplier diaktifkan" else "Supplier dinonaktifkan") } else setError(res.message ?: "Gagal mengubah status supplier")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun deleteSupplier(supplierId: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         setLoading(true)

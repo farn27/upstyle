@@ -668,7 +668,10 @@ data class Supplier(
     val phone: String,
     val email: String,
     val category: String,
-    val address: String
+    val address: String,
+    val npwp: String = "",
+    val termPembayaran: Int = 30,
+    val isActive: Int = 1
 )
 
 @Serializable
@@ -684,8 +687,30 @@ data class PurchaseOrder(
     val totalAmount: Double,
     val date: String = "",
     val status: String,
-    val notes: String? = null
+    val notes: String? = null,
+    /** Jumlah baris barang di PO (kartu hanya menampilkan barang pertama). */
+    val jumlahItem: Int = 1
 )
+
+@Serializable
+data class LaporanPembelian(
+    val dari: String = "",
+    val sampai: String = "",
+    val jumlahFaktur: Int = 0,
+    val subtotal: Double = 0.0,
+    val diskon: Double = 0.0,
+    val ongkir: Double = 0.0,
+    val ppn: Double = 0.0,
+    val total: Double = 0.0,
+    val perSupplier: List<LaporanPerSupplier> = emptyList(),
+    val perProduk: List<LaporanPerProduk> = emptyList()
+)
+
+@Serializable
+data class LaporanPerSupplier(val nama: String = "", val jumlah: Int = 0, val total: Double = 0.0)
+
+@Serializable
+data class LaporanPerProduk(val nama: String = "", val qty: Int = 0, val nilai: Double = 0.0)
 
 @Serializable
 data class ScmData(

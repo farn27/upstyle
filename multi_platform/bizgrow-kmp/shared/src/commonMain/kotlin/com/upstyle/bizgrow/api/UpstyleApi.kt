@@ -286,6 +286,42 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getScmData(unitId: Int): ApiResponse<ScmData> =
         client.get("api/app/scm") { parameter("unitId", unitId) }.body()
 
+    suspend fun getLaporanPembelian(unitId: Int, dari: String, sampai: String): ApiResponse<LaporanPembelian> =
+        client.get("api/app/scm/laporan") {
+            parameter("unitId", unitId); parameter("dari", dari); parameter("sampai", sampai)
+        }.body()
+
+    /** PO lengkap (banyak barang, diskon, ongkir, PPN, perkiraan tiba, catatan). */
+    suspend fun buatPoLengkap(unitId: Int, supplierId: String, items: List<Triple<String, Int, Double>>, diskon: Double, ongkir: Double, ppnPersen: Double, expectedDate: String?, catatan: String?): ApiResponse<JsonObject> =
+        client.post("api/app/scm") {
+            setBody(buildJsonObject {
+                put("action", "create-po-lengkap")
+                putJsonObject("po") {
+                    put("unitId", unitId); put("supplierId", supplierId)
+                    put("diskon", diskon); put("ongkir", ongkir); put("ppnPersen", ppnPersen)
+                    if (!expectedDate.isNullOrBlank()) put("expectedDate", expectedDate)
+                    if (!catatan.isNullOrBlank()) put("notes", catatan)
+                    putJsonArray("items") { items.forEach { (p, q, h) -> add(buildJsonObject { put("productId", p); put("qty", q); put("unitPrice", h) }) } }
+                }
+            })
+        }.body()
+
+    suspend fun ubahSupplier(supplierId: String, nama: String, kontak: String, telp: String, email: String, alamat: String, kategori: String, npwp: String, termin: Int): ApiResponse<JsonObject> =
+        client.put("api/app/scm") {
+            setBody(buildJsonObject {
+                put("action", "update-supplier"); put("supplierId", supplierId)
+                putJsonObject("supplier") {
+                    put("namaSupplier", nama); put("contactName", kontak); put("phone", telp); put("email", email)
+                    put("address", alamat); put("category", kategori); put("npwp", npwp); put("termPembayaran", termin)
+                }
+            })
+        }.body()
+
+    suspend fun aturSupplierAktif(supplierId: String, aktif: Boolean): ApiResponse<JsonObject> =
+        client.put("api/app/scm") {
+            setBody(buildJsonObject { put("action", "set-supplier-aktif"); put("supplierId", supplierId); put("aktif", aktif) })
+        }.body()
+
     suspend fun createSupplier(req: CreateSupplierRequest): ApiResponse<Unit> =
         client.post("api/app/scm") { setBody(req) }.body()
 

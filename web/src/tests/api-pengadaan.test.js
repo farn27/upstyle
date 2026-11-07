@@ -19,6 +19,7 @@ describe.skipIf(!TEST_DB)('modul Pengadaan', () => {
 	/** @type {any} */ let eq;
 	/** @type {any} */ let scm;
 	/** @type {any} */ let scmPo;
+	/** @type {any} */ let scmLaporan;
 	/** @type {any} */ let ctx;
 	/** @type {any} */ let ctxLain;
 	/** @type {Record<string, any>} */
@@ -56,6 +57,7 @@ describe.skipIf(!TEST_DB)('modul Pengadaan', () => {
 		p = await import('../lib/server/pengadaan.js');
 		scm = await import('../routes/api/app/scm/+server.js');
 		scmPo = await import('../routes/api/app/scm/po/+server.js');
+		scmLaporan = await import('../routes/api/app/scm/laporan/+server.js');
 
 		const [u1] = await db.insert(s.users).values({ username: `beli1${akhiran}`, email: `beli1${akhiran}@tes.local`, password: 'x' });
 		const [u2] = await db.insert(s.users).values({ username: `beli2${akhiran}`, email: `beli2${akhiran}@tes.local`, password: 'x' });
@@ -464,6 +466,70 @@ describe.skipIf(!TEST_DB)('modul Pengadaan', () => {
 			expect(res.status).toBe(404);
 			expect((await post({ poId, action: 'tutup' })).status).toBe(404);
 			login.userId = id.user;
+		});
+	});
+	describe('API mobile PO lengkap & ubah supplier (scm)', () => {
+		const kuki = { get: () => undefined };
+		const kirim = async (/** @type {string} */ method, /** @type {any} */ body) => {
+			const res = await scm[method]({ cookies: kuki, request: new Request('http://x/', { method, body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }), url: new URL('http://x/') });
+			return { st: res.status, j: await res.json() };
+		};
+
+		it('PO banyak barang + diskon/ongkir/PPN dihitung server; unit lain ditolak', async () => {
+			login.userId = id.user;
+			const r = await kirim('POST', { action: 'create-po-lengkap', po: { unitId: id.unit, supplierId: id.supplier, expectedDate: '2031-05-20', notes: 'Kirim pagi', diskon: 2000, ongkir: 1000, ppnPersen: 10,
+				items: [{ productId: id.produkA, qty: 10, unitPrice: 1000 }, { productId: id.produkB, qty: 5, unitPrice: 2000 }] } });
+			expect(r.j.success).toBe(true);
+			const po = await kepala(Number(r.j.id));
+			// subtotal 20.000 − diskon 2.000 + ppn 1.800 (10% dari 18.000) + ongkir 1.000 = 20.800
+			expect(Number(po.totalAmount)).toBe(20800);
+			expect(po.status).toBe('DRAFT');
+			expect((await barisPO(po.id))).toHaveLength(2);
+			// validasi: tanpa barang, produk ganda, diskon berlebih
+			expect((await kirim('POST', { action: 'create-po-lengkap', po: { unitId: id.unit, supplierId: id.supplier, items: [] } })).st).toBe(422);
+			expect((await kirim('POST', { action: 'create-po-lengkap', po: { unitId: id.unit, supplierId: id.supplier, items: [{ productId: id.produkA, qty: 1, unitPrice: 1 }, { productId: id.produkA, qty: 1, unitPrice: 1 }] } })).st).toBe(422);
+			expect((await kirim('POST', { action: 'create-po-lengkap', po: { unitId: id.unit, supplierId: id.supplier, diskon: 999999, items: [{ productId: id.produkA, qty: 1, unitPrice: 10 }] } })).st).toBe(422);
+			// unit milik user lain → 404
+			login.userId = id.userLain;
+			expect((await kirim('POST', { action: 'create-po-lengkap', po: { unitId: id.unit, supplierId: id.supplier, items: [{ productId: id.produkA, qty: 1, unitPrice: 1 }] } })).st).toBe(404);
+		});
+
+		it('ubah data supplier & nonaktifkan', async () => {
+			login.userId = id.user;
+			const u = await kirim('PUT', { action: 'update-supplier', supplierId: id.supplier, supplier: { namaSupplier: 'Supplier Baru Nama', contactName: 'Budi', phone: '0812', email: 'b@x.id', address: 'Jl. A', termPembayaran: 14 } });
+			expect(u.j.success).toBe(true);
+			const [sup] = await db.select().from(s.suppliers).where(eq(s.suppliers.id, id.supplier));
+			expect(sup.namaSupplier).toBe('Supplier Baru Nama');
+			expect(sup.termPembayaran).toBe(14);
+			expect((await kirim('PUT', { action: 'update-supplier', supplierId: id.supplier, supplier: { namaSupplier: '' } })).st).toBe(422);
+			expect((await kirim('PUT', { action: 'set-supplier-aktif', supplierId: id.supplier, aktif: false })).j.success).toBe(true);
+			expect((await kirim('PUT', { action: 'set-supplier-aktif', supplierId: id.supplier, aktif: true })).j.success).toBe(true);
+			login.userId = id.userLain;
+			expect((await kirim('PUT', { action: 'update-supplier', supplierId: id.supplier, supplier: { namaSupplier: 'Curi' } })).st).toBe(404);
+		});
+	});
+
+	describe('API mobile laporan pembelian (scm/laporan)', () => {
+		const kuki = { get: () => undefined };
+		const ambil = async (/** @type {string} */ q, /** @type {number} */ unit = id.unit) => {
+			const res = await scmLaporan.GET({ url: new URL(`http://x/?unitId=${unit}${q}`), cookies: kuki, request: new Request('http://x/') });
+			return { st: res.status, j: await res.json() };
+		};
+
+		it('ringkasan, per supplier & per produk sesuai tagihan; periode & isolasi unit', async () => {
+			login.userId = id.user;
+			const { poId, a } = await poTerkirim({ diskon: 0, ongkir: 0, ppnPersen: 0 });
+			await p.terimaBarang(db, ctx, poId, { items: [{ itemId: a.id, qty: 10 }] });
+			await p.buatTagihan(db, ctx, poId, { nomorFaktur: faktur('LAP'), tanggal: '2031-03-10', jatuhTempo: '2031-03-31', items: [{ itemId: a.id, qty: 10 }] });
+			const r = await ambil('&dari=2031-03-01&sampai=2031-03-31');
+			expect(r.j.success).toBe(true);
+			expect(r.j.data).toMatchObject({ jumlahFaktur: 1, total: 10000, subtotal: 10000 });
+			expect(r.j.data.perSupplier[0]).toMatchObject({ jumlah: 1, total: 10000 });
+			expect(r.j.data.perProduk[0]).toMatchObject({ qty: 10, nilai: 10000 });
+			// periode lain kosong
+			expect((await ambil('&dari=2031-04-01&sampai=2031-04-30')).j.data.jumlahFaktur).toBe(0);
+			// unit milik user lain → 404
+			expect((await ambil('&dari=2031-03-01&sampai=2031-03-31', id.unitLain)).st).toBe(404);
 		});
 	});
 });

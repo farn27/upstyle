@@ -23,6 +23,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.upstyle.bizgrow.data.PurchaseOrder
+import kotlinx.coroutines.launch
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.plus
+import kotlinx.datetime.minus
 import com.upstyle.bizgrow.data.Supplier
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.design.*
@@ -51,6 +55,7 @@ fun ScmScreen(viewModel: AppViewModel) {
     var presetProduk by remember { mutableStateOf<com.upstyle.bizgrow.data.Product?>(null) }
     var showRestock by remember { mutableStateOf(false) }
     var filter by remember { mutableStateOf<String?>(null) }
+    var ubahSupplier by remember { mutableStateOf<Supplier?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadScmData(); viewModel.loadProducts() }
     val pos = scm?.purchaseOrders.orEmpty()
@@ -64,12 +69,12 @@ fun ScmScreen(viewModel: AppViewModel) {
         onBack = { viewModel.navigateBack() },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { if (tab == 0) showPo = true else showSupplier = true },
+                onClick = { if (tab == 0) showPo = true else if (tab == 1) showSupplier = true else tab = 0 },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(18.dp),
                 icon = { Icon(Icons.Rounded.Add, null) },
-                text = { Text(if (tab == 0) "Buat PO" else "Supplier") }
+                text = { Text(if (tab == 0) "Buat PO" else if (tab == 1) "Supplier" else "Buat PO") }
             )
         }
     ) { padding ->
@@ -85,7 +90,7 @@ fun ScmScreen(viewModel: AppViewModel) {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(4.dp)
                 ) {
-                    listOf("Purchase order", "Supplier").forEachIndexed { i, label ->
+                    listOf("Purchase order", "Supplier", "Laporan").forEachIndexed { i, label ->
                         val aktif = tab == i
                         Box(
                             Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
@@ -129,23 +134,21 @@ fun ScmScreen(viewModel: AppViewModel) {
                 itemsIndexed(tampilPo, key = { _, po -> po.id }) { i, po ->
                     PoCard(po, Modifier.padding(vertical = 5.dp).enterAnimation(i), onBuka = { viewModel.bukaPo(po.id) }) { aksi -> konfirmasi = po to aksi }
                 }
+            } else if (tab == 2) {
+                item { LaporanPembelianTab(viewModel) }
             } else {
                 if (suppliers.isEmpty()) item {
                     EmptyView("Belum ada supplier", "Tambahkan pemasok barang agar bisa membuat purchase order.", Icons.Rounded.Storefront, "Tambah supplier", { showSupplier = true })
                 }
                 itemsIndexed(suppliers, key = { _, s -> s.id }) { i, s ->
-                    SupplierCard(s, Modifier.padding(vertical = 5.dp).enterAnimation(i)) { viewModel.deleteSupplier(s.id) }
+                    SupplierCard(s, Modifier.padding(vertical = 5.dp).enterAnimation(i), onUbah = { ubahSupplier = s }, onAktif = { viewModel.aturSupplierAktif(s, s.isActive != 1) }) { viewModel.deleteSupplier(s.id) }
                 }
             }
         }
     }
 
     if (showPo) {
-        ModalBottomSheet({ showPo = false; presetProduk = null }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            PoForm(suppliers, products.filter { it.status != "archived" }, presetProduk) { supplierId, productId, qty, harga ->
-                viewModel.createPurchaseOrder(supplierId, productId, qty, harga) { ok -> if (ok) showPo = false }
-            }
-        }
+        PoFormLengkap(viewModel, suppliers.filter { it.isActive == 1 }, products.filter { it.status != "archived" }, presetProduk, onDismiss = { showPo = false; presetProduk = null })
     }
     if (showRestock) {
         val daftar = products.filter { it.status != "archived" && it.stok <= it.minStok && it.jenis != "PERLENGKAPAN" }
@@ -164,12 +167,14 @@ fun ScmScreen(viewModel: AppViewModel) {
         }
     }
     if (showSupplier) {
-        ModalBottomSheet({ showSupplier = false }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            SupplierForm { nama, kontak, telp, email, alamat ->
-                viewModel.createSupplier(nama, kontak, telp, email, "Umum", alamat)
-                showSupplier = false
-            }
+        SupplierFormSheet(null, { showSupplier = false }) { nama, kontak, telp, email, alamat, _ ->
+            viewModel.createSupplier(nama, kontak, telp, email, "Umum", alamat)
+            null
         }
+    }
+    ubahSupplier?.let { sup ->
+        val scope = rememberCoroutineScope()
+        SupplierFormSheet(sup, { ubahSupplier = null }) { nama, kontak, telp, email, alamat, termin -> viewModel.ubahSupplier(sup, nama, kontak, telp, email, alamat, termin) }
     }
     konfirmasi?.let { (po, aksi) ->
         val (judul, pesan) = when (aksi) {
@@ -206,7 +211,7 @@ private fun PoCard(po: PurchaseOrder, modifier: Modifier, onBuka: () -> Unit, on
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(10.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(po.productName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${po.qty} × ${po.unitCost.rupiah()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${po.qty} × ${po.unitCost.rupiah()}" + if (po.jumlahItem > 1) "  +${po.jumlahItem - 1} barang lain" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(po.totalAmount.rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         }
@@ -228,94 +233,203 @@ private fun PoCard(po: PurchaseOrder, modifier: Modifier, onBuka: () -> Unit, on
 }
 
 @Composable
-private fun SupplierCard(s: Supplier, modifier: Modifier, onHapus: () -> Unit) {
+private fun SupplierCard(s: Supplier, modifier: Modifier, onUbah: () -> Unit, onAktif: () -> Unit, onHapus: () -> Unit) {
     var tanya by remember { mutableStateOf(false) }
-    BizSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(14.dp)) {
+    var menu by remember { mutableStateOf(false) }
+    BizSurface(modifier.fillMaxWidth(), onClick = onUbah, contentPadding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ProductThumb(s.name, null, Modifier.size(44.dp), RoundedCornerShape(14.dp), fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(s.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
+                    if (s.isActive != 1) { Spacer(Modifier.width(6.dp)); StatusChip("Nonaktif", BizgrowColors.Warning) }
+                }
                 Text(listOf(s.contactName, s.phone).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Tanpa kontak" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (s.address.isNotBlank()) Text(s.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Termin ${s.termPembayaran} hari" + if (s.address.isNotBlank()) " • ${s.address}" else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(onClick = { tanya = true }) { Icon(Icons.Rounded.DeleteOutline, "Hapus", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Menu", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text("Ubah") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { menu = false; onUbah() })
+                    DropdownMenuItem(text = { Text(if (s.isActive == 1) "Nonaktifkan" else "Aktifkan") }, leadingIcon = { Icon(if (s.isActive == 1) Icons.Rounded.PauseCircle else Icons.Rounded.PlayCircle, null) }, onClick = { menu = false; onAktif() })
+                    DropdownMenuItem(text = { Text("Hapus", color = BizgrowColors.Danger) }, leadingIcon = { Icon(Icons.Rounded.DeleteOutline, null, tint = BizgrowColors.Danger) }, onClick = { menu = false; tanya = true })
+                }
+            }
         }
     }
     if (tanya) {
-        AlertDialog(
-            onDismissRequest = { tanya = false },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Hapus ${s.name}?") },
-            text = { Text("Supplier yang sudah punya PO tidak bisa dihapus.") },
-            confirmButton = { TextButton(onClick = { tanya = false; onHapus() }) { Text("Hapus", color = BizgrowColors.Danger) } },
-            dismissButton = { TextButton(onClick = { tanya = false }) { Text("Batal") } }
-        )
+        KonfirmasiHapus("Hapus ${s.name}?", "Supplier yang sudah punya PO tidak bisa dihapus — nonaktifkan saja.", { tanya = false; onHapus() }, { tanya = false })
     }
 }
 
+private class BarisPo(produk: com.upstyle.bizgrow.data.Product? = null, qty: String = "1", harga: String = "") {
+    var produk by mutableStateOf(produk)
+    var qty by mutableStateOf(qty)
+    var harga by mutableStateOf(harga)
+}
+
+/** PO lengkap seperti web: banyak barang, diskon, ongkir, PPN, perkiraan tiba, catatan. Total dihitung server. */
 @Composable
-private fun PoForm(suppliers: List<Supplier>, products: List<com.upstyle.bizgrow.data.Product>, produkAwal: com.upstyle.bizgrow.data.Product? = null, onSimpan: (String, String, Int, Double) -> Unit) {
-    var supplier by remember { mutableStateOf(suppliers.firstOrNull()) }
-    var cari by remember { mutableStateOf("") }
-    var produk by remember { mutableStateOf<com.upstyle.bizgrow.data.Product?>(produkAwal) }
-    var qty by remember { mutableStateOf(produkAwal?.let { (it.minStok * 2 - it.stok).coerceAtLeast(1).toString() } ?: "1") }
-    var harga by remember { mutableStateOf(produkAwal?.hargaBeli?.takeIf { it > 0 }?.toLong()?.toString() ?: "") }
-    val uiQty = qty.toIntOrNull() ?: 0
-    val uiHarga = harga.toDoubleOrNull() ?: 0.0
-    Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Purchase order baru", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        if (suppliers.isEmpty()) {
-            Text("Tambahkan supplier terlebih dahulu.", color = BizgrowColors.Danger)
-        } else {
-        Text("Supplier", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(suppliers) { s -> FilterPill(s.name, supplier?.id == s.id, { supplier = s }) } }
-        Text("Barang", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        if (produk == null) {
-            BizSearchField(cari, { cari = it }, "Cari barang (termasuk bahan baku)")
-            Column(Modifier.heightIn(max = 220.dp)) {
-                LazyColumn {
-                    items(products.filter { cari.isBlank() || it.nama.contains(cari, true) }.take(30), key = { it.id }) { p ->
-                        ListRow(p.nama, subtitle = "Stok ${p.stok} • beli ${p.hargaBeli.rupiah()}", icon = Icons.Rounded.Inventory2, tint = BizgrowColors.Warning, onClick = {
-                            produk = p; harga = p.hargaBeli.toLong().takeIf { it > 0 }?.toString() ?: ""
-                        })
-                    }
+private fun PoFormLengkap(viewModel: AppViewModel, suppliers: List<Supplier>, products: List<com.upstyle.bizgrow.data.Product>, produkAwal: com.upstyle.bizgrow.data.Product?, onDismiss: () -> Unit) {
+    val hari = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Jakarta")).date }
+    var supplierId by remember { mutableStateOf(suppliers.firstOrNull()?.id) }
+    val baris = remember {
+        mutableStateListOf(
+            if (produkAwal != null) BarisPo(produkAwal, (produkAwal.minStok * 2 - produkAwal.stok).coerceAtLeast(1).toString(), produkAwal.hargaBeli.takeIf { it > 0 }?.toLong()?.toString() ?: "") else BarisPo()
+        )
+    }
+    var tiba by remember { mutableStateOf(hari.plus(7, kotlinx.datetime.DateTimeUnit.DAY).toString()) }
+    var diskon by remember { mutableStateOf("") }
+    var ongkir by remember { mutableStateOf("") }
+    var ppn by remember { mutableStateOf("") }
+    var catatan by remember { mutableStateOf("") }
+    var galat by remember { mutableStateOf<String?>(null) }
+    var proses by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val subtotal = baris.sumOf { (it.qty.toIntOrNull() ?: 0) * (it.harga.toDoubleOrNull() ?: 0.0) }
+    val dDiskon = diskon.toDoubleOrNull() ?: 0.0
+    val dOngkir = ongkir.toDoubleOrNull() ?: 0.0
+    val pPpn = ppn.toDoubleOrNull() ?: 0.0
+    val dpp = (subtotal - dDiskon).coerceAtLeast(0.0)
+    val nilaiPpn = dpp * pPpn / 100
+    val total = dpp + nilaiPpn + dOngkir
+    val lengkap = baris.isNotEmpty() && baris.all { it.produk != null && (it.qty.toIntOrNull() ?: 0) > 0 && (it.harga.toDoubleOrNull() ?: -1.0) >= 0 } &&
+        baris.mapNotNull { it.produk?.id }.let { it.toSet().size == it.size }
+
+    FormSheet(
+        judul = "Purchase order baru", subjudul = "Total dihitung server saat disimpan",
+        onDismiss = onDismiss, labelSimpan = if (proses) "Menyimpan…" else "Simpan sebagai draft",
+        simpanAktif = supplierId != null && lengkap && dDiskon <= subtotal && !proses,
+        onSimpan = {
+            proses = true; galat = null
+            scope.launch {
+                val err = viewModel.buatPoLengkap(
+                    supplierId!!, baris.map { Triple(it.produk!!.id, it.qty.toInt(), it.harga.toDouble()) },
+                    dDiskon, dOngkir, pPpn, tiba, catatan.trim().ifBlank { null }
+                )
+                proses = false
+                if (err == null) onDismiss() else galat = err
+            }
+        }
+    ) {
+        if (suppliers.isEmpty()) Text("Tambahkan supplier aktif terlebih dahulu.", color = BizgrowColors.Danger)
+        PilihanField("Supplier *", suppliers.map { it.id to it.name }, supplierId, { supplierId = it }, placeholder = "Pilih supplier…")
+        TanggalField("Perkiraan tiba", tiba) { tiba = it }
+        Text("Barang", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        baris.forEachIndexed { i, b ->
+            BizSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Barang ${i + 1}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    if (baris.size > 1) BizIconButton(Icons.Rounded.Close, "Hapus") { baris.removeAt(i) }
                 }
+                PilihanField("Produk / bahan", products.map { it.id to "${it.nama} (stok ${it.stok})" }, b.produk?.id, { id ->
+                    val p = products.firstOrNull { it.id == id }
+                    b.produk = p
+                    if (p != null && b.harga.isBlank()) b.harga = p.hargaBeli.toLong().takeIf { it > 0 }?.toString() ?: ""
+                }, placeholder = "Pilih barang…")
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(0.8f)) { AngkaField(b.qty, { b.qty = it }, "Jumlah", desimal = false) }
+                    Box(Modifier.weight(1.2f)) { AngkaField(b.harga, { b.harga = it }, "Harga beli satuan", desimal = false) }
+                }
+                val sub = (b.qty.toIntOrNull() ?: 0) * (b.harga.toDoubleOrNull() ?: 0.0)
+                if (sub > 0) Text("Subtotal ${sub.rupiah()}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
-        } else {
-            ListRow(produk!!.nama, subtitle = "Ketuk untuk ganti barang", icon = Icons.Rounded.Inventory2, tint = BizgrowColors.Warning, showChevron = true, onClick = { produk = null })
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                BizTextField(qty, { qty = it.filter(Char::isDigit) }, "Jumlah", Modifier.weight(1f), keyboardType = KeyboardType.Number)
-                BizTextField(harga, { harga = it.filter(Char::isDigit) }, "Harga beli satuan", Modifier.weight(1.4f), keyboardType = KeyboardType.Number)
-            }
-            Text("Total ${(uiQty * uiHarga).rupiah()}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         }
-        BizButton(
-            "Buat purchase order",
-            { onSimpan(supplier!!.id, produk!!.id, uiQty, uiHarga) },
-            enabled = supplier != null && produk != null && uiQty > 0 && uiHarga > 0,
-            icon = Icons.Rounded.Check,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (baris.mapNotNull { it.produk?.id }.let { it.toSet().size != it.size }) Text("Ada produk yang sama lebih dari sekali — gabungkan jumlahnya.", color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { baris.add(BarisPo()) }) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Tambah barang") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { AngkaField(diskon, { diskon = it }, "Diskon (Rp)", desimal = false) }
+            Box(Modifier.weight(1f)) { AngkaField(ongkir, { ongkir = it }, "Ongkir (Rp)", desimal = false) }
         }
+        AngkaField(ppn, { ppn = it }, "PPN (%)", placeholder = "0", supporting = "Dihitung dari subtotal setelah diskon")
+        BizTextField(catatan, { catatan = it }, "Catatan (opsional)", leadingIcon = Icons.Rounded.Notes)
+        BizSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+            RowInfo("Subtotal", subtotal.rupiah())
+            if (dDiskon > 0) RowInfo("Diskon", "− " + dDiskon.rupiah())
+            if (nilaiPpn > 0) RowInfo("PPN ${pPpn}%", nilaiPpn.rupiah())
+            if (dOngkir > 0) RowInfo("Ongkir", dOngkir.rupiah())
+            HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            RowInfo("Total", total.rupiah(), tebal = true)
+            if (dDiskon > subtotal) Text("Diskon tidak boleh melebihi subtotal", color = BizgrowColors.Danger, style = MaterialTheme.typography.labelSmall)
+        }
+        galat?.let { Text(it, color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall) }
     }
 }
 
 @Composable
-private fun SupplierForm(onSimpan: (String, String, String, String, String) -> Unit) {
-    var nama by remember { mutableStateOf("") }
-    var kontak by remember { mutableStateOf("") }
-    var telp by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var alamat by remember { mutableStateOf("") }
-    Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Supplier baru", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        BizTextField(nama, { nama = it }, "Nama supplier", leadingIcon = Icons.Rounded.Storefront)
+private fun RowInfo(label: String, nilai: String, tebal: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(nilai, style = if (tebal) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium, fontWeight = if (tebal) FontWeight.Bold else FontWeight.SemiBold)
+    }
+}
+
+/** Tambah / ubah supplier. [onSimpan] mengembalikan pesan galat (null = berhasil). */
+@Composable
+private fun SupplierFormSheet(awal: Supplier?, onDismiss: () -> Unit, onSimpan: suspend (String, String, String, String, String, Int) -> String?) {
+    var nama by remember { mutableStateOf(awal?.name ?: "") }
+    var kontak by remember { mutableStateOf(awal?.contactName ?: "") }
+    var telp by remember { mutableStateOf(awal?.phone ?: "") }
+    var email by remember { mutableStateOf(awal?.email ?: "") }
+    var alamat by remember { mutableStateOf(awal?.address ?: "") }
+    var termin by remember { mutableStateOf((awal?.termPembayaran ?: 30).toString()) }
+    var galat by remember { mutableStateOf<String?>(null) }
+    var proses by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    FormSheet(
+        judul = if (awal == null) "Supplier baru" else "Ubah supplier", onDismiss = onDismiss,
+        simpanAktif = nama.isNotBlank() && !proses && (email.isBlank() || "@" in email),
+        onSimpan = {
+            proses = true; galat = null
+            scope.launch {
+                val err = onSimpan(nama.trim(), kontak.trim(), telp.trim(), email.trim(), alamat.trim(), termin.toIntOrNull() ?: 30)
+                proses = false
+                if (err == null) onDismiss() else galat = err
+            }
+        }
+    ) {
+        BizTextField(nama, { nama = it }, "Nama supplier *", leadingIcon = Icons.Rounded.Storefront)
         BizTextField(kontak, { kontak = it }, "Nama kontak", leadingIcon = Icons.Rounded.Person)
         BizTextField(telp, { telp = it }, "Telepon", leadingIcon = Icons.Rounded.Phone, keyboardType = KeyboardType.Phone)
         BizTextField(email, { email = it }, "Email (opsional)", leadingIcon = Icons.Rounded.MailOutline, keyboardType = KeyboardType.Email)
         BizTextField(alamat, { alamat = it }, "Alamat (opsional)", leadingIcon = Icons.Rounded.Place)
-        BizButton("Simpan supplier", { onSimpan(nama.trim(), kontak.trim(), telp.trim(), email.trim(), alamat.trim()) }, enabled = nama.isNotBlank(), icon = Icons.Rounded.Check, modifier = Modifier.fillMaxWidth())
+        AngkaField(termin, { termin = it }, "Termin pembayaran (hari)", desimal = false, supporting = "Dipakai sebagai jatuh tempo default tagihan")
+        galat?.let { Text(it, color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+/** Laporan pembelian periode: ringkasan, per supplier, per produk (dari tagihan supplier). */
+@Composable
+private fun LaporanPembelianTab(viewModel: AppViewModel) {
+    val lap by viewModel.laporanPembelian.collectAsState()
+    val hari = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Jakarta")).date }
+    var periode by remember { mutableStateOf("Bulan ini") }
+    fun rentang(p: String): Pair<String, String> = when (p) {
+        "Bulan lalu" -> kotlinx.datetime.LocalDate(hari.year, hari.monthNumber, 1).minus(1, kotlinx.datetime.DateTimeUnit.MONTH).let { a -> a.toString() to a.plus(1, kotlinx.datetime.DateTimeUnit.MONTH).minus(1, kotlinx.datetime.DateTimeUnit.DAY).toString() }
+        "3 bulan" -> hari.minus(90, kotlinx.datetime.DateTimeUnit.DAY).toString() to hari.toString()
+        "Tahun ini" -> kotlinx.datetime.LocalDate(hari.year, 1, 1).toString() to hari.toString()
+        else -> kotlinx.datetime.LocalDate(hari.year, hari.monthNumber, 1).toString() to hari.toString()
+    }
+    LaunchedEffect(periode) { val (d, s) = rentang(periode); viewModel.loadLaporanPembelian(d, s) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Bulan ini", "Bulan lalu", "3 bulan", "Tahun ini").forEach { FilterPill(it, periode == it, { periode = it }) }
+        }
+        val l = lap
+        if (l == null) { SkeletonList(rows = 3); return@Column }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Total pembelian", l.total.rupiahRingkas(), Icons.Rounded.ShoppingCart, BizgrowColors.Primary, Modifier.weight(1f), caption = "${l.jumlahFaktur} faktur")
+            StatTile("PPN masukan", l.ppn.rupiahRingkas(), Icons.Rounded.ReceiptLong, BizgrowColors.Info, Modifier.weight(1f), caption = "diskon ${l.diskon.rupiahRingkas()}")
+        }
+        SectionTitle("Per supplier")
+        if (l.perSupplier.isEmpty()) Text("Tidak ada pembelian pada periode ini.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        l.perSupplier.forEachIndexed { i, s -> ListRow(s.nama, subtitle = "${s.jumlah} faktur", icon = Icons.Rounded.Storefront, tint = BizgrowColors.ModuleColors[i % BizgrowColors.ModuleColors.size], trailing = { Text(s.total.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }) }
+        if (l.perProduk.isNotEmpty()) {
+            SectionTitle("Per produk", subtitle = "Sebelum diskon & pajak")
+            l.perProduk.forEachIndexed { i, p -> ListRow(p.nama, subtitle = "${p.qty} unit", icon = Icons.Rounded.Inventory2, tint = BizgrowColors.ModuleColors[i % BizgrowColors.ModuleColors.size], trailing = { Text(p.nilai.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }) }
+        }
     }
 }
