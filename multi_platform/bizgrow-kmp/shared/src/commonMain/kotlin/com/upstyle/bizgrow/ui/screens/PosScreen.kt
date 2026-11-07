@@ -360,6 +360,11 @@ private fun CheckoutSheet(
     var voucherPesan by remember { mutableStateOf<String?>(null) }
     var voucherCek by remember { mutableStateOf(false) }
     var bayarTerpisah by remember { mutableStateOf(false) }
+    val tarif by viewModel.taxRates.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadTaxRates() }
+    val tarifPpn = remember(tarif) { tarif.filter { it.tipe == "PPN" && it.isActive == 1 }.let { l -> l.firstOrNull { it.isDefault == 1 } ?: l.firstOrNull() } }
+    var kenaiPpn by remember { mutableStateOf(false) }
+    var ppnInklusif by remember { mutableStateOf(false) }
     var splitMetode by remember { mutableStateOf(listOf("CASH", "QRIS")) }
     var splitNominal by remember { mutableStateOf(listOf("", "")) }
     val scopeVoucher = rememberCoroutineScope()
@@ -367,7 +372,10 @@ private fun CheckoutSheet(
     val diskonManual = (diskonText.toDoubleOrNull() ?: 0.0).let { v -> if (modeDiskon == "PERSEN") subtotal * v.coerceIn(0.0, 100.0) / 100.0 else v }
     val diskon = (voucherPotongan ?: diskonManual).coerceIn(0.0, subtotal)
     LaunchedEffect(diskon) { viewModel.setDiskon(diskon) }
-    val total = subtotal - diskon
+    val dasarPpn = subtotal - diskon
+    val persenPpn = if (kenaiPpn) (tarifPpn?.persentase ?: 0.0) else 0.0
+    val ppn = if (persenPpn <= 0.0) 0.0 else if (ppnInklusif) Math.round(dasarPpn * persenPpn / (100 + persenPpn)).toDouble() else Math.round(dasarPpn * persenPpn / 100).toDouble()
+    val total = if (ppnInklusif) dasarPpn else dasarPpn + ppn
     val diterima = diterimaText.toDoubleOrNull() ?: 0.0
     val kembalian = diterima - total
     val pelanggan = customers.find { it.id == customerId }
@@ -423,6 +431,23 @@ private fun CheckoutSheet(
         Spacer(Modifier.height(8.dp))
         BizTextField(catatan, { catatan = it }, "Catatan pesanan (opsional)", leadingIcon = Icons.Rounded.EditNote)
 
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Kenakan PPN", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    if (tarifPpn == null) "Belum ada tarif PPN — atur di Pengaturan Pajak" else "${tarifPpn.namaPajak} (${tarifPpn.persentase.toString().removeSuffix(".0")}%) dicatat sebagai PPN Keluaran",
+                    style = MaterialTheme.typography.labelSmall, color = if (tarifPpn == null) BizgrowColors.WarningDark else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(kenaiPpn, { kenaiPpn = it }, enabled = tarifPpn != null)
+        }
+        AnimatedVisibility(kenaiPpn) {
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill("Harga belum termasuk PPN", !ppnInklusif, { ppnInklusif = false })
+                FilterPill("Harga sudah termasuk PPN", ppnInklusif, { ppnInklusif = true })
+            }
+        }
         Spacer(Modifier.height(12.dp))
         Text("Diskon & voucher", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(8.dp))
@@ -552,6 +577,7 @@ private fun CheckoutSheet(
         BizSurface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, border = false) {
             BarisTotal("Subtotal", subtotal.rupiah())
             if (diskon > 0) BarisTotal("Diskon", "-${diskon.rupiah()}", BizgrowColors.Danger)
+            if (ppn > 0) BarisTotal("PPN ${persenPpn.toString().removeSuffix(".0")}%" + if (ppnInklusif) " (termasuk)" else "", ppn.rupiah())
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = LocalBizPalette.current.border)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Total", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
@@ -571,7 +597,9 @@ private fun CheckoutSheet(
                         voucherKode = voucherKode.takeIf { voucherPotongan != null },
                         diterima = if (metode == "CASH" && !bayarTerpisah && diterima > 0) diterima else null,
                         kembalian = if (metode == "CASH" && !bayarTerpisah && diterima > 0) kembalian else null,
-                        split = split
+                        split = split,
+                        kenaiPpn = kenaiPpn && tarifPpn != null,
+                        ppnInklusif = ppnInklusif
                     )
                     viewModel.checkout(metode, opsi) { ok -> if (ok) onPaid(total) }
                 },

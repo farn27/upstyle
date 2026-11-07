@@ -719,6 +719,9 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body())
 
+    suspend fun getRekapPajak(unitId: Int, tahun: Int): ApiResponse<RekapPajak> =
+        client.get("api/app/finance/pajak") { parameter("unitId", unitId); parameter("tahun", tahun) }.body()
+
     suspend fun getPosQueue(unitId: Int): ApiResponse<PosQueueData> =
         client.get("api/app/pos") {
             parameter("unitId", unitId)

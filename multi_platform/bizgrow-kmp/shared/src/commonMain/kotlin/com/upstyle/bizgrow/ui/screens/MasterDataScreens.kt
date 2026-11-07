@@ -37,18 +37,74 @@ private val tipePajak = listOf("PPN" to "PPN", "PPH" to "PPh", "LAINNYA" to "Lai
 @Composable
 fun TaxRatesScreen(viewModel: AppViewModel) {
     val daftar by viewModel.taxRates.collectAsState()
+    val rekap by viewModel.rekapPajak.collectAsState()
+    var tahun by remember { mutableIntStateOf(hariIniWib().year) }
     var edit by remember { mutableStateOf<TaxRate?>(null) }
     var tambah by remember { mutableStateOf(false) }
     var hapus by remember { mutableStateOf<TaxRate?>(null) }
-    LaunchedEffect(Unit) { viewModel.loadTaxRates() }
+    LaunchedEffect(tahun) { viewModel.loadTaxRates(); viewModel.loadRekapPajak(tahun) }
 
     BizScreen(
-        "Pengaturan Pajak", subtitle = "Tarif PPN, PPh, dan lainnya", onBack = { viewModel.navigateBack() },
+        "Pajak", subtitle = "Tarif & rekap PPN", onBack = { viewModel.navigateBack() },
         floatingActionButton = { FabTambah("Tarif baru") { tambah = true } }
     ) { padding ->
-        if (daftar.isEmpty()) {
-            EmptyView("Belum ada tarif pajak", "Tambahkan tarif seperti PPN 11% agar bisa dipakai di transaksi dan faktur.", Icons.Rounded.Percent, "Tambah tarif", { tambah = true }, Modifier.padding(padding))
-        } else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    (0..2).map { hariIniWib().year - it }.reversed().forEach { y -> FilterPill(y.toString(), tahun == y, { tahun = y }) }
+                }
+            }
+            item {
+                val r = rekap
+                if (r == null) SkeletonBlock(Modifier.fillMaxWidth().height(150.dp)) else {
+                    GradientCard(Modifier.fillMaxWidth(), colors = if (r.totalKurangBayar > 0) BizgrowColors.GradWarning else BizgrowColors.GradSuccess) {
+                        Column {
+                            Text("PPN ${r.tahun} — ${if (r.totalKurangBayar >= 0) "kurang bayar" else "lebih bayar"}", style = MaterialTheme.typography.bodyMedium, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
+                            Text(kotlin.math.abs(r.totalKurangBayar).rupiah(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)).padding(10.dp)) {
+                                    Text("PPN Keluaran (penjualan)", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
+                                    Text(r.totalKeluaran.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
+                                }
+                                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)).padding(10.dp)) {
+                                    Text("PPN Masukan (pembelian)", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
+                                    Text(r.totalMasukan.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            val r = rekap
+            if (r != null) {
+                if (r.tarifPpn == null) item {
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BizgrowColors.Warning.copy(alpha = 0.12f)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Info, null, tint = BizgrowColors.WarningDark)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Belum ada tarif PPN aktif. Tambahkan \"PPN 11%\" di bawah supaya kasir bisa mengenakan PPN pada penjualan.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                val aktifBulan = r.bulan.filter { it.keluaran != 0.0 || it.masukan != 0.0 }
+                item { SectionTitle("Rekap per bulan", subtitle = "Setor PPN sebelum lapor SPT Masa (akhir bulan berikutnya)") }
+                if (aktifBulan.isEmpty()) item { Text("Belum ada transaksi ber-PPN di tahun ini. Aktifkan \"Kenakan PPN\" saat bayar di kasir.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                itemsIndexed(aktifBulan, key = { _, b -> b.bulan }) { i, b ->
+                    BizSurface(Modifier.fillMaxWidth().enterAnimation(i), contentPadding = PaddingValues(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(namaBulanAng.getOrElse(b.bulan) { "" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text("Keluaran ${b.keluaran.rupiahRingkas()} • Masukan ${b.masukan.rupiahRingkas()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(kotlin.math.abs(b.kurangBayar).rupiah(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (b.kurangBayar > 0) BizgrowColors.Warning else BizgrowColors.Success)
+                                Text(if (b.kurangBayar > 0) "kurang bayar" else if (b.kurangBayar < 0) "lebih bayar" else "nihil", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+            item { SectionTitle("Tarif pajak", subtitle = "Tarif PPN default dipakai kasir") }
+            if (daftar.isEmpty()) item { EmptyView("Belum ada tarif pajak", "Tambahkan tarif seperti PPN 11%.", Icons.Rounded.Percent, "Tambah tarif", { tambah = true }) }
             itemsIndexed(daftar, key = { _, t -> t.id }) { i, t ->
                 BizSurface(Modifier.fillMaxWidth().enterAnimation(i), onClick = { edit = t }, contentPadding = PaddingValues(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

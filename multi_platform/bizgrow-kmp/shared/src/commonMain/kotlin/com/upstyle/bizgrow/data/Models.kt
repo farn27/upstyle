@@ -330,6 +330,10 @@ data class CheckoutBody(
     val orderType: String = "TAKEAWAY", // DINE_IN | TAKEAWAY | DELIVERY
     val tableNumber: String? = null,
     val queueNumber: String? = null,
+    /** Kenakan PPN penjualan memakai tarif PPN aktif unit (dihitung server). */
+    val kenaiPpn: Boolean = false,
+    /** true = harga sudah termasuk PPN (PPN dipisah dari total). */
+    val ppnInklusif: Boolean = false,
     val notes: String? = null,
     val amountPaid: Double? = null,
     val changeAmount: Double? = null,
@@ -2294,4 +2298,22 @@ data class PosReport(
     val summary: PosReportSummary = PosReportSummary(),
     val topProducts: List<PosTopProduct> = emptyList(),
     val paymentBreakdown: Map<String, Double> = emptyMap()
+)
+
+// ─── Rekap pajak (api/app/finance/pajak) ─────────────────────────────────────
+
+@Serializable
+data class TarifPpn(val id: Int = 0, val namaPajak: String = "", val persentase: Double = 0.0)
+
+@Serializable
+data class PpnBulan(val bulan: Int = 0, val keluaran: Double = 0.0, val masukan: Double = 0.0, val kurangBayar: Double = 0.0)
+
+@Serializable
+data class RekapPajak(
+    val tahun: Int = 0,
+    val tarifPpn: TarifPpn? = null,
+    val bulan: List<PpnBulan> = emptyList(),
+    val totalKeluaran: Double = 0.0,
+    val totalMasukan: Double = 0.0,
+    val totalKurangBayar: Double = 0.0
 )

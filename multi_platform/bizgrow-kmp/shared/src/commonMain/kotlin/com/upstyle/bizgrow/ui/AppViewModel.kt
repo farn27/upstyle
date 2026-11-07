@@ -963,6 +963,15 @@ class AppViewModel(
     }
     fun hapusPesananDitunda(id: Long) { _ditunda.update { list -> list.filter { it.id != id } } }
 
+    private val _rekapPajak = MutableStateFlow<RekapPajak?>(null)
+    val rekapPajak: StateFlow<RekapPajak?> = _rekapPajak.asStateFlow()
+    fun loadRekapPajak(tahun: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try { val res = api.getRekapPajak(unitId, tahun); if (res.success) _rekapPajak.value = res.data else setError(res.message ?: "Gagal memuat rekap pajak") }
+        catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     private val _posQueue = MutableStateFlow<List<PosQueueItem>>(emptyList())
     val posQueue: StateFlow<List<PosQueueItem>> = _posQueue.asStateFlow()
     fun loadPosQueue() = viewModelScope.launch {
@@ -1229,7 +1238,9 @@ class AppViewModel(
         val voucherKode: String? = null,
         val diterima: Double? = null,
         val kembalian: Double? = null,
-        val split: List<SplitPayment>? = null
+        val split: List<SplitPayment>? = null,
+        val kenaiPpn: Boolean = false,
+        val ppnInklusif: Boolean = false
     )
 
     /** Validasi voucher ke server: (pesan, potongan) — potongan null bila tidak valid. */
@@ -1263,6 +1274,8 @@ class AppViewModel(
                 paymentMethod = if (!opsi.split.isNullOrEmpty()) "SPLIT" else metode,
                 items = items,
                 voucherCode = opsi.voucherKode?.takeIf { it.isNotBlank() },
+                kenaiPpn = opsi.kenaiPpn,
+                ppnInklusif = opsi.ppnInklusif,
                 orderType = opsi.orderType,
                 tableNumber = opsi.meja?.takeIf { it.isNotBlank() },
                 queueNumber = opsi.antrean?.takeIf { it.isNotBlank() },

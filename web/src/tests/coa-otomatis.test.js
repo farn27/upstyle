@@ -82,3 +82,14 @@ describe.skipIf(!TEST_DB)('buatCoaDenganAi — database sungguhan', () => {
 		expect(await daftar()).toHaveLength(4);
 	});
 });
+
+describe('hitungPpn (murni)', () => {
+	it('eksklusif menambah PPN, inklusif memisahkan PPN dari total', async () => {
+		const { hitungPpn } = await import('../lib/server/pajak.js');
+		expect(hitungPpn(100000, 11, 'EXCLUSIVE')).toEqual({ ppn: 11000, total: 111000, dpp: 100000 });
+		expect(hitungPpn(111000, 11, 'INCLUSIVE')).toEqual({ ppn: 11000, total: 111000, dpp: 100000 });
+		expect(hitungPpn(6000, 11, 'INCLUSIVE').ppn).toBe(595);
+		expect(hitungPpn(0, 11)).toEqual({ ppn: 0, total: 0, dpp: 0 });
+		expect(hitungPpn(5000, 0)).toEqual({ ppn: 0, total: 5000, dpp: 5000 });
+	});
+});

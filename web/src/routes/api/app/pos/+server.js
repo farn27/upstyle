@@ -14,6 +14,7 @@ import { decryptField } from '$lib/server/encryption';
 import { bisaDijual } from '$lib/jenisProduk';
 import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { getActivePosFeatures } from '$lib/posFeatures';
+import { hitungPpn, tarifPpnAktif, pastikanAkunPpnKeluaran } from '$lib/server/pajak';
 
 /** Error checkout yang pesannya aman ditampilkan */
 class CheckoutError extends Error {
@@ -187,6 +188,8 @@ export async function POST({ request, cookies }) {
                     amountPaid: z.coerce.number().optional(),
                     changeAmount: z.coerce.number().optional(),
                     voucherCode: z.string().optional(),
+                    kenaiPpn: z.boolean().optional(),
+                    ppnInklusif: z.boolean().optional(),
                     payments: z.array(z.object({
                         method: z.string(),
                         amount: z.coerce.number()
@@ -280,12 +283,14 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments, diskon } = body.order;
+            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments, diskon, kenaiPpn, ppnInklusif } = body.order;
 
             let finalOrderId = null;
             let subtotal = 0;
             let diskonFinal = 0;
             let total = 0;
+            let ppnJual = 0;
+            let ppnTarif = 0;
             try {
             await db.transaction(async (tx) => {
                 const unitRow = await tx.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
@@ -349,6 +354,16 @@ export async function POST({ request, cookies }) {
                 diskonFinal = Math.min(diskonFinal, subtotal);
                 total = subtotal - diskonFinal;
 
+                // PPN penjualan: tarif diambil dari pengaturan pajak unit (bukan dari kiriman app)
+                if (kenaiPpn) {
+                    const tarif = await tarifPpnAktif(tx, Number(unitId));
+                    if (!tarif || tarif.persentase <= 0) throw new CheckoutError('Belum ada tarif PPN aktif. Atur di Pengaturan Pajak dulu.', 422);
+                    const h = hitungPpn(total, tarif.persentase, ppnInklusif ? 'INCLUSIVE' : 'EXCLUSIVE');
+                    ppnJual = h.ppn;
+                    ppnTarif = tarif.persentase;
+                    total = h.total;
+                }
+
                 // 1. Insert order (nilai resmi dihitung server)
                 const [orderInsertResult] = await tx.insert(posOrders).values({
                     orderNumber: orderNumber || `POS-${unitId}-${Date.now()}`, 
@@ -364,7 +379,7 @@ export async function POST({ request, cookies }) {
                     tableNumber: tableNumber || null,
                     queueNumber: queueNumber || null,
                     fulfillmentStatus: queueNumber ? 'PENDING' : 'COMPLETED',
-                    notes: notes || null,
+                    notes: [notes, ppnJual > 0 ? `PPN ${ppnTarif}% ${ppnInklusif ? '(termasuk)' : ''}: Rp ${ppnJual.toLocaleString('id-ID')}` : null].filter(Boolean).join(' | ') || null,
                     amountPaid: String(amountPaid !== undefined && amountPaid !== null ? amountPaid : total),
                     change: String(changeAmount || 0), // kolomnya bernama "change" (dulu changeAmount → tidak pernah tersimpan)
                     voucherId: voucherIdDipakai
@@ -440,10 +455,16 @@ export async function POST({ request, cookies }) {
                         journalId, coaId: coaCash.id, keterangan: `Penerimaan Kas - ${orderNumber}`, debit: String(total), kredit: '0'
                     });
 
-                    // Credit Revenue
+                    // Credit Revenue (tanpa PPN) + Credit PPN Keluaran
                     await tx.insert(journalEntryLines).values({
-                        journalId, coaId: coaRevenue.id, keterangan: `Pendapatan Penjualan - ${orderNumber}`, debit: '0', kredit: String(total)
+                        journalId, coaId: coaRevenue.id, keterangan: `Pendapatan Penjualan - ${orderNumber}`, debit: '0', kredit: String(Number(total) - ppnJual)
                     });
+                    if (ppnJual > 0) {
+                        const coaPpn = await pastikanAkunPpnKeluaran(tx, Number(unitId));
+                        await tx.insert(journalEntryLines).values({
+                            journalId, coaId: coaPpn, keterangan: `PPN Keluaran ${ppnTarif}% - ${orderNumber}`, debit: '0', kredit: String(ppnJual)
+                        });
+                    }
                 }
             });
             } catch (e) {
@@ -476,7 +497,7 @@ export async function POST({ request, cookies }) {
                 });
             }
 
-            return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId), data: { subtotal, discount: diskonFinal, total } });
+            return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId), data: { subtotal, discount: diskonFinal, ppn: ppnJual, total } });
         }
 
         if (action === 'open-shift') {
