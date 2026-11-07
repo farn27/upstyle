@@ -1,3 +1,6 @@
+import { eq, sql } from 'drizzle-orm';
+import { users, unitBisnis } from '$lib/server/schema';
+
 /** @param {string | null | undefined} role */
 export function getPlanLimits(role) {
 	const r = String(role || 'free').toLowerCase();
@@ -32,4 +35,28 @@ export function getNextBillingDate(createdAt) {
 		next.setMonth(next.getMonth() + 1);
 	}
 	return next.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/**
+ * Cek apakah user masih boleh membuat unit bisnis baru sesuai paketnya.
+ * @param {any} db  db atau tx Drizzle
+ * @param {number} userId
+ * @returns {Promise<{ boleh: boolean, batas: number, terpakai: number, planName: string, pesan: string }>}
+ */
+export async function cekBatasUnit(db, userId) {
+	const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+	const { unitLimit, planName } = getPlanLimits(user?.role);
+	const [{ jumlah }] = await db
+		.select({ jumlah: sql`COUNT(*)` })
+		.from(unitBisnis)
+		.where(eq(unitBisnis.userId, userId));
+	const terpakai = Number(jumlah) || 0;
+	const boleh = terpakai < unitLimit;
+	return {
+		boleh,
+		batas: unitLimit,
+		terpakai,
+		planName,
+		pesan: boleh ? '' : `Paket ${planName} maksimal ${unitLimit} unit bisnis. Upgrade paket untuk menambah unit.`
+	};
 }

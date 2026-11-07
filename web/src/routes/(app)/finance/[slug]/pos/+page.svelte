@@ -438,7 +438,8 @@
                     items: [...cart],
                     subtotal,
                     discount: { type: discountType, percentage: discountType === "persen" ? discount : 0, amount: discountAmount },
-                    total,
+                    // Total resmi dihitung server (harga dari database)
+                    total: typeof resData.total === 'number' ? resData.total : total,
                     payments: [...payments],
                     amountPaid,
                     change,

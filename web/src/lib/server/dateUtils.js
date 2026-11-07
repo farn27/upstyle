@@ -34,6 +34,24 @@ export function todayStrWIB() {
 }
 
 /**
+ * Waktu sekarang (WIB) sebagai string DATETIME MySQL: "YYYY-MM-DD HH:MM:SS".
+ * Pengganti new Date().toISOString().slice(0, 19).replace('T', ' ') yang menghasilkan jam UTC (selisih 7 jam).
+ * @returns {string}
+ */
+export function nowSqlWIB() {
+	return new Date(Date.now() + WIB_OFFSET_MS).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
+ * Tanggal hari ini (WIB) ditambah n hari, format YYYY-MM-DD.
+ * @param {number} hari
+ * @returns {string}
+ */
+export function tanggalWIBPlusHari(hari) {
+	return new Date(Date.now() + WIB_OFFSET_MS + hari * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+}
+
+/**
  * Dapatkan tahun & bulan saat ini berdasarkan WIB.
  * @returns {{ year: number, month: number }} month = 1-12
  */

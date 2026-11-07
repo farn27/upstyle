@@ -55,6 +55,12 @@ export const actions = {
 
         if (!dealId || !newStage) return { success: false, message: 'Data tidak lengkap' };
 
+        // Deal HARUS milik unit user ini (dulu cukup tahu ID deal untuk mengubah deal unit lain)
+        const unit = await db.query.unitBisnis.findFirst({
+            where: (ub, { eq, and }) => and(eq(ub.slug, params.slug), eq(ub.userId, userId))
+        });
+        if (!unit) return { success: false, message: 'Unit tidak valid' };
+
         try {
             const updateData = { stage: newStage };
             if (newStage === 'won') {
@@ -65,7 +71,7 @@ export const actions = {
 
             await db.update(crmDeals)
                 .set(updateData)
-                .where(eq(crmDeals.id, Number(dealId)));
+                .where(and(eq(crmDeals.id, Number(dealId)), eq(crmDeals.unitId, unit.id)));
 
             return { success: true, message: 'Status Deal berhasil diperbarui' };
         } catch (e) {
@@ -91,6 +97,17 @@ export const actions = {
         const nilai = formData.get('nilai');
 
         if (!namaDeal || !nilai) return { success: false, message: 'Data tidak lengkap' };
+        if (!(Number(nilai) >= 0)) return { success: false, message: 'Nilai deal tidak valid' };
+
+        // Kontak & perusahaan yang ditautkan harus milik unit ini
+        if (contactId) {
+            const kontak = await db.query.crmContacts.findFirst({ where: and(eq(crmContacts.id, Number(contactId)), eq(crmContacts.unitId, unit.id)) });
+            if (!kontak) return { success: false, message: 'Kontak tidak ditemukan' };
+        }
+        if (companyId) {
+            const perusahaan = await db.query.crmCompanies.findFirst({ where: and(eq(crmCompanies.id, Number(companyId)), eq(crmCompanies.unitId, unit.id)) });
+            if (!perusahaan) return { success: false, message: 'Perusahaan tidak ditemukan' };
+        }
 
         try {
             await db.insert(crmDeals).values({

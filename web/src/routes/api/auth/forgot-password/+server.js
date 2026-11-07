@@ -5,9 +5,10 @@ import { eq } from 'drizzle-orm';
 import { apiSuccess, apiError } from '$lib/server/apiResponse';
 import { checkRateLimit, getClientIP, API_LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { z } from 'zod';
-import { redis } from '$lib/server/redis';
 import { log } from '$lib/server/logger';
-import crypto from 'crypto';
+import { env } from '$env/dynamic/private';
+import { createResetToken } from '$lib/server/emailToken';
+import { sendPasswordResetEmail } from '$lib/server/email';
 
 const forgotSchema = z.object({ email: z.string().email() });
 
@@ -35,24 +36,26 @@ export async function POST({ request }) {
     }
 
     const email = parsed.data.email.trim().toLowerCase();
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+    const pesan = 'Jika email terdaftar, tautan reset sudah dikirim';
+    const existing = await db.select({ id: users.id, username: users.username }).from(users).where(eq(users.email, email)).limit(1);
 
-    // Always return success to avoid user enumeration
+    // Selalu balas sukses supaya tidak bisa dipakai menebak email terdaftar
     if (existing.length === 0) {
-        return apiSuccess(null, 'Jika email terdaftar, tautan reset sudah dikirim');
+        return apiSuccess(null, pesan);
     }
 
-    const token = crypto.randomUUID();
-    const payload = JSON.stringify({ userId: existing[0].id, email });
     try {
-        if (!redis) throw new Error('Redis tidak tersedia');
-        await redis.set(`pwdreset:${token}`, payload, { ex: 60 * 15 }); // 15 min
+        // Sama dengan alur web: token sekali pakai di Redis + email berisi link ke halaman reset web.
+        // (Dulu token hanya ditulis ke log dan email tidak pernah dikirim.)
+        const token = await createResetToken(existing[0].id);
+        const origin = (env.ORIGIN || 'http://localhost:5173').replace(/\/$/, '');
+        await sendPasswordResetEmail({
+            to: email,
+            username: existing[0].username,
+            resetUrl: `${origin}/auth/reset-password?token=${token}`
+        });
     } catch (err) {
-        log.auth.warn({ err }, 'Gagal simpan token reset');
-        return apiError('Gagal menyimpan token reset', 500, 'REDIS_ERROR');
+        log.auth.warn({ err: err instanceof Error ? err.message : err }, 'Gagal kirim email reset password');
     }
-
-    // TODO: kirim email via SMTP/provider. Untuk dev, log saja.
-    log.auth.info({ email, token }, 'Password reset token generated');
-    return apiSuccess(null, 'Jika email terdaftar, tautan reset sudah dikirim');
+    return apiSuccess(null, pesan);
 }

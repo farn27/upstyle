@@ -16,6 +16,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { cekBatasUnit } from '$lib/server/planLimits';
 import { businessPlans, businessPlanSeedLogs } from '$lib/server/businessPlanSchema.js';
 import {
   unitBisnis, kategoriProduk, products, chartOfAccounts,
@@ -50,6 +51,11 @@ export async function POST({ request, cookies }) {
     .limit(1);
   if (!plan) return apiError('Plan tidak ditemukan', 404);
   if (plan.isSeeded) return apiError('Plan ini sudah pernah di-apply', 400);
+
+  if (!existingUnitId) {
+    const batas = await cekBatasUnit(db, userId);
+    if (!batas.boleh) return apiError(batas.pesan, 403);
+  }
 
   const kategori = plan.kategori;
   const seedResults = {};

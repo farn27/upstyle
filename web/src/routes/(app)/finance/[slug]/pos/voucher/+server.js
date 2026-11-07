@@ -4,6 +4,7 @@ import { vouchers, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { todayStrWIB } from '$lib/server/dateUtils';
 
 export async function POST({ request, cookies, params, locals }) {
     try {
@@ -33,7 +34,7 @@ export async function POST({ request, cookies, params, locals }) {
         if (!voucher) return json({ error: 'Voucher tidak ditemukan' }, { status: 404 });
         if (!voucher.isActive) return json({ error: 'Voucher sudah tidak aktif' }, { status: 400 });
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayStrWIB();
         if (voucher.validFrom > today) return json({ error: 'Voucher belum berlaku' }, { status: 400 });
         if (voucher.validUntil < today) return json({ error: 'Voucher sudah kedaluwarsa' }, { status: 400 });
 

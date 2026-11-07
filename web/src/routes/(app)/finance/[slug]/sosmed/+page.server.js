@@ -5,6 +5,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { groqChatCompletion } from '$lib/server/groq';
 import { log } from '$lib/server/logger';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 
 export const load = async ({ params, cookies }) => {
     const { slug } = params;
@@ -60,6 +61,8 @@ export const actions = {
         const { slug } = params;
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { message: 'Unauthorized' });
+        const kuota = await cekKuotaAI(userId);
+        if (!kuota.allowed) return fail(429, { message: kuota.pesan });
         const unit = await db.query.unitBisnis.findFirst({
             where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
         });

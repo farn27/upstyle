@@ -6,7 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
-import { thisMonthWIB } from '$lib/server/dateUtils';
+import { thisMonthWIB, todayStrWIB } from '$lib/server/dateUtils';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -302,7 +302,7 @@ export async function PUT({ request, cookies }) {
                     await tx.update(payrolls)
                         .set({ 
                             paymentStatus: 'paid',
-                            paidDate: paidDate || new Date().toISOString().split('T')[0]
+                            paidDate: paidDate || todayStrWIB()
                         })
                         .where(eq(payrolls.id, payrollId));
 

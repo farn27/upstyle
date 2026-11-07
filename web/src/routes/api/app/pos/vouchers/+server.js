@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
+import { todayStrWIB, tanggalWIBPlusHari } from '$lib/server/dateUtils';
 
 // GET /api/app/pos/vouchers?unitId=X
 export async function GET({ url, cookies, request }) {
@@ -162,8 +163,8 @@ export async function PUT({ request, cookies }) {
                         maxUsage: 100,
                         currentUsage: 0,
                         minPurchase: '50000.00',
-                        validFrom: new Date().toISOString().split('T')[0],
-                        validUntil: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+                        validFrom: todayStrWIB(),
+                        validUntil: tanggalWIBPlusHari(30),
                         isActive: true
                     });
                     syncedCount++;

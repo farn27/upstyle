@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { unitBisnis, kategoriProduk, riwayatAksi } from '$lib/server/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { cekBatasUnit } from '$lib/server/planLimits';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -85,6 +86,9 @@ export async function POST({ request, cookies }) {
         return json({ success: false, message: errorMsg }, { status: 400 });
     }
     // ──────────────────────────────────────────────────────────────────────
+
+    const batas = await cekBatasUnit(db, userId);
+    if (!batas.boleh) return json({ success: false, message: batas.pesan, code: 'PLAN_LIMIT' }, { status: 403 });
 
     const nama_unit = body.name;
     const kategori = body.type;

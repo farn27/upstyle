@@ -13,6 +13,7 @@ import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { getAIFinancialAdvice } from '$lib/server/aiAdvisor.js';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 
 const schema = z.object({
     unitId: z.coerce.number().int().positive(),
@@ -22,6 +23,9 @@ const schema = z.object({
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return apiUnauthorized();
+
+    const kuota = await cekKuotaAI(userId);
+    if (!kuota.allowed) return new Response(JSON.stringify({ success: false, message: kuota.pesan, code: 'AI_RATE_LIMITED' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(kuota.retryAfter) } });
 
     try {
         const body = await request.json();

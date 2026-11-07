@@ -1,17 +1,29 @@
 import crypto from 'crypto';
 import { env } from '$env/dynamic/private';
+import { dev } from '$app/environment';
 
-// Ensure key is 32 bytes. If not provided, throw error in production. 
-// For local dev safety, we can fallback to a dummy key, but it's risky.
-// We will throw if not defined, to enforce security.
+/**
+ * Kunci AES-256 (32 byte) untuk encrypt/decrypt/signState.
+ * Urutan: ENCRYPTION_MASTER_KEY (persis 32 karakter) → turunan SHA-256 dari ENCRYPTION_KEY.
+ * Di produksi TIDAK ada kunci cadangan: dulu kunci cadangan tertulis di source code, sehingga
+ * siapa pun yang membaca kode bisa memalsukan token unduhan ekspor (signState/verifyState).
+ */
+let kunciCache = /** @type {Buffer | null} */ (null);
 function getMasterKey() {
-    const key = env.ENCRYPTION_MASTER_KEY;
-    if (!key || key.length !== 32) {
-        // Fallback for development if someone forgets, though in prod this should crash
-        console.warn('⚠️ ENCRYPTION_MASTER_KEY is not set or not 32 chars. Using fallback (NOT SECURE FOR PROD)');
-        return Buffer.from('bizgrow_upstyle_super_secret_key', 'utf-8');
+    if (kunciCache) return kunciCache;
+    const master = env.ENCRYPTION_MASTER_KEY;
+    if (master && master.length === 32) {
+        kunciCache = Buffer.from(master, 'utf-8');
+    } else if (env.ENCRYPTION_KEY && env.ENCRYPTION_KEY.length >= 32) {
+        // Pisahkan domain supaya kunci ini berbeda dari kunci encryption.js meski sumbernya sama
+        kunciCache = crypto.createHash('sha256').update(`upstyle-crypto-master-v1:${env.ENCRYPTION_KEY}`).digest();
+    } else if (dev) {
+        console.warn('⚠️ ENCRYPTION_MASTER_KEY / ENCRYPTION_KEY belum diset. Memakai kunci dev (HANYA untuk development).');
+        kunciCache = Buffer.from('dev_only_upstyle_crypto_key_0000', 'utf-8');
+    } else {
+        throw new Error('ENCRYPTION_MASTER_KEY (32 karakter) atau ENCRYPTION_KEY (min. 32 karakter) wajib diset');
     }
-    return Buffer.from(key, 'utf-8');
+    return kunciCache;
 }
 
 const ALGORITHM = 'aes-256-gcm';

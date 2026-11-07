@@ -4,6 +4,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { groqChatCompletion } from '$lib/server/groq';
 import { eq, and, sql, desc, or, inArray, asc } from 'drizzle-orm';
 import { log } from '$lib/server/logger';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 import {
 	getAiMemories,
 	saveAiMemory,
@@ -649,6 +650,8 @@ export async function POST({ request, cookies }) {
 		if (!userId) {
 			return json({ reply: 'Sesi tidak valid, silakan login ulang ya kak.' }, { status: 401 });
 		}
+		const kuota = await cekKuotaAI(userId);
+		if (!kuota.allowed) return json({ reply: kuota.pesan }, { status: 429 });
 
 		// 2. Parse body
 		const { message, activeUnitSlug, history = [] } = await request.json();

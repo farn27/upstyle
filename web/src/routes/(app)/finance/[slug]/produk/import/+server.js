@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis } from '$lib/server/schema';
 import { and, eq } from 'drizzle-orm';
-import * as XLSX from 'xlsx';
+import { bacaBarisFile, ImporEksporError } from '$lib/server/imporEkspor';
 import { redis } from '$lib/server/redis';
 import { log } from '$lib/server/logger';
 import { imporProduk } from '$lib/server/imporEkspor';
@@ -34,21 +34,15 @@ export async function POST({ request, params, locals }) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    let workbook;
+    /** @type {Record<string, any>[]} */
+    let rows;
     try {
-        workbook = XLSX.read(buffer, { type: 'buffer' });
+        // Pembaca bersama berbasis ExcelJS (paket "xlsx" lama rentan saat membaca file buatan penyerang)
+        rows = await bacaBarisFile(buffer);
     } catch (error) {
         log.api.error({ err: error.message }, '[import] Gagal membaca file import');
-        return json({ error: 'Gagal membaca file import. Pastikan file .xlsx atau .csv valid.' }, { status: 400 });
+        return json({ error: error instanceof ImporEksporError ? error.message : 'Gagal membaca file import. Pastikan file .xlsx atau .csv valid.' }, { status: 400 });
     }
-
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) {
-        return json({ error: 'File import tidak memiliki sheet yang valid.' }, { status: 400 });
-    }
-
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
     if (!Array.isArray(rows) || rows.length === 0) {
         return json({ error: 'File import kosong atau tidak berisi baris data.' }, { status: 400 });

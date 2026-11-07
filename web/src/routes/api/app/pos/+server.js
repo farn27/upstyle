@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { posOrders, posOrderItems, posCustomers, products, transaksi, riwayatAksi, abcCategories, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees } from '$lib/server/schema';
+import { posOrders, posOrderItems, posCustomers, products, productVariants, transaksi, riwayatAksi, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees, vouchers } from '$lib/server/schema';
 import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
@@ -11,7 +11,17 @@ import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { bisaDijual } from '$lib/jenisProduk';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { getActivePosFeatures } from '$lib/posFeatures';
+
+/** Error checkout yang pesannya aman ditampilkan */
+class CheckoutError extends Error {
+    /** @param {string} message @param {number} [status] */
+    constructor(message, status = 400) {
+        super(message);
+        this.status = status;
+    }
+}
 
 // 1. GET: Ambil list order POS dan customer POS untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -269,19 +279,84 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, subtotal, total, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments } = body.order;
+            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments, diskon } = body.order;
 
             let finalOrderId = null;
+            let subtotal = 0;
+            let diskonFinal = 0;
+            let total = 0;
+            try {
             await db.transaction(async (tx) => {
-                // 1. Insert order
+                const unitRow = await tx.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
+                if (!unitRow) throw new CheckoutError('Unit tidak ditemukan', 404);
+                const fitur = getActivePosFeatures(unitRow.kategori, unitRow.posFeatureOverride);
+
+                // 0. Normalisasi item: produk HARUS milik unit ini, harga dari database
+                //    (harga kiriman app hanya dipakai kalau fitur harga bebas/openPrice aktif)
+                if (!Array.isArray(items) || items.length === 0) throw new CheckoutError('Keranjang kosong');
+                const baris = [];
+                for (const item of items) {
+                    const qty = Number(item?.qty);
+                    if (!Number.isInteger(qty) || qty <= 0 || qty > 1_000_000) {
+                        throw new CheckoutError(`Jumlah ${item?.productName || 'barang'} tidak valid`);
+                    }
+                    const prod = await tx.query.products.findFirst({
+                        where: and(eq(products.id, String(item?.productId ?? '')), eq(products.unitId, Number(unitId)))
+                    });
+                    if (!prod) throw new CheckoutError(`Produk ${item?.productName || ''} tidak ditemukan di unit ini`.trim(), 404);
+                    if (!bisaDijual(prod.jenis)) {
+                        throw new CheckoutError(`${prod.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
+                    }
+                    let harga = Number(prod.hargaJual || 0);
+                    let namaItem = item.productName || prod.nama;
+                    if (item.variantId) {
+                        const varian = await tx.query.productVariants.findFirst({
+                            where: and(eq(productVariants.id, String(item.variantId)), eq(productVariants.productId, prod.id))
+                        });
+                        if (!varian) throw new CheckoutError(`Varian ${prod.nama} tidak ditemukan`, 404);
+                        // pos_order_items.variant_id bertipe INT sedangkan ID varian UUID → simpan namanya saja
+                        if (!String(namaItem).includes(varian.namaVariasi)) namaItem = `${prod.nama} - ${varian.namaVariasi}`;
+                        if (Number(varian.hargaJual) > 0) harga = Number(varian.hargaJual);
+                    }
+                    if (fitur.openPrice) {
+                        const hargaApp = Number(item.price);
+                        if (Number.isFinite(hargaApp) && hargaApp >= 0) harga = hargaApp;
+                    }
+                    baris.push({ prod, qty, harga, nama: namaItem });
+                }
+                subtotal = baris.reduce((sum, b) => sum + b.harga * b.qty, 0);
+
+                /** @type {number | null} */
+                let voucherIdDipakai = null;
+                // Diskon: voucher divalidasi di server; diskon manual hanya kalau fiturnya aktif.
+                // (Pemakaian voucher dicatat lewat action 'use-voucher' di /api/app/pos/vouchers.)
+                if (voucherCode) {
+                    const v = await tx.query.vouchers.findFirst({
+                        where: and(eq(vouchers.code, String(voucherCode)), eq(vouchers.unitId, Number(unitId)))
+                    });
+                    const hariIni = todayStrWIB();
+                    if (v && v.isActive && v.validFrom <= hariIni && v.validUntil >= hariIni && subtotal >= Number(v.minPurchase || 0)) {
+                        diskonFinal = v.discountType === 'PERCENTAGE'
+                            ? Math.floor(subtotal * (Number(v.discountValue) / 100))
+                            : Number(v.discountValue);
+                        voucherIdDipakai = v.id;
+                    }
+                } else if (fitur.manualDiscount) {
+                    diskonFinal = Number(diskon || 0);
+                }
+                if (!Number.isFinite(diskonFinal) || diskonFinal < 0) diskonFinal = 0;
+                diskonFinal = Math.min(diskonFinal, subtotal);
+                total = subtotal - diskonFinal;
+
+                // 1. Insert order (nilai resmi dihitung server)
                 const [orderInsertResult] = await tx.insert(posOrders).values({
                     orderNumber: orderNumber || `POS-${unitId}-${Date.now()}`, 
                     unitId: Number(unitId), 
                     customerId: customerId || null, 
                     createdBy: userId, 
-                    subtotal: String(subtotal || 0), 
-                    discount: '0', 
-                    total: String(total || 0), 
+                    subtotal: String(subtotal), 
+                    discount: String(diskonFinal), 
+                    total: String(total), 
                     paymentMethod: paymentMethod || 'CASH', 
                     status: 'PAID',
                     orderType: orderType || 'TAKEAWAY',
@@ -289,9 +364,9 @@ export async function POST({ request, cookies }) {
                     queueNumber: queueNumber || null,
                     fulfillmentStatus: queueNumber ? 'PENDING' : 'COMPLETED',
                     notes: notes || null,
-                    amountPaid: String(amountPaid !== undefined ? amountPaid : (total || 0)),
-                    changeAmount: String(changeAmount || 0),
-                    voucherCode: voucherCode || null
+                    amountPaid: String(amountPaid !== undefined && amountPaid !== null ? amountPaid : total),
+                    change: String(changeAmount || 0), // kolomnya bernama "change" (dulu changeAmount → tidak pernah tersimpan)
+                    voucherId: voucherIdDipakai
                 });
 
                 finalOrderId = orderInsertResult.insertId;
@@ -308,42 +383,32 @@ export async function POST({ request, cookies }) {
                 }
 
                 // 2. Insert items and reduce stock
-                for (const item of items) {
-                    const qty = Number(item.qty || 1);
-                    const price = Number(item.price || 0);
-                    const nominal = price * qty;
+                for (const { prod, qty, harga, nama } of baris) {
+                    const nominal = harga * qty;
 
-                    const prod = await tx.query.products.findFirst({
-                        where: and(eq(products.id, item.productId), eq(products.unitId, Number(unitId)))
+                    // Atomik (aman untuk beberapa kasir). Penjualan offline yang disinkron belakangan tetap
+                    // dicatat walau stok sudah habis — stok berhenti di 0 seperti perilaku sebelumnya.
+                    await tx.update(products)
+                        .set({ stok: sql`GREATEST(${products.stok} - ${qty}, 0)` })
+                        .where(and(eq(products.id, prod.id), eq(products.unitId, Number(unitId))));
+
+                    await tx.insert(posOrderItems).values({
+                        orderId: finalOrderId, productId: prod.id, variantId: null, productName: nama, qty: qty, price: String(harga), total: String(nominal), costTotal: String(Number(prod.hargaBeli || 0) * qty)
                     });
-                    if (prod && !bisaDijual(prod.jenis)) {
-                        throw new Error(`${prod.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
-                    }
 
-                    if (prod) {
-                        const newStock = Math.max(0, (prod.stok || 0) - qty);
-                        await tx.update(products)
-                            .set({ stok: newStock })
-                            .where(and(eq(products.id, item.productId), eq(products.unitId, Number(unitId))));
-
-                        await tx.insert(posOrderItems).values({
-                            orderId: finalOrderId, productId: item.productId, variantId: item.variantId || null, productName: item.productName, qty: qty, price: String(price), total: String(nominal), costTotal: String(Number(prod.hargaBeli || 0) * qty)
-                        });
-
-                        // Save transaction
-                        await tx.insert(transaksi).values({
-                            userId: userId,
-                            unitId: Number(unitId),
-                            keterangan: `Penjualan POS: ${item.productName} (${qty}x)`,
-                            nominal: String(nominal),
-                            totalHarga: String(nominal),
-                            kategoriTrx: 'MASUK',
-                            metodeBayar: paymentMethod || 'CASH',
-                            productId: item.productId,
-                            qty: qty,
-                            hppTotal: String(Number(prod.hargaBeli || 0) * qty)
-                        });
-                    }
+                    // Save transaction
+                    await tx.insert(transaksi).values({
+                        userId: userId,
+                        unitId: Number(unitId),
+                        keterangan: `Penjualan POS: ${nama} (${qty}x)`,
+                        nominal: String(nominal),
+                        totalHarga: String(nominal),
+                        kategoriTrx: 'MASUK',
+                        metodeBayar: paymentMethod || 'CASH',
+                        productId: prod.id,
+                        qty: qty,
+                        hppTotal: String(Number(prod.hargaBeli || 0) * qty)
+                    });
                 }
 
                 // 3. Log action
@@ -365,7 +430,7 @@ export async function POST({ request, cookies }) {
 
                 if (coaCash && coaRevenue && Number(total || 0) > 0) {
                     const [jurnalResult] = await tx.insert(journalEntries).values({
-                        unitId: Number(unitId), userId: String(userId), tanggal: nowWIB().toISOString().split('T')[0], nomorJurnal: `JRN-POS-${orderNumber}`, referensi: orderNumber, memo: 'Pendapatan POS', sourceType: 'POS', sourceId: String(finalOrderId), totalDebit: String(total), totalKredit: String(total), status: 'POSTED'
+                        unitId: Number(unitId), userId: String(userId), tanggal: todayStrWIB(), nomorJurnal: `JRN-POS-${orderNumber}`, referensi: orderNumber, memo: 'Pendapatan POS', sourceType: 'POS', sourceId: String(finalOrderId), totalDebit: String(total), totalKredit: String(total), status: 'POSTED'
                     });
                     const journalId = jurnalResult.insertId;
 
@@ -380,6 +445,10 @@ export async function POST({ request, cookies }) {
                     });
                 }
             });
+            } catch (e) {
+                if (e instanceof CheckoutError) return json({ success: false, message: e.message }, { status: e.status });
+                throw e;
+            }
 
             const unit = await db.query.unitBisnis.findFirst({
                 where: eq(unitBisnis.id, Number(unitId))
@@ -406,7 +475,7 @@ export async function POST({ request, cookies }) {
                 });
             }
 
-            return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId) });
+            return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId), data: { subtotal, discount: diskonFinal, total } });
         }
 
         if (action === 'open-shift') {

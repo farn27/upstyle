@@ -6,7 +6,7 @@ import { redis } from '$lib/server/redis';
 import crypto from 'crypto';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 import { log } from '$lib/server/logger';
 
 /**
@@ -92,7 +92,7 @@ export async function POST({ request, cookies }) {
             
         const metadataString = metadata || {};
         const productOwnerId = ownerUserId || (staffSession && staffSession.owner_id);
-        const actorIdPost = ownerUserId || (staffSession && staffSession.id) || null;
+        const actorIdPost = ownerUserId || (staffSession && staffSession.owner_id) || null; // riwayat_aksi.user_id = pemilik (FK ke users), bukan ID karyawan
 
         await db.transaction(async (tx) => {
             // --- LOGIKA KATEGORI ---
@@ -169,7 +169,7 @@ export async function PUT({ request, cookies }) {
         const staffSession = await getVerifiedStaffSession(cookies);
         if (!ownerUserId && !staffSession) return json({ error: "Unauthorized" }, { status: 401 });
 
-        const actorIdPut = ownerUserId || (staffSession && staffSession.id) || null;
+        const actorIdPut = ownerUserId || (staffSession && staffSession.owner_id) || null; // FK ke users = pemilik
         const body = await request.json();
         const { 
             id, nama, foto, sku, harga_beli, harga_jual, 
@@ -268,7 +268,7 @@ export async function PATCH({ request, cookies }) {
         await db.transaction(async (tx) => {
             await tx.update(products)
                 .set({
-                    deletedAt: action === 'soft-delete' ? nowWIB().toISOString() : null,
+                    deletedAt: action === 'soft-delete' ? nowSqlWIB() : null,
                     status: action === 'soft-delete' ? 'archived' : 'active'
                 })
                 .where(and(eq(products.userId, effectiveUserId), inArray(products.id, ids)));
@@ -305,7 +305,7 @@ export async function DELETE({ url, locals, cookies }) {
         const staffSession = await getVerifiedStaffSession(cookies);
         if (!ownerUserId && !staffSession) return json({ error: "Unauthorized" }, { status: 401 });
 
-        const actorIdDel = ownerUserId || (staffSession && staffSession.id) || null;
+        const actorIdDel = ownerUserId || (staffSession && staffSession.owner_id) || null;
 
         const id = url.searchParams.get('id');
         if (!id) return json({ error: "Missing ID" }, { status: 400 });
@@ -328,7 +328,7 @@ export async function DELETE({ url, locals, cookies }) {
 
         await db.transaction(async (tx) => {
             await tx.update(products)
-                .set({ deletedAt: nowWIB().toISOString(), status: 'archived' })
+                .set({ deletedAt: nowSqlWIB(), status: 'archived' })
                 .where(eq(products.id, id));
         });
 

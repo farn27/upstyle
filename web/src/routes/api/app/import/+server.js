@@ -18,7 +18,7 @@ export async function POST({ request, cookies }) {
 		const unitId = Number(body?.unitId);
 		if (!unitId) return json({ success: false, message: 'unitId wajib diisi' }, { status: 400 });
 		const dataType = String(body?.dataType || '').toLowerCase();
-		const rows = bacaBarisFile(bacaBase64(body?.fileBase64));
+		const rows = await bacaBarisFile(bacaBase64(body?.fileBase64));
 		if (rows.length === 0) return json({ success: false, message: 'File kosong atau tidak berisi baris data' }, { status: 400 });
 
 		let hasil;

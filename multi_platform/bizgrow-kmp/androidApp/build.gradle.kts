@@ -33,8 +33,14 @@ android {
         versionName = "1.0"
     }
     buildTypes {
+        // Debug boleh HTTP biasa (server dev di emulator / IP LAN). Release wajib HTTPS supaya token
+        // login tidak pernah terkirim tanpa enkripsi.
+        debug {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
             isMinifyEnabled = false
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
         }
     }
     compileOptions {

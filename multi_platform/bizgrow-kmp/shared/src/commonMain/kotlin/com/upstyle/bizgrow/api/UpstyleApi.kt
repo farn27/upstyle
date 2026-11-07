@@ -919,9 +919,9 @@ class UpstyleApi(private val client: HttpClient) {
         return res.mapData { list -> list.map { it.keModel() } }
     }
 
-    suspend fun getLandingPageTemplates(): ApiResponse<List<LandingPage>> {
+    suspend fun getLandingPageTemplates(): ApiResponse<List<LandingPageTemplate>> {
         val res: ApiResponse<List<LandingTemplateDto>> = client.get("api/app/landing-page") { parameter("mode", "templates") }.body()
-        return res.mapData { list -> list.map { LandingPage(unitId = 0, title = it.name, template = it.id) } }
+        return res.mapData { list -> list.map { LandingPageTemplate(key = it.id, name = it.name, description = it.description, sections = it.fields) } }
     }
 
     suspend fun createLandingPage(page: LandingPage): ApiResponse<Unit> {
@@ -1338,7 +1338,7 @@ private data class LandingPageDto(
 }
 
 @Serializable
-private data class LandingTemplateDto(val id: String = "", val name: String = "", val description: String = "")
+private data class LandingTemplateDto(val id: String = "", val name: String = "", val description: String = "", val fields: List<String> = emptyList())
 
 private fun SocialPost.keJson(withId: Boolean) = buildJsonObject {
     if (withId) put("id", id)

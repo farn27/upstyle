@@ -12,6 +12,7 @@ import { normalizeKategoriTrx, isKategoriMasuk } from '$lib/server/kategoriTrx';
 import { nowWIB } from '$lib/server/dateUtils';
 import { sql } from 'drizzle-orm';
 import { catatTransaksi, COA_STANDAR } from '$lib/server/catatTransaksi';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 
 // COA standar & logika catat transaksi dipakai bersama web + mobile
 
@@ -112,6 +113,8 @@ export const actions = {
 	prosesAI: async ({ request, params, cookies }) => {
 		const userId = await getCurrentUserId(cookies);
 		if (!userId) return { success: false, error: 'Silakan login ulang' };
+		const kuota = await cekKuotaAI(userId);
+		if (!kuota.allowed) return { success: false, error: kuota.pesan };
 
 		const { slug } = params;
 		const formData = await request.formData();

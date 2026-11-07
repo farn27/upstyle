@@ -3,6 +3,7 @@ import { db } from '$lib/server/drizzle';
 import { supportTickets, supportTicketMessages, crmContacts, users } from '$lib/server/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 
 export const load = async ({ params, cookies, url }) => {
     const userId = await getCurrentUserId(cookies);
@@ -37,7 +38,8 @@ export const load = async ({ params, cookies, url }) => {
 
     if (selectedTicketId) {
         activeTicket = await db.query.supportTickets.findFirst({
-            where: eq(supportTickets.id, Number(selectedTicketId)),
+            // Tiket HARUS milik unit ini (dulu ?ticket=ID unit lain ikut terbaca)
+            where: and(eq(supportTickets.id, Number(selectedTicketId)), eq(supportTickets.unitId, unit.id)),
             with: {
                 customer: true // jika relasi tersedia
             }
@@ -49,10 +51,14 @@ export const load = async ({ params, cookies, url }) => {
              activeTicket.customer = cust;
         }
 
-        messages = await db.select()
-            .from(supportTicketMessages)
-            .where(eq(supportTicketMessages.ticketId, Number(selectedTicketId)))
-            .orderBy(supportTicketMessages.createdAt);
+        if (activeTicket) {
+            messages = await db.select()
+                .from(supportTicketMessages)
+                .where(eq(supportTicketMessages.ticketId, activeTicket.id))
+                .orderBy(supportTicketMessages.createdAt);
+        } else {
+            activeTicket = null;
+        }
     }
 
     return {
@@ -65,9 +71,14 @@ export const load = async ({ params, cookies, url }) => {
 };
 
 export const actions = {
-    replyTicket: async ({ request, cookies }) => {
+    replyTicket: async ({ request, cookies, params }) => {
         const userId = await getCurrentUserId(cookies);
         if (!userId) return fail(401, { message: 'Unauthorized' });
+
+        const unit = await db.query.unitBisnis.findFirst({
+            where: (ub, { eq, and }) => and(eq(ub.slug, params.slug), eq(ub.userId, userId))
+        });
+        if (!unit) return fail(404, { message: 'Unit tidak ditemukan' });
 
         const formData = await request.formData();
         const ticketId = formData.get('ticketId');
@@ -76,6 +87,11 @@ export const actions = {
         if (!ticketId || !message) {
             return fail(400, { message: 'Pesan tidak boleh kosong' });
         }
+
+        const tiket = await db.query.supportTickets.findFirst({
+            where: and(eq(supportTickets.id, Number(ticketId)), eq(supportTickets.unitId, unit.id))
+        });
+        if (!tiket) return fail(404, { message: 'Tiket tidak ditemukan' });
 
         try {
             await db.insert(supportTicketMessages).values({
@@ -88,7 +104,7 @@ export const actions = {
             // Update lastResponseAt & status if needed
             await db.update(supportTickets)
                 .set({ 
-                    lastResponseAt: new Date().toISOString().slice(0, 19).replace('T', ' '), 
+                    lastResponseAt: nowSqlWIB(), 
                     status: 'IN_PROGRESS' 
                 })
                 .where(eq(supportTickets.id, Number(ticketId)));

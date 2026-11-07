@@ -82,21 +82,7 @@ export const PAYROLL = {
 	MAX_BIAYA_JABATAN_BULAN: 500_000
 };
 
-// ─── Plan Limits ───────────────────────────────────────────────────────────
-export const PLAN_LIMITS = {
-	FREE: {
-		unitLimit: 1,
-		storageLimitGB: 1
-	},
-	PRO_HUB: {
-		unitLimit: 5,
-		storageLimitGB: 10
-	},
-	ENTERPRISE: {
-		unitLimit: -1, // unlimited
-		storageLimitGB: 100
-	}
-};
+// Batas paket ada di $lib/server/planLimits.js (satu sumber kebenaran)
 
 // ─── Security ────────────────────────────────────────────────────────────
 export const SECURITY = {

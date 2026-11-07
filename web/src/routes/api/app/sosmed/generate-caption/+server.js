@@ -8,6 +8,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 
 const schema = z.object({
     platform: z.string().min(1),
@@ -16,7 +17,13 @@ const schema = z.object({
     language: z.string().optional().default('id-ID')
 });
 
-export async function POST({ request }) {
+export async function POST({ request, cookies }) {
+    // Dulu tanpa login sama sekali → siapa pun bisa memakai kuota Groq
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const kuota = await cekKuotaAI(userId);
+    if (!kuota.allowed) return json({ success: false, message: kuota.pesan, code: 'AI_RATE_LIMITED' }, { status: 429 });
+
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body);

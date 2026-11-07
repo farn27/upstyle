@@ -57,14 +57,23 @@ export async function checkRateLimit({ key, prefix, limit, windowSec }) {
 }
 
 /**
- * Helper untuk mendapatkan IP dari request event SvelteKit
+ * IP klien untuk rate limit.
+ * - Vercel menimpa X-Forwarded-For dengan IP asli klien, jadi entri pertama bisa dipercaya.
+ * - Di server sendiri (Docker + reverse proxy) entri PERTAMA bisa diisi bebas oleh klien, sehingga
+ *   rate limit bisa diakali dengan header palsu. Yang bisa dipercaya adalah entri yang ditambahkan
+ *   proxy kita sendiri: entri ke-N dari kanan, N = TRUSTED_PROXY_HOPS (default 1).
  * @param {Request} request
  * @returns {string}
  */
 export function getClientIP(request) {
 	const forwarded = request.headers.get('x-forwarded-for');
 	if (forwarded) {
-		return forwarded.split(',')[0].trim();
+		const daftar = forwarded.split(',').map((x) => x.trim()).filter(Boolean);
+		if (daftar.length > 0) {
+			if (process.env.VERCEL) return daftar[0];
+			const hop = Math.max(1, Number(process.env.TRUSTED_PROXY_HOPS) || 1);
+			return daftar[Math.max(0, daftar.length - hop)];
+		}
 	}
 	return request.headers.get('x-real-ip') || 'unknown';
 }
@@ -103,3 +112,24 @@ export const PASSWORD_RESET_LIMIT = { limit: 3, windowSec: 60 * 60 }; // 3x per 
 
 /** Email verification resend */
 export const EMAIL_VERIFY_LIMIT = { limit: 5, windowSec: 60 * 60 }; // 5x per jam
+
+/** Batas pemakaian AI (Groq) per user: menahan lonjakan & menjaga biaya API */
+export const AI_LIMIT_MENIT = { limit: 20, windowSec: 60 };
+export const AI_LIMIT_HARI = { limit: 300, windowSec: 60 * 60 * 24 };
+
+/**
+ * Cek kuota AI user. Dipanggil sebelum setiap panggilan ke Groq.
+ * @param {number | string} userId
+ * @returns {Promise<{ allowed: boolean, retryAfter: number, pesan: string }>}
+ */
+export async function cekKuotaAI(userId) {
+	const menit = await checkRateLimit({ key: String(userId), prefix: 'rl:ai:menit', ...AI_LIMIT_MENIT });
+	if (!menit.allowed) {
+		return { allowed: false, retryAfter: menit.retryAfter, pesan: 'Terlalu banyak permintaan AI. Tunggu sebentar lalu coba lagi.' };
+	}
+	const hari = await checkRateLimit({ key: String(userId), prefix: 'rl:ai:hari', ...AI_LIMIT_HARI });
+	if (!hari.allowed) {
+		return { allowed: false, retryAfter: hari.retryAfter, pesan: 'Kuota AI harian sudah habis. Coba lagi besok.' };
+	}
+	return { allowed: true, retryAfter: 0, pesan: '' };
+}

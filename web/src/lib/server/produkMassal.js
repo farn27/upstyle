@@ -15,7 +15,7 @@
  */
 import { and, eq, inArray } from 'drizzle-orm';
 import { products, kategoriProduk, riwayatAksi, unitBisnis } from '$lib/server/schema';
-import { nowWIB } from '$lib/server/dateUtils';
+import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 
 export const JENIS_OPERASI = ['PRICE_UPDATE', 'CATEGORY_CHANGE', 'STATUS_CHANGE', 'ARCHIVE', 'DELETE', 'RESTORE'];
 const STATUS_VALID = ['active', 'draft', 'archived'];
@@ -34,7 +34,7 @@ export class MassalError extends Error {
 export const kunciRollback = (userId, operationId) => `bulk_op:${userId}:${operationId}`;
 
 /** Format waktu yang diterima kolom timestamp MySQL/TiDB */
-const waktuSekarang = () => nowWIB().toISOString().slice(0, 19).replace('T', ' ');
+const waktuSekarang = () => nowSqlWIB();
 
 /** @param {unknown} v */
 const angka = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
@@ -177,7 +177,7 @@ export async function jalankanOperasiMassal(db, redis, input) {
 		successCount,
 		failureCount: ids.length - successCount,
 		itemResults,
-		completedAt: nowWIB().toISOString(),
+		completedAt: nowSqlWIB(),
 		rollbackAvailable: rollbackTersedia
 	};
 }

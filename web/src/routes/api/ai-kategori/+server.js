@@ -10,6 +10,7 @@ import { unitBisnis, abcCategories } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { log } from '$lib/server/logger';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 
 const schema = z.object({
 	teks: z.string().min(2).max(300),
@@ -19,6 +20,9 @@ const schema = z.object({
 export async function POST({ request, cookies }) {
 	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
+
+	const kuota = await cekKuotaAI(userId);
+	if (!kuota.allowed) return new Response(JSON.stringify({ success: false, message: kuota.pesan, code: 'AI_RATE_LIMITED' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(kuota.retryAfter) } });
 
 	let body;
 	try { body = await request.json(); } catch { return apiError('Invalid JSON', 400); }
