@@ -461,7 +461,15 @@ data class CreateEmployeeBody(
     val emergencyContact: String = "",
     val emergencyRelation: String = "",
     val bloodType: String = "",
-    val employeeIdCard: String = ""
+    val employeeIdCard: String = "",
+    val password: String = "",
+    val division: String = "",
+    val jobGrade: String = "",
+    val contractStart: String = "",
+    val contractEnd: String = "",
+    val bankName: String = "",
+    val bankAccountNumber: String = "",
+    val taxId: String = ""
 )
 
 @Serializable

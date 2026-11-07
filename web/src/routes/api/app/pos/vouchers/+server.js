@@ -249,6 +249,42 @@ export async function PUT({ request, cookies }) {
             });
         }
 
+        // Ubah voucher / promo (termasuk aktif-nonaktif) — padanan pos/kelola/promo di web
+        if (action === 'update-voucher') {
+            const { voucherId } = body;
+            if (!voucherId) return json({ success: false, message: 'voucherId wajib diisi' }, { status: 400 });
+            const voucher = await db.query.vouchers.findFirst({ where: eq(vouchers.id, Number(voucherId)) });
+            if (!voucher || !(await unitMilikUser(db, userId, voucher.unitId))) {
+                return json({ success: false, message: 'Voucher tidak ditemukan' }, { status: 404 });
+            }
+            const schema = z.object({
+                discountType: z.enum(['PERCENTAGE', 'FIXED']).optional(),
+                discountValue: z.coerce.number().positive().optional(),
+                maxUsage: z.coerce.number().int().min(0).optional(),
+                minPurchase: z.coerce.number().min(0).optional(),
+                validFrom: z.string().min(1).optional(),
+                validUntil: z.string().min(1).optional(),
+                isActive: z.boolean().optional()
+            });
+            const parsed = schema.safeParse(body);
+            if (!parsed.success) return json({ success: false, message: parsed.error.issues?.[0]?.message || 'Input tidak valid' }, { status: 422 });
+            const d = parsed.data;
+            if ((d.discountType ?? voucher.discountType) === 'PERCENTAGE' && (d.discountValue ?? Number(voucher.discountValue)) > 100) {
+                return json({ success: false, message: 'Diskon persen maksimal 100' }, { status: 422 });
+            }
+            const set = {};
+            if (d.discountType !== undefined) set.discountType = d.discountType;
+            if (d.discountValue !== undefined) set.discountValue = String(d.discountValue);
+            if (d.maxUsage !== undefined) set.maxUsage = d.maxUsage;
+            if (d.minPurchase !== undefined) set.minPurchase = String(d.minPurchase);
+            if (d.validFrom !== undefined) set.validFrom = d.validFrom;
+            if (d.validUntil !== undefined) set.validUntil = d.validUntil;
+            if (d.isActive !== undefined) set.isActive = d.isActive;
+            if (Object.keys(set).length === 0) return json({ success: false, message: 'Tidak ada data yang diubah' }, { status: 400 });
+            await db.update(vouchers).set(set).where(eq(vouchers.id, Number(voucherId)));
+            return json({ success: true, message: 'Voucher diperbarui' });
+        }
+
         if (action === 'use-voucher') {
             const { voucherId, unitId } = body;
 

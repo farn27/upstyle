@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.*
@@ -104,8 +105,8 @@ fun HrScreen(viewModel: AppViewModel) {
         }
     }
 
-    if (showAddSheet) AddEmployeeBottomSheet(onDismiss = { showAddSheet = false }) { fullName, position, salary, pin, role, email, phone, division ->
-        viewModel.createEmployee(fullName, position, salary, pin, role, email, phone, division)
+    if (showAddSheet) AddEmployeeBottomSheet(onDismiss = { showAddSheet = false }) { body ->
+        viewModel.createEmployee(body)
         showAddSheet = false
     }
 
@@ -250,48 +251,94 @@ fun LeaveTab(requests: List<LeaveRequest>) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val peranAkses = listOf("staff" to "Staff", "cashier" to "Kasir", "manager" to "Manajer", "finance" to "Keuangan", "hr" to "HR", "operator" to "Operator", "admin" to "Admin", "employee" to "Karyawan")
+private val statusKerja = listOf("Tetap" to "Tetap", "Kontrak" to "Kontrak", "Magang" to "Magang", "Paruh Waktu" to "Paruh waktu")
+private val golonganKerja = listOf("Junior" to "Junior", "Middle" to "Middle / Officer", "Senior" to "Senior / Lead", "Managerial" to "Managerial")
+private val golDarah = listOf("A", "B", "AB", "O").map { it to it }
+
+/** Form "Tambah Anggota Tim" — setara web: identitas, pekerjaan, kompensasi, kontak darurat, akses portal. */
 @Composable
 fun AddEmployeeBottomSheet(
     onDismiss: () -> Unit,
-    onSave: (String, String, Double, String, String, String, String, String) -> Unit
+    onSave: (CreateEmployeeBody) -> Unit
 ) {
-    var fullName by remember { mutableStateOf("") }
-    var position by remember { mutableStateOf("") }
-    var salary by remember { mutableStateOf("") }
-    var pin by remember { mutableStateOf("1234") }
-    var role by remember { mutableStateOf("staff") }
+    var nama by remember { mutableStateOf("") }
+    var nik by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var division by remember { mutableStateOf("") }
+    var telepon by remember { mutableStateOf("") }
+    var alamat by remember { mutableStateOf("") }
+    var darah by remember { mutableStateOf<String?>(null) }
+    var jabatan by remember { mutableStateOf("") }
+    var divisi by remember { mutableStateOf("") }
+    var golongan by remember { mutableStateOf("Junior") }
+    var statusK by remember { mutableStateOf("Tetap") }
+    var peran by remember { mutableStateOf("staff") }
+    var lokasi by remember { mutableStateOf("") }
+    var gabung by remember { mutableStateOf("") }
+    var kontrakMulai by remember { mutableStateOf("") }
+    var kontrakSelesai by remember { mutableStateOf("") }
+    var gaji by remember { mutableStateOf("") }
+    var bank by remember { mutableStateOf("") }
+    var rekening by remember { mutableStateOf("") }
+    var npwp by remember { mutableStateOf("") }
+    var darurat by remember { mutableStateOf("") }
+    var hubungan by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Tambah Karyawan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(fullName, { fullName = it }, label = { Text("Nama Lengkap *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-            OutlinedTextField(position, { position = it }, label = { Text("Jabatan *") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(salary, { salary = it }, label = { Text("Gaji Pokok") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(pin, { pin = it }, label = { Text("PIN (4 digit)") }, modifier = Modifier.weight(0.8f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-                OutlinedTextField(phone, { phone = it }, label = { Text("Telepon") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(division, { division = it }, label = { Text("Divisi") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-                OutlinedTextField(role, { role = it }, label = { Text("Role") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp))
-            }
-            Button(
-                onClick = {
-                    if (fullName.isNotBlank() && position.isNotBlank())
-                        onSave(fullName, position, salary.toDoubleOrNull() ?: 0.0, pin.ifBlank { "1234" }, role, email, phone, division)
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(20.dp)
-            ) { Text("Simpan Karyawan", fontWeight = FontWeight.Bold) }
+    val emailValid = email.isBlank() || ('@' in email && '.' in email.substringAfter('@'))
+    val valid = nama.trim().length >= 2 && jabatan.isNotBlank() && pin.length == 4 && password.length >= 6 && emailValid
+
+    FormSheet(
+        "Tambah Anggota Tim", subjudul = "Isi data utama dulu; sisanya boleh dilengkapi nanti.",
+        onDismiss = onDismiss, labelSimpan = "Simpan karyawan", simpanAktif = valid,
+        onSimpan = {
+            onSave(
+                CreateEmployeeBody(
+                    fullName = nama.trim(), position = jabatan.trim(), salary = gaji.toDoubleOrNull() ?: 0.0, pin = pin, role = peran, unitId = 0,
+                    email = email.trim(), phone = telepon.trim(), joinDate = gabung, address = alamat.trim(), employmentStatus = statusK,
+                    placementLocation = lokasi.trim(), idNumber = nik.trim(), emergencyContact = darurat.trim(), emergencyRelation = hubungan.trim(),
+                    bloodType = darah ?: "", password = password, division = divisi.trim(), jobGrade = golongan,
+                    contractStart = kontrakMulai, contractEnd = kontrakSelesai, bankName = bank.trim(), bankAccountNumber = rekening.trim(), taxId = npwp.trim()
+                )
+            )
+            onDismiss()
         }
+    ) {
+        Text("IDENTITAS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = BizgrowColors.Primary)
+        BizTextField(nama, { nama = it }, "Nama lengkap *", placeholder = "Nama sesuai KTP")
+        BizTextField(nik, { nik = it.filter(Char::isDigit) }, "NIK / No. KTP", keyboardType = KeyboardType.Number)
+        BizTextField(email, { email = it }, "Email", placeholder = "nama@perusahaan.com", keyboardType = KeyboardType.Email, isError = !emailValid, supportingText = if (!emailValid) "Format email belum benar" else null)
+        BizTextField(telepon, { telepon = it }, "Telepon / WhatsApp", keyboardType = KeyboardType.Phone)
+        BizTextField(alamat, { alamat = it }, "Alamat", singleLine = false)
+        PilihanPil("Golongan darah", golDarah, darah) { darah = it }
+
+        Text("PEKERJAAN", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = BizgrowColors.Primary, modifier = Modifier.padding(top = 6.dp))
+        BizTextField(jabatan, { jabatan = it }, "Jabatan *", placeholder = "Kasir, Barista, Manajer Toko…")
+        BizTextField(divisi, { divisi = it }, "Divisi", placeholder = "Operations, Finance, Marketing…")
+        PilihanField("Golongan", golonganKerja, golongan, { golongan = it })
+        PilihanPil("Status kerja", statusKerja, statusK) { statusK = it }
+        PilihanField("Peran akses", peranAkses, peran, { peran = it })
+        BizTextField(lokasi, { lokasi = it }, "Lokasi penempatan", placeholder = "Contoh: Jakarta HQ")
+        TanggalField("Tanggal bergabung", gabung) { gabung = it }
+        if (statusK == "Kontrak" || statusK == "Magang") {
+            TanggalField("Kontrak mulai", kontrakMulai) { kontrakMulai = it }
+            TanggalField("Kontrak berakhir", kontrakSelesai) { kontrakSelesai = it }
+        }
+
+        Text("KOMPENSASI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = BizgrowColors.Primary, modifier = Modifier.padding(top = 6.dp))
+        AngkaField(gaji, { gaji = it }, "Gaji pokok (Rp)", desimal = false)
+        BizTextField(bank, { bank = it }, "Nama bank", placeholder = "Contoh: BCA")
+        BizTextField(rekening, { rekening = it.filter(Char::isDigit) }, "Nomor rekening", keyboardType = KeyboardType.Number)
+        BizTextField(npwp, { npwp = it }, "NPWP")
+
+        Text("KONTAK DARURAT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = BizgrowColors.Primary, modifier = Modifier.padding(top = 6.dp))
+        BizTextField(darurat, { darurat = it }, "Nama / telepon kontak darurat")
+        BizTextField(hubungan, { hubungan = it }, "Hubungan", placeholder = "Suami / Istri / Orang tua")
+
+        Text("AKSES PORTAL KARYAWAN", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = BizgrowColors.Primary, modifier = Modifier.padding(top = 6.dp))
+        BizTextField(password, { password = it }, "Password portal *", isPassword = true, supportingText = "Minimal 6 karakter")
+        AngkaField(pin, { pin = it.take(4) }, "PIN 4 digit *", desimal = false, supporting = "Untuk otorisasi di kasir")
     }
 }
 

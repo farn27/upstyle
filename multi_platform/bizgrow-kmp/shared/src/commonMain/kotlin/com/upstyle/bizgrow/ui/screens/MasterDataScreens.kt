@@ -427,3 +427,93 @@ fun ClosingPeriodScreen(viewModel: AppViewModel) {
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Voucher & promo POS
+// ═══════════════════════════════════════════════════════════════════════════
+
+private val jenisDiskon = listOf("PERCENTAGE" to "Persentase (%)", "FIXED" to "Nominal (Rp)")
+
+@Composable
+fun PosVouchersScreen(viewModel: AppViewModel) {
+    val daftar by viewModel.posVouchers.collectAsState()
+    var edit by remember { mutableStateOf<PosVoucher?>(null) }
+    var tambah by remember { mutableStateOf(false) }
+    var hapus by remember { mutableStateOf<PosVoucher?>(null) }
+    LaunchedEffect(Unit) { viewModel.loadPosVouchers() }
+
+    BizScreen(
+        "Voucher & Promo", subtitle = "Kode diskon untuk kasir", onBack = { viewModel.navigateBack() },
+        floatingActionButton = { FabTambah("Voucher baru") { tambah = true } }
+    ) { padding ->
+        if (daftar.isEmpty()) {
+            EmptyView("Belum ada voucher", "Buat kode promo seperti HEMAT10 agar bisa dipakai di kasir.", Icons.Rounded.ConfirmationNumber, "Buat voucher", { tambah = true }, Modifier.padding(padding))
+        } else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            itemsIndexed(daftar, key = { _, v -> v.id }) { i, v ->
+                val nilai = if (v.discountType == "PERCENTAGE") "${v.discountValue.toString().removeSuffix(".0")}%" else v.discountValue.rupiahRingkas()
+                BizSurface(Modifier.fillMaxWidth().enterAnimation(i), onClick = { edit = v }, contentPadding = PaddingValues(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(Icons.Rounded.ConfirmationNumber, if (v.isActive) BizgrowColors.Primary else BizgrowColors.Warning)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(v.code, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("Berlaku ${v.validFrom.take(10)} → ${v.validUntil.take(10)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Dipakai ${v.currentUsage}${if (v.maxUsage > 0) " / ${v.maxUsage}" else " (tanpa batas)"}" + if (v.minPurchase > 0) " • min ${v.minPurchase.rupiahRingkas()}" else "",
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(nilai, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
+                            StatusChip(if (v.isActive) "Aktif" else "Nonaktif", if (v.isActive) BizgrowColors.Success else BizgrowColors.Warning)
+                        }
+                    }
+                    if (v.maxUsage > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.outlineVariant)) {
+                            Box(Modifier.fillMaxWidth((v.currentUsage.toFloat() / v.maxUsage).coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape).background(BizgrowColors.Primary))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (tambah || edit != null) {
+        val awal = edit
+        val hari = remember { hariIniWib() }
+        var kode by remember(awal) { mutableStateOf(awal?.code ?: "") }
+        var jenis by remember(awal) { mutableStateOf(awal?.discountType ?: "PERCENTAGE") }
+        var nilai by remember(awal) { mutableStateOf(awal?.discountValue?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
+        var kuota by remember(awal) { mutableStateOf(awal?.maxUsage?.toString() ?: "0") }
+        var minBeli by remember(awal) { mutableStateOf(awal?.minPurchase?.toLong()?.toString() ?: "0") }
+        var dari by remember(awal) { mutableStateOf(awal?.validFrom?.take(10) ?: hari.toString()) }
+        var sampai by remember(awal) { mutableStateOf(awal?.validUntil?.take(10) ?: hari.plus(30, DateTimeUnit.DAY).toString()) }
+        var aktif by remember(awal) { mutableStateOf(awal?.isActive ?: true) }
+        val nilaiAngka = nilai.toDoubleOrNull() ?: 0.0
+        val sah = (awal != null || kode.trim().length >= 3) && nilaiAngka > 0 && (jenis != "PERCENTAGE" || nilaiAngka <= 100) && dari <= sampai
+        FormSheet(
+            if (awal == null) "Voucher baru" else "Ubah voucher",
+            subjudul = if (awal != null) "Kode voucher tidak bisa diubah." else null,
+            onDismiss = { tambah = false; edit = null }, simpanAktif = sah,
+            onHapus = awal?.let { { hapus = it; edit = null } },
+            onSimpan = {
+                val v = PosVoucher(awal?.id ?: 0, 0, kode.trim().uppercase(), jenis, nilaiAngka, kuota.toIntOrNull() ?: 0, awal?.currentUsage ?: 0, minBeli.toDoubleOrNull() ?: 0.0, dari, sampai, aktif)
+                if (awal == null) viewModel.createPosVoucher(v) else viewModel.updatePosVoucher(v)
+                tambah = false; edit = null
+            }
+        ) {
+            BizTextField(kode, { kode = it.uppercase() }, "Kode voucher", placeholder = "HEMAT10", enabled = awal == null)
+            PilihanPil("Jenis diskon", jenisDiskon, jenis) { jenis = it }
+            AngkaField(nilai, { nilai = it }, if (jenis == "PERCENTAGE") "Besar diskon (%)" else "Besar diskon (Rp)", supporting = if (jenis == "PERCENTAGE" && nilaiAngka > 100) "Maksimal 100%" else null)
+            AngkaField(minBeli, { minBeli = it }, "Minimal pembelian (Rp)", desimal = false)
+            AngkaField(kuota, { kuota = it }, "Kuota pemakaian", desimal = false, supporting = "0 = tanpa batas")
+            TanggalField("Berlaku dari", dari) { dari = it }
+            TanggalField("Berlaku sampai", sampai) { sampai = it }
+            if (awal != null) SwitchBaris("Voucher aktif", null, aktif) { aktif = it }
+        }
+    }
+    hapus?.let { v ->
+        KonfirmasiHapus("Nonaktifkan voucher?", "Kode ${v.code} tidak bisa dipakai lagi di kasir.", { viewModel.deletePosVoucher(v.id); hapus = null }, { hapus = null })
+    }
+}

@@ -883,6 +883,13 @@ class AppViewModel(
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
 
+    fun createPosVoucher(v: PosVoucher) =
+        jalankanMasterData("Voucher dibuat", { loadPosVouchers() }) { api.createPosVoucher(v.copy(unitId = it)) }
+    fun updatePosVoucher(v: PosVoucher) =
+        jalankanMasterData("Voucher diperbarui", { loadPosVouchers() }) { api.updatePosVoucher(v.copy(unitId = it)) }
+    fun deletePosVoucher(id: Int) =
+        jalankanMasterData("Voucher dinonaktifkan", { loadPosVouchers() }) { api.deletePosVoucher(id) }
+
     fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
         jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
 
@@ -904,14 +911,11 @@ class AppViewModel(
             if (res.success) _fixedAssets.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadFixedAssets error", e) }
     }
-    fun createEmployee(fullName: String, position: String, salary: Double, pin: String, role: String,
-                       email: String = "", phone: String = "", division: String = "") = viewModelScope.launch {
+    fun createEmployee(body: CreateEmployeeBody) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val res = api.createEmployee(CreateEmployeeRequest(
-                employee = CreateEmployeeBody(fullName, position, salary, pin, role, unitId, email, phone, division)
-            ))
+            val res = api.createEmployee(CreateEmployeeRequest(employee = body.copy(unitId = unitId)))
             if (res.success) { loadHrData(); setSuccess("Karyawan berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah karyawan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }

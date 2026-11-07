@@ -829,6 +829,38 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getPosVouchers(unitId: Int): ApiResponse<List<PosVoucher>> =
         client.get("api/app/pos/vouchers") { parameter("unitId", unitId) }.body()
 
+    suspend fun createPosVoucher(v: PosVoucher): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/pos/vouchers") {
+            setBody(buildJsonObject {
+                put("unitId", v.unitId)
+                put("code", v.code)
+                put("discountType", v.discountType)
+                put("discountValue", v.discountValue)
+                put("maxUsage", v.maxUsage)
+                put("minPurchase", v.minPurchase)
+                put("validFrom", v.validFrom)
+                put("validUntil", v.validUntil)
+            })
+        }.body())
+
+    suspend fun updatePosVoucher(v: PosVoucher): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/pos/vouchers") {
+            setBody(buildJsonObject {
+                put("action", "update-voucher")
+                put("voucherId", v.id)
+                put("discountType", v.discountType)
+                put("discountValue", v.discountValue)
+                put("maxUsage", v.maxUsage)
+                put("minPurchase", v.minPurchase)
+                put("validFrom", v.validFrom)
+                put("validUntil", v.validUntil)
+                put("isActive", v.isActive)
+            })
+        }.body())
+
+    suspend fun deletePosVoucher(id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/pos/vouchers") { parameter("voucherId", id) }.body())
+
     // Business plan → api/app/business-plan (simpan = POST upsert by id, hapus = ?id=, terapkan = /apply)
     suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> {
         val res: ApiResponse<List<BusinessPlanDto>> = client.get("api/app/business-plan").body()
