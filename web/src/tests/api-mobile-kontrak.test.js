@@ -34,6 +34,8 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		r.laporan = await import('../routes/api/app/finance/laporan/+server.js');
 		r.jurnal = await import('../routes/api/app/finance/journal/+server.js');
 		r.bukuBesar = await import('../routes/api/app/finance/buku-besar/+server.js');
+		r.anggaran = await import('../routes/api/app/finance/budget/+server.js');
+		r.tutupBuku = await import('../routes/api/app/finance/close-period/+server.js');
 
 		const t = Date.now();
 		const [a] = await db.insert(s.users).values({ username: `ka${t}`, email: `ka${t}@contoh.id` });
@@ -182,6 +184,58 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		const setahun = await bb('&tahun=2026');
 		expect(setahun.entries.map((e) => e.saldo)).toEqual([500000, 400000]);
 		expect(setahun.entries[0].referensi).toBe('REF-1');
+	});
+
+	it('anggaran: realisasi per akun dari jurnal, duplikat ditolak, bisa diubah', async () => {
+		login.userId = id.user;
+		const akun = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unit));
+		const kas = akun.find((a) => a.tipeAkun === 'ASET_LANCAR');
+		const beban = akun.find((a) => a.tipeAkun === 'BEBAN_OPERASIONAL');
+		const kirim = async (method, body, qs = '') => { const res = await r.anggaran[method]({ request: new Request(`http://x/?${qs}`, { method, body: body ? JSON.stringify(body) : undefined, headers: { 'content-type': 'application/json' } }), cookies, url: new URL(`http://x/?${qs}`) }); return { st: res.status, j: await res.json() }; };
+		const buat = await kirim('POST', { unitId: id.unit, coaId: beban.id, tahun: 2026, bulan: 3, nominal: 200000, keterangan: 'Listrik' });
+		expect(buat.j.success).toBe(true);
+		// duplikat & akun tenant lain
+		expect((await kirim('POST', { unitId: id.unit, coaId: beban.id, tahun: 2026, bulan: 3, nominal: 1 })).st).toBe(409);
+		const [lain] = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unitLain)).limit(1);
+		expect((await kirim('POST', { unitId: id.unit, coaId: lain.id, tahun: 2026, bulan: 4, nominal: 1 })).st).toBe(400);
+		// beban Maret 2026 senilai 150.000 → realisasi 75%
+		await r.jurnal.POST({ request: new Request('http://x', { method: 'POST', body: JSON.stringify({ unitId: id.unit, tanggal: '2026-03-05', memo: 'Bayar listrik', lines: [{ coaId: beban.id, debit: 150000 }, { coaId: kas.id, kredit: 150000 }] }), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') });
+		const ambil = async (q) => (await (await r.anggaran.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const maret = (await ambil('&tahun=2026')).find((b) => b.id === buat.j.data.id);
+		expect(maret).toMatchObject({ realisasi: 150000, progress: 75, selisih: 50000, melebihi: false, namaAkun: beban.namaAkun });
+		// year= (kiriman app lama) tetap dibaca; tahun lain kosong
+		expect((await ambil('&year=2026')).some((b) => b.id === buat.j.data.id)).toBe(true);
+		expect((await ambil('&tahun=2027')).some((b) => b.id === buat.j.data.id)).toBe(false);
+		// ubah nominal → melebihi anggaran
+		expect((await kirim('PUT', { id: buat.j.data.id, unitId: id.unit, nominal: 100000, keterangan: 'Listrik (revisi)' })).j.success).toBe(true);
+		const revisi = (await ambil('&tahun=2026')).find((b) => b.id === buat.j.data.id);
+		expect(revisi).toMatchObject({ nominal: 100000, melebihi: true, keterangan: 'Listrik (revisi)' });
+		// ubah anggaran milik tenant lain → 404
+		login.userId = id.userLain;
+		expect((await kirim('PUT', { id: buat.j.data.id, unitId: id.unitLain, nominal: 5 })).st).toBe(404);
+	});
+
+	it('tutup buku: periode terkunci menolak jurnal manual & hapus transaksi; tumpang tindih ditolak; bisa dibuka kembali', async () => {
+		login.userId = id.user;
+		const akun = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unit));
+		const kas = akun.find((a) => a.tipeAkun === 'ASET_LANCAR');
+		const modal = akun.find((a) => a.tipeAkun === 'EKUITAS');
+		const [trx] = await db.insert(s.transaksi).values({ unitId: id.unit, userId: id.user, kategoriTrx: 'MASUK', nominal: '1000', totalHarga: '1000', keterangan: 'LAMA', tanggal: '2025-06-10 09:00:00', metodeBayar: 'KAS' });
+		const tutup = async (method, body, qs = '') => { const res = await r.tutupBuku[method]({ request: new Request(`http://x/?${qs}`, { method, body: body ? JSON.stringify(body) : undefined, headers: { 'content-type': 'application/json' } }), cookies, url: new URL(`http://x/?${qs}`) }); return { st: res.status, j: await res.json() }; };
+		const kunci = await tutup('POST', { unitId: id.unit, periodStart: '2025-06-01', periodEnd: '2025-06-30' });
+		expect(kunci.j.success).toBe(true);
+		expect((await tutup('POST', { unitId: id.unit, periodStart: '2025-06-15', periodEnd: '2025-07-15' })).st).toBe(409);
+		const jurnal = async (tanggal) => { const res = await r.jurnal.POST({ request: new Request('http://x', { method: 'POST', body: JSON.stringify({ unitId: id.unit, tanggal, memo: 'Koreksi', lines: [{ coaId: kas.id, debit: 10 }, { coaId: modal.id, kredit: 10 }] }), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') }); return { st: res.status, j: await res.json() }; };
+		const ditolak = await jurnal('2025-06-20');
+		expect(ditolak.st).toBe(409);
+		expect(ditolak.j.message).toMatch(/sudah ditutup/);
+		expect((await jurnal('2025-07-20')).j.success).toBe(true);
+		const hapusTrx = async () => { const res = await r.finance.DELETE({ url: new URL(`http://x?transactionId=${trx.insertId}&unitId=${id.unit}`), cookies, request: new Request('http://x', { method: 'DELETE' }) }); return { st: res.status, j: await res.json() }; };
+		expect((await hapusTrx()).st).toBe(409);
+		// buka kembali → boleh
+		expect((await tutup('DELETE', null, `id=${kunci.j.data.id}&unitId=${id.unit}`)).j.success).toBe(true);
+		expect((await jurnal('2025-06-20')).j.success).toBe(true);
+		expect((await hapusTrx()).j.success).toBe(true);
 	});
 
 	it('laporan: type=report memuat dashboard, laba rugi & neraca', async () => {

@@ -49,6 +49,13 @@ export async function POST({ request, cookies }) {
 
         if (periodStart > periodEnd) return json({ success: false, message: 'Tanggal mulai tidak boleh setelah tanggal akhir' }, { status: 422 });
 
+        // Tidak boleh tumpang tindih dengan periode lain yang sudah ditutup
+        const tumpang = await db.query.closingPeriods.findFirst({ where: and(
+            eq(closingPeriods.unitId, Number(unitId)), eq(closingPeriods.status, 'CLOSED'),
+            sql`${closingPeriods.periodStart} <= ${periodEnd}`, sql`${closingPeriods.periodEnd} >= ${periodStart}`
+        ) });
+        if (tumpang) return json({ success: false, message: `Tumpang tindih dengan periode yang sudah ditutup (${String(tumpang.periodStart).slice(0, 10)} s/d ${String(tumpang.periodEnd).slice(0, 10)})` }, { status: 409 });
+
         // Laba/rugi HANYA untuk periode yang dikunci (bukan seluruh riwayat transaksi)
         const trxList = await db.select().from(transaksi).where(and(
             eq(transaksi.unitId, Number(unitId)),
@@ -75,5 +82,27 @@ export async function POST({ request, cookies }) {
     } catch (err) {
         log.api.error({ err }, 'POST finance/close-period');
         return json({ success: false, message: 'Gagal tutup periode' }, { status: 500 });
+    }
+}
+
+// DELETE /api/app/finance/close-period?id=X&unitId=Y — buka kembali periode (hapus kunci)
+export async function DELETE({ url, cookies, request }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const id = Number(url.searchParams.get('id'));
+    const unitId = Number(url.searchParams.get('unitId'));
+    if (!id || !unitId) return json({ success: false, message: 'id dan unitId wajib diisi' }, { status: 400 });
+    try {
+        const p = await db.query.closingPeriods.findFirst({ where: and(eq(closingPeriods.id, id), eq(closingPeriods.unitId, unitId)) });
+        if (!p) return json({ success: false, message: 'Periode tidak ditemukan' }, { status: 404 });
+        await db.delete(closingPeriods).where(eq(closingPeriods.id, id));
+        await db.insert(riwayatAksi).values({
+            userId, unitId, pesan: `Buka Kembali Periode: ${String(p.periodStart).slice(0, 10)} s/d ${String(p.periodEnd).slice(0, 10)}`,
+            kategori: 'FINANCE', tipe: 'info'
+        });
+        return json({ success: true, message: 'Periode dibuka kembali' });
+    } catch (err) {
+        log.api.error({ err }, 'DELETE finance/close-period');
+        return json({ success: false, message: 'Gagal membuka periode' }, { status: 500 });
     }
 }

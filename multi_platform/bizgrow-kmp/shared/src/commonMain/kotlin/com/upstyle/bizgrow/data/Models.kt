@@ -1285,7 +1285,11 @@ data class FixedAsset(
     val akumulasiPenyusutan: Double = 0.0,
     val nilaiBuku: Double = 0.0,
     val status: String = "AKTIF",
-    val keterangan: String? = null
+    val keterangan: String? = null,
+    /** Akun aset tetap di COA (opsional). */
+    val coaId: Int? = null,
+    val penyusutanBulanan: Double = 0.0,
+    val bulanBerjalan: Int = 0
 )
 
 @Serializable
@@ -1307,7 +1311,16 @@ data class BudgetItem(
     val tahun: Int,
     val bulan: Int = 0,
     val nominal: Double,
-    val keterangan: String? = null
+    val keterangan: String? = null,
+    // dihitung server dari jurnal
+    val namaAkun: String = "",
+    val kodeAkun: String = "",
+    val tipeAkun: String = "",
+    val realisasi: Double = 0.0,
+    val progress: Int = 0,
+    val selisih: Double = 0.0,
+    val melebihi: Boolean = false,
+    val pendapatan: Boolean = false
 )
 
 @Serializable

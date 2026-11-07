@@ -166,10 +166,11 @@ private val statusAset = listOf("AKTIF" to "Aktif", "DIJUAL" to "Dijual / Dilepa
 @Composable
 fun FixedAssetsScreen(viewModel: AppViewModel) {
     val daftar by viewModel.fixedAssets.collectAsState()
+    val akunCoa by viewModel.chartOfAccounts.collectAsState()
     var edit by remember { mutableStateOf<FixedAsset?>(null) }
     var tambah by remember { mutableStateOf(false) }
     var hapus by remember { mutableStateOf<FixedAsset?>(null) }
-    LaunchedEffect(Unit) { viewModel.loadFixedAssets() }
+    LaunchedEffect(Unit) { viewModel.loadFixedAssets(); viewModel.loadCoa() }
 
     BizScreen(
         "Aset Tetap", subtitle = "Pencatatan & penyusutan aset", onBack = { viewModel.navigateBack() },
@@ -209,7 +210,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
                     Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.outlineVariant)) {
                         Box(Modifier.fillMaxWidth(persenSusut).fillMaxHeight().clip(CircleShape).background(BizgrowColors.Warning))
                     }
-                    Text("Penyusutan ${(persenSusut * 100).toInt()}% • akumulasi ${a.akumulasiPenyusutan.rupiahRingkas()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    Text("Penyusutan ${(persenSusut * 100).toInt()}% • akumulasi ${a.akumulasiPenyusutan.rupiahRingkas()}" + if (a.penyusutanBulanan > 0 && a.status == "AKTIF") " • ${a.penyusutanBulanan.rupiahRingkas()}/bln" else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -226,6 +227,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
         var sisa by remember(awal) { mutableStateOf(awal?.nilaiSisa?.toLong()?.toString() ?: "0") }
         var status by remember(awal) { mutableStateOf(awal?.status ?: "AKTIF") }
         var ket by remember(awal) { mutableStateOf(awal?.keterangan ?: "") }
+        var coaAset by remember(awal) { mutableStateOf(awal?.coaId?.toString()) }
         val nilaiAngka = nilai.toDoubleOrNull() ?: 0.0
         val sisaAngka = sisa.toDoubleOrNull() ?: 0.0
         val umurAngka = umur.toIntOrNull() ?: 0
@@ -234,7 +236,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
             simpanAktif = nama.isNotBlank() && nilaiAngka > 0 && umurAngka > 0 && sisaAngka <= nilaiAngka,
             onHapus = awal?.let { { hapus = it; edit = null } },
             onSimpan = {
-                val a = FixedAsset(awal?.id ?: 0, 0, nama.trim(), kategori, nilaiAngka, tanggal, umurAngka, metode, sisaAngka, status = status, keterangan = ket.ifBlank { null })
+                val a = FixedAsset(awal?.id ?: 0, 0, nama.trim(), kategori, nilaiAngka, tanggal, umurAngka, metode, sisaAngka, status = status, keterangan = ket.ifBlank { null }, coaId = coaAset?.toIntOrNull())
                 if (awal == null) viewModel.createFixedAsset(a) else viewModel.updateFixedAsset(a)
                 tambah = false; edit = null
             }
@@ -246,6 +248,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
             AngkaField(umur, { umur = it }, "Umur ekonomis (tahun)", desimal = false)
             PilihanPil("Metode penyusutan", metodeAset, metode) { metode = it }
             AngkaField(sisa, { sisa = it }, "Nilai sisa / residu (Rp)", desimal = false, supporting = if (sisaAngka > nilaiAngka) "Tidak boleh melebihi nilai perolehan" else null)
+            PilihanField("Akun aset tetap (COA, opsional)", akunCoa.filter { it.isActive == 1 && it.tipeAkun == "ASET_TETAP" }.map { it.id.toString() to "${it.kodeAkun} • ${it.namaAkun}" }, coaAset, { coaAset = it }, placeholder = "Tidak dihubungkan")
             if (awal != null) PilihanPil("Status", statusAset, status) { status = it }
             BizTextField(ket, { ket = it }, "Keterangan (opsional)", singleLine = false)
         }
@@ -267,12 +270,16 @@ fun BudgetScreen(viewModel: AppViewModel) {
     val coa by viewModel.chartOfAccounts.collectAsState()
     var tahun by remember { mutableIntStateOf(hariIniWib().year) }
     var tambah by remember { mutableStateOf(false) }
+    var ubah by remember { mutableStateOf<BudgetItem?>(null) }
     var hapus by remember { mutableStateOf<BudgetItem?>(null) }
     LaunchedEffect(tahun) { viewModel.loadBudgetItems(tahun); viewModel.loadCoa() }
     val namaAkun = remember(coa) { coa.associate { it.id to "${it.kodeAkun} · ${it.namaAkun}" } }
+    val totalBelanja = items.filter { !it.pendapatan }.sumOf { it.nominal }
+    val realisasiBelanja = items.filter { !it.pendapatan }.sumOf { it.realisasi }
+    val melebihi = items.count { it.melebihi }
 
     BizScreen(
-        "Anggaran", subtitle = "Batas pengeluaran per akun • $tahun", onBack = { viewModel.navigateBack() },
+        "Anggaran", subtitle = "Batas & target per akun • $tahun", onBack = { viewModel.navigateBack() },
         floatingActionButton = { FabTambah("Anggaran baru") { tambah = true } }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -283,17 +290,32 @@ fun BudgetScreen(viewModel: AppViewModel) {
                 EmptyView("Belum ada anggaran", "Tetapkan batas anggaran per akun agar pengeluaran terkontrol.", Icons.Rounded.Savings, "Tambah anggaran", { tambah = true })
             } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
-                    StatTile("Total anggaran $tahun", items.sumOf { it.nominal }.rupiah(), Icons.Rounded.Savings, BizgrowColors.Primary, Modifier.fillMaxWidth(), caption = "${items.size} pos anggaran")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile("Anggaran belanja", totalBelanja.rupiahRingkas(), Icons.Rounded.Savings, BizgrowColors.Primary, Modifier.weight(1f), caption = "${items.size} pos")
+                        StatTile("Terpakai", realisasiBelanja.rupiahRingkas(), Icons.Rounded.Payments, if (melebihi > 0) BizgrowColors.Danger else BizgrowColors.Success, Modifier.weight(1f), caption = if (melebihi > 0) "$melebihi pos melebihi" else "aman")
+                    }
                 }
                 itemsIndexed(items, key = { _, b -> b.id }) { i, b ->
-                    BizSurface(Modifier.fillMaxWidth().enterAnimation(i), onClick = { hapus = b }, contentPadding = PaddingValues(14.dp)) {
+                    val warna = when { b.pendapatan -> if (b.progress >= 100) BizgrowColors.Success else BizgrowColors.Info; b.melebihi -> BizgrowColors.Danger; b.progress >= 80 -> BizgrowColors.Warning; else -> BizgrowColors.Success }
+                    BizSurface(Modifier.fillMaxWidth().enterAnimation(i), onClick = { ubah = b }, contentPadding = PaddingValues(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(namaAkun[b.coaId] ?: "Akun #${b.coaId}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2)
-                                Text(namaBulanAng.getOrElse(b.bulan) { "Tahunan" } + (b.keterangan?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(namaAkun[b.coaId] ?: b.namaAkun.ifBlank { "Akun #${b.coaId}" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2)
+                                Text(namaBulanAng.getOrElse(b.bulan) { "Tahunan" } + (b.keterangan?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: "") + if (b.pendapatan) " • Target pendapatan" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(b.nominal.rupiahRingkas(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(b.nominal.rupiahRingkas(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
+                                Text("${b.progress}%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = warna)
+                            }
                         }
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(progress = { (b.progress / 100f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50)), color = warna, trackColor = warna.copy(alpha = 0.15f))
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            (if (b.pendapatan) "Tercapai " else "Terpakai ") + b.realisasi.rupiahRingkas() + " • " +
+                                if (b.melebihi) "melebihi ${(-b.selisih).rupiahRingkas()}" else if (b.pendapatan) "kurang ${b.selisih.coerceAtLeast(0.0).rupiahRingkas()}" else "sisa ${b.selisih.rupiahRingkas()}",
+                            style = MaterialTheme.typography.labelSmall, color = if (b.melebihi) BizgrowColors.Danger else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -305,9 +327,10 @@ fun BudgetScreen(viewModel: AppViewModel) {
         var bulan by remember { mutableStateOf("0") }
         var nominal by remember { mutableStateOf("") }
         var ket by remember { mutableStateOf("") }
+        val sudahAda = coaId != null && items.any { it.coaId == coaId!!.toInt() && it.bulan == bulan.toInt() }
         FormSheet(
             "Anggaran baru", onDismiss = { tambah = false },
-            simpanAktif = coaId != null && (nominal.toDoubleOrNull() ?: 0.0) > 0,
+            simpanAktif = coaId != null && !sudahAda && (nominal.toDoubleOrNull() ?: 0.0) > 0,
             onSimpan = {
                 viewModel.createBudgetItem(BudgetItem(0, 0, coaId!!.toInt(), tahun, bulan.toInt(), nominal.toDouble(), ket.ifBlank { null }))
                 tambah = false
@@ -315,8 +338,24 @@ fun BudgetScreen(viewModel: AppViewModel) {
         ) {
             PilihanField("Akun (COA)", coa.filter { it.isActive == 1 }.map { it.id.toString() to "${it.kodeAkun} · ${it.namaAkun}" }, coaId, { coaId = it })
             PilihanField("Periode", namaBulanAng.mapIndexed { i, n -> i.toString() to n }, bulan, { bulan = it })
+            if (sudahAda) Text("Anggaran akun & periode ini sudah ada — ketuk kartunya untuk mengubah.", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Danger)
             AngkaField(nominal, { nominal = it }, "Nominal anggaran (Rp)", desimal = false)
             BizTextField(ket, { ket = it }, "Keterangan (opsional)", placeholder = "Misal: Limit iklan Meta bulanan")
+        }
+    }
+    ubah?.let { b ->
+        var nominal by remember(b.id) { mutableStateOf(b.nominal.toLong().toString()) }
+        var ket by remember(b.id) { mutableStateOf(b.keterangan ?: "") }
+        FormSheet(
+            "Ubah anggaran", subjudul = "${namaAkun[b.coaId] ?: b.namaAkun} • ${namaBulanAng.getOrElse(b.bulan) { "Tahunan" }}",
+            onDismiss = { ubah = null },
+            simpanAktif = (nominal.toDoubleOrNull() ?: 0.0) > 0,
+            onSimpan = { viewModel.updateBudgetItem(b.id, b.tahun, nominal.toDouble(), ket.ifBlank { null }); ubah = null },
+            onHapus = { hapus = b; ubah = null }
+        ) {
+            Text("Terpakai ${b.realisasi.rupiah()} (${b.progress}%)", style = MaterialTheme.typography.bodyMedium, color = if (b.melebihi) BizgrowColors.Danger else MaterialTheme.colorScheme.onSurfaceVariant)
+            AngkaField(nominal, { nominal = it }, "Nominal anggaran (Rp)", desimal = false)
+            BizTextField(ket, { ket = it }, "Keterangan (opsional)")
         }
     }
     hapus?.let { b ->
@@ -485,6 +524,7 @@ fun CoaScreen(viewModel: AppViewModel) {
 fun ClosingPeriodScreen(viewModel: AppViewModel) {
     val daftar by viewModel.closingPeriods.collectAsState()
     var kunci by remember { mutableStateOf(false) }
+    var bukaLagi by remember { mutableStateOf<ClosingPeriod?>(null) }
     LaunchedEffect(Unit) { viewModel.loadClosingPeriods() }
 
     BizScreen(
@@ -496,12 +536,12 @@ fun ClosingPeriodScreen(viewModel: AppViewModel) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BizgrowColors.Info.copy(alpha = 0.10f)).padding(12.dp)) {
                     Icon(Icons.Rounded.Lock, null, tint = BizgrowColors.Info, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("Periode yang sudah dikunci tidak dapat lagi diubah transaksinya. Lakukan saat laporan bulan/tahun sudah final dan tidak ada koreksi.", style = MaterialTheme.typography.bodySmall)
+                    Text("Transaksi dan jurnal pada periode yang dikunci tidak dapat dihapus atau ditambah mundur. Lakukan saat laporan sudah final; ketuk periode untuk membukanya kembali bila perlu koreksi.", style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (daftar.isEmpty()) item { EmptyView("Belum ada periode yang dikunci", "Kunci periode setelah laporan final.", Icons.Rounded.LockOpen) }
             itemsIndexed(daftar, key = { _, p -> p.id }) { i, p ->
-                BizSurface(Modifier.fillMaxWidth().enterAnimation(i), contentPadding = PaddingValues(14.dp)) {
+                BizSurface(Modifier.fillMaxWidth().enterAnimation(i), onClick = { bukaLagi = p }, contentPadding = PaddingValues(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconBadge(Icons.Rounded.Lock, BizgrowColors.Warning)
                         Spacer(Modifier.width(12.dp))
@@ -517,6 +557,19 @@ fun ClosingPeriodScreen(viewModel: AppViewModel) {
                 }
             }
         }
+    }
+
+    bukaLagi?.let { p ->
+        AlertDialog(
+            onDismissRequest = { bukaLagi = null },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            icon = { IconBadge(Icons.Rounded.LockOpen, BizgrowColors.Warning) },
+            title = { Text("Buka kembali periode?") },
+            text = { Text("${p.periodStart.take(10)} → ${p.periodEnd.take(10)} akan dibuka. Transaksi dan jurnal pada rentang ini bisa diubah lagi sampai Anda mengunci ulang.") },
+            confirmButton = { TextButton(onClick = { viewModel.bukaKembaliPeriode(p.id); bukaLagi = null }) { Text("Buka kembali", fontWeight = FontWeight.Bold) } },
+            dismissButton = { TextButton(onClick = { bukaLagi = null }) { Text("Batal") } }
+        )
     }
 
     if (kunci) {

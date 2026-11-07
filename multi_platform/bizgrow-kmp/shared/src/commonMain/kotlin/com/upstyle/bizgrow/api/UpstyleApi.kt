@@ -1239,6 +1239,16 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body())
 
+    suspend fun updateBudgetItem(id: Int, unitId: Int, nominal: Double, keterangan: String?): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/finance/budget") {
+            setBody(buildJsonObject {
+                put("id", id)
+                put("unitId", unitId)
+                put("nominal", nominal)
+                put("keterangan", keterangan)
+            })
+        }.body())
+
     suspend fun deleteBudgetItem(id: Int, unitId: Int): ApiResponse<Unit> =
         tanpaData(client.delete("api/app/finance/budget") {
             parameter("id", id)
@@ -1284,6 +1294,12 @@ class UpstyleApi(private val client: HttpClient) {
                 put("periodEnd", akhir)
                 keterangan?.takeIf { it.isNotBlank() }?.let { put("keterangan", it) }
             })
+        }.body())
+
+    suspend fun bukaKembaliPeriode(unitId: Int, id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/close-period") {
+            parameter("id", id)
+            parameter("unitId", unitId)
         }.body())
 
     // COA → api/app/finance/coa (tambah / ubah nama-deskripsi-status / nonaktifkan)
@@ -1358,7 +1374,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getBudgetItems(unitId: Int, year: Int): ApiResponse<List<BudgetItem>> =
         client.get("api/app/finance/budget") {
             parameter("unitId", unitId)
-            parameter("year", year)
+            parameter("tahun", year)
         }.body()
 
     suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
@@ -1472,6 +1488,8 @@ private fun FixedAsset.keJson(withId: Boolean) = buildJsonObject {
     put("nilaiSisa", nilaiSisa)
     if (withId) put("status", status)
     keterangan?.let { put("keterangan", it) }
+    // PUT: kosong = lepas dari akun COA; POST: hanya dikirim bila dipilih
+    if (withId) put("coaId", coaId) else coaId?.let { put("coaId", it) }
 }
 
 private fun TaxRate.keJson(withId: Boolean) = buildJsonObject {

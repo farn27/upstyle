@@ -440,6 +440,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: `"${namaTerhapus.toUpperCase()}" berhasil dihapus` });
     } catch (err) {
+        if (err instanceof TransaksiError) return json({ success: false, message: err.message }, { status: err.status });
         log.finance.error({ err }, 'API DELETE FINANCE ERROR');
         return json({ success: false, message: "Gagal menghapus transaksi" }, { status: 500 });
     }

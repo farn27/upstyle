@@ -143,6 +143,7 @@ export const actions = {
                 message: `"${namaTerhapus.toUpperCase()}" BERHASIL DIHAPUS!` 
             };
         } catch (e) {
+            if (e?.name === 'TransaksiError') return fail(e.status || 400, { message: e.message });
             log.finance.error({ err: e.message }, 'Delete Error');
             return fail(500, { message: "Gagal memproses sinkronisasi data" });
         }

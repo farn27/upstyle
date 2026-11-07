@@ -4,6 +4,7 @@ import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$
 import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { pastikanPeriodeTerbuka } from '$lib/server/periodeTutup';
 
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -138,6 +139,8 @@ export async function POST({ request, cookies, url }) {
             return json({ success: false, message: 'Nominal debit dan kredit harus lebih dari 0', data: null }, { status: 400 });
         }
 
+        await pastikanPeriodeTerbuka(db, Number(unitId), tanggal);
+
         const dateObj = new Date(tanggal);
         const year = isNaN(dateObj.getFullYear()) ? new Date().getFullYear() : dateObj.getFullYear();
 
@@ -198,6 +201,7 @@ export async function POST({ request, cookies, url }) {
         });
 
     } catch (err) {
+        if (err?.name === 'TransaksiError') return json({ success: false, message: err.message, data: null }, { status: err.status || 400 });
         if (log?.finance?.error) log.finance.error({ err }, 'API POST Journal Error');
         else if (log?.error) log.error({ err }, 'API POST Journal Error');
         return json({ success: false, message: 'Gagal membuat jurnal: ' + err.message, data: null }, { status: 500 });

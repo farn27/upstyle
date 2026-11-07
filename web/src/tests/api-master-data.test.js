@@ -3,6 +3,7 @@
  * memakai logika yang sama ($lib/server/masterData.js). Hanya jalan kalau TEST_DATABASE_URL diset.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { hitungPenyusutan } from '../lib/server/penyusutan.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 if (TEST_DB) process.env.DATABASE_URL = TEST_DB;
@@ -129,5 +130,20 @@ describe.skipIf(!TEST_DB)('Master data', () => {
 		expect(e).toEqual({ success: true });
 		const a = await db.query.fixedAssets.findFirst({ where: eq(s.fixedAssets.id, id.aset) });
 		expect(a).toMatchObject({ namaAset: 'Laptop Baru', kategori: 'INVENTARIS', umurEkonomis: 5, status: 'AKTIF', coaId: null });
+	});
+
+	it('penyusutan: garis lurus & saldo menurun dihitung per bulan', () => {
+		const a = { nilaiPerolehan: 12000000, nilaiSisa: 0, umurEkonomis: 4, metodePenyusutan: 'GARIS_LURUS', tanggalPerolehan: '2025-01-15' };
+		expect(hitungPenyusutan(a, '2025-01-20')).toMatchObject({ akumulasi: 0, bulanBerjalan: 0, perBulan: 250000 });
+		expect(hitungPenyusutan(a, '2025-04-15')).toMatchObject({ akumulasi: 750000, nilaiBuku: 11250000, bulanBerjalan: 3 });
+		expect(hitungPenyusutan(a, '2025-04-14').bulanBerjalan).toBe(2);
+		// tidak melewati nilai sisa
+		expect(hitungPenyusutan({ ...a, nilaiSisa: 2000000 }, '2040-01-01')).toMatchObject({ akumulasi: 10000000, nilaiBuku: 2000000 });
+		// sebelum tanggal perolehan
+		expect(hitungPenyusutan(a, '2024-01-01').akumulasi).toBe(0);
+		const sm = hitungPenyusutan({ ...a, metodePenyusutan: 'SALDO_MENURUN' }, '2026-01-15');
+		expect(sm.akumulasi).toBe(6000000); // tahun 1: 50% × 12.000.000
+		expect(hitungPenyusutan({ ...a, metodePenyusutan: 'SALDO_MENURUN' }, '2027-01-15').akumulasi).toBe(9000000); // tahun 2: 50% × 6.000.000
+		expect(hitungPenyusutan({ ...a, nilaiSisa: 3000000, metodePenyusutan: 'SALDO_MENURUN' }, '2060-01-01').nilaiBuku).toBeGreaterThanOrEqual(3000000);
 	});
 });

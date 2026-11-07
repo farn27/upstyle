@@ -945,6 +945,8 @@ class AppViewModel(
 
     fun createBudgetItem(item: BudgetItem) =
         jalankanMasterData("Anggaran disimpan", { loadBudgetItems(item.tahun) }) { api.createBudgetItem(item.copy(unitId = it)) }
+    fun updateBudgetItem(id: Int, tahun: Int, nominal: Double, keterangan: String?) =
+        jalankanMasterData("Anggaran diperbarui", { loadBudgetItems(tahun) }) { api.updateBudgetItem(id, it, nominal, keterangan) }
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
 
@@ -1064,6 +1066,9 @@ class AppViewModel(
 
     fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
         jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
+
+    fun bukaKembaliPeriode(id: Int) =
+        jalankanMasterData("Periode dibuka kembali", { loadClosingPeriods() }) { api.bukaKembaliPeriode(it, id) }
 
     /** Simpan akun COA baru; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
     suspend fun simpanCoaBaru(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): String? {
