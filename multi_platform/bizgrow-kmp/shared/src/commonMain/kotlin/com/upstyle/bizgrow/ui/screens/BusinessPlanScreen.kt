@@ -112,7 +112,7 @@ fun BusinessPlanScreen(viewModel: AppViewModel) {
                     planDescription = ""
                     planStatus = "DRAFT"
                     editingPlan = null
-                    showCreate = true
+                    viewModel.bukaWizardPlan(0)
                 },
                 containerColor = BizgrowColors.Primary,
                 contentColor = Color.White,
@@ -142,7 +142,7 @@ fun BusinessPlanScreen(viewModel: AppViewModel) {
                         planDescription = ""
                         planStatus = "DRAFT"
                         editingPlan = null
-                        showCreate = true
+                        viewModel.bukaWizardPlan(0)
                     }
                 )
             } else {
@@ -154,13 +154,7 @@ fun BusinessPlanScreen(viewModel: AppViewModel) {
                     items(state.plans, key = { it.id }) { plan ->
                         BusinessPlanCard(
                             plan = plan,
-                            onEdit = {
-                                editingPlan = it
-                                planTitle = it.title
-                                planDescription = it.description
-                                planStatus = it.status
-                                showCreate = true
-                            },
+                            onEdit = { viewModel.bukaWizardPlan(it.id) },
                             onDelete = { deleteTarget = it },
                             onApply = { viewModel.applyBusinessPlan(it.id) }
                         )

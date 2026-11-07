@@ -151,7 +151,10 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
 
     // ─── Validasi submit ──────────────────────────────────────────────────────
     val nominalDouble = nominal.toDoubleOrNull() ?: 0.0
-    val canSubmit = selectedCoa != null && selectedKasCoa != null && nominalDouble > 0 && !uiState.isLoading
+    val qtyAngka = qty.toIntOrNull() ?: 1
+    // Penjualan produk tidak boleh melebihi stok (server menolak juga)
+    val stokKurang = tipeTrx.equals("MASUK", true) && selectedProduct != null && qtyAngka > selectedProduct!!.stok
+    val canSubmit = selectedCoa != null && selectedKasCoa != null && nominalDouble > 0 && !stokKurang && qtyAngka > 0 && !uiState.isLoading
 
     // ─── UI ───────────────────────────────────────────────────────────────────
     Scaffold(
@@ -437,6 +440,8 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                                 value = qty,
                                 onValueChange = { qty = it },
                                 label = { Text("Qty") },
+                                isError = stokKurang,
+                                supportingText = if (stokKurang) ({ Text("Stok tidak cukup — tersedia ${selectedProduct?.stok}") }) else selectedProduct?.let { p -> ({ Text("Stok tersedia ${p.stok}") }) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
@@ -498,6 +503,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                     if (selectedCoa == null) add("COA")
                     if (selectedKasCoa == null) add("akun kas/bank")
                     if (nominalDouble <= 0) add("nominal > 0")
+                    if (stokKurang) add("qty sesuai stok")
                 }
                 if (missingFields.isNotEmpty()) {
                     Text(

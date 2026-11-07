@@ -13,6 +13,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
@@ -981,6 +982,26 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body()
         return ApiResponse(res.success, res.message, null, res.code)
+    }
+
+    /** Plan lengkap untuk wizard (semua kolom). */
+    suspend fun getPlanLengkap(id: Int): JsonObject? {
+        val res: ApiResponse<JsonObject> = client.get("api/app/business-plan") { parameter("id", id) }.body()
+        return if (res.success) res.data else null
+    }
+
+    /** Simpan semua field wizard (buat baru bila id kosong). Mengembalikan id plan. */
+    suspend fun simpanPlanLengkap(body: JsonObject): Pair<Int?, String?> {
+        val res: ApiResponse<JsonObject> = client.post("api/app/business-plan") { setBody(body) }.body()
+        return if (res.success) (res.data?.get("id")?.jsonPrimitive?.intOrNull) to null else null to (res.message ?: "Gagal menyimpan plan")
+    }
+
+    /** Bantuan AI untuk wizard: mode hint | validate | canvas. */
+    suspend fun aiPlanAssist(step: Int, field: String, kategori: String, konteks: JsonObject, mode: String): String? {
+        val res: ApiResponse<JsonObject> = client.post("api/app/business-plan/ai-assist") {
+            setBody(buildJsonObject { put("step", step); put("field", field); put("kategori", kategori); put("context", konteks); put("mode", mode) })
+        }.body()
+        return if (res.success) res.data?.get("result")?.jsonPrimitive?.contentOrNull else null
     }
 
     suspend fun deleteBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> {

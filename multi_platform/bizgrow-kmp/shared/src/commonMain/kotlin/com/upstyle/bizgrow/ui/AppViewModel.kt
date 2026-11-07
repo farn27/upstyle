@@ -1012,6 +1012,20 @@ class AppViewModel(
     fun hapusKontakAkuntansi(id: Int) =
         jalankanMasterData("Kontak dihapus", { loadAccountingContacts() }) { api.hapusKontakAkuntansi(it, id) }
 
+    // ─── Wizard business plan ───
+    var planWizardId: Int = 0
+        private set
+    fun bukaWizardPlan(id: Int) { planWizardId = id; navigate(Screen.PlanWizard) }
+    suspend fun muatPlanLengkap(): kotlinx.serialization.json.JsonObject? =
+        if (planWizardId == 0) null else try { api.getPlanLengkap(planWizardId) } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); null }
+    suspend fun simpanPlanLengkap(body: kotlinx.serialization.json.JsonObject): Int? = try {
+        val (id, err) = api.simpanPlanLengkap(body)
+        if (id != null) { planWizardId = id; loadBusinessPlans() } else if (err != null) setError(err)
+        id
+    } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); null }
+    suspend fun bantuanAiPlan(step: Int, field: String, kategori: String, konteks: kotlinx.serialization.json.JsonObject, mode: String): String? =
+        try { api.aiPlanAssist(step, field, kategori, konteks, mode) } catch (e: Exception) { setError("AI tidak tersedia: ${e.message}"); null }
+
     fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
         jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
 
