@@ -21,6 +21,7 @@ import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
+import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 
 // Master data akuntansi (padanan web: master-data/{pajak,aset,budget,coa,tutup-buku}) — daftar + tambah/ubah/hapus.
@@ -282,13 +283,26 @@ private val templateCoa = listOf(
     "RESTORAN" to "Restoran", "CAFE" to "Kafe / Kopi"
 )
 
+private val awalanKode = mapOf(
+    "ASET_LANCAR" to "1", "ASET_TETAP" to "1", "LIABILITAS_LANCAR" to "2", "LIABILITAS_JANGKA_PANJANG" to "2", "EKUITAS" to "3",
+    "PENDAPATAN" to "4", "HPP" to "5", "BEBAN_OPERASIONAL" to "6", "BEBAN_LAINNYA" to "7", "PENDAPATAN_LAINNYA" to "8"
+)
+
+/** Saran kode akun berikutnya untuk sebuah jenis, mis. 1-1003 bila 1-1002 sudah ada. */
+private fun sarankanKode(tipe: String, ada: List<ChartOfAccount>): String {
+    val awalan = awalanKode[tipe] ?: "1"
+    val terbesar = ada.mapNotNull { Regex("^$awalan-(\\d+)$").find(it.kodeAkun)?.groupValues?.get(1)?.toIntOrNull() }.maxOrNull() ?: 1000
+    return "$awalan-${terbesar + 1}"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CoaScreen(viewModel: AppViewModel) {
     val daftar by viewModel.chartOfAccounts.collectAsState()
+    val scope = rememberCoroutineScope()
     var edit by remember { mutableStateOf<ChartOfAccount?>(null) }
     var tambah by remember { mutableStateOf(false) }
-    var template by remember { mutableStateOf(false) }
+    var otomatis by remember { mutableStateOf(false) }
     var hapus by remember { mutableStateOf<ChartOfAccount?>(null) }
     var cari by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { viewModel.loadCoa() }
@@ -297,17 +311,17 @@ fun CoaScreen(viewModel: AppViewModel) {
 
     BizScreen(
         "Chart of Accounts", subtitle = "${daftar.size} akun • double-entry", onBack = { viewModel.navigateBack() },
-        actions = { if (daftar.isNotEmpty()) { BizIconButton(Icons.Rounded.AutoFixHigh, "Template") { template = true }; Spacer(Modifier.width(8.dp)) } },
+        actions = { BizIconButton(Icons.Rounded.AutoAwesome, "Buat otomatis") { otomatis = true }; Spacer(Modifier.width(8.dp)) },
         floatingActionButton = { FabTambah("Akun baru") { tambah = true } }
     ) { padding ->
         if (daftar.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                IconBadge(Icons.Rounded.AccountTree, BizgrowColors.Primary, size = 64.dp, iconSize = 32.dp)
+                AiAvatar(64.dp)
                 Spacer(Modifier.height(14.dp))
                 Text("COA belum ada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Chart of Accounts diperlukan untuk mencatat transaksi dengan jurnal otomatis. Pakai template sesuai jenis usahamu atau buat manual.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text("Chart of Accounts dibutuhkan untuk mencatat transaksi dengan jurnal otomatis. Biarkan AI membuatnya sesuai bisnismu, pakai template, atau buat manual.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Spacer(Modifier.height(18.dp))
-                BizButton("Pakai template standar", onClick = { template = true }, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.AutoFixHigh)
+                BizButton("Buat otomatis (AI / template)", onClick = { otomatis = true }, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.AutoAwesome)
                 Spacer(Modifier.height(10.dp))
                 BizOutlineButton("Buat akun manual", onClick = { tambah = true }, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
             }
@@ -330,38 +344,77 @@ fun CoaScreen(viewModel: AppViewModel) {
 
     if (tambah || edit != null) {
         val awal = edit
-        var kode by remember(awal) { mutableStateOf(awal?.kodeAkun ?: "") }
-        var nama by remember(awal) { mutableStateOf(awal?.namaAkun ?: "") }
         var tipe by remember(awal) { mutableStateOf(awal?.tipeAkun ?: "ASET_LANCAR") }
+        var kode by remember(awal) { mutableStateOf(awal?.kodeAkun ?: sarankanKode("ASET_LANCAR", daftar)) }
+        var kodeDiubahManual by remember(awal) { mutableStateOf(false) }
+        var nama by remember(awal) { mutableStateOf(awal?.namaAkun ?: "") }
         var desk by remember(awal) { mutableStateOf(awal?.deskripsi ?: "") }
         var aktif by remember(awal) { mutableStateOf((awal?.isActive ?: 1) == 1) }
+        var galat by remember(awal) { mutableStateOf<String?>(null) }
+        var menyimpan by remember(awal) { mutableStateOf(false) }
+        val kodeBentrok = awal == null && daftar.any { it.kodeAkun.equals(kode.trim(), true) }
         FormSheet(
             if (awal == null) "Akun COA baru" else "Ubah akun COA",
-            subjudul = if (awal != null) "Kode & jenis akun tidak bisa diubah agar jurnal lama tetap konsisten." else null,
-            onDismiss = { tambah = false; edit = null },
-            simpanAktif = nama.isNotBlank() && (awal != null || kode.isNotBlank()),
-            onHapus = awal?.let { { hapus = it; edit = null } }, 
+            subjudul = if (awal != null) "Kode & jenis akun tidak bisa diubah agar jurnal lama tetap konsisten." else "Kode terisi otomatis sesuai jenis akun; boleh kamu ubah.",
+            onDismiss = { if (!menyimpan) { tambah = false; edit = null } },
+            simpanAktif = nama.isNotBlank() && (awal != null || (kode.isNotBlank() && !kodeBentrok)) && !menyimpan,
+            onHapus = awal?.let { { hapus = it; edit = null } },
             onSimpan = {
-                if (awal == null) viewModel.createCoa(kode.trim(), nama.trim(), tipe, normalDari(tipe), desk.ifBlank { null })
-                else viewModel.updateCoa(awal.id, nama.trim(), desk.ifBlank { null }, aktif)
-                tambah = false; edit = null
+                galat = null
+                if (awal == null) {
+                    menyimpan = true
+                    scope.launch {
+                        val err = viewModel.simpanCoaBaru(kode.trim(), nama.trim(), tipe, normalDari(tipe), desk.ifBlank { null })
+                        menyimpan = false
+                        if (err == null) { tambah = false } else galat = err
+                    }
+                } else { viewModel.updateCoa(awal.id, nama.trim(), desk.ifBlank { null }, aktif); edit = null }
             }
         ) {
-            BizTextField(kode, { kode = it }, "Kode akun", placeholder = "1-1001", enabled = awal == null)
+            PilihanField("Jenis akun", tipeCoa, tipe, { t -> tipe = t; if (awal == null && !kodeDiubahManual) kode = sarankanKode(t, daftar) }, enabled = awal == null)
+            BizTextField(kode, { kode = it; kodeDiubahManual = true }, "Kode akun", placeholder = "1-1001", enabled = awal == null, isError = kodeBentrok,
+                supportingText = if (kodeBentrok) "Kode ini sudah dipakai akun lain" else null)
             BizTextField(nama, { nama = it }, "Nama akun", placeholder = "Kas Kecil")
-            PilihanField("Jenis akun", tipeCoa, tipe, { tipe = it }, enabled = awal == null)
             Text("Saldo normal: ${if (normalDari(tipe) == "DEBIT") "Debit" else "Kredit"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             BizTextField(desk, { desk = it }, "Deskripsi (opsional)", placeholder = "Tulis catatan…", singleLine = false)
             if (awal != null) SwitchBaris("Akun aktif", "Akun nonaktif tidak muncul di pilihan transaksi", aktif) { aktif = it }
+            galat?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = BizgrowColors.Danger, fontWeight = FontWeight.SemiBold) }
         }
     }
-    if (template) {
+
+    if (otomatis) {
+        var mode by remember { mutableStateOf("AI") }
+        var uraian by remember { mutableStateOf("") }
+        var lengkapi by remember { mutableStateOf(daftar.isNotEmpty()) }
         var jenis by remember { mutableStateOf("LAINNYA") }
+        var sibuk by remember { mutableStateOf(false) }
+        var galat by remember { mutableStateOf<String?>(null) }
         FormSheet(
-            "Template COA standar", subjudul = "Pilih jenis usaha. Template hanya bisa dipakai bila unit belum punya akun.",
-            onDismiss = { template = false }, labelSimpan = "Buat akun standar",
-            onSimpan = { viewModel.seedDefaultCoa(jenis); template = false }
-        ) { PilihanPil("Jenis usaha", templateCoa, jenis) { jenis = it } }
+            "Buat COA otomatis", subjudul = "AI menyusun akun sesuai bisnismu, atau pakai template standar.",
+            onDismiss = { if (!sibuk) otomatis = false },
+            labelSimpan = if (sibuk) "Memproses…" else if (mode == "AI") "Buat dengan AI" else "Pakai template",
+            simpanAktif = !sibuk && (mode != "AI" || uraian.trim().length >= 3) && (mode == "AI" || daftar.isEmpty()),
+            onSimpan = {
+                galat = null; sibuk = true
+                scope.launch {
+                    val err = if (mode == "AI") viewModel.buatCoaAi(uraian.trim(), lengkapi && daftar.isNotEmpty()) else viewModel.buatCoaTemplate(jenis)
+                    sibuk = false
+                    if (err == null) otomatis = false else galat = err
+                }
+            }
+        ) {
+            PilihanPil("Cara", listOf("AI" to "✨ AI sesuai bisnis", "TEMPLATE" to "Template standar"), mode) { mode = it; galat = null }
+            if (mode == "AI") {
+                BizTextField(uraian, { uraian = it }, "Ceritakan bisnismu", placeholder = "Contoh: toko roti dengan 2 kasir, jual online dan offline", singleLine = false)
+                if (daftar.isNotEmpty()) SwitchBaris("Lengkapi COA yang ada", "Hanya menambah akun yang belum ada; akun lama tidak diubah", lengkapi) { lengkapi = it }
+                Text("AI membuat sekitar 14–22 akun. Kamu bisa mengubah atau menonaktifkannya setelah itu.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                if (daftar.isNotEmpty()) Text("Template hanya bisa dipakai bila unit belum punya akun. Gunakan mode AI dengan \"Lengkapi COA yang ada\" untuk menambah akun.", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.WarningDark)
+                PilihanPil("Jenis usaha", templateCoa, jenis) { jenis = it }
+            }
+            if (sibuk) LinearProgressIndicator(Modifier.fillMaxWidth())
+            galat?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = BizgrowColors.Danger, fontWeight = FontWeight.SemiBold) }
+        }
     }
     hapus?.let { a ->
         KonfirmasiHapus("Nonaktifkan akun?", "\"${a.kodeAkun} · ${a.namaAkun}\" tidak akan muncul lagi di pilihan transaksi (riwayat jurnal tetap aman).", { viewModel.deleteCoa(a.id); hapus = null }, { hapus = null })

@@ -4,7 +4,9 @@ import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
-import { isiCoaStandar, MasterDataError, TIPE_COA } from '$lib/server/masterData';
+import { isiCoaStandar, buatCoaDenganAi, MasterDataError, TIPE_COA } from '$lib/server/masterData';
+import { groqChatCompletion } from '$lib/server/groq';
+import { cekKuotaAI } from '$lib/server/rateLimit';
 import { log } from '$lib/server/logger';
 
 // GET: Fetch all active COAs for unitId
@@ -56,6 +58,30 @@ export async function POST({ request, cookies }) {
             }
         }
 
+        // Buat COA otomatis dari deskripsi bisnis (AI). tambahkan=true → lengkapi COA yang sudah ada
+        if (body?.action === 'generate-ai') {
+            if (!body.unitId) return json({ success: false, message: 'unitId wajib diisi', data: null }, { status: 400 });
+            const kuota = await cekKuotaAI(userId);
+            if (!kuota.allowed) return json({ success: false, message: kuota.pesan, data: null }, { status: 429 });
+            try {
+                const jumlah = await buatCoaDenganAi(db, Number(body.unitId), body.deskripsi, {
+                    tambahkan: body.tambahkan === true,
+                    panggilAi: async (sistem, pengguna) => {
+                        const res = await groqChatCompletion({
+                            model: 'llama-3.1-8b-instant',
+                            messages: [{ role: 'system', content: sistem }, { role: 'user', content: pengguna }],
+                            temperature: 0.2, max_tokens: 2200
+                        });
+                        return res.choices?.[0]?.message?.content || '';
+                    }
+                });
+                return json({ success: true, message: `${jumlah} akun COA dibuat oleh AI`, data: { created: jumlah } });
+            } catch (e) {
+                if (e instanceof MasterDataError) return json({ success: false, message: e.message, data: null }, { status: e.status });
+                throw e;
+            }
+        }
+
         const { unitId, kodeAkun, namaAkun, tipeAkun, normalBalance, deskripsi } = body;
 
         if (!unitId || !kodeAkun || !namaAkun || !tipeAkun || !normalBalance) {
@@ -65,6 +91,10 @@ export async function POST({ request, cookies }) {
                 data: null
             }, { status: 400 });
         }
+
+        const TIPE_OK = ['ASET_LANCAR', 'ASET_TETAP', 'LIABILITAS_LANCAR', 'LIABILITAS_JANGKA_PANJANG', 'EKUITAS', 'PENDAPATAN', 'HPP', 'BEBAN_OPERASIONAL', 'BEBAN_LAINNYA', 'PENDAPATAN_LAINNYA'];
+        if (!TIPE_OK.includes(tipeAkun)) return json({ success: false, message: 'Jenis akun tidak valid', data: null }, { status: 422 });
+        if (!['DEBIT', 'KREDIT'].includes(normalBalance)) return json({ success: false, message: 'Saldo normal harus DEBIT atau KREDIT', data: null }, { status: 422 });
 
         const existing = await db.query.chartOfAccounts.findFirst({
             where: and(

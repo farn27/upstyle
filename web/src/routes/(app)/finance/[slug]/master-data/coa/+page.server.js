@@ -4,18 +4,10 @@ import { chartOfAccounts, unitBisnis } from '$lib/server/schema';
 import { eq, and, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { DEFAULT_COAS } from '$lib/server/defaultCoa';
-import { Groq } from 'groq-sdk';
-import { env } from '$env/dynamic/private';
-import { isiCoaStandar, MasterDataError } from '$lib/server/masterData';
+import { isiCoaStandar, buatCoaDenganAi, MasterDataError } from '$lib/server/masterData';
+import { groqChatCompletion } from '$lib/server/groq';
 import { log } from '$lib/server/logger';
 import { cekKuotaAI } from '$lib/server/rateLimit';
-
-function getGroqClient() {
-    if (!env.GROQ_API_KEY) {
-        throw new Error('GROQ_API_KEY belum dikonfigurasi di server');
-    }
-    return new Groq({ apiKey: env.GROQ_API_KEY });
-}
 
 export const load = async ({ params, cookies }) => {
     const userId = await getCurrentUserId(cookies);
@@ -181,72 +173,31 @@ export const actions = {
         const kuota = await cekKuotaAI(userId);
         if (!kuota.allowed) return fail(429, { message: kuota.pesan });
 
-        const { slug } = params;
         const formData = await request.formData();
-        const prompt = formData.get('prompt')?.toString().trim();
-
+        const prompt = formData.get('prompt')?.toString().trim() || '';
         if (!prompt) return fail(400, { message: 'Deskripsi bisnis wajib diisi' });
 
         try {
             const unit = await db.query.unitBisnis.findFirst({
-                where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
+                where: and(eq(unitBisnis.slug, params.slug), eq(unitBisnis.userId, userId))
             });
             if (!unit) return fail(404, { message: 'Unit tidak ditemukan' });
 
-            // check if already has COA
-            const existing = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.unitId, unit.id)).limit(1);
-            if (existing.length > 0) {
-                return fail(400, { message: 'Unit sudah memiliki Chart of Accounts lurd!' });
-            }
-
-            const systemPrompt = `Anda adalah ahli akuntansi. Buatlah Chart of Accounts (Bagan Akun) dalam format JSON array yang murni (tanpa markdown backticks \`\`\`) berdasarkan deskripsi bisnis berikut.
-Gunakan skema JSON berikut untuk setiap akun:
-[
-  {
-    "kodeAkun": "string (misal: 1-1001)",
-    "namaAkun": "string",
-    "tipeAkun": "string (harus salah satu dari: ASET_LANCAR, ASET_TETAP, ASET_LAINNYA, LIABILITAS_LANCAR, LIABILITAS_JANGKA_PANJANG, EKUITAS, PENDAPATAN, HPP, BEBAN_OPERASIONAL, BEBAN_LAINNYA, PENDAPATAN_LAINNYA)",
-    "normalBalance": "string (DEBIT atau KREDIT)",
-    "deskripsi": "string"
-  }
-]
-Hasilkan sekitar 10-15 akun esensial yang sangat spesifik dan relevan dengan model bisnis ini. Output HANYA JSON array saja tanpa teks lain.`;
-
-            const groq = getGroqClient();
-            const completion = await groq.chat.completions.create({
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: `Deskripsi bisnis saya: ${prompt}` }
-                ],
-                model: "llama-3.1-8b-instant",
-                temperature: 0.1,
+            // Logika sama dengan app mobile: akun divalidasi, kode unik, disimpan sekaligus (tidak setengah jadi)
+            const jumlah = await buatCoaDenganAi(db, unit.id, prompt, {
+                tambahkan: formData.get('tambahkan') === 'on',
+                panggilAi: async (sistem, pengguna) => {
+                    const res = await groqChatCompletion({
+                        model: 'llama-3.1-8b-instant',
+                        messages: [{ role: 'system', content: sistem }, { role: 'user', content: pengguna }],
+                        temperature: 0.2, max_tokens: 2200
+                    });
+                    return res.choices?.[0]?.message?.content || '';
+                }
             });
-
-            let responseText = completion.choices[0]?.message?.content || "[]";
-            
-            // bersihkan markdown backticks jika AI masih ngeyel
-            responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-
-            const coasToInsert = JSON.parse(responseText);
-
-            if (!Array.isArray(coasToInsert) || coasToInsert.length === 0) {
-                throw new Error("AI gagal men-generate COA yang valid.");
-            }
-
-            for (const coa of coasToInsert) {
-                await db.insert(chartOfAccounts).values({
-                    unitId: unit.id,
-                    kodeAkun: coa.kodeAkun,
-                    namaAkun: coa.namaAkun,
-                    tipeAkun: coa.tipeAkun,
-                    normalBalance: coa.normalBalance,
-                    deskripsi: coa.deskripsi || '',
-                    isActive: 1
-                });
-            }
-
-            return { success: true, message: 'COA Custom dari AI berhasil dibuat!' };
+            return { success: true, message: `${jumlah} akun COA berhasil dibuat oleh AI!` };
         } catch (err) {
+            if (err instanceof MasterDataError) return fail(err.status === 409 ? 400 : err.status, { message: err.message });
             log.ai.error({ err }, 'AI Error generate COA');
             return fail(500, { message: 'Gagal generate AI: ' + err.message });
         }

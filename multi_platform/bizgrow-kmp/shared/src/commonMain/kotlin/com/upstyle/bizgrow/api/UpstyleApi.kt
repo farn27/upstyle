@@ -1282,6 +1282,12 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body())
 
+    /** COA otomatis dari deskripsi bisnis (AI). [tambahkan] = lengkapi COA yang sudah ada. */
+    suspend fun generateCoaAi(unitId: Int, deskripsi: String, tambahkan: Boolean): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/coa") {
+            setBody(buildJsonObject { put("action", "generate-ai"); put("unitId", unitId); put("deskripsi", deskripsi); put("tambahkan", tambahkan) })
+        }.body())
+
     suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean): ApiResponse<Unit> =
         tanpaData(client.put("api/app/finance/coa") {
             setBody(buildJsonObject {

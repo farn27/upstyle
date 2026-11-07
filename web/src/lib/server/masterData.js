@@ -142,3 +142,108 @@ export async function isiCoaStandar(db, unitId, tipe) {
 	await db.insert(chartOfAccounts).values(template.map((c) => ({ ...c, unitId, isActive: 1 })));
 	return template.length;
 }
+
+// ─── COA otomatis dengan AI ───────────────────────────────────────────────
+
+const TIPE_AKUN_VALID = [
+	'ASET_LANCAR', 'ASET_TETAP', 'LIABILITAS_LANCAR', 'LIABILITAS_JANGKA_PANJANG', 'EKUITAS',
+	'PENDAPATAN', 'HPP', 'BEBAN_OPERASIONAL', 'BEBAN_LAINNYA', 'PENDAPATAN_LAINNYA'
+];
+/** Awalan kode per jenis akun (sesuai konvensi 1xxx aset, 2xxx liabilitas, dst.) */
+const AWALAN_KODE = {
+	ASET_LANCAR: '1', ASET_TETAP: '1', LIABILITAS_LANCAR: '2', LIABILITAS_JANGKA_PANJANG: '2', EKUITAS: '3',
+	PENDAPATAN: '4', HPP: '5', BEBAN_OPERASIONAL: '6', BEBAN_LAINNYA: '7', PENDAPATAN_LAINNYA: '8'
+};
+const NORMAL_DEBIT = new Set(['ASET_LANCAR', 'ASET_TETAP', 'HPP', 'BEBAN_OPERASIONAL', 'BEBAN_LAINNYA']);
+const ALIAS_TIPE = { ASET_LAINNYA: 'ASET_TETAP', ASET: 'ASET_LANCAR', LIABILITAS: 'LIABILITAS_LANCAR', BEBAN: 'BEBAN_OPERASIONAL', HARGA_POKOK_PENJUALAN: 'HPP', MODAL: 'EKUITAS' };
+
+/**
+ * Ambil array akun dari jawaban AI (toleran terhadap markdown / teks pembuka).
+ * @param {string} teks
+ * @returns {any[]}
+ */
+export function bacaAkunDariAi(teks) {
+	const bersih = String(teks || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+	const awal = bersih.indexOf('[');
+	const akhir = bersih.lastIndexOf(']');
+	if (awal < 0 || akhir <= awal) return [];
+	try {
+		const arr = JSON.parse(bersih.slice(awal, akhir + 1));
+		return Array.isArray(arr) ? arr : [];
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Rapikan akun dari AI: tipe valid, saldo normal mengikuti tipe, kode unik, tanpa duplikat nama.
+ * @param {any[]} mentah @param {Set<string>} kodeTerpakai @param {Set<string>} namaTerpakai
+ */
+export function rapikanAkunAi(mentah, kodeTerpakai, namaTerpakai) {
+	const kode = new Set(kodeTerpakai);
+	const nama = new Set([...namaTerpakai].map((n) => n.toLowerCase()));
+	/** @type {Record<string, number>} */
+	const urut = {};
+	/** @type {{ kodeAkun: string, namaAkun: string, tipeAkun: string, normalBalance: string, deskripsi: string }[]} */
+	const hasil = [];
+	for (const a of mentah) {
+		if (!a || typeof a !== 'object') continue;
+		const namaAkun = String(a.namaAkun || '').trim().slice(0, 150);
+		if (namaAkun.length < 2 || nama.has(namaAkun.toLowerCase())) continue;
+		let tipe = String(a.tipeAkun || '').toUpperCase().replace(/\s+/g, '_');
+		tipe = /** @type {any} */ (ALIAS_TIPE)[tipe] || tipe;
+		if (!TIPE_AKUN_VALID.includes(tipe)) continue;
+		let kodeAkun = String(a.kodeAkun || '').trim().slice(0, 20);
+		const awalan = /** @type {any} */ (AWALAN_KODE)[tipe];
+		if (!kodeAkun || kode.has(kodeAkun)) {
+			let n = urut[awalan] ?? 1000;
+			do { n += 1; kodeAkun = `${awalan}-${n}`; } while (kode.has(kodeAkun));
+			urut[awalan] = n;
+		}
+		kode.add(kodeAkun);
+		nama.add(namaAkun.toLowerCase());
+		hasil.push({
+			kodeAkun, namaAkun, tipeAkun: tipe,
+			normalBalance: NORMAL_DEBIT.has(tipe) ? 'DEBIT' : 'KREDIT',
+			deskripsi: String(a.deskripsi || '').trim().slice(0, 500)
+		});
+	}
+	return hasil;
+}
+
+const PROMPT_COA = `Anda ahli akuntansi Indonesia. Buat Chart of Accounts (bagan akun) untuk bisnis yang dideskripsikan pengguna.
+Balas HANYA array JSON murni (tanpa markdown, tanpa teks lain). Setiap elemen:
+{"kodeAkun":"1-1001","namaAkun":"Kas","tipeAkun":"ASET_LANCAR","normalBalance":"DEBIT","deskripsi":"..."}
+tipeAkun HARUS salah satu: ${TIPE_AKUN_VALID.join(', ')}.
+Wajib ada minimal: akun kas/bank, piutang, persediaan (bila berdagang), hutang usaha, modal pemilik, pendapatan utama, HPP (bila berdagang), beban operasional umum (gaji, sewa, listrik, dll).
+Buat 14-22 akun yang spesifik dan relevan dengan model bisnisnya. Kode memakai format 1-1001 (1 aset, 2 liabilitas, 3 ekuitas, 4 pendapatan, 5 HPP, 6 beban operasional, 7 beban lainnya, 8 pendapatan lainnya).`;
+
+/**
+ * Buat COA otomatis dari deskripsi bisnis memakai AI. Semua akun disimpan dalam satu transaksi.
+ * Bila `tambahkan` true, hanya menambah akun yang belum ada (kode/nama berbeda) pada COA yang sudah ada.
+ * @param {any} db @param {number} unitId @param {string} deskripsi
+ * @param {{ tambahkan?: boolean, panggilAi: (prompt: string, deskripsi: string) => Promise<string> }} opsi
+ * @returns {Promise<number>} jumlah akun dibuat
+ */
+export async function buatCoaDenganAi(db, unitId, deskripsi, opsi) {
+	const uraian = String(deskripsi || '').trim();
+	if (uraian.length < 3) throw new MasterDataError('Deskripsi bisnis wajib diisi (minimal 3 karakter)', 422);
+	const ada = await db
+		.select({ kode: chartOfAccounts.kodeAkun, nama: chartOfAccounts.namaAkun })
+		.from(chartOfAccounts)
+		.where(eq(chartOfAccounts.unitId, unitId));
+	if (ada.length > 0 && !opsi.tambahkan) throw new MasterDataError('Unit sudah memiliki Chart of Accounts', 409);
+
+	let jawaban = '';
+	try {
+		jawaban = await opsi.panggilAi(PROMPT_COA, `Deskripsi bisnis saya: ${uraian.slice(0, 500)}`);
+	} catch (e) {
+		throw new MasterDataError('AI tidak tersedia saat ini, coba lagi atau pakai template standar', 503);
+	}
+	const akun = rapikanAkunAi(bacaAkunDariAi(jawaban), new Set(ada.map((a) => a.kode)), new Set(ada.map((a) => a.nama)));
+	if (akun.length === 0) throw new MasterDataError('AI belum menghasilkan akun yang valid, coba perjelas deskripsi bisnis', 422);
+	await db.transaction(async (/** @type {any} */ tx) => {
+		await tx.insert(chartOfAccounts).values(akun.map((a) => ({ ...a, unitId, isActive: 1 })));
+	});
+	return akun.length;
+}

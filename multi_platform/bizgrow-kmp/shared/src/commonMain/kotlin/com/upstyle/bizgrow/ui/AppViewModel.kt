@@ -1029,6 +1029,36 @@ class AppViewModel(
     fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
         jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
 
+    /** Simpan akun COA baru; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun simpanCoaBaru(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.createCoa(unitId, kode, nama, tipe, normalBalance, deskripsi)
+            if (res.success) { loadChartOfAccounts(); setSuccess("Akun COA dibuat"); null } else (res.message ?: "Gagal membuat akun")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    /** Buat COA otomatis dengan AI; null = berhasil. */
+    suspend fun buatCoaAi(deskripsi: String, tambahkan: Boolean): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.generateCoaAi(unitId, deskripsi, tambahkan)
+            if (res.success) { loadChartOfAccounts(); setSuccess(res.message ?: "COA dibuat oleh AI"); null } else (res.message ?: "AI gagal membuat COA")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    /** Template standar; null = berhasil. */
+    suspend fun buatCoaTemplate(jenis: String): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.seedDefaultCoa(unitId, jenis)
+            if (res.success) { loadChartOfAccounts(); setSuccess("COA standar dibuat"); null } else (res.message ?: "Gagal membuat COA")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
     fun createCoa(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?) =
         jalankanMasterData("Akun COA dibuat", { loadChartOfAccounts() }) { api.createCoa(it, kode, nama, tipe, normalBalance, deskripsi) }
     fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean) =
