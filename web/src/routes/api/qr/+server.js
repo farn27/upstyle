@@ -7,7 +7,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { generateQRBuffer, posProductQRPayload, staffPortalQRPayload, invoiceQRPayload } from '$lib/qrcode.js';
 import { env } from '$env/dynamic/private';
 
-export async function GET({ url, cookies }) {
+export async function GET({ url, cookies, request }) {
   const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 

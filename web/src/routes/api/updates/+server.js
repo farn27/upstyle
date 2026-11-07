@@ -9,7 +9,7 @@ import { log } from '$lib/server/logger';
  * API endpoint for polling updates
  * Returns recent transactions and product changes since lastUpdate timestamp
  */
-export async function GET({ url, cookies }) {
+export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) {
         return json({ error: 'Unauthorized' }, { status: 401 });
