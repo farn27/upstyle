@@ -60,7 +60,7 @@ fun AuthScreen(viewModel: AppViewModel) {
         Card(
             modifier = Modifier.fillMaxWidth(), 
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = BizgrowColors.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(2.dp)
         ) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -68,7 +68,7 @@ fun AuthScreen(viewModel: AppViewModel) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     TabRow(
                         selectedTabIndex = if (isRegister) 1 else 0,
-                        containerColor = BizgrowColors.White,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         contentColor = BizgrowColors.Primary,
                         modifier = Modifier.fillMaxWidth()
                     ) {
