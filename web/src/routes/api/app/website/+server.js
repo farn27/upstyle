@@ -10,6 +10,7 @@ import { websiteSettings, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
+import { domainSlugUnik } from '$lib/server/unitBaru';
 import { z } from 'zod';
 
 const updateSchema = z.object({
@@ -46,7 +47,7 @@ export async function GET({ url, cookies, request }) {
             });
             if (!unit) return apiError('Unit tidak ditemukan', 404);
 
-            const slug = unit.slug || unit.namaUnit.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+            const slug = await domainSlugUnik(db, unit.slug || unit.namaUnit, 'website');
             const [inserted] = await db.insert(websiteSettings).values({
                 unitId: Number(unitId),
                 domainSlug: slug,

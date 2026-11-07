@@ -90,3 +90,20 @@ export async function buatUnit(db, userId, d) {
 	}
 	return { id, slug, kategori, cabangDari };
 }
+
+/**
+ * Domain slug bawaan untuk website / toko online: kolom domain_slug UNIK GLOBAL (lintas pengguna), jadi dua unit
+ * bernama sama tidak boleh memakai slug yang sama (dulu: 500 "Duplicate entry" untuk pengguna kedua).
+ * @param {any} db
+ * @param {string} dasar
+ * @param {'website' | 'toko'} jenis tabel yang akan diisi
+ */
+export async function domainSlugUnik(db, dasar, jenis) {
+	const { websiteSettings, ecommerceSettings } = await import('$lib/server/schema');
+	const tabel = jenis === 'website' ? websiteSettings : ecommerceSettings;
+	const base = slugDasar(dasar);
+	const dipakai = new Set((await db.select({ s: tabel.domainSlug }).from(tabel).where(like(tabel.domainSlug, `${base}%`))).map((/** @type {any} */ r) => r.s));
+	if (!dipakai.has(base)) return base;
+	for (let i = 2; i < 1000; i++) if (!dipakai.has(`${base}-${i}`)) return `${base}-${i}`;
+	return `${base}-${Date.now()}`;
+}

@@ -1,3 +1,4 @@
+import { domainSlugUnik } from '$lib/server/unitBaru';
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, ecommerceSettings, ecommerceOrders } from '$lib/server/schema';
@@ -25,7 +26,7 @@ export const load = async ({ params, cookies }) => {
             await db.insert(ecommerceSettings).values({
                 unitId: unit.id,
                 storefrontName: unit.namaUnit + " Store",
-                domainSlug: unit.slug,
+                domainSlug: await domainSlugUnik(db, unit.slug, 'toko'),
                 isActive: false
             });
             storeSettings = await db.query.ecommerceSettings.findFirst({

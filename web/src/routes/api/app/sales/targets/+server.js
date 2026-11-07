@@ -26,7 +26,7 @@ export async function GET({ url, cookies, request }) {
                     user: {
                         columns: {
                             id: true,
-                            namaLengkap: true,
+                            username: true,
                             email: true
                         }
                     }
@@ -39,7 +39,7 @@ export async function GET({ url, cookies, request }) {
                     id: t.id,
                     unitId: t.unitId,
                     userId: t.userId,
-                    userName: t.user?.namaLengkap || 'User',
+                    userName: t.user?.username || 'User',
                     targetAmount: Number(t.targetAmount || 0),
                     periodMonth: t.periodMonth,
                     periodYear: t.periodYear,
@@ -57,7 +57,7 @@ export async function GET({ url, cookies, request }) {
                     user: {
                         columns: {
                             id: true,
-                            namaLengkap: true
+                            username: true
                         }
                     }
                 }
@@ -76,7 +76,7 @@ export async function GET({ url, cookies, request }) {
                     salesOrderId: c.salesOrderId,
                     orderNumber: soMap.get(c.salesOrderId) || '',
                     userId: c.userId,
-                    userName: c.user?.namaLengkap || 'User',
+                    userName: c.user?.username || 'User',
                     amount: Number(c.amount || 0),
                     status: c.status || 'UNPAID',
                     createdAt: c.createdAt || ''
@@ -93,7 +93,7 @@ export async function GET({ url, cookies, request }) {
                 user: {
                     columns: {
                         id: true,
-                        namaLengkap: true
+                        username: true
                     }
                 }
             }
@@ -107,7 +107,7 @@ export async function GET({ url, cookies, request }) {
                 user: {
                     columns: {
                         id: true,
-                        namaLengkap: true
+                        username: true
                     }
                 }
             }
@@ -119,7 +119,7 @@ export async function GET({ url, cookies, request }) {
                 targets: targets.map(t => ({
                     id: t.id,
                     userId: t.userId,
-                    userName: t.user?.namaLengkap || 'User',
+                    userName: t.user?.username || 'User',
                     targetAmount: Number(t.targetAmount || 0),
                     periodMonth: t.periodMonth,
                     periodYear: t.periodYear,
@@ -128,7 +128,7 @@ export async function GET({ url, cookies, request }) {
                 commissions: commissions.map(c => ({
                     id: c.id,
                     userId: c.userId,
-                    userName: c.user?.namaLengkap || 'User',
+                    userName: c.user?.username || 'User',
                     amount: Number(c.amount || 0),
                     status: c.status
                 }))

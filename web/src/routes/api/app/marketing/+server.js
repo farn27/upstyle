@@ -108,10 +108,15 @@ export async function GET({ url, cookies, request }) {
             data: {
                 campaigns: campaigns.map(c => ({
                     id: c.id,
+                    unitId: c.unitId,
                     name: c.name,
                     type: c.type,
                     status: c.status,
-                    budget: Number(c.budget || 0)
+                    budget: Number(c.budget || 0),
+                    composeSubject: c.composeSubject || '',
+                    composeText: c.composeText || '',
+                    scheduledAt: c.scheduledAt || '',
+                    createdAt: c.createdAt || ''
                 })),
                 leads: leads.map(l => ({
                     id: l.id,

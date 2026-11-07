@@ -4,10 +4,12 @@
  * Hanya jalan bila TEST_DATABASE_URL diset.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { muatKotlin, periksa } from './helpers/modelKotlin.js';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 if (TEST_DB) process.env.DATABASE_URL = TEST_DB;
 process.env.ENCRYPTION_KEY ||= 'a'.repeat(64);
+process.env.DB_RELATIONAL_MODE ||= 'planetscale'; // MariaDB lokal tak punya LATERAL JOIN
 
 const login = vi.hoisted(() => ({ userId: /** @type {number | null} */ (null) }));
 vi.mock('$env/dynamic/private', () => ({ env: process.env }));
@@ -219,6 +221,36 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		const bp = await uji('rencana bisnis: simpan', 'business-plan', 'POST', { body: { namaBisnis: 'Kedai', kategori: 'FNB_RESTO', deskripsi: 'x', targetPasar: 'y', status: 'DRAFT' } });
 		await uji('rencana bisnis: wizard simpan lagi', 'business-plan', 'POST', { body: { id: bp?.data?.id, namaBisnis: 'Kedai', kategori: 'FNB_RESTO', modalAwal: 1000000, estimasiHarga: 20000, estimasiVolumePerBulan: 100, channelPenjualan: ['offline'], platformOnline: [], currentStep: 5, status: 'COMPLETE' } });
 		await uji('rencana bisnis: hapus', 'business-plan', 'DELETE', { q: { id: bp?.data?.id } });
+
+
+		// ── Kontrak balasan GET ↔ model Kotlin (properti wajib, tipe, array) ─────
+		const kotlin = muatKotlin();
+		const temuan = [];
+		if (kotlin) {
+			const abaikan = new Set(['api/app/finance']); // diuji terpisah (query periode)
+			for (const ep of kotlin.endpoints) {
+				const rute = ep.path.replace(/^api\/app\//, '');
+				if (ep.path.includes('$') || !ep.path.startsWith('api/app/') || abaikan.has(ep.path)) continue;
+				const key = `../routes/api/app/${rute}/+server.js`;
+				if (!mods[key]) continue;
+				const q = { unitId };
+				for (const [k, v] of Object.entries(ep.query)) {
+					if (/^"[^"]*"$/.test(v)) q[k] = v.slice(1, -1);
+					else if (k === 'tahun' || k === 'year') q[k] = new Date().getFullYear();
+				}
+				try {
+					const m = await mods[key]();
+					const url = `http://x/?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)])).toString()}`;
+					const res = await m.GET({ request: new Request(url), cookies: { get() {} }, url: new URL(url), params: {}, locals: {} });
+					const j = await res.json().catch(() => null);
+					if (!j || res.status >= 500 || j.success === false) { if (res.status >= 500) temuan.push(`${ep.fn} (${rute}): HTTP ${res.status} ${j?.message || ''}`.slice(0, 600)); continue; }
+					const kendala = [];
+					periksa(j.data, ep.tipe, kotlin.classes, '', kendala);
+					for (const k of kendala.slice(0, 4)) temuan.push(`${ep.fn} (${rute}) → ${ep.tipe}: ${k}`);
+				} catch (e) { temuan.push(`${ep.fn} (${rute}): CRASH ${String(e.message).slice(0, 100)}`); }
+			}
+		}
+		if (process.env.AUDIT_OUT) (await import('node:fs')).writeFileSync(process.env.AUDIT_OUT, temuan.join('\n'));
 
 		const { pool } = await import('../lib/server/drizzle.js');
 		await pool?.end();

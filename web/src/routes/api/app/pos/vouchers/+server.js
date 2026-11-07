@@ -30,7 +30,7 @@ export async function GET({ url, cookies, request }) {
             maxUsage: v.maxUsage || 0, currentUsage: v.currentUsage || 0,
             minPurchase: Number(v.minPurchase || 0),
             validFrom: v.validFrom, validUntil: v.validUntil,
-            isActive: v.isActive ? 1 : 0,
+            isActive: Boolean(v.isActive),
             source: 'POS'
         }));
 
@@ -51,7 +51,7 @@ export async function GET({ url, cookies, request }) {
                 maxUsage: v.maxUsage || 0, currentUsage: v.currentUsage || 0,
                 minPurchase: Number(v.minPurchase || 0),
                 validFrom: v.validFrom, validUntil: v.validUntil,
-                isActive: v.isActive ? 1 : 0,
+                isActive: Boolean(v.isActive),
                 source: 'MARKETING'
             }));
 
