@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
-import { products, riwayatAksi, unitBisnis } from '$lib/server/schema';
+import { products, riwayatAksi, unitBisnis, websiteSettings } from '$lib/server/schema';
+import { domainSlugUnik } from '$lib/server/unitBaru';
 import { eq, and, desc, sql, isNull } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
@@ -51,11 +52,13 @@ export async function GET({ url, cookies, request }) {
 
         // `data` dibaca app mobile (KatalogData), `products` dipertahankan untuk klien lama
         const unit = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
+        // Alamat publik katalog = situs /w/<domainSlug>; aktif/tidaknya mengikuti pengaturan website (isPublished)
+        const situs = await db.query.websiteSettings.findFirst({ where: eq(websiteSettings.unitId, Number(unitId)) });
         const settings = {
             unitId: Number(unitId),
-            slug: unit?.slug || '',
+            slug: situs?.domainSlug || unit?.slug || '',
             namaPortal: unit?.namaUnit || '',
-            isActive: data.some(p => p.isPublished),
+            isActive: situs ? !!situs.isPublished : data.some(p => p.isPublished),
             totalProducts: data.length,
             publishedProducts: data.filter(p => p.isPublished).length
         };
@@ -234,21 +237,32 @@ export async function PUT({ request, cookies }) {
         }
 
         if (action === 'update-katalog-settings') {
-            const { unitId, settings } = body;
+            const unitId = Number(body.unitId);
+            const aktif = body?.settings?.isActive;
+            if (!unitId || typeof aktif !== 'boolean') {
+                return json({ success: false, message: 'unitId dan settings.isActive (true/false) wajib diisi' }, { status: 400 });
+            }
+            const unit = await db.query.unitBisnis.findFirst({ where: and(eq(unitBisnis.id, unitId), eq(unitBisnis.userId, userId)) });
+            if (!unit) return json({ success: false, message: 'Unit bisnis tidak ditemukan' }, { status: 404 });
 
-            // This could be used to update unit-level katalog settings
-            // For now, just log the action
+            // Katalog publik = website unit: simpan status publikasinya (buat pengaturan website bila belum ada)
+            const situs = await db.query.websiteSettings.findFirst({ where: eq(websiteSettings.unitId, unitId) });
+            if (situs) {
+                await db.update(websiteSettings).set({ isPublished: aktif }).where(eq(websiteSettings.id, situs.id));
+            } else {
+                const slug = await domainSlugUnik(db, unit.slug || unit.namaUnit, 'website');
+                await db.insert(websiteSettings).values({ unitId, domainSlug: slug, theme: 'modern', colorPrimary: '#4F46E5', heroTitle: `Selamat Datang di ${unit.namaUnit}`, isPublished: aktif });
+            }
             await db.insert(riwayatAksi).values({
-                userId,
-                unitId: Number(unitId),
-                pesan: 'Pengaturan katalog diperbarui',
+                userId, unitId,
+                pesan: aktif ? 'Katalog online diaktifkan' : 'Katalog online dinonaktifkan',
                 kategori: 'KATALOG',
                 tipe: 'info'
             });
 
-            return json({ 
-                success: true, 
-                message: 'Pengaturan katalog berhasil diperbarui' 
+            return json({
+                success: true,
+                message: aktif ? 'Katalog online aktif' : 'Katalog online dinonaktifkan'
             });
         }
 

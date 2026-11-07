@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import io.ktor.http.encodeURLParameter
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
@@ -27,6 +29,9 @@ fun LaporanWaScreen(viewModel: AppViewModel) {
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     var selectedPeriode by remember { mutableStateOf("Bulan Ini") }
     val snackbarHostState = remember { SnackbarHostState() }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -83,7 +88,7 @@ fun LaporanWaScreen(viewModel: AppViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(
-                            onClick = { /* copy */ },
+                            onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(laporan.teks)); scope.launch { snackbarHostState.showSnackbar("Laporan disalin ke clipboard") } },
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -91,7 +96,7 @@ fun LaporanWaScreen(viewModel: AppViewModel) {
                             Text("Salin ke Clipboard")
                         }
                         Button(
-                            onClick = { /* share */ },
+                            onClick = { runCatching { uriHandler.openUri("https://wa.me/?text=" + laporan.teks.encodeURLParameter()) } },
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))

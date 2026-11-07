@@ -1,6 +1,8 @@
 package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -165,35 +167,61 @@ private fun ExportTab(
     }
 }
 
+@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
 @Composable
 private fun ImportTab(
     state: com.upstyle.bizgrow.ui.state.ExportImportState,
     viewModel: AppViewModel
 ) {
     var dataType by remember { mutableStateOf("products") }
+    var file by remember { mutableStateOf<FileTerpilih?>(null) }
+    var galatFile by remember { mutableStateOf<String?>(null) }
+    val base64 = remember(file) { file?.let { kotlin.io.encoding.Base64.encode(it.bytes) } }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    val pilihFile = rememberPemilihFile { f, galat ->
+        galatFile = galat
+        if (f != null) {
+            file = f
+            viewModel.clearExportImportMessages()
+            viewModel.validateImportFile(dataType, kotlin.io.encoding.Base64.encode(f.bytes), f.nama)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Tipe Data", fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("products" to "Produk", "customers" to "Pelanggan").forEach { (key, label) ->
-                FilterChip(selected = dataType == key, onClick = { dataType = key }, label = { Text(label, fontSize = 12.sp) })
+                FilterChip(selected = dataType == key, onClick = {
+                    dataType = key
+                    // tipe berubah → validasi ulang file yang sama
+                    file?.let { viewModel.validateImportFile(key, kotlin.io.encoding.Base64.encode(it.bytes), it.nama) }
+                }, label = { Text(label, fontSize = 12.sp) })
             }
         }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (dataType == "products") "Baris pertama = judul kolom: nama, sku, harga_beli, harga_jual, stok, kategori, jenis (kolom nama wajib)."
+            else "Baris pertama = judul kolom: nama, telepon, email, perusahaan (kolom nama wajib).",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Spacer(Modifier.height(16.dp))
 
-        // File picker placeholder (platform-specific)
-        OutlinedButton(
-            onClick = { /* TODO: platform file picker */ },
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        OutlinedButton(onClick = pilihFile, modifier = Modifier.fillMaxWidth(), enabled = !state.isLoading) {
             Icon(Icons.Default.Upload, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Pilih File (Excel/CSV)")
+            Text(if (file == null) "Pilih File (Excel/CSV)" else "Ganti File")
+        }
+        file?.let {
+            Spacer(Modifier.height(6.dp))
+            Text("${it.nama} • ${it.bytes.size / 1024} KB", style = MaterialTheme.typography.labelMedium)
+        }
+        galatFile?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
 
-        // Validation result
         state.validationResult?.let { validation ->
             Spacer(Modifier.height(12.dp))
             Card(
@@ -204,14 +232,15 @@ private fun ImportTab(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        if (validation.isValid) "✅ File valid: ${validation.rowCount} baris ditemukan"
-                        else "❌ File tidak valid",
+                        if (validation.isValid) "File valid: ${validation.rowCount} baris ditemukan"
+                        else "File tidak valid",
                         fontWeight = FontWeight.Medium,
                         color = if (validation.isValid) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
                     )
-                    validation.errors.forEach { err ->
+                    validation.errors.take(8).forEach { err ->
                         Text("• $err", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
                     }
+                    if (validation.errors.size > 8) Text("… dan ${validation.errors.size - 8} catatan lain", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -228,17 +257,18 @@ private fun ImportTab(
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text("Import selesai", fontWeight = FontWeight.Medium)
                     Text("${result.importedCount} berhasil, ${result.failedCount} gagal", style = MaterialTheme.typography.bodySmall)
+                    result.errors.take(5).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                 }
             }
             Spacer(Modifier.height(8.dp))
         }
 
         Button(
-            onClick = { /* triggered after file picker provides base64 */ },
+            onClick = { val f = file; val b = base64; if (f != null && b != null) viewModel.importData(dataType, b, f.nama) },
             modifier = Modifier.fillMaxWidth(),
-            enabled = state.validationResult?.isValid == true && !state.isLoading
+            enabled = file != null && state.validationResult?.isValid == true && !state.isLoading
         ) {
-            Text("Import Data")
+            Text(if (state.isLoading) "Memproses…" else "Import Data")
         }
     }
 }

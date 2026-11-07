@@ -11,6 +11,11 @@ export const load = async ({ params }) => {
         where: eq(websiteSettings.domainSlug, slug)
     });
 
+    // Website yang dimatikan pemilik (isPublished = false) tidak boleh tetap bisa dibuka publik
+    if (settings && settings.isPublished === false) {
+        throw error(404, 'Website sedang tidak dipublikasikan');
+    }
+
     let unit = null;
     if (settings) {
         // Cari unit bisnis terkait

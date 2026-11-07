@@ -3287,7 +3287,7 @@ class AppViewModel(
         _exportImportState.update { it.copy(isLoading = true, error = null, validationResult = null) }
         try {
             val result = api.validateImportFile(unitId, dataType, fileBase64, fileName)
-            _exportImportState.update { it.copy(isLoading = false, validationResult = result.data) }
+            _exportImportState.update { it.copy(isLoading = false, validationResult = result.data, error = if (result.data == null) (result.error ?: "File tidak bisa divalidasi") else null) }
         } catch (e: Exception) {
             _exportImportState.update { it.copy(isLoading = false, error = e.message) }
         }
@@ -3307,7 +3307,7 @@ class AppViewModel(
                     successMessage = "Import berhasil: ${result.data?.importedCount} data diimport"
                 ) }
             } else {
-                _exportImportState.update { it.copy(isLoading = false, error = result.error) }
+                _exportImportState.update { it.copy(isLoading = false, lastImportResult = result.data, error = result.error ?: "Import gagal") }
             }
         } catch (e: Exception) {
             _exportImportState.update { it.copy(isLoading = false, error = e.message) }

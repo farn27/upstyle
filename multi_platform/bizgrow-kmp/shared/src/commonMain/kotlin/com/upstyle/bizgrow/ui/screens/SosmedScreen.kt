@@ -82,6 +82,19 @@ fun SosmedScreen(viewModel: AppViewModel) {
     var editingPost by remember { mutableStateOf<SocialPost?>(null) }
     var postCaption by remember { mutableStateOf("") }
     var postImageUrl by remember { mutableStateOf("") }
+    val scopeFoto = rememberCoroutineScope()
+    val bacaGambar = rememberPembacaGambar()
+    var mengunggahFoto by remember { mutableStateOf(false) }
+    val pilihFoto = rememberImagePickerLauncher { uri ->
+        if (uri != null) {
+            mengunggahFoto = true
+            scopeFoto.launch {
+                val url = bacaGambar(uri)?.let { viewModel.unggahFotoProduk(it) }
+                if (url != null) postImageUrl = url
+                mengunggahFoto = false
+            }
+        }
+    }
     var postPlatform by remember { mutableStateOf("Instagram") }
     var postScheduled by remember { mutableStateOf("") }
     var postStatus by remember { mutableStateOf("DRAFT") }
@@ -227,13 +240,14 @@ fun SosmedScreen(viewModel: AppViewModel) {
                         OutlinedTextField(
                             value = postImageUrl,
                             onValueChange = { postImageUrl = it },
-                            label = { Text("URL Gambar") },
+                            label = { Text("Gambar (pilih foto atau tempel URL)") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(16.dp),
                             singleLine = true
                         )
-                        IconButton(onClick = { /* handled by link input */ }) {
-                            Icon(Icons.Default.Image, contentDescription = null, tint = BizgrowColors.Gray500)
+                        IconButton(onClick = { pilihFoto() }, enabled = !mengunggahFoto) {
+                            if (mengunggahFoto) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.Default.Image, contentDescription = "Pilih foto dari galeri", tint = BizgrowColors.Primary)
                         }
                     }
                     OutlinedTextField(

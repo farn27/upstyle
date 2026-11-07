@@ -82,6 +82,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
     val state by viewModel.websiteState.collectAsState(initial = viewModel.websiteState.value)
 
     var slug by remember { mutableStateOf("") }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var theme by remember { mutableStateOf("default") }
     var primaryColor by remember { mutableStateOf("#5B5FEF") }
     var heroTitle by remember { mutableStateOf("") }
@@ -122,7 +123,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* Preview: open in browser */ }) {
+                    IconButton(onClick = { if (slug.isNotBlank()) runCatching { uriHandler.openUri(viewModel.session.getServerUrl().trimEnd('/') + "/w/" + slug.trim()) } }) {
                         Icon(Icons.Default.Visibility, contentDescription = "Preview", tint = BizgrowColors.Gray900)
                     }
                 },
@@ -211,7 +212,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                                 singleLine = true,
                                 leadingIcon = { Icon(Icons.Default.Public, null, tint = BizgrowColors.Gray400) }
                             )
-                            Text("/bizgrow.app/site/$slug", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray500)
+                            Text("${viewModel.session.getServerUrl().trimEnd('/')}/w/$slug", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray500)
                         }
                     }
                 }

@@ -74,7 +74,7 @@ fun KatalogScreen(viewModel: AppViewModel) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Portal Katalog", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BizgrowColors.PrimaryDark)
                             if (settings.isActive && settings.slug.isNotEmpty()) {
-                                Text("katalog.bizgrow.id/${settings.slug}", fontSize = 12.sp, color = BizgrowColors.Primary)
+                                Text("${viewModel.session.getServerUrl().trimEnd('/')}/w/${settings.slug}", fontSize = 12.sp, color = BizgrowColors.Primary)
                             } else {
                                 Text("Belum aktif", fontSize = 12.sp, color = BizgrowColors.Gray500)
                             }
@@ -122,6 +122,7 @@ fun KatalogScreen(viewModel: AppViewModel) {
         katalogData?.settings?.let { settings ->
             KatalogSettingsDialog(
                 settings = settings,
+                serverUrl = viewModel.session.getServerUrl(),
                 onDismiss = { showSettingsDialog = false },
                 onSave = { updated ->
                     viewModel.updateKatalogSettings(updated)
@@ -136,32 +137,40 @@ fun KatalogScreen(viewModel: AppViewModel) {
 @Composable
 fun KatalogSettingsDialog(
     settings: KatalogSettings,
+    serverUrl: String,
     onDismiss: () -> Unit,
     onSave: (KatalogSettings) -> Unit
 ) {
-    var namaPortal by remember { mutableStateOf(settings.namaPortal) }
+    var aktif by remember { mutableStateOf(settings.isActive) }
+    val link = serverUrl.trimEnd('/') + "/w/" + settings.slug
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    var tersalin by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Pengaturan Katalog", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = namaPortal,
-                    onValueChange = { namaPortal = it },
-                    label = { Text("Nama Portal") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                Text(
-                    "URL: katalog.bizgrow.id/${settings.slug.ifEmpty { "(belum diset)" }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BizgrowColors.Gray500
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Katalog online aktif", fontWeight = FontWeight.SemiBold)
+                        Text("Produk berstatus LIVE tampil di halaman publik.", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray500)
+                    }
+                    Switch(checked = aktif, onCheckedChange = { aktif = it })
+                }
+                Text(link, style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Primary)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(link)); tersalin = true }) {
+                        Text(if (tersalin) "Tersalin" else "Salin link")
+                    }
+                    OutlinedButton(onClick = { runCatching { uriHandler.openUri(link) } }) { Text("Buka") }
+                }
+                Text("Alamat & tampilan situs diatur di menu Website.", style = MaterialTheme.typography.labelSmall, color = BizgrowColors.Gray500)
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(settings.copy(namaPortal = namaPortal)) }) { Text("Simpan") }
+            Button(onClick = { onSave(settings.copy(isActive = aktif)) }) { Text("Simpan") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
     )
