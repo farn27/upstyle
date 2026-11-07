@@ -819,7 +819,7 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body()
 
-    suspend fun createUnit(req: CreateUnitRequest): ApiResponse<BusinessUnit> =
+    suspend fun createUnit(req: CreateUnitRequest): ApiResponse<JsonObject> =
         client.post("api/app/business") { setBody(req) }.body()
 
     // Departemen → api/app/hr/departments (hapus pakai query departmentId & unitId)

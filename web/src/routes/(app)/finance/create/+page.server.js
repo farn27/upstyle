@@ -8,6 +8,7 @@ import { redis } from '$lib/server/redis';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
 import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
+import { buatUnit, UnitError } from '$lib/server/unitBaru';
 
 export async function load({ cookies }) {
     const userId = await getCurrentUserId(cookies);
@@ -51,79 +52,14 @@ export const actions = {
         const batas = await cekBatasUnit(db, userId);
         if (!batas.boleh) throw error(403, batas.pesan);
 
-        // 2. Generate slug
-        const slug = nama_unit.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-        
         try {
-            let kategori_akhir = kategori;
-            let parentNama = '';
-            
-            // 3. Logika Cabang
-            if (is_cabang && cabang_dari) {
-                const parentUnit = await db.select({ nama_unit: unitBisnis.namaUnit, kategori: unitBisnis.kategori })
-                    .from(unitBisnis)
-                    .where(and(eq(unitBisnis.id, Number(cabang_dari)), eq(unitBisnis.userId, userId)));
-                if (parentUnit.length === 0) throw error(400, 'Unit induk tidak ditemukan');
-                kategori_akhir = parentUnit[0].kategori || 'LAINNYA';
-                parentNama = parentUnit[0].nama_unit;
-            }
-
-            // 4. Insert Unit Bisnis
-            const [result] = await db.insert(unitBisnis).values({
-                userId,
-                namaUnit: nama_unit,
-                slug,
-                kategori: kategori_akhir,
-                modalAwal: String(modal_awal),
-                alamat,
-                telepon,
-                email,
-                isCabang: is_cabang ? 1 : 0,
-                cabangDari: cabang_dari ? Number(cabang_dari) : null
+            // 2-5. Buat unit (slug unik, induk cabang, kategori produk awal) — logika bersama dengan API app
+            const unit = await buatUnit(db, userId, {
+                nama: nama_unit, kategori, alamat, telepon, email, modalAwal: modal_awal,
+                isCabang: is_cabang, cabangDari: cabang_dari ? Number(cabang_dari) : null
             });
-            
-            const unitId = result.insertId;
-
-            // 5. Logika Kategori Produk Dinamis
-            if (!is_cabang) {
-                let defaultProdCats = ['UMUM']; // Default awal
-
-                // Cek KATEGORI BISNIS untuk menentukan KATEGORI PRODUK awal
-                if (kategori_akhir.startsWith('FNB')) {
-                    defaultProdCats = ['MAKANAN', 'MINUMAN', 'SNACK', 'BAHAN BAKU'];
-                } else if (kategori_akhir.includes('FASHION')) {
-                    defaultProdCats = ['ATASAN', 'BAWAHAN', 'AKSESORIS', 'SEPATU'];
-                } else if (kategori_akhir.includes('RETAIL')) {
-                    defaultProdCats = ['BARANG JADI', 'ATK', 'KEBUTUHAN POKOK'];
-                } else if (kategori_akhir === 'JASA_TEKNIK' || kategori_akhir === 'AUTOMOTIVE') {
-                    defaultProdCats = ['SPAREPART', 'OLI & CAIRAN', 'JASA / SERVICE', 'AKSESORIS KENDARAAN'];
-                } else if (kategori_akhir === 'JASA_LAUNDRY') {
-                    defaultProdCats = ['LAYANAN KILOAN', 'LAYANAN SATUAN', 'PARFUM & KIMIA'];
-                } else if (kategori_akhir === 'JASA_BARBER') {
-                    defaultProdCats = ['JASA PANGKAS', 'POMADE / PRODUK RAMBUT', 'TREATMENT'];
-                } else if (kategori_akhir === 'HEALTH_CLINIC' || kategori_akhir === 'PHARMA_MEDICAL') {
-                    defaultProdCats = ['OBAT BEBAS', 'OBAT RESEP', 'ALAT KESEHATAN', 'JASA MEDIS / KONSULTASI'];
-                } else if (kategori_akhir.startsWith('TECH_') || kategori_akhir === 'DIGITAL_AGENCY') {
-                    defaultProdCats = ['LISENSI SOFTWARE', 'JASA DEVELOPMENT', 'SUBSCRIPTION', 'MAINTENANCE'];
-                } else if (kategori_akhir === 'MANUFAKTUR' || kategori_akhir === 'CONSTRUCTION') {
-                    defaultProdCats = ['BAHAN BAKU', 'BARANG SETENGAH JADI', 'BARANG JADI', 'MATERIAL BANGUNAN'];
-                } else if (kategori_akhir === 'AGRIBISNIS') {
-                    defaultProdCats = ['HASIL PANEN', 'PUPUK & KIMIA', 'BIBIT', 'ALAT PERTANIAN'];
-                } else if (kategori_akhir === 'EDUCATION_COURSE') {
-                    defaultProdCats = ['BIAYA KURSUS / SPP', 'BUKU / MODUL', 'MERCHANDISE'];
-                }
-
-                // Masukkan ke tabel kategori_produk SECARA PRIVAT (Tertaut ke Unit) dengan batch insert untuk mengurangi latency
-                if (defaultProdCats.length > 0) {
-                    await db.insert(kategoriProduk).values(
-                        defaultProdCats.map(cat => ({
-                            unitId,
-                            namaKategori: cat.toUpperCase()
-                        }))
-                    ).onDuplicateKeyUpdate({ set: { id: sql`id` } });
-                }
-            }
-
+            const unitId = unit.id;
+            const kategori_akhir = unit.kategori;
 
             // 6. Riwayat & Redirect
 // 6. Riwayat & Redirect
@@ -164,6 +100,7 @@ throw redirect(303, `/finance?sorot=${unitId}&pesan=${encodeURIComponent(pesanTo
 
         } catch (err) {
             if (err.status === 303 || err.status === 302) throw err;
+            if (err instanceof UnitError) throw error(err.status, err.message);
             
             log.api.error({ err }, '❌ ERROR OBJECT:');
             // Error Handling untuk Data Truncated

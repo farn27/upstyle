@@ -4,6 +4,7 @@ import { unitBisnis, kategoriProduk, riwayatAksi } from '$lib/server/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
+import { buatUnit, slugUnik, UnitError } from '$lib/server/unitBaru';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -43,6 +44,7 @@ export async function GET({ cookies, request }) {
             email: u.email || '',
             modalAwal: Number(u.modalAwal || 0),
             isCabang: u.isCabang || 0,
+            cabangDari: u.cabangDari || null,
             posFeatureOverride: u.posFeatureOverride || null,
             loginSlug: u.loginSlug || '',
             settings: {
@@ -63,7 +65,7 @@ export async function GET({ cookies, request }) {
     }
 }
 
-// 2. POST: Tambah Bisnis Baru
+// 2. POST: Tambah Bisnis Baru (pusat atau cabang) — logika sama dengan form web /finance/create
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
 
@@ -73,80 +75,44 @@ export async function POST({ request, cookies }) {
 
     const body = await request.json();
 
-    // ─── Zod validation ────────────────────────────────────────────────────
     const businessPostSchema = z.object({
-        name: z.string().min(2, 'Nama bisnis minimal 2 karakter').max(255),
-        type: z.string().min(1, 'Tipe bisnis wajib diisi').optional(),
+        name: z.string().trim().min(2, 'Nama bisnis minimal 2 karakter').max(255),
+        type: z.string().min(1, 'Tipe bisnis wajib diisi').max(50).nullable().optional(),
         is_cabang: z.boolean().optional().default(false),
-        cabang_dari: z.number().nullable().optional(),
+        cabang_dari: z.coerce.number().int().positive().nullable().optional(),
+        alamat: z.string().max(500).nullable().optional(),
+        telepon: z.string().max(20).nullable().optional(),
+        email: z.string().email('Format email tidak valid').max(100).nullable().optional().or(z.literal('')),
+        modal_awal: z.coerce.number().min(0).nullable().optional()
     });
     const parsed = businessPostSchema.safeParse(body);
     if (!parsed.success) {
-        const errorMsg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input bisnis tidak valid';
+        const errorMsg = parsed.error?.issues?.[0]?.message || 'Input bisnis tidak valid';
         return json({ success: false, message: errorMsg }, { status: 400 });
     }
-    // ──────────────────────────────────────────────────────────────────────
+    const d = parsed.data;
 
     const batas = await cekBatasUnit(db, userId);
     if (!batas.boleh) return json({ success: false, message: batas.pesan, code: 'PLAN_LIMIT' }, { status: 403 });
 
-    const nama_unit = body.name;
-    const kategori = body.type;
-    const is_cabang = body.is_cabang || false;
-    const cabang_dari = body.cabang_dari || null;
-
-    const modal_awal = 0;
-    const alamat = "Alamat default dari App";
-    const telepon = null;
-    const email = null;
-
     try {
-        const slug = nama_unit.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
-        
-        let kategori_akhir = kategori;
-        
-        if (is_cabang && cabang_dari) {
-            const parentUnit = await db.query.unitBisnis.findFirst({
-                where: and(eq(unitBisnis.id, cabang_dari), eq(unitBisnis.userId, userId))
-            });
-            if (!parentUnit) return json({ success: false, message: "Unit induk tidak ditemukan" }, { status: 400 });
-            kategori_akhir = parentUnit.kategori;
-        }
-
-        const [result] = await db.insert(unitBisnis).values({
-            userId, namaUnit: nama_unit, slug, kategori: kategori_akhir, modalAwal: String(modal_awal), alamat, telepon, email, isCabang: is_cabang ? 1 : 0, cabangDari: cabang_dari
+        const unit = await buatUnit(db, userId, {
+            nama: d.name, kategori: d.type, alamat: d.alamat, telepon: d.telepon, email: d.email || null,
+            modalAwal: d.modal_awal ?? 0, isCabang: d.is_cabang, cabangDari: d.cabang_dari
         });
 
-        const unitId = result.insertId;
-
-        if (!is_cabang) {
-            let defaultProdCats = ['UMUM'];
-            if (kategori_akhir.startsWith('FNB')) defaultProdCats = ['MAKANAN', 'MINUMAN', 'SNACK'];
-            else if (kategori_akhir.includes('FASHION')) defaultProdCats = ['BAJU', 'CELANA', 'AKSESORIS'];
-            else if (kategori_akhir.includes('RETAIL')) defaultProdCats = ['BARANG JADI', 'BAHAN BAKU'];
-
-            for (const catName of defaultProdCats) {
-                try {
-                    await db.insert(kategoriProduk).values({ unitId, namaKategori: catName.toUpperCase() });
-                } catch (e) {
-                    // ignore duplicate
-                }
-            }
-        }
-
-        const pesanToast = is_cabang ? `Cabang Baru: ${nama_unit}` : `Bisnis Baru: ${nama_unit}`;
         await db.insert(riwayatAksi).values({
-            userId, unitId, pesan: pesanToast, kategori: 'Unit Bisnis', link: '/finance', tipe: 'success'
+            userId, unitId: unit.id,
+            pesan: d.is_cabang ? `Cabang "${d.name}" berhasil dibuat!` : `Unit "${d.name}" (${unit.kategori}) berhasil terdaftar!`,
+            kategori: 'Unit Bisnis', link: `/finance?sorot=${unit.id}`, tipe: 'success'
         });
 
-        return json({ success: true, message: "Berhasil disimpan" });
+        return json({ success: true, message: "Berhasil disimpan", data: { id: unit.id, slug: unit.slug } });
 
     } catch (err) {
+        if (err instanceof UnitError) return json({ success: false, message: err.message }, { status: err.status });
         log.api.error({ err }, 'API POST BUSINESS ERROR');
-        return json({ 
-            success: false, 
-            message: err.code === 'ER_DUP_ENTRY' ? "Nama unit sudah ada" : "Gagal menyimpan data" 
-        }, { status: 500 });
+        return json({ success: false, message: "Gagal menyimpan data" }, { status: 500 });
     }
 }
 
@@ -305,11 +271,7 @@ export async function PUT({ request, cookies }) {
 
             // Update slug if name changed
             if (namaUnit && namaUnit !== unit.namaUnit) {
-                const newSlug = namaUnit.toLowerCase()
-                    .replace(/[^a-z0-9\s-]/g, '')
-                    .replace(/\s+/g, '-')
-                    .slice(0, 50);
-                updateData.slug = newSlug;
+                updateData.slug = await slugUnik(db, userId, namaUnit, unit.id);
             }
 
             await db.update(unitBisnis)

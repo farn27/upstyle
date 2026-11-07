@@ -525,12 +525,15 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     
-    fun createUnit(nama: String, type: String) = viewModelScope.launch {
+    fun createUnit(nama: String, type: String) = createUnit(com.upstyle.bizgrow.data.CreateUnitRequest(name = nama, type = type))
+
+    /** Buat pusat atau cabang dengan data lengkap (alamat, kontak, modal, induk). */
+    fun createUnit(req: com.upstyle.bizgrow.data.CreateUnitRequest) = viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true, error = null) }
         try {
-            val res = api.createUnit(com.upstyle.bizgrow.data.CreateUnitRequest(name = nama, type = type))
+            val res = api.createUnit(req)
             if (res.success) {
-                setSuccess("Bisnis berhasil ditambahkan")
+                setSuccess(if (req.is_cabang) "Cabang berhasil ditambahkan" else "Bisnis berhasil ditambahkan")
                 loadUnits()
             } else {
                 setError(res.message ?: "Gagal menambah bisnis")

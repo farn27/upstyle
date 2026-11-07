@@ -72,6 +72,8 @@ data class BusinessUnit(
     val email: String? = null,
     val modalAwal: Double = 0.0,
     val isCabang: Int = 0,
+    /** Id unit induk bila ini cabang. */
+    val cabangDari: Int? = null,
     @SerialName("pos_feature_override") val posFeatureOverride: String? = null,
     val settings: BusinessUnitSettings? = null
 )
@@ -1136,6 +1138,7 @@ data class UpdateUnitSettingsRequest(
     val unitId: Int,
     val action: String = "updateBusiness",
     val namaUnit: String? = null,
+    val kategori: String? = null,
     val alamat: String? = null,
     val telepon: String? = null,
     val email: String? = null,
@@ -1736,9 +1739,13 @@ data class ShopeeIntegration(
 @Serializable
 data class CreateUnitRequest(
     val name: String,
-    val type: String,
+    val type: String? = null,
     val is_cabang: Boolean = false,
-    val cabang_dari: Int? = null
+    val cabang_dari: Int? = null,
+    val alamat: String? = null,
+    val telepon: String? = null,
+    val email: String? = null,
+    val modal_awal: Double? = null
 )
 
 // ─── Subscription & Billing ───────────────────────────────────────────────────
