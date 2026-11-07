@@ -36,6 +36,8 @@ import com.upstyle.bizgrow.data.Product
 import com.upstyle.bizgrow.data.SplitPayment
 import kotlinx.coroutines.launch
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.todayDate
+import com.upstyle.bizgrow.ui.currentTime
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizMotion
@@ -60,7 +62,8 @@ fun PosScreen(viewModel: AppViewModel) {
     var tundaLabel by remember { mutableStateOf<String?>(null) }
     var kategori by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
-    var sukses by remember { mutableStateOf<Double?>(null) }
+    var sukses by remember { mutableStateOf<Pair<Double, String>?>(null) }
+    var pilihPrinter by remember { mutableStateOf<String?>(null) } // teks struk yang menunggu printer dipilih
     val serverUrl = remember { viewModel.session.getServerUrl() }
 
     LaunchedEffect(Unit) {
@@ -154,6 +157,18 @@ fun PosScreen(viewModel: AppViewModel) {
     }
 
     val printer = com.upstyle.bizgrow.device.rememberPrinterManager()
+    fun cetakKe(mac: String, teks: String) = printer.connectAndPrint(
+        macAddress = mac, receiptText = teks,
+        onSuccess = { viewModel.showSuccess("Struk dicetak") },
+        onError = { viewModel.showError(it) }
+    )
+    fun cetakStruk(teks: String) {
+        printer.mintaIzin { ok ->
+            if (!ok) { viewModel.showError("Izin Bluetooth diperlukan untuk mencetak struk."); return@mintaIzin }
+            val mac = viewModel.session.getPrinterMac()
+            if (mac.isBlank()) pilihPrinter = teks else cetakKe(mac, teks)
+        }
+    }
     tundaLabel?.let { label ->
         FormSheet("Tunda pesanan", subjudul = "Keranjang disimpan dan bisa dilanjutkan nanti (hilang bila aplikasi ditutup).", onDismiss = { tundaLabel = null }, labelSimpan = "Tunda",
             onSimpan = { viewModel.tundaPesanan(label); tundaLabel = null }) {
@@ -188,33 +203,19 @@ fun PosScreen(viewModel: AppViewModel) {
                 subtotal = cartTotal,
                 customers = posData?.customers.orEmpty(),
                 serverUrl = serverUrl,
-                onPrint = {
-                    val struk = buildString {
-                        appendLine("===== STRUK PEMBAYARAN =====")
-                        appendLine(viewModel.activeUnit.value?.name ?: "Toko")
-                        appendLine("----------------------------")
-                        cart.forEach { (p, q) -> appendLine("${p.nama} x$q"); appendLine("  ${(p.hargaJual * q).rupiah()}") }
-                        appendLine("----------------------------")
-                        appendLine("Total: ${cartTotal.rupiah()}")
-                        appendLine("Terima kasih!")
-                        appendLine("\n\n")
-                    }
-                    printer.connectAndPrint(
-                        macAddress = "00:00:00:00:00:00",
-                        receiptText = struk,
-                        onSuccess = {},
-                        onError = { viewModel.showError("Printer belum dikonfigurasi. Atur printer di Pengaturan.") }
-                    )
-                },
-                onPaid = { total ->
+                onPrint = { teks -> cetakStruk(teks) },
+                onPaid = { total, struk ->
                     showCheckout = false
-                    sukses = total
+                    sukses = total to struk
                 }
             )
         }
     }
 
-    sukses?.let { total -> SuksesBayarDialog(total) { sukses = null } }
+    sukses?.let { (total, struk) -> SuksesBayarDialog(total, onCetak = { cetakStruk(struk) }) { sukses = null } }
+    pilihPrinter?.let { teks ->
+        PemilihPrinterSheet(printer, viewModel.session, { pilihPrinter = null }) { mac -> pilihPrinter = null; viewModel.session.getPrinterMac().takeIf { it == mac }?.let { cetakKe(it, teks) } }
+    }
 }
 
 @Composable
@@ -340,8 +341,8 @@ private fun CheckoutSheet(
     subtotal: Double,
     customers: List<PosCustomer>,
     serverUrl: String,
-    onPrint: () -> Unit,
-    onPaid: (Double) -> Unit
+    onPrint: (String) -> Unit,
+    onPaid: (Double, String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val diskonVm by viewModel.posDiskon.collectAsState(initial = viewModel.posDiskon.value)
@@ -379,6 +380,15 @@ private fun CheckoutSheet(
     val diterima = diterimaText.toDoubleOrNull() ?: 0.0
     val kembalian = diterima - total
     val pelanggan = customers.find { it.id == customerId }
+    val unitAktif by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
+    fun teksStruk(): String = susunStruk(
+        namaUsaha = unitAktif?.name ?: "Toko", alamat = unitAktif?.alamat,
+        tanggal = "${todayDate()} ${currentTime()}", items = cart.entries.map { it.key to it.value },
+        subtotal = subtotal, diskon = diskon, ppn = ppn, persenPpn = persenPpn, ppnInklusif = ppnInklusif, total = total,
+        metode = if (bayarTerpisah) "split" else metode, diterima = if (metode == "CASH" && !bayarTerpisah && diterima > 0) diterima else null,
+        kembalian = if (metode == "CASH" && !bayarTerpisah && diterima > 0 && kembalian > 0) kembalian else null,
+        catatan = catatan.takeIf { it.isNotBlank() }
+    )
 
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding()
@@ -587,7 +597,7 @@ private fun CheckoutSheet(
 
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            BizOutlineButton("Struk", onPrint, icon = Icons.Rounded.Print, modifier = Modifier.height(54.dp))
+            BizOutlineButton("Struk", { onPrint(teksStruk()) }, icon = Icons.Rounded.Print, modifier = Modifier.height(54.dp))
             BizButton(
                 "Bayar ${total.rupiahRingkas()}",
                 onClick = {
@@ -601,7 +611,8 @@ private fun CheckoutSheet(
                         kenaiPpn = kenaiPpn && tarifPpn != null,
                         ppnInklusif = ppnInklusif
                     )
-                    viewModel.checkout(metode, opsi) { ok -> if (ok) onPaid(total) }
+                    val struk = teksStruk()
+                    viewModel.checkout(metode, opsi) { ok -> if (ok) onPaid(total, struk) }
                 },
                 loading = uiState.isLoading,
                 enabled = cart.isNotEmpty() && (jenisPesanan != "DINE_IN" || meja.isNotBlank()) &&
@@ -624,13 +635,9 @@ private fun BarisTotal(label: String, nilai: String, warna: Color = MaterialThem
 }
 
 @Composable
-private fun SuksesBayarDialog(total: Double, onDismiss: () -> Unit) {
+private fun SuksesBayarDialog(total: Double, onCetak: () -> Unit, onDismiss: () -> Unit) {
     val skala = remember { Animatable(0.3f) }
-    LaunchedEffect(Unit) {
-        skala.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f))
-        delay(1800)
-        onDismiss()
-    }
+    LaunchedEffect(Unit) { skala.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f)) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier.clip(RoundedCornerShape(28.dp)).background(MaterialTheme.colorScheme.surface).padding(28.dp),
@@ -646,6 +653,34 @@ private fun SuksesBayarDialog(total: Double, onDismiss: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Text("Pembayaran berhasil", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(total.rupiah(), style = MaterialTheme.typography.headlineSmall, color = BizgrowColors.Success)
+            Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                BizOutlineButton("Cetak struk", onCetak, icon = Icons.Rounded.Print, height = 46.dp)
+                BizButton("Selesai", onDismiss, icon = Icons.Rounded.Check, height = 46.dp)
+            }
+        }
+    }
+}
+
+/** Pilih printer Bluetooth yang sudah dipasangkan di HP; pilihan disimpan untuk cetak berikutnya. */
+@Composable
+private fun PemilihPrinterSheet(printer: com.upstyle.bizgrow.device.PrinterManager, session: com.upstyle.bizgrow.data.SessionRepository, onDismiss: () -> Unit, onPilih: (String) -> Unit) {
+    val perangkat = remember { printer.perangkatTerpasang() }
+    @OptIn(ExperimentalMaterial3Api::class)
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Text("Pilih printer struk", style = MaterialTheme.typography.titleLarge)
+            Text("Pasangkan printer thermal 58 mm lewat pengaturan Bluetooth HP terlebih dahulu.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+            if (perangkat.isEmpty()) {
+                Text("Belum ada perangkat Bluetooth yang dipasangkan, atau izin Bluetooth belum diberikan.", style = MaterialTheme.typography.bodyMedium, color = BizgrowColors.Warning)
+            }
+            perangkat.forEach { (nama, mac) ->
+                ListRow(nama, subtitle = mac, icon = Icons.Rounded.Print, tint = BizgrowColors.Info, showChevron = true, onClick = { session.setPrinter(mac, nama); onPilih(mac) })
+            }
+            if (session.getPrinterMac().isNotBlank()) {
+                TextButton(onClick = { session.lupakanPrinter(); onDismiss() }) { Text("Lupakan printer (${session.getPrinterNama()})", color = BizgrowColors.Danger) }
+            }
         }
     }
 }

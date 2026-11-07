@@ -117,6 +117,7 @@ class AppViewModel(
     private fun setError(msg: String) { _uiState.update { it.copy(isLoading = false, error = msg) } }
     /** Tampilkan pesan error dari UI (mis. printer belum dikonfigurasi). */
     fun showError(msg: String) = setError(msg)
+    fun showSuccess(msg: String) = setSuccess(msg)
     private fun setSuccess(msg: String) { _uiState.update { it.copy(isLoading = false, successMessage = msg, error = null) } }
     fun clearMessages() { _uiState.update { it.copy(error = null, successMessage = null) } }
 

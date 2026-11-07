@@ -69,6 +69,12 @@ class SessionRepository(private val settings: Settings) {
     fun isAiInstant(): Boolean = settings.getBoolean("ai_instant", false)
     fun setAiInstant(v: Boolean) = settings.putBoolean("ai_instant", v)
 
+    /** Printer struk Bluetooth yang dipilih (alamat MAC + nama), tetap tersimpan walau logout. */
+    fun getPrinterMac(): String = settings.getString("printer_mac", "")
+    fun getPrinterNama(): String = settings.getString("printer_nama", "")
+    fun setPrinter(mac: String, nama: String) { settings.putString("printer_mac", mac); settings.putString("printer_nama", nama) }
+    fun lupakanPrinter() { settings.remove("printer_mac"); settings.remove("printer_nama") }
+
     /** Tema tampilan: "system" (ikut HP), "light", atau "dark". Tetap tersimpan walau logout. */
     fun getThemeMode(): String = settings.getString(KEY_THEME, "system")
     fun setThemeMode(mode: String) = settings.putString(KEY_THEME, mode)
