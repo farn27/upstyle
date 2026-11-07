@@ -2722,6 +2722,42 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Sales Orders Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+    fun buatPenawaran(customerId: Int?, validUntil: String?, notes: String?, items: List<ItemJual>) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.buatPenawaran(_activeUnitId.value, customerId, validUntil, notes, items)
+            if (res.success) { loadQuotations(); setSuccess("Penawaran dibuat") } else setError(res.message ?: "Gagal membuat penawaran")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahStatusPenawaran(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusPenawaran(_activeUnitId.value, id, status)
+            if (res.success) { loadQuotations(); setSuccess("Status penawaran: $status") } else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun jadikanSalesOrder(quotationId: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.jadikanSalesOrder(_activeUnitId.value, quotationId)
+            if (res.success) { loadQuotations(); loadSalesOrders(); setSuccess("Sales order dibuat dari penawaran") } else setError(res.message ?: "Gagal membuat sales order")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun buatSalesOrder(customerId: Int?, notes: String?, items: List<ItemJual>) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.buatSalesOrder(_activeUnitId.value, customerId, notes, items)
+            if (res.success) { loadSalesOrders(); setSuccess("Sales order dibuat") } else setError(res.message ?: "Gagal membuat sales order")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahStatusSalesOrder(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusSalesOrder(id, status)
+            if (res.success) { loadSalesOrders(); setSuccess("Status sales order: $status") } else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun loadSalesOrders() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch

@@ -1421,6 +1421,48 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getSalesOrders(unitId: Int): ApiResponse<List<SalesOrder>> =
         client.get("api/app/crm/sales-orders") { parameter("unitId", unitId) }.body()
 
+    private fun kotlinx.serialization.json.JsonObjectBuilder.itemJual(items: List<ItemJual>) {
+        putJsonArray("items") {
+            items.forEach { add(buildJsonObject { if (it.productId != null) put("productId", it.productId); put("qty", it.qty); put("price", it.price) }) }
+        }
+    }
+
+    suspend fun buatPenawaran(unitId: Int, customerId: Int?, validUntil: String?, notes: String?, items: List<ItemJual>): ApiResponse<JsonObject> =
+        client.post("api/app/crm/quotations") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                if (customerId != null) put("customerId", customerId)
+                if (!validUntil.isNullOrBlank()) put("validUntil", validUntil)
+                if (!notes.isNullOrBlank()) put("notes", notes)
+                itemJual(items)
+            })
+        }.body()
+
+    suspend fun ubahStatusPenawaran(unitId: Int, quotationId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/crm/quotations") {
+            setBody(buildJsonObject { put("action", "update-status"); put("unitId", unitId); put("quotationId", quotationId); put("status", status) })
+        }.body()
+
+    suspend fun jadikanSalesOrder(unitId: Int, quotationId: Int): ApiResponse<JsonObject> =
+        client.put("api/app/crm/quotations") {
+            setBody(buildJsonObject { put("action", "convert-to-order"); put("unitId", unitId); put("quotationId", quotationId) })
+        }.body()
+
+    suspend fun buatSalesOrder(unitId: Int, customerId: Int?, notes: String?, items: List<ItemJual>): ApiResponse<JsonObject> =
+        client.post("api/app/crm/sales-orders") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                if (customerId != null) put("customerId", customerId)
+                if (!notes.isNullOrBlank()) put("notes", notes)
+                itemJual(items)
+            })
+        }.body()
+
+    suspend fun ubahStatusSalesOrder(orderId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/crm/sales-orders") {
+            setBody(buildJsonObject { put("orderId", orderId); put("status", status) })
+        }.body()
+
     // Tutup buku → api/app/finance/close-period
     suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
         client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()

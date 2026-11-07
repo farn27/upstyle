@@ -1501,6 +1501,9 @@ data class CrmTask(
     val createdAt: String = ""
 )
 
+/** Baris item yang dikirim saat membuat penawaran / sales order. */
+data class ItemJual(val productId: String?, val qty: Int, val price: Double)
+
 @Serializable
 data class Quotation(
     val id: Int = 0,
@@ -1512,6 +1515,7 @@ data class Quotation(
     val status: String = "DRAFT",
     val validUntil: String = "",
     val notes: String? = null,
+    val createdAt: String = "",
     val items: List<QuotationItem> = emptyList()
 )
 
@@ -1520,6 +1524,7 @@ data class QuotationItem(
     val id: Int = 0,
     val quotationId: Int = 0,
     val productId: String? = null,
+    val productName: String = "",
     val qty: Int = 1,
     val price: Double = 0.0,
     val total: Double = 0.0
@@ -1535,6 +1540,7 @@ data class SalesOrder(
     val totalAmount: Double = 0.0,
     val status: String = "PENDING",
     val notes: String? = null,
+    val createdAt: String = "",
     val items: List<SalesOrderItem> = emptyList()
 )
 
@@ -1543,6 +1549,7 @@ data class SalesOrderItem(
     val id: Int = 0,
     val salesOrderId: Int = 0,
     val productId: String? = null,
+    val productName: String = "",
     val qty: Int = 1,
     val price: Double = 0.0,
     val total: Double = 0.0
