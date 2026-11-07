@@ -53,6 +53,7 @@ val ModuleCatalog: List<ModuleGroup> = listOf(
         "Penjualan & Kasir", Emerald, listOf(
             ModuleEntry("Kasir (POS)", Icons.Rounded.PointOfSale, Emerald, Screen.Pos, "jual checkout"),
             ModuleEntry("Antrean & Dapur", Icons.Rounded.SoupKitchen, Amber, Screen.PosQueue, "pesanan dapur meja kitchen"),
+            ModuleEntry("Laporan Kasir", Icons.Rounded.BarChart, Indigo, Screen.PosReport, "penjualan produk terlaris metode bayar"),
             ModuleEntry("Shift Kasir", Icons.Rounded.Schedule, Sky, Screen.PosShift, "buka tutup laci kas"),
             ModuleEntry("Retur Penjualan", Icons.AutoMirrored.Rounded.Undo, Rose, Screen.PosReturn, "refund kembali"),
             ModuleEntry("Voucher & Promo", Icons.Rounded.LocalOffer, Pink, Screen.PosVouchers, "diskon kupon"),

@@ -55,6 +55,9 @@ fun PosScreen(viewModel: AppViewModel) {
     val productsState by viewModel.productsState.collectAsState(initial = viewModel.productsState.value)
     var showCheckout by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    val ditunda by viewModel.pesananDitunda.collectAsState()
+    var showDitunda by remember { mutableStateOf(false) }
+    var tundaLabel by remember { mutableStateOf<String?>(null) }
     var kategori by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var sukses by remember { mutableStateOf<Double?>(null) }
@@ -90,9 +93,13 @@ fun PosScreen(viewModel: AppViewModel) {
                         DropdownMenu(showMenu, { showMenu = false }, shape = RoundedCornerShape(16.dp)) {
                             DropdownMenuItem({ Text("Shift kasir") }, { showMenu = false; viewModel.navigate(Screen.PosShift) }, leadingIcon = { Icon(Icons.Rounded.Schedule, null) })
                             DropdownMenuItem({ Text("Retur penjualan") }, { showMenu = false; viewModel.navigate(Screen.PosReturn) }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Undo, null) })
+                            DropdownMenuItem({ Text("Antrean & dapur") }, { showMenu = false; viewModel.navigate(Screen.PosQueue) }, leadingIcon = { Icon(Icons.Rounded.SoupKitchen, null) })
+                            DropdownMenuItem({ Text("Laporan kasir") }, { showMenu = false; viewModel.navigate(Screen.PosReport) }, leadingIcon = { Icon(Icons.Rounded.BarChart, null) })
+                            DropdownMenuItem({ Text(if (ditunda.isEmpty()) "Pesanan ditunda" else "Pesanan ditunda (${ditunda.size})") }, { showMenu = false; showDitunda = true }, leadingIcon = { Icon(Icons.Rounded.PauseCircle, null) })
                             DropdownMenuItem({ Text("Voucher & promo") }, { showMenu = false; viewModel.navigate(Screen.PosVouchers) }, leadingIcon = { Icon(Icons.Rounded.LocalOffer, null) })
                             if (cart.isNotEmpty()) {
                                 HorizontalDivider()
+                                DropdownMenuItem({ Text("Tunda pesanan ini") }, { showMenu = false; tundaLabel = "" }, leadingIcon = { Icon(Icons.Rounded.Pause, null) })
                                 DropdownMenuItem({ Text("Kosongkan keranjang", color = BizgrowColors.Danger) }, { showMenu = false; viewModel.clearCart() }, leadingIcon = { Icon(Icons.Rounded.RemoveShoppingCart, null, tint = BizgrowColors.Danger) })
                             }
                         }
@@ -147,6 +154,28 @@ fun PosScreen(viewModel: AppViewModel) {
     }
 
     val printer = com.upstyle.bizgrow.device.rememberPrinterManager()
+    tundaLabel?.let { label ->
+        FormSheet("Tunda pesanan", subjudul = "Keranjang disimpan dan bisa dilanjutkan nanti (hilang bila aplikasi ditutup).", onDismiss = { tundaLabel = null }, labelSimpan = "Tunda",
+            onSimpan = { viewModel.tundaPesanan(label); tundaLabel = null }) {
+            BizTextField(label, { tundaLabel = it }, "Nama pesanan (opsional)", placeholder = "Misal: Meja 5 / Pak Budi")
+        }
+    }
+    if (showDitunda) {
+        ModalBottomSheet({ showDitunda = false }, containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text("Pesanan ditunda", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(10.dp))
+                if (ditunda.isEmpty()) Text("Tidak ada pesanan yang ditunda.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ditunda.forEach { p ->
+                    val total = p.isi.entries.sumOf { it.key.hargaJual * it.value }
+                    ListRow(p.label, subtitle = "${p.isi.values.sum()} item • ${total.rupiah()}", icon = Icons.Rounded.PauseCircle, tint = BizgrowColors.Warning,
+                        trailing = { IconButton(onClick = { viewModel.hapusPesananDitunda(p.id) }) { Icon(Icons.Rounded.DeleteOutline, "Hapus", tint = BizgrowColors.Danger) } },
+                        onClick = { if (cart.isEmpty()) { viewModel.lanjutkanPesanan(p.id); showDitunda = false } else viewModel.showError("Kosongkan atau tunda keranjang saat ini dulu") })
+                }
+            }
+        }
+    }
+
     if (showCheckout) {
         ModalBottomSheet(
             onDismissRequest = { showCheckout = false },

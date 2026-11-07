@@ -921,6 +921,48 @@ class AppViewModel(
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
 
+    // ─── Kas masuk/keluar shift & laporan POS ───
+    private val _kasShift = MutableStateFlow<List<PosCashTransaction>>(emptyList())
+    val kasShift: StateFlow<List<PosCashTransaction>> = _kasShift.asStateFlow()
+    fun loadKasShift(shiftId: Int) = viewModelScope.launch {
+        try { val res = api.getPosCashTransactions(shiftId); if (res.success) _kasShift.value = res.data.orEmpty() }
+        catch (e: Exception) { Napier.e("loadKasShift error", e) }
+    }
+    fun catatKasShift(shiftId: Int, type: String, amount: Double, ket: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        setLoading(true)
+        try {
+            val res = api.createPosCash(unitId, shiftId, type, amount, ket)
+            if (res.success) { loadKasShift(shiftId); setSuccess(if (type == "CASH_IN") "Kas masuk dicatat" else "Kas keluar dicatat") } else setError(res.message ?: "Gagal mencatat kas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    private val _posReport = MutableStateFlow<PosReport?>(null)
+    val posReport: StateFlow<PosReport?> = _posReport.asStateFlow()
+    fun loadPosReport() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try { val res = api.getPosReport(unitId); if (res.success) _posReport.value = res.data } catch (e: Exception) { Napier.e("loadPosReport error", e) }
+    }
+
+    // ─── Pesanan ditunda (hold) — disimpan di memori selama aplikasi terbuka ───
+    data class PesananDitunda(val id: Long, val label: String, val isi: Map<Product, Int>, val customerId: Int?, val waktu: Long)
+    private val _ditunda = MutableStateFlow<List<PesananDitunda>>(emptyList())
+    val pesananDitunda: StateFlow<List<PesananDitunda>> = _ditunda.asStateFlow()
+    fun tundaPesanan(label: String) {
+        val isi = _cart.value
+        if (isi.isEmpty()) return
+        _ditunda.update { it + PesananDitunda(currentTimeMillis(), label.ifBlank { "Pesanan ${it.size + 1}" }, isi, _selectedCustomerId.value, currentTimeMillis()) }
+        clearCart()
+        setSuccess("Pesanan ditunda")
+    }
+    fun lanjutkanPesanan(id: Long) {
+        val p = _ditunda.value.firstOrNull { it.id == id } ?: return
+        _cart.value = p.isi
+        _selectedCustomerId.value = p.customerId
+        _ditunda.update { list -> list.filter { it.id != id } }
+    }
+    fun hapusPesananDitunda(id: Long) { _ditunda.update { list -> list.filter { it.id != id } } }
+
     private val _posQueue = MutableStateFlow<List<PosQueueItem>>(emptyList())
     val posQueue: StateFlow<List<PosQueueItem>> = _posQueue.asStateFlow()
     fun loadPosQueue() = viewModelScope.launch {

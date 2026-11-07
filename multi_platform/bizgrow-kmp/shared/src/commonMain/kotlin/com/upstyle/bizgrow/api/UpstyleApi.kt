@@ -688,6 +688,16 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
 
+    suspend fun getPosReport(unitId: Int): ApiResponse<PosReport> =
+        client.get("api/app/pos/reports") { parameter("unitId", unitId) }.body()
+
+    suspend fun createPosCash(unitId: Int, shiftId: Int, type: String, amount: Double, description: String): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/pos/cash") {
+            setBody(buildJsonObject {
+                put("unitId", unitId); put("shiftId", shiftId); put("type", type); put("amount", amount); put("description", description)
+            })
+        }.body())
+
     suspend fun getPosQueue(unitId: Int): ApiResponse<PosQueueData> =
         client.get("api/app/pos") {
             parameter("unitId", unitId)

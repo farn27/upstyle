@@ -577,3 +577,70 @@ fun PosQueueScreen(viewModel: AppViewModel) {
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Laporan kasir (padanan pos/reports di web)
+// ═══════════════════════════════════════════════════════════════════════════
+
+@Composable
+fun PosReportScreen(viewModel: AppViewModel) {
+    val laporan by viewModel.posReport.collectAsState()
+    val shifts by viewModel.posShifts.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadPosReport(); viewModel.loadPosShifts() }
+
+    BizScreen("Laporan Kasir", subtitle = "Ringkasan penjualan POS", onBack = { viewModel.navigateBack() },
+        actions = { BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadPosReport() }; Spacer(Modifier.width(8.dp)) }
+    ) { padding ->
+        val l = laporan
+        if (l == null) { SkeletonList(rows = 5, modifier = Modifier.padding(padding)); return@BizScreen }
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("Total penjualan", l.summary.totalRevenue.rupiahRingkas(), Icons.Rounded.PointOfSale, BizgrowColors.Success, Modifier.weight(1f))
+                    StatTile("Jumlah order", "${l.summary.totalOrders}", Icons.Rounded.ReceiptLong, BizgrowColors.Primary, Modifier.weight(1f), caption = "${l.summary.paidOrders} lunas")
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("Rata-rata order", l.summary.averageOrder.rupiahRingkas(), Icons.Rounded.Calculate, BizgrowColors.Info, Modifier.weight(1f))
+                    StatTile("Dibatalkan", "${l.summary.cancelledOrders}", Icons.Rounded.Cancel, BizgrowColors.Danger, Modifier.weight(1f))
+                }
+            }
+            item {
+                BizSurface(Modifier.fillMaxWidth()) {
+                    Text("Metode pembayaran", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    val total = l.paymentBreakdown.values.sum().takeIf { it > 0 } ?: 1.0
+                    if (l.paymentBreakdown.isEmpty()) Text("Belum ada data", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    l.paymentBreakdown.entries.sortedByDescending { it.value }.forEachIndexed { i, (metode, nilai) ->
+                        val p = (nilai / total).toFloat()
+                        Column(Modifier.padding(vertical = 5.dp)) {
+                            Row { Text(metode, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text("${nilai.rupiahRingkas()} • ${(p * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Spacer(Modifier.height(4.dp))
+                            Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.outlineVariant)) { Box(Modifier.fillMaxWidth(p).fillMaxHeight().clip(CircleShape).background(BizgrowColors.ModuleColors[i % BizgrowColors.ModuleColors.size])) }
+                        }
+                    }
+                }
+            }
+            item {
+                BizSurface(Modifier.fillMaxWidth()) {
+                    Text("Produk terlaris", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    if (l.topProducts.isEmpty()) Text("Belum ada penjualan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    l.topProducts.forEachIndexed { i, p ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(26.dp).clip(CircleShape).background(BizgrowColors.Primary.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Text("${i + 1}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = BizgrowColors.Primary) }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) { Text(p.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${p.qty} terjual", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Text(p.revenue.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BizgrowColors.Success)
+                        }
+                    }
+                }
+            }
+            val riwayat = shifts.take(5)
+            if (riwayat.isNotEmpty()) {
+                item { SectionTitle("Shift terakhir") }
+                itemsIndexed(riwayat, key = { _, s -> s.id }) { i, s -> RiwayatShift(s, Modifier.enterAnimation(i)) }
+            }
+        }
+    }
+}

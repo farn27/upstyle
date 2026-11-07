@@ -2272,3 +2272,24 @@ data class HrDetailData(
     val history: List<HrRiwayatJabatan> = emptyList(),
     val documents: List<HrDokumen> = emptyList()
 )
+
+// ─── Laporan POS (api/app/pos/reports) ───────────────────────────────────────
+
+@Serializable
+data class PosReportSummary(
+    val totalRevenue: Double = 0.0,
+    val totalOrders: Int = 0,
+    val averageOrder: Double = 0.0,
+    val paidOrders: Int = 0,
+    val cancelledOrders: Int = 0
+)
+
+@Serializable
+data class PosTopProduct(val name: String = "", val qty: Int = 0, val revenue: Double = 0.0)
+
+@Serializable
+data class PosReport(
+    val summary: PosReportSummary = PosReportSummary(),
+    val topProducts: List<PosTopProduct> = emptyList(),
+    val paymentBreakdown: Map<String, Double> = emptyMap()
+)

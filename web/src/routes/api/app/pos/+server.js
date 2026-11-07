@@ -9,7 +9,8 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
-import { unitMilikUser } from '$lib/server/apiUnitGuard';
+import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
+import { decryptField } from '$lib/server/encryption';
 import { bisaDijual } from '$lib/jenisProduk';
 import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { getActivePosFeatures } from '$lib/posFeatures';
@@ -526,24 +527,25 @@ export async function POST({ request, cookies }) {
         if (action === 'verify-pin') {
             const { employeeId, pin } = body;
 
-            const employee = await db.query.employees.findFirst({
-                where: eq(employees.id, Number(employeeId))
-            });
-
+            // Hanya karyawan di unit milik user (mencegah menebak PIN karyawan tenant lain)
+            const employee = await karyawanMilikUser(db, userId, employeeId);
             if (!employee) {
                 return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
             }
 
-            // Verify PIN - assume PIN stored as hash
-            const pinHash = await hashEmployeePassword(pin);
-            const isValidPin = pinHash === employee.pin; // You might need to adjust this based on your PIN storage method
-
-            if (!isValidPin) {
+            // PIN disimpan terenkripsi (encryptField), sama seperti verifikasi PIN di web
+            let pinBenar = false;
+            try {
+                pinBenar = !!employee.pin && decryptField(employee.pin, true) === String(pin ?? '');
+            } catch {
+                pinBenar = false;
+            }
+            if (!pinBenar) {
                 return json({ success: false, message: "PIN salah" }, { status: 400 });
             }
 
-            return json({ 
-                success: true, 
+            return json({
+                success: true,
                 message: "PIN benar",
                 employee: {
                     id: employee.id,
