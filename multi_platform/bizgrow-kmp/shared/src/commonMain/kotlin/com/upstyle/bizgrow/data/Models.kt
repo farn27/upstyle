@@ -929,9 +929,13 @@ data class ChatRequest(
 
 @Serializable
 data class ChatResponse(
-    val reply: String,
+    val reply: String = "",
     val suggestions: List<String> = emptyList(),
-    val intent: String? = null
+    val intent: String? = null,
+    /** Konfigurasi Chart.js dari server (type + data.labels + data.datasets). */
+    val chartData: kotlinx.serialization.json.JsonElement? = null,
+    /** Transaksi hasil deteksi bahasa natural — perlu dilengkapi akun kas & COA sebelum disimpan. */
+    val transactionPreviews: List<TrxPreview>? = null
 )
 
 @Serializable

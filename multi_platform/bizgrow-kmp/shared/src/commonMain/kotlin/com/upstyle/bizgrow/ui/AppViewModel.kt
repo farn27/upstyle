@@ -1280,11 +1280,24 @@ class AppViewModel(
     val advancedSettingsState: StateFlow<AdvancedSettingsState> = _advancedSettingsState.asStateFlow()
 
     // Chat & AI
-    private val _chatHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
-    val chatHistory: StateFlow<List<ChatMessage>> = _chatHistory.asStateFlow()
+    /** Chat Bizgrow AI (sesi, saran, grafik, kartu transaksi) — lihat [AiChatController]. */
+    val ai: AiChatController by lazy {
+        AiChatController(
+            scope = viewModelScope,
+            session = session,
+            api = { api },
+            units = { _units.value },
+            activeUnit = { activeUnit.value },
+            onError = { setError(it) },
+            onTransaksiTersimpan = { loadDashboard(); loadFinanceData(); setSuccess("Transaksi tersimpan") }
+        )
+    }
 
-    private val _isChatLoading = MutableStateFlow(false)
-    val isChatLoading: StateFlow<Boolean> = _isChatLoading.asStateFlow()
+    /** Buka layar AI dan langsung kirim [prompt] (dipakai kartu AI di Beranda). */
+    fun tanyaAi(prompt: String? = null) {
+        navigate(Screen.AiChat)
+        if (!prompt.isNullOrBlank()) { ai.muat(); ai.kirim(prompt) }
+    }
 
     // ─── AI Entry (NLP Transaction) ───────────────────────────────────────────
     private val _isAiEntryLoading = MutableStateFlow(false)
@@ -2080,35 +2093,6 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Chat & AI Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-    fun sendChat(message: String) = viewModelScope.launch {
-        val userMsg = ChatMessage(role = "user", content = message)
-        _chatHistory.value = _chatHistory.value + userMsg
-        try {
-            _isChatLoading.value = true
-            val slug = activeUnit.value?.slug ?: ""
-            val history = _chatHistory.value.takeLast(10)
-            val res = api.chat(ChatRequest(message = message, activeUnitSlug = slug, history = history))
-            val reply = ChatMessage(role = "assistant", content = res.reply ?: "Maaf, tidak ada respons.")
-            _chatHistory.value = _chatHistory.value + reply
-        } catch (e: Exception) {
-            // Tambahkan pesan error sebagai bubble AI agar konteks chat tetap jelas
-            val errMsg = ChatMessage(role = "assistant", content = "Koneksi gagal. Coba lagi. (${e.message})")
-            _chatHistory.value = _chatHistory.value + errMsg
-        } finally {
-            _isChatLoading.value = false
-        }
-    }
-
-    fun loadChatHistory() = viewModelScope.launch {
-        // Chat history bersifat in-session — kosongkan saat screen baru dibuka
-        // Jika di masa depan ada endpoint history, ganti ini dengan API call
-        _chatHistory.value = emptyList()
-    }
-
-    fun clearChat() {
-        _chatHistory.value = emptyList()
-    }
-
     // ─── AI Entry (NLP Transaction) ───────────────────────────────────────────
 
     /**

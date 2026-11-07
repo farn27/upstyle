@@ -76,7 +76,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     }
                 }
                 item {
-                    Pintasan(viewModel, Modifier.padding(top = 18.dp).enterAnimation(1))
+                    KartuAiBeranda(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 14.dp).enterAnimation(1))
+                }
+                item {
+                    Pintasan(viewModel, Modifier.padding(top = 4.dp).enterAnimation(1))
                 }
                 item {
                     PerluPerhatian(financeData, lowStock, viewModel, Modifier.enterAnimation(2))

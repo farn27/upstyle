@@ -3,7 +3,11 @@ package com.upstyle.bizgrow.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -50,6 +54,7 @@ private fun tabAktif(current: Screen): Screen? = when (current) {
     is Screen.Pos -> Screen.Pos
     is Screen.Modules -> Screen.Modules
     is Screen.Profile, is Screen.Settings -> Screen.Profile
+    is Screen.AiChat -> Screen.AiChat
     else -> null
 }
 
@@ -92,7 +97,11 @@ fun BottomNavBar(viewModel: AppViewModel, currentScreen: Screen) {
                 NavTab(tab, selected = aktif == tab.screen, badge = 0, modifier = Modifier.weight(1f)) { buka(tab.screen) }
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                TombolTengah { showQuick = true }
+                TombolTengah(
+                    aktif = aktif is Screen.AiChat,
+                    onClick = { if (aktif !is Screen.AiChat) viewModel.navigate(Screen.AiChat) },
+                    onLongClick = { showQuick = true }
+                )
             }
             tabsKanan.forEach { tab ->
                 NavTab(
@@ -177,22 +186,44 @@ private fun NavTab(tab: TabItem, selected: Boolean, badge: Int, modifier: Modifi
     }
 }
 
+/**
+ * Tombol tengah = Bizgrow AI (asisten semua hal). Ketuk → buka chat AI, tahan → aksi cepat.
+ * Cincin lembut berdenyut pelan (hanya alpha/skala di graphicsLayer) supaya mudah ditemukan.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TombolTengah(onClick: () -> Unit) {
-    // Denyut halus sekali saat pertama muncul — menarik perhatian tanpa animasi terus-menerus
+private fun TombolTengah(aktif: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val skalaAwal = remember { Animatable(0.6f) }
     LaunchedEffect(Unit) { skalaAwal.animateTo(1f, BizMotion.bouncy()) }
-    Box(
-        Modifier
-            .size(52.dp)
-            .graphicsLayer { scaleX = skalaAwal.value; scaleY = skalaAwal.value }
-            .shadow(10.dp, CircleShape, spotColor = BizgrowColors.Primary.copy(alpha = 0.5f))
-            .clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(BizgrowColors.GradPrimary))
-            .pressClick(pressedScale = 0.9f, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Icons.Rounded.Add, contentDescription = "Aksi cepat", tint = Color.White, modifier = Modifier.size(28.dp))
+    val denyut = rememberInfiniteTransition(label = "aiPulse")
+    val cincin by denyut.animateFloat(1f, 1.45f, infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "ring")
+    val alfa by denyut.animateFloat(0.35f, 0f, infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "ringA")
+    val source = remember { MutableInteractionSource() }
+    val ditekan by source.collectIsPressedAsState()
+    val tekan by animateFloatAsState(if (ditekan) 0.9f else 1f, BizMotion.snappy(), label = "aiPress")
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(contentAlignment = Alignment.Center) {
+            if (!aktif) {
+                Box(
+                    Modifier.size(52.dp).graphicsLayer { scaleX = cincin; scaleY = cincin; alpha = alfa }
+                        .clip(RoundedCornerShape(18.dp)).background(GradAi.last())
+                )
+            }
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .graphicsLayer { scaleX = skalaAwal.value * tekan; scaleY = skalaAwal.value * tekan }
+                    .shadow(10.dp, RoundedCornerShape(18.dp), spotColor = GradAi[1].copy(alpha = 0.6f))
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Brush.linearGradient(GradAi))
+                    .combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = onLongClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.AutoAwesome, contentDescription = "Tanya Bizgrow AI", tint = Color.White, modifier = Modifier.size(26.dp))
+            }
+        }
+        Text("AI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold, color = if (aktif) GradAi[1] else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

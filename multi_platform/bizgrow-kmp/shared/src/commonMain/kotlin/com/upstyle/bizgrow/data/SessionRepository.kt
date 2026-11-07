@@ -63,6 +63,12 @@ class SessionRepository(private val settings: Settings) {
     fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
     fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
 
+    /** Riwayat sesi chat AI per pengguna (JSON). Tetap ada setelah aplikasi ditutup. */
+    fun getAiSessions(userId: Int): String? = settings.getStringOrNull("ai_sessions_$userId")
+    fun setAiSessions(userId: Int, json: String) = settings.putString("ai_sessions_$userId", json)
+    fun isAiInstant(): Boolean = settings.getBoolean("ai_instant", false)
+    fun setAiInstant(v: Boolean) = settings.putBoolean("ai_instant", v)
+
     /** Tema tampilan: "system" (ikut HP), "light", atau "dark". Tetap tersimpan walau logout. */
     fun getThemeMode(): String = settings.getString(KEY_THEME, "system")
     fun setThemeMode(mode: String) = settings.putString(KEY_THEME, mode)
