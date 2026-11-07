@@ -1235,6 +1235,13 @@ class AppViewModel(
     val shopeeState: StateFlow<ShopeeState> = _shopeeState.asStateFlow()
 
     private val _advancedSettingsState = MutableStateFlow(AdvancedSettingsState())
+    private val _themeMode = MutableStateFlow(session.getThemeMode())
+    /** "system" | "light" | "dark" — disimpan lokal supaya tema langsung berlaku saat aplikasi dibuka. */
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+    fun setThemeMode(mode: String) {
+        session.setThemeMode(mode)
+        _themeMode.value = mode
+    }
     val advancedSettingsState: StateFlow<AdvancedSettingsState> = _advancedSettingsState.asStateFlow()
 
     // Chat & AI
@@ -2032,7 +2039,7 @@ class AppViewModel(
     fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean) = viewModelScope.launch {
         try {
             val res = api.updatePreferences(darkMode, notifEnabled)
-            if (res.success) { _advancedSettingsState.update { it.copy(darkMode = darkMode, notifEnabled = notifEnabled) }; setSuccess("Preferensi berhasil disimpan!") }
+            if (res.success) { _advancedSettingsState.update { it.copy(darkMode = darkMode, notifEnabled = notifEnabled) }; setThemeMode(if (darkMode) "dark" else "light"); setSuccess("Preferensi berhasil disimpan!") }
             else setError(res.message ?: "Gagal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }

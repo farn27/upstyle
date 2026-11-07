@@ -1,258 +1,193 @@
 package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
-import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.design.*
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Tab "Akun": profil, paket, tampilan, dan pintasan pengaturan. */
 @Composable
 fun ProfileScreen(viewModel: AppViewModel) {
-    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
     val activeUnit by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
-    val currentUser = viewModel.currentUser
-    var showLogoutDialog by remember { mutableStateOf(false) }
+    val units by viewModel.units.collectAsState(initial = viewModel.units.value)
+    val themeMode by viewModel.themeMode.collectAsState(initial = viewModel.themeMode.value)
+    val unread by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
+    val user = viewModel.currentUser
+    var konfirmasiKeluar by remember { mutableStateOf(false) }
+    val paket = labelPaket(user?.role)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Profil Saya") },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.navigate(Screen.Settings) }) {
-                        Icon(Icons.Default.Settings, null)
-                    }
-                }
-            )
-        }
+    androidx.compose.material3.Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = { BottomNavBar(viewModel, Screen.Profile) }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            // Hero header
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer))),
-                    contentAlignment = Alignment.Center
+                GradientCard(
+                    colors = BizgrowColors.GradNight,
+                    shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val fallbackName = currentUser?.username ?: "User"
-                        AsyncImage(
-                            model = "https://ui-avatars.com/api/?name=${fallbackName.replace(" ", "+")}&background=FFFFFF&color=1976D2&size=128&bold=true",
-                            contentDescription = "Avatar",
-                            modifier = Modifier.size(80.dp).clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(currentUser?.username ?: "Username", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Color.White)
-                        Text(currentUser?.email ?: "", fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
-                    }
-                }
-            }
-
-            // Plan badge
-            item {
-                val role = currentUser?.role ?: "free"
-                val planLabel = when (role.lowercase()) {
-                    "admin", "owner" -> "ENTERPRISE"
-                    "premium" -> "PREMIUM"
-                    else -> "FREE"
-                }
-                val planColor = when (role.lowercase()) {
-                    "admin", "owner" -> Color(0xFF6A1B9A)
-                    "premium" -> Color(0xFF1565C0)
-                    else -> Color(0xFF2E7D32)
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = planColor.copy(alpha = 0.08f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Column(Modifier.statusBarsPadding().padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Akun", style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.weight(1f))
+                            BizIconButton(Icons.Rounded.Settings, "Pengaturan", tint = Color.White, container = Color.White.copy(alpha = 0.16f)) {
+                                viewModel.navigate(Screen.Settings)
+                            }
+                        }
+                        Spacer(Modifier.height(18.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
-                                modifier = Modifier.size(40.dp).clip(CircleShape).background(planColor.copy(alpha = 0.15f)),
+                                Modifier.size(64.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.WorkspacePremium, null, tint = planColor, modifier = Modifier.size(22.dp))
+                                Text((user?.username?.firstOrNull() ?: 'B').uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White)
                             }
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text("Plan Aktif", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(planLabel, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = planColor)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(user?.username ?: "Pengguna", style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(user?.email ?: "", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.height(6.dp))
+                                Row(
+                                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.2f)).padding(horizontal = 10.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Rounded.WorkspacePremium, null, tint = Color(0xFFFDE68A), modifier = Modifier.size(14.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Paket $paket", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                                }
                             }
                         }
-                        Surface(color = planColor, shape = RoundedCornerShape(12.dp)) {
-                            Text(role.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                        if (paket == "Gratis") {
+                            Spacer(Modifier.height(18.dp))
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color.White.copy(alpha = 0.14f))
+                                    .pressClick { viewModel.navigate(Screen.SubscriptionPlans) }
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.RocketLaunch, null, tint = Color.White)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("Upgrade ke Pro", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                                    Text("Hingga 10 unit bisnis & fitur lengkap", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.75f))
+                                }
+                                Icon(Icons.Rounded.ChevronRight, null, tint = Color.White)
+                            }
                         }
                     }
                 }
             }
 
-            // Stats row
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        ProfileStat("Unit Bisnis", units.size.toString(), Icons.Default.Business)
-                        VerticalDivider(modifier = Modifier.height(40.dp))
-                        ProfileStat("Aktif", activeUnit?.name?.take(10) ?: "-", Icons.Default.CheckCircle)
-                        VerticalDivider(modifier = Modifier.height(40.dp))
-                        ProfileStat("Status", if (currentUser != null) "Online" else "Offline", Icons.Default.Circle)
-                    }
-                }
-            }
-
-            // Unit bisnis section
-            item {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "Unit Bisnis (${units.size})",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            items(units) { unit ->
-                val isActive = unit.id == activeUnit?.id
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clickable { viewModel.selectUnit(unit.id) },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(if (isActive) 4.dp else 1.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Spacer(Modifier.height(2.dp))
+                    BizSurface(Modifier.fillMaxWidth().enterAnimation(0), onClick = { viewModel.navigateToRoot(Screen.Home) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
-                                    .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Storefront, null,
-                                    tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                            val kat = kategoriDari(activeUnit?.type)
+                            IconBadge(kat.icon, kat.tint)
                             Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(unit.name, fontWeight = FontWeight.SemiBold)
-                                Text(unit.type, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text("Unit aktif", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(activeUnit?.name ?: "Belum dipilih", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${units.size} unit terdaftar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                        }
-                        if (isActive) {
-                            Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape) {
-                                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.padding(4.dp).size(14.dp))
-                            }
-                        } else {
-                            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            StatusChip("Ganti", MaterialTheme.colorScheme.primary)
                         }
                     }
-                }
-            }
 
-            // Actions
-            item {
-                Spacer(Modifier.height(16.dp))
-                Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { viewModel.navigate(Screen.Settings) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Icon(Icons.Default.Settings, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Pengaturan Bisnis")
+                    Column(Modifier.enterAnimation(1)) {
+                        Text("TAMPILAN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, bottom = 8.dp))
+                        ThemeSelector(themeMode, { viewModel.setThemeMode(it) })
                     }
-                    Button(
-                        onClick = { showLogoutDialog = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
-                    ) {
-                        Icon(Icons.Default.Logout, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Keluar dari Akun")
-                    }
+
+                    MenuGroup(
+                        "Akun & langganan",
+                        listOf(
+                            MenuItem("Profil & keamanan", Icons.Rounded.ManageAccounts, BizgrowColors.Primary, "Nama, email, password") { viewModel.navigate(Screen.AdvancedSettings) },
+                            MenuItem("Paket langganan", Icons.Rounded.WorkspacePremium, BizgrowColors.Warning, trailingText = paket) { viewModel.navigate(Screen.SubscriptionPlans) },
+                            MenuItem("Riwayat tagihan", Icons.AutoMirrored.Rounded.ReceiptLong, BizgrowColors.Success) { viewModel.navigate(Screen.InvoiceHistory) },
+                            MenuItem("Pemakaian & kuota", Icons.Rounded.DataUsage, BizgrowColors.Info) { viewModel.navigate(Screen.UsageMetrics) },
+                        ),
+                        Modifier.enterAnimation(2)
+                    )
+
+                    MenuGroup(
+                        "Bisnis",
+                        listOf(
+                            MenuItem("Notifikasi", Icons.Rounded.Notifications, BizgrowColors.Danger, trailingText = if (unread > 0) "$unread baru" else null) { viewModel.navigate(Screen.Notifications) },
+                            MenuItem("Unit bisnis", Icons.Rounded.Business, BizgrowColors.Primary) { viewModel.navigate(Screen.Units) },
+                            MenuItem("Ekspor / impor data", Icons.Rounded.ImportExport, Color(0xFF14B8A6)) { viewModel.navigate(Screen.ExportImport) },
+                            MenuItem("Sinkronisasi offline", Icons.Rounded.CloudSync, BizgrowColors.Violet) { viewModel.navigate(Screen.SyncStatus) },
+                        ),
+                        Modifier.enterAnimation(3)
+                    )
+
+                    MenuGroup(
+                        "Bantuan",
+                        listOf(
+                            MenuItem("Pusat bantuan", Icons.Rounded.HelpOutline, BizgrowColors.Info) { viewModel.navigate(Screen.HelpCenter) },
+                            MenuItem("Diagnostik koneksi", Icons.Rounded.MonitorHeart, BizgrowColors.Success) { viewModel.navigate(Screen.Diagnostics) },
+                        ),
+                        Modifier.enterAnimation(4)
+                    )
+
+                    BizOutlineButton(
+                        "Keluar",
+                        onClick = { konfirmasiKeluar = true },
+                        icon = Icons.AutoMirrored.Rounded.Logout,
+                        tint = BizgrowColors.Danger,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Bizgrow • versi 1.0",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
                 }
             }
         }
     }
 
-    if (showLogoutDialog) {
+    if (konfirmasiKeluar) {
         AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Konfirmasi Logout") },
-            text = { Text("Yakin ingin keluar dari akun ${currentUser?.email}?") },
+            onDismissRequest = { konfirmasiKeluar = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            icon = { IconBadge(Icons.AutoMirrored.Rounded.Logout, BizgrowColors.Danger) },
+            title = { Text("Keluar dari akun?") },
+            text = { Text("Kamu perlu masuk lagi untuk mengelola ${user?.email ?: "akun ini"}.") },
             confirmButton = {
-                Button(
-                    onClick = { viewModel.logout(); showLogoutDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
-                ) { Text("Keluar") }
+                TextButton(onClick = { konfirmasiKeluar = false; viewModel.logout() }) {
+                    Text("Keluar", color = BizgrowColors.Danger, fontWeight = FontWeight.Bold)
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("Batal") }
-            }
+            dismissButton = { TextButton(onClick = { konfirmasiKeluar = false }) { Text("Batal") } }
         )
-    }
-}
-
-@Composable
-fun ProfileStat(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(4.dp))
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

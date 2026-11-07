@@ -19,6 +19,7 @@ class SessionRepository(private val settings: Settings) {
         private const val KEY_UNIT_NAME = "active_unit_name"
         private const val KEY_UNIT_SLUG = "active_unit_slug"
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_THEME = "theme_mode"
         // Production Server URL (Vercel)
         private const val DEFAULT_SERVER = "https://bizgrows-ten.vercel.app"
     }
@@ -61,6 +62,10 @@ class SessionRepository(private val settings: Settings) {
 
     fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
     fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
+
+    /** Tema tampilan: "system" (ikut HP), "light", atau "dark". Tetap tersimpan walau logout. */
+    fun getThemeMode(): String = settings.getString(KEY_THEME, "system")
+    fun setThemeMode(mode: String) = settings.putString(KEY_THEME, mode)
 
     // â”€â”€â”€ Legacy Offline Caching (for backward compatibility) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private val KEY_OFFLINE_PRODUCTS = "offline_products"

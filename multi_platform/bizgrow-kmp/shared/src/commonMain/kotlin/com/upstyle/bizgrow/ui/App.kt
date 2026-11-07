@@ -27,8 +27,13 @@ import androidx.compose.ui.graphics.Color
 
 @Composable
 fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
-    val advancedSettings by viewModel.advancedSettingsState.collectAsState(initial = viewModel.advancedSettingsState.value)
-    BizgrowTheme(darkTheme = advancedSettings.darkMode) {
+    val themeMode by viewModel.themeMode.collectAsState(initial = viewModel.themeMode.value)
+    val gelap = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> androidx.compose.foundation.isSystemInDarkTheme()
+    }
+    BizgrowTheme(darkTheme = gelap) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
