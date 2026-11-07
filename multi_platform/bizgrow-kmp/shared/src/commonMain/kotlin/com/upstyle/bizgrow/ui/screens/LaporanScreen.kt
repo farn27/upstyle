@@ -26,6 +26,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,12 +133,12 @@ fun LaporanScreen(viewModel: AppViewModel) {
                 } else if (selectedTab == 0) {
                     val data = labaRugiData
                     if (data != null) {
-                        MetricCard("Pendapatan", data.pendapatan, Color(0xFF2E7D32))
-                        MetricCard("Harga Pokok Penjualan (HPP)", data.hpp, Color(0xFFC62828))
-                        MetricCard("Laba Kotor", data.labaKotor, Color(0xFF1565C0))
-                        MetricCard("Biaya Operasional", data.biayaOperasional, Color(0xFFC62828))
+                        MetricCard("Pendapatan", data.pendapatan, BizgrowColors.Success)
+                        MetricCard("Harga Pokok Penjualan (HPP)", data.hpp, BizgrowColors.Danger)
+                        MetricCard("Laba Kotor", data.labaKotor, BizgrowColors.Info)
+                        MetricCard("Biaya Operasional", data.biayaOperasional, BizgrowColors.Danger)
                         Spacer(modifier = Modifier.height(8.dp))
-                        MetricCard("Laba Bersih", data.labaBersih, if (data.labaBersih >= 0) Color(0xFF2E7D32) else Color(0xFFC62828), isTotal = true)
+                        MetricCard("Laba Bersih", data.labaBersih, if (data.labaBersih >= 0) BizgrowColors.Success else BizgrowColors.Danger, isTotal = true)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Periode: ${data.periode}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
@@ -149,10 +150,10 @@ fun LaporanScreen(viewModel: AppViewModel) {
                     val data = arusKasData
                     if (data != null) {
                         MetricCard("Kas Awal", data.kasAwal, Color.Gray)
-                        MetricCard("Total Kas Masuk", data.totalMasuk, Color(0xFF2E7D32))
-                        MetricCard("Total Kas Keluar", data.totalKeluar, Color(0xFFC62828))
+                        MetricCard("Total Kas Masuk", data.totalMasuk, BizgrowColors.Success)
+                        MetricCard("Total Kas Keluar", data.totalKeluar, BizgrowColors.Danger)
                         Spacer(modifier = Modifier.height(8.dp))
-                        MetricCard("Kas Akhir", data.kasAkhir, if (data.kasAkhir >= 0) Color(0xFF1565C0) else Color(0xFFC62828), isTotal = true)
+                        MetricCard("Kas Akhir", data.kasAkhir, if (data.kasAkhir >= 0) BizgrowColors.Info else BizgrowColors.Danger, isTotal = true)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Periode: ${data.periode}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {

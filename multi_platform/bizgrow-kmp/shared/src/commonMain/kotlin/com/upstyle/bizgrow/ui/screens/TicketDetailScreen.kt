@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.TicketMessage
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +59,7 @@ fun TicketDetailScreen(viewModel: AppViewModel, ticketId: Int) {
                             modifier = Modifier.padding(end = 8.dp)
                         ) {
                             val statusColor = when {
-                                messages.any { it.senderType == "agent" } -> Color(0xFF2E7D32)
+                                messages.any { it.senderType == "agent" } -> BizgrowColors.Success
                                 else -> Color.Gray
                             }
                             Text("Pesan", color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)

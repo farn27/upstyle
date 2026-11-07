@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,8 +81,8 @@ fun StockLogsScreen(viewModel: AppViewModel) {
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
                     StockSummaryChip("Total", stockLogs.size.toString(), MaterialTheme.colorScheme.onSurfaceVariant)
-                    StockSummaryChip("Masuk", masukCount.toString(), Color(0xFF2E7D32))
-                    StockSummaryChip("Keluar", keluarCount.toString(), Color(0xFFC62828))
+                    StockSummaryChip("Masuk", masukCount.toString(), BizgrowColors.Success)
+                    StockSummaryChip("Keluar", keluarCount.toString(), BizgrowColors.Danger)
                 }
             }
 
@@ -162,7 +163,7 @@ fun StockSummaryChip(label: String, value: String, color: Color) {
 @Composable
 fun EnhancedStockLogCard(log: StockLog, productName: String) {
     val isMasuk = log.perubahan > 0
-    val color = if (isMasuk) Color(0xFF2E7D32) else Color(0xFFC62828)
+    val color = if (isMasuk) BizgrowColors.Success else BizgrowColors.Danger
     val sign = if (isMasuk) "+" else ""
     val bgColor = if (isMasuk) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
 

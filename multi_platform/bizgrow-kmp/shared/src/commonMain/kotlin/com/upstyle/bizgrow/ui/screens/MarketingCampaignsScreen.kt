@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.upstyle.bizgrow.data.MarketingCampaign
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,10 +106,10 @@ fun MarketingCampaignsScreen(viewModel: AppViewModel) {
 @Composable
 fun CampaignCard(campaign: MarketingCampaign) {
     val statusColor = when (campaign.status.uppercase()) {
-        "ACTIVE" -> Color(0xFF2E7D32) // Green
+        "ACTIVE" -> BizgrowColors.Success // Green
         "DRAFT" -> Color.Gray         // Gray
         "COMPLETED" -> Color(0xFF1976D2)
-        "PAUSED" -> Color(0xFFED6C02)
+        "PAUSED" -> BizgrowColors.Warning
         else -> Color.Gray
     }
 

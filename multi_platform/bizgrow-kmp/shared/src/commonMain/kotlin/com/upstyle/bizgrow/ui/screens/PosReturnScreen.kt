@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.PosReturn
 import com.upstyle.bizgrow.data.ReturnItem
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,14 +62,14 @@ fun PosReturnScreen(viewModel: AppViewModel) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+                colors = CardDefaults.cardColors(containerColor = BizgrowColors.PrimaryLight)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Refresh, null, tint = Color(0xFF1565C0))
+                    Icon(Icons.Default.Refresh, null, tint = BizgrowColors.Info)
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("Proses Pengembalian Barang", fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
-                        Text("Total retur hari ini: ${posReturns.size} transaksi", fontSize = 13.sp, color = Color(0xFF1565C0))
+                        Text("Proses Pengembalian Barang", fontWeight = FontWeight.Bold, color = BizgrowColors.Info)
+                        Text("Total retur hari ini: ${posReturns.size} transaksi", fontSize = 13.sp, color = BizgrowColors.Info)
                     }
                 }
             }
@@ -164,7 +165,7 @@ fun ReturnItem(ret: PosReturn) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(ret.returnNumber, fontWeight = FontWeight.Bold)
-                Text(formatCurrency(ret.totalRefund), fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                Text(formatCurrency(ret.totalRefund), fontWeight = FontWeight.Bold, color = BizgrowColors.Danger)
             }
             Spacer(Modifier.height(4.dp))
             Text("Order: #${ret.orderId}", fontSize = 13.sp)

@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,9 +76,9 @@ fun CsInboxScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    StatBadge("Open", openCount.toString(), Color(0xFF1565C0))
-                    StatBadge("Aktif", inProgressCount.toString(), Color(0xFFEF6C00))
-                    StatBadge("Prioritas Tinggi", highPrioCount.toString(), Color(0xFFC62828))
+                    StatBadge("Open", openCount.toString(), BizgrowColors.Info)
+                    StatBadge("Aktif", inProgressCount.toString(), BizgrowColors.Warning)
+                    StatBadge("Prioritas Tinggi", highPrioCount.toString(), BizgrowColors.Danger)
                     StatBadge("Total", tickets.size.toString(), MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -151,14 +152,14 @@ fun StatBadge(label: String, value: String, color: Color) {
 @Composable
 fun TicketCard(ticket: SupportTicket, onClick: () -> Unit) {
     val priorityColor = when (ticket.priority.lowercase()) {
-        "high" -> Color(0xFFC62828)
-        "medium" -> Color(0xFFEF6C00)
-        else -> Color(0xFF2E7D32)
+        "high" -> BizgrowColors.Danger
+        "medium" -> BizgrowColors.Warning
+        else -> BizgrowColors.Success
     }
     val statusColor = when (ticket.status) {
-        "Open" -> Color(0xFF1565C0)
-        "In Progress" -> Color(0xFFEF6C00)
-        "Resolved" -> Color(0xFF2E7D32)
+        "Open" -> BizgrowColors.Info
+        "In Progress" -> BizgrowColors.Warning
+        "Resolved" -> BizgrowColors.Success
         else -> Color.Gray
     }
 
@@ -272,7 +273,7 @@ fun AddTicketSheet(
             Text("Prioritas:", fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("low" to Color(0xFF2E7D32), "medium" to Color(0xFFEF6C00), "high" to Color(0xFFC62828)).forEach { (p, color) ->
+                listOf("low" to BizgrowColors.Success, "medium" to BizgrowColors.Warning, "high" to BizgrowColors.Danger).forEach { (p, color) ->
                     FilterChip(
                         selected = priority == p,
                         onClick = { priority = p },

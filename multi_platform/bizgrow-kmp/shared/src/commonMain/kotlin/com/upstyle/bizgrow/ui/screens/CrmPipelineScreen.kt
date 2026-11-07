@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
 import androidx.compose.animation.animateContentSize
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +75,7 @@ fun CrmPipelineScreen(viewModel: AppViewModel) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(deal.contactName, fontWeight = FontWeight.Bold)
                                     Text(deal.companyName)
-                                    Text("Rp ${"%,.0f".format(deal.dealValue)}", color = Color(0xFF2E7D32))
+                                    Text("Rp ${"%,.0f".format(deal.dealValue)}", color = BizgrowColors.Success)
                                 }
                             }
                         }

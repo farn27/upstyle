@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +91,7 @@ fun PosVouchersScreen(viewModel: AppViewModel) {
                                     if (item.isActive) "AKTIF" else "NONAKTIF",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = if (item.isActive) Color(0xFF2E7D32) else Color.Red
+                                    color = if (item.isActive) BizgrowColors.Success else Color.Red
                                 )
                             }
                         }

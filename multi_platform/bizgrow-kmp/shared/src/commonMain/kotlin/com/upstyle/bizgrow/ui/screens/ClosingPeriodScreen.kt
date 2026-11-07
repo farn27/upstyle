@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.upstyle.bizgrow.data.ClosingPeriod
 import com.upstyle.bizgrow.ui.AppViewModel
 import kotlinx.coroutines.launch
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,7 +165,7 @@ private fun ClosingPeriodItemCard(period: ClosingPeriod) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 val isProfit = period.labaRugiPeriode >= 0
-                val amountColor = if (isProfit) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                val amountColor = if (isProfit) BizgrowColors.Success else MaterialTheme.colorScheme.error
                 Text(
                     text = "Rp ${"%,.0f".format(period.labaRugiPeriode)}",
                     fontWeight = FontWeight.Bold,

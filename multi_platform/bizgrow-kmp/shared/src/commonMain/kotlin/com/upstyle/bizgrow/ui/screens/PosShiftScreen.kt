@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.PosShift
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,14 +56,14 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                     onClick = { showOpenShiftDialog = true },
                     icon = { Icon(Icons.Default.PlayArrow, null) },
                     text = { Text("Buka Shift") },
-                    containerColor = Color(0xFF2E7D32)
+                    containerColor = BizgrowColors.Success
                 )
             } else {
                 ExtendedFloatingActionButton(
                     onClick = { showCloseShiftDialog = true },
                     icon = { Icon(Icons.Default.Check, null) },
                     text = { Text("Tutup Shift") },
-                    containerColor = Color(0xFFC62828)
+                    containerColor = BizgrowColors.Danger
                 )
             }
         }
@@ -190,7 +191,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                         kasAkhirAktual = ""
                         catatan = ""
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                    colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Danger)
                 ) { Text("Tutup Shift") }
             },
             dismissButton = {
@@ -228,7 +229,7 @@ fun ShiftItem(shift: PosShift) {
                     Text(
                         if (selisih >= 0) "+${formatCurrency(selisih)}" else formatCurrency(selisih),
                         fontSize = 13.sp,
-                        color = if (selisih >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        color = if (selisih >= 0) BizgrowColors.Success else BizgrowColors.Danger,
                         fontWeight = FontWeight.Bold
                     )
                 }
