@@ -237,6 +237,16 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		await uji('rencana bisnis: hapus', 'business-plan', 'DELETE', { q: { id: bp?.data?.id } });
 
 
+		// ── Data tambahan agar daftar GET tidak kosong saat diaudit terhadap model Kotlin ──
+		await uji('seed: pesanan online', 'orders', 'POST', { body: { unitId, customerName: 'Pembeli Uji', items: [{ productId: pid, qty: 1, price: 2000 }] } });
+		await uji('seed: tiket', 'cs', 'POST', { body: { subject: 'Tanya', customerName: 'Pembeli Uji', priority: 'low', message: 'Halo', unitId } });
+		await uji('seed: penawaran', 'crm/quotations', 'POST', { body: { unitId, items: [{ productId: pid, qty: 2, price: 2000 }] } });
+		await uji('seed: sales order', 'crm/sales-orders', 'POST', { body: { unitId, items: [{ productId: pid, qty: 2, price: 2000 }] } });
+		await uji('seed: lead', 'marketing', 'POST', { body: { action: 'create-lead', lead: { unitId, firstName: 'Lead Uji' } } });
+		await uji('seed: ad tracker', 'marketing', 'POST', { body: { action: 'create-ad-tracker', tracker: { unitId, platform: 'meta', spendAmount: 1000, trackingDate: '2026-11-01' } } });
+		await uji('seed: deal', 'crm', 'POST', { body: { deal: { contactName: 'Ani', companyName: 'PT A', dealValue: 100, stage: 'PROSPEK', unitId } } });
+		await uji('seed: tugas crm', 'crm/tasks', 'POST', { body: { unitId, deskripsi: 'Telepon', kontakId: kontakCrm.insertId } });
+
 		// ── Kontrak balasan GET ↔ model Kotlin (properti wajib, tipe, array) ─────
 		const kotlin = muatKotlin();
 		const temuan = [];

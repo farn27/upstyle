@@ -59,11 +59,13 @@ function parseEndpoint(src) {
 		const fn = b.match(/^(\w+)/)?.[1] || '?';
 		const get = b.match(/client\.get\("([^"]+)"/);
 		const ret = b.match(/\)\s*:\s*ApiResponse<([^=\n{]+?)>\s*(?:=|\{)/);
-		if (!get || !ret) continue;
+		// PaginatedResponse<T> → data adalah List<T>
+		const pag = b.match(/\)\s*:\s*PaginatedResponse<([^=\n{]+?)>\s*(?:=|\{)/);
+		if (!get || (!ret && !pag)) continue;
 		/** @type {Record<string, string>} */
 		const query = {};
 		for (const q of b.matchAll(/parameter\("(\w+)",\s*([^)]+?)\)/g)) query[q[1]] = q[2].trim();
-		out.push({ fn, path: get[1], tipe: ret[1].trim(), query });
+		out.push({ fn, path: get[1], tipe: ret ? ret[1].trim() : `List<${pag?.[1].trim()}>`, query });
 	}
 	return out;
 }

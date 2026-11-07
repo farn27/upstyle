@@ -1,13 +1,23 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { marketingCampaigns, marketingLeads, adTrackers, landingPages, riwayatAksi } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { marketingCampaigns, marketingLeads, adTrackers, landingPages, riwayatAksi, crmContacts } from '$lib/server/schema';
+import { eq, and, desc, sql, inArray, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
 // GET: Fetch marketing data (campaigns, leads, ad-trackers)
+/** Lead milik unit = lead dari landing page unit tersebut (marketing_leads tidak punya unit_id sendiri). */
+async function leadUnit(unitId, batas) {
+    const halaman = await db.select({ id: landingPages.id, title: landingPages.title }).from(landingPages).where(eq(landingPages.unitId, unitId));
+    if (halaman.length === 0) return { halaman, baris: [] };
+    const baris = await db.select().from(marketingLeads)
+        .where(inArray(marketingLeads.landingPageId, halaman.map((h) => h.id)))
+        .orderBy(desc(marketingLeads.id)).limit(batas);
+    return { halaman, baris };
+}
+
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
@@ -42,10 +52,7 @@ export async function GET({ url, cookies, request }) {
         }
 
         if (type === 'leads') {
-            const leads = await db.select()
-                .from(marketingLeads)
-                .orderBy(desc(marketingLeads.id))
-                .limit(100);
+            const { baris: leads } = await leadUnit(Number(unitId), 100);
 
             return json({ 
                 success: true, 
@@ -92,10 +99,8 @@ export async function GET({ url, cookies, request }) {
             .orderBy(desc(marketingCampaigns.id))
             .limit(20);
 
-        const leads = await db.select()
-            .from(marketingLeads)
-            .orderBy(desc(marketingLeads.id))
-            .limit(50);
+        const { halaman, baris: leads } = await leadUnit(Number(unitId), 50);
+        const judulHalaman = new Map(halaman.map((h) => [h.id, h.title]));
 
         const trackers = await db.select()
             .from(adTrackers)
@@ -120,18 +125,33 @@ export async function GET({ url, cookies, request }) {
                 })),
                 leads: leads.map(l => ({
                     id: l.id,
-                    firstName: l.firstName || '',
-                    lastName: l.lastName || '',
+                    unitId: Number(unitId),
+                    nama: [l.firstName, l.lastName].filter(Boolean).join(' ') || 'Tanpa nama',
                     email: l.email || '',
-                    phone: l.phone || ''
+                    telepon: l.phone || '',
+                    source: (l.landingPageId && judulHalaman.get(l.landingPageId)) || 'manual',
+                    status: l.isTransferredToCrm ? 'converted' : 'new',
+                    notes: l.notes || null,
+                    createdAt: l.createdAt || ''
                 })),
                 adTrackers: trackers.map(t => ({
                     id: t.id,
+                    unitId: t.unitId,
                     platform: t.platform,
-                    spendAmount: Number(t.spendAmount || 0),
+                    campaignName: '',
+                    spend: Number(t.spendAmount || 0),
+                    impressions: t.impressions || 0,
                     clicks: t.clicks || 0,
-                    conversions: t.conversions || 0
-                }))
+                    conversions: t.conversions || 0,
+                    roas: 0,
+                    period: t.trackingDate || ''
+                })),
+                summary: {
+                    totalLeads: leads.length,
+                    convertedLeads: leads.filter(l => l.isTransferredToCrm).length,
+                    totalSpend: trackers.reduce((a, t) => a + Number(t.spendAmount || 0), 0),
+                    avgRoas: 0
+                }
             }
         });
 
@@ -177,6 +197,7 @@ export async function POST({ request, cookies }) {
                 action: z.literal('create-lead'),
                 lead: z.object({
                     landingPageId: z.coerce.number().int().optional(),
+                    unitId: z.coerce.number().int().positive().optional(),
                     firstName: z.string().min(1, 'First name wajib diisi').max(100),
                     lastName: z.string().max(100).optional(),
                     email: z.string().email().optional().or(z.literal('')),
@@ -242,12 +263,25 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'create-lead') {
-            const { landingPageId, firstName, lastName, email, phone, notes } = body.lead;
+            const { firstName, lastName, email, phone, notes } = body.lead;
+            let landingPageId = body.lead.landingPageId ? Number(body.lead.landingPageId) : null;
 
-            // Lead tercatat lewat landing page; tanpa itu lead tidak terlihat oleh unit mana pun
-            const halamanLead = landingPageId
-                ? await db.query.landingPages.findFirst({ where: eq(landingPages.id, Number(landingPageId)) })
+            // Lead tercatat lewat landing page; tanpa itu lead tidak terlihat oleh unit mana pun.
+            // Dari app (tanpa memilih halaman) → pakai halaman pertama unit, atau buat halaman "Input manual".
+            let halamanLead = landingPageId
+                ? await db.query.landingPages.findFirst({ where: eq(landingPages.id, landingPageId) })
                 : null;
+            if (!halamanLead && !landingPageId && body.lead.unitId && (await unitMilikUser(db, userId, Number(body.lead.unitId)))) {
+                const uid = Number(body.lead.unitId);
+                halamanLead = await db.query.landingPages.findFirst({ where: eq(landingPages.unitId, uid), orderBy: [asc(landingPages.id)] });
+                if (!halamanLead) {
+                    const [lp] = await db.insert(landingPages).values({
+                        unitId: uid, pageSlug: `manual-${uid}-${Date.now().toString(36)}`, title: 'Input manual (app)', isActive: false
+                    });
+                    halamanLead = await db.query.landingPages.findFirst({ where: eq(landingPages.id, lp.insertId) });
+                }
+                landingPageId = halamanLead?.id ?? null;
+            }
             if (!halamanLead || !(await unitMilikUser(db, userId, halamanLead.unitId))) {
                 return json({ success: false, message: 'Pilih landing page milik unit ini untuk lead' }, { status: 422 });
             }
@@ -352,9 +386,19 @@ export async function PUT({ request, cookies }) {
                 return json({ success: false, message: 'Lead tidak ditemukan' }, { status: 404 });
             }
 
-            await db.update(marketingLeads)
-                .set({ isTransferredToCrm: true })
-                .where(eq(marketingLeads.id, Number(leadId)));
+            if (lead && lead.isTransferredToCrm) {
+                return json({ success: false, message: 'Lead ini sudah ditransfer ke CRM' }, { status: 400 });
+            }
+            // Transfer sungguhan: buat kontak CRM dari lead (dulu hanya menandai, kontak tidak pernah dibuat)
+            const nama = [lead?.firstName, lead?.lastName].filter(Boolean).join(' ').trim() || 'Lead tanpa nama';
+            await db.transaction(async (tx) => {
+                await tx.insert(crmContacts).values({
+                    ownerId: userId, unitId: halaman.unitId, nama: nama.slice(0, 150),
+                    telepon: lead?.phone || null, email: lead?.email || null, stage: 'lead', sumber: 'landing page'
+                });
+                await tx.update(marketingLeads).set({ isTransferredToCrm: true }).where(eq(marketingLeads.id, Number(leadId)));
+                await tx.insert(riwayatAksi).values({ userId, unitId: halaman.unitId, pesan: `Lead ${nama} ditransfer ke CRM`, kategori: 'MARKETING', tipe: 'success' });
+            });
 
             return json({ success: true, message: 'Lead berhasil ditransfer ke CRM' });
         }

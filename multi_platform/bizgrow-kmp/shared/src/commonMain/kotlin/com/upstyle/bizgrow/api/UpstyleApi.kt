@@ -1060,6 +1060,7 @@ class UpstyleApi(private val client: HttpClient) {
                 put("action", "create-lead")
                 putJsonObject("lead") {
                     landingPageId?.let { put("landingPageId", it) }
+                    put("unitId", lead.unitId)
                     put("firstName", namaDepan)
                     if (namaBelakang.isNotBlank()) put("lastName", namaBelakang)
                     if (lead.email.isNotBlank()) put("email", lead.email)

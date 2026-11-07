@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { payrolls, employees, riwayatAksi, transaksi, salaryComponents } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -82,28 +82,18 @@ export async function GET({ url, cookies, request }) {
         }
 
         if (type === 'history') {
-            const conditions = [eq(payrolls.employeeId, sql`employees.id`)];
+            // Hanya karyawan unit ini (dulu filter unit & bulan terbentuk tetapi tidak dipakai → gaji semua tenant ikut terkirim)
+            const karyawanUnit = await db.select({ id: employees.id, fullName: employees.fullName, position: employees.position })
+                .from(employees).where(eq(employees.companyId, Number(unitId)));
+            const petaKaryawan = new Map(karyawanUnit.map((e) => [e.id, e]));
+            const kondisi = [inArray(payrolls.employeeId, karyawanUnit.map((e) => e.id).concat([-1]))];
             if (monthYear) {
                 const { month, year } = parseMonthYear(monthYear);
-                conditions.push(
-                    eq(payrolls.periodMonth, month),
-                    eq(payrolls.periodYear, year)
-                );
+                kondisi.push(eq(payrolls.periodMonth, month), eq(payrolls.periodYear, year));
             }
 
-            const payrollHistory = await db.query.payrolls.findMany({
-                orderBy: [desc(payrolls.id)],
-                limit: 100,
-                with: {
-                    employee: {
-                        columns: {
-                            id: true,
-                            fullName: true,
-                            position: true
-                        }
-                    }
-                }
-            });
+            const baris = await db.select().from(payrolls).where(and(...kondisi)).orderBy(desc(payrolls.id)).limit(100);
+            const payrollHistory = baris.map((p) => ({ ...p, employee: petaKaryawan.get(p.employeeId) || null }));
 
             return json({ 
                 success: true, 

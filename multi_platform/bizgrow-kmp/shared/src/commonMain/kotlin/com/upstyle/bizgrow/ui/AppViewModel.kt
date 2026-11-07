@@ -1305,7 +1305,7 @@ class AppViewModel(
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val lead = MarketingLead(nama = nama, email = email, telepon = telepon, source = source, unitId = unitId)
+            val lead = MarketingLead(nama = nama, email = email, telepon = telepon, source = source, unitId = unitId, notes = "Sumber: $source")
             val res = api.createMarketingLead(lead)
             if (res.success) { loadMarketingData(); setSuccess("Lead berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah lead")

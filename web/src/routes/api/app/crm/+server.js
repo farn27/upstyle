@@ -74,6 +74,9 @@ export async function GET({ url, cookies, request }) {
             createdAt: d.createdAt || '',
             contact: d.contact ? {
                 id: d.contact.id,
+                ownerId: d.contact.ownerId,
+                unitId: d.contact.unitId,
+                sumber: d.contact.sumber || 'manual',
                 nama: d.contact.nama || '',
                 telepon: d.contact.telepon || '',
                 email: d.contact.email || '',

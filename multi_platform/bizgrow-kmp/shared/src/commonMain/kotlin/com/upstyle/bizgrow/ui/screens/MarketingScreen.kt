@@ -92,7 +92,7 @@ fun LeadsTab(leads: List<MarketingLead>, viewModel: AppViewModel, isLoading: Boo
     } else {
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(leads, key = { it.id }) { lead ->
-                LeadCard(lead = lead, onUpdateStatus = { viewModel.updateLeadStatus(it, lead.status) })
+                LeadCard(lead = lead, onUpdateStatus = { viewModel.updateLeadStatus(it, "converted") })
             }
         }
     }
@@ -137,6 +137,10 @@ fun LeadCard(lead: MarketingLead, onUpdateStatus: (Int) -> Unit) {
                 }
             }
             StatusBadge(lead.status.uppercase())
+        }
+        if (lead.status != "converted") {
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = { onUpdateStatus(lead.id) }, modifier = Modifier.fillMaxWidth()) { Text("Jadikan kontak CRM") }
         }
     }
 }
