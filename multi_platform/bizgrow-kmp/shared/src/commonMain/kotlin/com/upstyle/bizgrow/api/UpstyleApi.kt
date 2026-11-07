@@ -558,6 +558,11 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("status" to status))
         }.body()
 
+    suspend fun updateTicketPriority(ticketId: Int, priority: String): ApiResponse<Unit> =
+        client.put("api/app/cs/$ticketId") {
+            setBody(mapOf("priority" to priority))
+        }.body()
+
     // ─── Notifications ────────────────────────────────────────────────────────
 
     /** Notifikasi semua unit milik user (seperti lonceng web); [before] = id terkecil yang sudah dimuat. */

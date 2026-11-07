@@ -2225,7 +2225,10 @@ class AppViewModel(
         }
     }
 
+    private var _ticketMessagesFor = 0
     fun loadTicketMessages(ticketId: Int) = viewModelScope.launch {
+        // Tiket lain → kosongkan dulu supaya pesan tiket sebelumnya tidak sempat tampil
+        if (_ticketMessagesFor != ticketId) { _ticketMessages.value = emptyList(); _ticketMessagesFor = ticketId }
         try {
             val res = api.getTicketMessages(ticketId)
             if (res.success) _ticketMessages.value = res.data ?: emptyList()
@@ -2234,9 +2237,17 @@ class AppViewModel(
 
     fun replyTicket(ticketId: Int, message: String) = viewModelScope.launch {
         try {
-            api.replyTicket(ticketId, message)
-            loadTicketMessages(ticketId)
-        } catch (e: Exception) { setError("Gagal kirim balasan") }
+            val res = api.replyTicket(ticketId, message)
+            if (res.success) { loadTicketMessages(ticketId); loadTickets() }
+            else setError(res.message ?: "Gagal kirim balasan")
+        } catch (e: Exception) { setError("Gagal kirim balasan: ${e.message}") }
+    }
+
+    fun updateTicketPriority(ticketId: Int, priority: String) = viewModelScope.launch {
+        try {
+            val res = api.updateTicketPriority(ticketId, priority)
+            if (res.success) { loadTickets(); setSuccess("Prioritas tiket diperbarui") } else setError(res.message ?: "Gagal mengubah prioritas")
+        } catch (e: Exception) { setError("Gagal: ${e.message}") }
     }
 
     fun updateTicketStatus(ticketId: Int, status: String) = viewModelScope.launch {
