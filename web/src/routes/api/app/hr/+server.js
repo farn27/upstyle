@@ -221,11 +221,28 @@ export async function POST({ request, cookies }) {
                     position: z.string().min(1, 'Jabatan wajib diisi'),
                     salary: z.coerce.number().min(0),
                     pin: z.string().length(4, 'PIN harus 4 digit').regex(/^\d+$/),
-                    role: z.enum(['staff', 'cashier', 'manager', 'employee']).default('staff'),
+                    role: z.enum(['admin', 'manager', 'finance', 'hr', 'cashier', 'operator', 'staff', 'employee']).default('staff'),
                     unitId: z.coerce.number().int().positive(),
                     taxId: z.string().optional(),
                     bankName: z.string().optional(),
                     bankAccountNumber: z.string().optional(),
+                    // Profil lengkap (sama dengan form "Tambah Anggota Tim" di web)
+                    password: z.string().min(6, 'Password portal minimal 6 karakter').max(100).optional().or(z.literal('')),
+                    email: z.string().email('Email tidak valid').optional().or(z.literal('')),
+                    phone: z.string().max(20).optional(),
+                    idNumber: z.string().max(30).optional(),
+                    division: z.string().max(100).optional(),
+                    jobGrade: z.string().max(20).optional(),
+                    placementLocation: z.string().max(100).optional(),
+                    employmentStatus: z.string().max(50).optional(),
+                    address: z.string().max(2000).optional(),
+                    joinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal bergabung YYYY-MM-DD').optional().or(z.literal('')),
+                    contractStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
+                    contractEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
+                    emergencyContact: z.string().max(100).optional(),
+                    emergencyRelation: z.string().max(100).optional(),
+                    bloodType: z.string().max(5).optional(),
+                    employeeIdCard: z.string().max(50).optional(),
                 })
             });
             const parsed = schema.safeParse(body);
@@ -311,8 +328,17 @@ export async function POST({ request, cookies }) {
 
         if (action === 'create-employee') {
             const { fullName, position, salary, pin, role, unitId, taxId, bankName, bankAccountNumber } = body.employee;
-            
-            const passwordHash = await hashEmployeePassword("123456");
+            const ext = body.employee;
+            const kosongNull = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : String(v).trim());
+
+            // Password portal: pakai yang diisi pemilik; kalau kosong buat acak (ditampilkan sekali di respons)
+            let passwordAwal = null;
+            let passwordPlain = String(ext.password || '').trim();
+            if (!passwordPlain) {
+                passwordPlain = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+                passwordAwal = passwordPlain;
+            }
+            const passwordHash = await hashEmployeePassword(passwordPlain);
             const pinHash = await hashEmployeePassword(pin || "1234");
             const encryptedPin = encryptField(pin || "1234", true); // Encrypt PIN
             const encryptedTaxId = encryptField(taxId || '', true); // Encrypt tax ID
@@ -333,6 +359,21 @@ export async function POST({ request, cookies }) {
                 taxId: encryptedTaxId,
                 bankName: bankName || null,
                 bankAccountNumber: encryptedBankAccount,
+                email: kosongNull(ext.email),
+                phone: kosongNull(ext.phone),
+                idNumber: kosongNull(ext.idNumber),
+                division: kosongNull(ext.division),
+                jobGrade: kosongNull(ext.jobGrade) || 'Junior',
+                placementLocation: kosongNull(ext.placementLocation),
+                employmentStatus: kosongNull(ext.employmentStatus),
+                address: kosongNull(ext.address),
+                joinDate: kosongNull(ext.joinDate),
+                contractStart: kosongNull(ext.contractStart) || kosongNull(ext.joinDate),
+                contractEnd: kosongNull(ext.contractEnd),
+                emergencyContact: kosongNull(ext.emergencyContact),
+                emergencyRelation: kosongNull(ext.emergencyRelation),
+                bloodType: kosongNull(ext.bloodType),
+                employeeIdCard: kosongNull(ext.employeeIdCard),
                 status: 'active'
             });
 
@@ -341,7 +382,7 @@ export async function POST({ request, cookies }) {
                 userId, unitId: Number(unitId), pesan: `Karyawan baru terdaftar: ${fullName} sebagai ${position}`, kategori: 'HR', tipe: 'success'
             });
 
-            return json({ success: true, message: "Karyawan berhasil dibuat", data: { id: result.insertId } });
+            return json({ success: true, message: "Karyawan berhasil dibuat", data: { id: result.insertId, slug, ...(passwordAwal ? { passwordAwal } : {}) } });
         }
 
         if (action === 'check-in') {

@@ -42,7 +42,8 @@ export async function GET({ url, cookies, request }) {
 
         return json({ 
             success: true, 
-            departments: departmentsWithCount 
+            data: departmentsWithCount, // dibaca app mobile (ApiResponse.data)
+            departments: departmentsWithCount
         });
 
     } catch (err) {

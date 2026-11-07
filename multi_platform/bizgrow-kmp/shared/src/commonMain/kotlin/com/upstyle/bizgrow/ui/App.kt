@@ -14,11 +14,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.ui.screens.*
 import com.upstyle.bizgrow.ui.theme.BizgrowTheme
+import com.upstyle.bizgrow.ui.theme.BizMotion
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
-    val advancedSettings by viewModel.advancedSettingsState.collectAsState(initial = viewModel.advancedSettingsState.value)
-    BizgrowTheme(darkTheme = advancedSettings.darkMode) {
+    val themeMode by viewModel.themeMode.collectAsState(initial = viewModel.themeMode.value)
+    val gelap = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> androidx.compose.foundation.isSystemInDarkTheme()
+    }
+    BizgrowTheme(darkTheme = gelap) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
@@ -43,13 +58,24 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
             }
         }
 
-        Box(Modifier.fillMaxSize()) {
+        // Arah transisi: tumpukan layar memendek = kembali → geser ke kanan; memanjang = maju → geser ke kiri
+        val stackSize by viewModel.screenStackFlow.collectAsState(initial = viewModel.screenStack.size)
+        var ukuranSebelumnya by remember { mutableStateOf(stackSize) }
+        val mundur = stackSize < ukuranSebelumnya
+        SideEffect { ukuranSebelumnya = stackSize }
+
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             AnimatedContent(
                 targetState = screen,
                 transitionSpec = {
-                    slideInHorizontally(tween(300)) { it / 4 } + fadeIn(tween(300)) togetherWith
-                    slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(300))
+                    val arah = if (mundur) -1 else 1
+                    val durasi = BizMotion.Medium
+                    (slideInHorizontally(tween(durasi, easing = BizMotion.Emphasized)) { arah * it / 6 } +
+                        fadeIn(tween(durasi))) togetherWith
+                        (slideOutHorizontally(tween(durasi, easing = BizMotion.Emphasized)) { -arah * it / 10 } +
+                            fadeOut(tween(durasi / 2)))
                 },
+                contentKey = { it::class },
                 label = "screen_transition"
             ) { target ->
                 when (target) {
@@ -61,6 +87,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.Home      -> HomeScreen(viewModel)
                     is Screen.Units     -> UnitsScreen(viewModel)
                     is Screen.Dashboard -> DashboardScreen(viewModel)
+                    is Screen.Modules   -> ModulesScreen(viewModel)
 
                     // Finance
                     is Screen.Finance    -> FinanceScreen(viewModel)
@@ -142,6 +169,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
 
                     // Advanced POS
                     is Screen.PosVouchers -> PosVouchersScreen(viewModel)
+                    is Screen.PosQueue -> PosQueueScreen(viewModel)
 
                     // Marketing / Katalog
                     is Screen.Katalog  -> KatalogScreen(viewModel)
@@ -159,6 +187,13 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Subscription & Billing
                     is Screen.SubscriptionPlans -> SubscriptionPlansScreen(viewModel)
                     is Screen.PlanUpgrade       -> PlanUpgradeScreen(viewModel)
+                    is Screen.InvoiceHistory    -> InvoiceHistoryScreen(viewModel)
+                    is Screen.UsageMetrics      -> UsageMetricsScreen(viewModel)
+
+                    // Produk lanjutan & sinkronisasi (dulu kosong)
+                    is Screen.ProductVariants   -> ProductVariantsScreen(viewModel, target.productId)
+                    is Screen.BulkOperations    -> BulkOperationsScreen(viewModel)
+                    is Screen.SyncStatus        -> SyncStatusScreen(viewModel)
 
                     // AI Features
                     is Screen.TransactionEntry -> TransactionEntryScreen(viewModel)
@@ -174,50 +209,87 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                 }
             }
 
-            // Subtle top progress indicator — non-blocking
-            if (uiState.isLoading && !isAuthScreen) {
+            // Indikator memuat tipis di atas — tidak menghalangi layar
+            AnimatedVisibility(
+                visible = uiState.isLoading && !isAuthScreen,
+                enter = fadeIn(), exit = fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter)
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding().height(3.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color.Transparent
                 )
             }
 
-            // Full blocking overlay ONLY for auth screens
-            if (uiState.isLoading && isAuthScreen) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                        modifier = Modifier.fillMaxSize()
-                    ) {}
-                    CircularProgressIndicator()
-                }
-            }
-
-            // Global error snackbar
-            uiState.error?.let { errorMsg ->
-                LaunchedEffect(errorMsg) {
-                    kotlinx.coroutines.delay(3500)
-                    viewModel.clearMessages()
-                }
-                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomCenter) {
-                    Snackbar(action = { TextButton(onClick = { viewModel.clearMessages() }) { Text("Tutup") } }) {
-                        Text(errorMsg)
+            // Overlay penuh hanya di layar login / daftar
+            AnimatedVisibility(uiState.isLoading && isAuthScreen, enter = fadeIn(), exit = fadeOut()) {
+                Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 6.dp) {
+                        CircularProgressIndicator(Modifier.padding(22.dp).size(30.dp), strokeWidth = 3.dp)
                     }
                 }
             }
 
-            // Global success snackbar
-            uiState.successMessage?.let { msg ->
-                LaunchedEffect(msg) {
-                    kotlinx.coroutines.delay(2500)
+            // Toast global (error / sukses) — muncul dari bawah, hilang sendiri
+            val pesan = uiState.error ?: uiState.successMessage
+            val isError = uiState.error != null
+            LaunchedEffect(pesan) {
+                if (pesan != null) {
+                    kotlinx.coroutines.delay(if (isError) 3800 else 2600)
                     viewModel.clearMessages()
                 }
-                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.BottomCenter) {
-                    Snackbar(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) { Text(msg) }
-                }
             }
+            AnimatedVisibility(
+                visible = pesan != null,
+                enter = slideInVertically(tween(BizMotion.Medium, easing = BizMotion.Emphasized)) { it } + fadeIn(),
+                exit = slideOutVertically(tween(BizMotion.Fast)) { it / 2 } + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                var terakhir by remember { mutableStateOf(pesan ?: "") }
+                var terakhirError by remember { mutableStateOf(isError) }
+                if (pesan != null) { terakhir = pesan; terakhirError = isError }
+                ToastPill(terakhir, terakhirError, onClose = { viewModel.clearMessages() })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToastPill(pesan: String, isError: Boolean, onClose: () -> Unit) {
+    val warna = if (isError) BizgrowColors.Danger else BizgrowColors.Success
+    Row(
+        Modifier
+            .navigationBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, bottom = 92.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.inverseSurface)
+            .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(30.dp).clip(CircleShape).background(warna.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (isError) Icons.Rounded.ErrorOutline else Icons.Rounded.CheckCircle,
+                null, tint = warna, modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            pesan,
+            Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.inverseOnSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 3
+        )
+        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Rounded.Close, "Tutup", tint = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
         }
     }
 }

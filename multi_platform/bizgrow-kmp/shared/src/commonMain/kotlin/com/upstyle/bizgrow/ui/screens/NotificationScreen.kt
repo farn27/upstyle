@@ -1,315 +1,207 @@
 package com.upstyle.bizgrow.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.upstyle.bizgrow.data.RiwayatAksi
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.design.*
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
+import com.upstyle.bizgrow.ui.theme.LocalBizPalette
+import kotlinx.datetime.*
 
-// ─── Category tab config ────────────────────────────────────────────────────
-
-private data class NotifCategory(
-    val label: String,
-    val kategoriKey: String?,      // null = "Semua" (no filter)
-    val icon: ImageVector,
-)
-
-private val NOTIF_CATEGORIES = listOf(
-    NotifCategory("Semua",    null,        Icons.Default.Notifications),
-    NotifCategory("Produk",   "Produk",    Icons.Default.Inventory2),
-    NotifCategory("Keuangan", "Keuangan",  Icons.Default.AccountBalanceWallet),
-    NotifCategory("HR",       "HR",        Icons.Default.People),
-    NotifCategory("Sistem",   "Sistem",    Icons.Default.Settings),
-)
-
-// ─── Deep-link helper ───────────────────────────────────────────────────────
-
-private fun resolveDeepLink(notif: RiwayatAksi): Screen? {
-    // Prefer explicit link field, fall back to tipe
-    val target = notif.link?.lowercase() ?: notif.tipe.lowercase()
+/** Tujuan saat notifikasi diketuk — dari field link (mis. "/finance/x/piutang") atau kategori. */
+private fun tujuanNotif(n: RiwayatAksi): Screen? {
+    val t = "${n.link.orEmpty()} ${n.kategori}".lowercase()
     return when {
-        target.contains("produk") || target.contains("product") || target.contains("stok") -> Screen.Products
-        target.contains("pos")                                                              -> Screen.Pos
-        target.contains("finance") || target.contains("keuangan") ||
-            target.contains("transaksi") || target.contains("hutang") ||
-            target.contains("piutang")                                                      -> Screen.Finance
-        target.contains("hr") || target.contains("karyawan") ||
-            target.contains("absensi") || target.contains("payroll")                        -> Screen.Hr
-        target.contains("order") || target.contains("pesanan")                             -> Screen.Orders
-        else                                                                                -> null
+        "piutang" in t -> Screen.Piutang
+        "hutang" in t || "tagihan" in t -> Screen.Hutang
+        "pengadaan" in t || "purchase" in t || "supplier" in t -> Screen.Scm
+        "produk" in t || "product" in t || "stok" in t -> Screen.Products
+        "pos" in t || "kasir" in t -> Screen.Pos
+        "crm" in t || "pelanggan" in t -> Screen.Crm
+        "hr" in t || "karyawan" in t || "absensi" in t || "payroll" in t -> Screen.Hr
+        "order" in t || "pesanan" in t -> Screen.Orders
+        "billing" in t || "langganan" in t -> Screen.SubscriptionPlans
+        "finance" in t || "keuangan" in t || "transaksi" in t || "history" in t -> Screen.Finance
+        else -> null
     }
 }
 
-// ─── Screen ─────────────────────────────────────────────────────────────────
+private fun gayaNotif(n: RiwayatAksi): Pair<ImageVector, Color> {
+    val k = "${n.kategori} ${n.link.orEmpty()}".lowercase()
+    val ikon = when {
+        "pos" in k || "kasir" in k -> Icons.Rounded.PointOfSale
+        "produk" in k || "stok" in k -> Icons.Rounded.Inventory2
+        "pengadaan" in k -> Icons.Rounded.LocalShipping
+        "crm" in k -> Icons.Rounded.Groups
+        "hr" in k || "karyawan" in k -> Icons.Rounded.Badge
+        "billing" in k -> Icons.Rounded.WorkspacePremium
+        "keuangan" in k || "finance" in k || "piutang" in k || "hutang" in k -> Icons.Rounded.AccountBalanceWallet
+        else -> Icons.Rounded.Notifications
+    }
+    val warna = when (n.tipe.lowercase()) {
+        "success" -> BizgrowColors.Success
+        "error" -> BizgrowColors.Danger
+        "warning" -> BizgrowColors.Warning
+        else -> BizgrowColors.Primary
+    }
+    return ikon to warna
+}
+
+private fun waktuNotif(raw: String): Pair<LocalDate?, String> {
+    val s = raw.trim()
+    if (s.length >= 16 && s[4] == '-' && s[7] == '-') {
+        val tgl = runCatching { LocalDate.parse(s.substring(0, 10)) }.getOrNull()
+        return tgl to s.substring(11, 16)
+    }
+    val ms = s.toLongOrNull() ?: return null to ""
+    val dt = Instant.fromEpochMilliseconds(ms).toLocalDateTime(TimeZone.currentSystemDefault())
+    return dt.date to "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationScreen(viewModel: AppViewModel) {
-    val allNotifications by viewModel.notifications.collectAsState()
+    val semua by viewModel.notifications.collectAsState()
+    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
+    var kategori by remember { mutableStateOf<String?>(null) }
+    var hanyaBelumDibaca by remember { mutableStateOf(false) }
 
-    var selectedIndex by remember { mutableStateOf(0) }
-    val selectedCategory = NOTIF_CATEGORIES[selectedIndex]
+    LaunchedEffect(Unit) { viewModel.loadNotifications() }
 
-    val filtered = remember(allNotifications, selectedIndex) {
-        val key = selectedCategory.kategoriKey
-        if (key == null) allNotifications
-        else allNotifications.filter { it.kategori.equals(key, ignoreCase = true) }
+    val kategoriList = remember(semua) { semua.map { it.kategori }.filter { it.isNotBlank() }.distinct().sorted() }
+    val belumDibaca = semua.count { it.isRead == 0 }
+    val hariIni = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+    val tampil = remember(semua, kategori, hanyaBelumDibaca) {
+        semua.filter { (kategori == null || it.kategori.equals(kategori, true)) && (!hanyaBelumDibaca || it.isRead == 0) }
+    }
+    val grup = remember(tampil, hariIni) {
+        tampil.groupBy {
+            val d = waktuNotif(it.waktu).first
+            when {
+                d == null -> "Lainnya"
+                d == hariIni -> "Hari ini"
+                d == hariIni.minus(1, DateTimeUnit.DAY) -> "Kemarin"
+                d >= hariIni.minus(7, DateTimeUnit.DAY) -> "Minggu ini"
+                else -> "Lebih lama"
+            }
+        }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadNotifications()
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Notifikasi", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { viewModel.markAllNotificationsRead() }) {
-                        Text("Tandai Semua Dibaca", fontSize = 12.sp)
-                    }
+    BizScreen(
+        title = "Notifikasi",
+        subtitle = if (belumDibaca > 0) "$belumDibaca belum dibaca" else "Semua sudah dibaca",
+        onBack = { viewModel.navigateBack() },
+        actions = {
+            AnimatedVisibility(belumDibaca > 0, enter = fadeIn(), exit = fadeOut()) {
+                TextButton(onClick = { viewModel.markAllNotificationsRead() }) {
+                    Icon(Icons.Rounded.DoneAll, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Tandai dibaca")
                 }
-            )
+            }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-
-            // ── Category tabs with per-tab unread badge ──────────────────────
-            ScrollableTabRow(
-                selectedTabIndex = selectedIndex,
-                edgePadding = 8.dp
-            ) {
-                NOTIF_CATEGORIES.forEachIndexed { index, category ->
-                    val unreadCount = if (category.kategoriKey == null) {
-                        allNotifications.count { it.isRead == 0 }
-                    } else {
-                        allNotifications.count {
-                            it.kategori.equals(category.kategoriKey, ignoreCase = true) && it.isRead == 0
-                        }
+        PullToRefreshBox(
+            isRefreshing = uiState.isLoading,
+            onRefresh = { viewModel.loadNotifications() },
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item { FilterPill("Semua", kategori == null && !hanyaBelumDibaca, { kategori = null; hanyaBelumDibaca = false }) }
+                        item { FilterPill("Belum dibaca", hanyaBelumDibaca, { hanyaBelumDibaca = !hanyaBelumDibaca }) }
+                        items(kategoriList) { k -> FilterPill(k, kategori == k, { kategori = if (kategori == k) null else k }) }
                     }
-                    Tab(
-                        selected = selectedIndex == index,
-                        onClick = { selectedIndex = index },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(category.label)
-                                if (unreadCount > 0) {
-                                    Badge { Text(unreadCount.toString()) }
-                                }
-                            }
-                        }
-                    )
                 }
-            }
-
-            // ── Content ─────────────────────────────────────────────────────
-            if (filtered.isEmpty()) {
-                EmptyNotificationState()
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(filtered, key = { it.id }) { notif ->
-                        NotificationItem(
-                            notif = notif,
-                            onTap = {
-                                viewModel.markNotifRead(notif.id)
-                                resolveDeepLink(notif)?.let { viewModel.navigate(it) }
-                            },
-                            onSwipeDismiss = {
-                                viewModel.markNotifRead(notif.id)
-                            }
+                if (tampil.isEmpty()) {
+                    item {
+                        EmptyView(
+                            if (hanyaBelumDibaca) "Tidak ada yang belum dibaca" else "Belum ada notifikasi",
+                            "Aktivitas penting bisnismu akan muncul di sini.",
+                            Icons.Rounded.NotificationsNone
                         )
                     }
-                    item { Spacer(Modifier.height(16.dp)) }
+                }
+                listOf("Hari ini", "Kemarin", "Minggu ini", "Lebih lama", "Lainnya").forEach { judul ->
+                    val isi = grup[judul].orEmpty()
+                    if (isi.isNotEmpty()) {
+                        item(key = "h-$judul") {
+                            Text(
+                                judul,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 24.dp, top = 14.dp, bottom = 4.dp)
+                            )
+                        }
+                        itemsIndexed(isi, key = { _, n -> n.id }) { i, n ->
+                            NotifRow(n, Modifier.padding(horizontal = 14.dp).animateItem().enterAnimation(i)) {
+                                if (n.isRead == 0) viewModel.markNotifRead(n.id)
+                                tujuanNotif(n)?.let { viewModel.navigate(it) }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-// ─── Empty state ─────────────────────────────────────────────────────────────
-
 @Composable
-private fun EmptyNotificationState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.NotificationsNone,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(8.dp))
+private fun NotifRow(n: RiwayatAksi, modifier: Modifier, onClick: () -> Unit) {
+    val (ikon, warna) = gayaNotif(n)
+    val baru = n.isRead == 0
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (baru) MaterialTheme.colorScheme.primary.copy(alpha = if (LocalBizPalette.current.isDark) 0.10f else 0.05f) else Color.Transparent)
+            .pressClick(pressedScale = 0.98f, onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        IconBadge(ikon, warna, size = 42.dp, iconSize = 20.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
             Text(
-                "Tidak ada notifikasi",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                n.pesan,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (baru) FontWeight.SemiBold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 3
             )
             Spacer(Modifier.height(4.dp))
-            Text(
-                "Semua notifikasi sudah terbaca",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-        }
-    }
-}
-
-// ─── Notification item with swipe-to-dismiss ─────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun NotificationItem(
-    notif: RiwayatAksi,
-    onTap: () -> Unit,
-    onSwipeDismiss: () -> Unit,
-) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onSwipeDismiss()
-                true
-            } else false
-        }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            // Red background revealed on swipe left
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(end = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        "Tandai dibaca",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Icon(
-                        Icons.Default.DoneAll,
-                        contentDescription = "Tandai dibaca",
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (n.kategori.isNotBlank()) {
+                    StatusChip(n.kategori, warna)
+                    Spacer(Modifier.width(8.dp))
                 }
+                Text(waktuNotif(n.waktu).second, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onTap),
-            colors = CardDefaults.cardColors(
-                containerColor = if (notif.isRead == 0)
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                else
-                    MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = if (notif.isRead == 0) 1.dp else 0.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                // Unread dot indicator
-                Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.TopCenter) {
-                    if (notif.isRead == 0) {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 6.dp)
-                                .size(8.dp)
-                                .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(4.dp))
-
-                // Category icon
-                Icon(
-                    imageVector = categoryIcon(notif.kategori),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(18.dp),
-                    tint = if (notif.isRead == 0)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = notif.pesan,
-                        fontWeight = if (notif.isRead == 0) FontWeight.SemiBold else FontWeight.Normal,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (notif.kategori.isNotEmpty()) {
-                            Text(
-                                text = notif.kategori,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text("·", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text(
-                            text = notif.waktu,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+        if (baru) {
+            Box(Modifier.padding(top = 6.dp, start = 6.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
         }
     }
-}
-
-// ─── Helper: map kategori → icon ────────────────────────────────────────────
-
-private fun categoryIcon(kategori: String): ImageVector = when {
-    kategori.equals("Produk",   ignoreCase = true) -> Icons.Default.Inventory2
-    kategori.equals("Keuangan", ignoreCase = true) -> Icons.Default.AccountBalanceWallet
-    kategori.equals("HR",       ignoreCase = true) -> Icons.Default.People
-    kategori.equals("Sistem",   ignoreCase = true) -> Icons.Default.Settings
-    else                                            -> Icons.Default.Notifications
 }

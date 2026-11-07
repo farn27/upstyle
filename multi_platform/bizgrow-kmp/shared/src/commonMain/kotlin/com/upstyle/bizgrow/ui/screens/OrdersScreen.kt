@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.map
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,14 +107,14 @@ fun OrdersScreen(viewModel: AppViewModel) {
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(order.customerName, style = MaterialTheme.typography.bodyLarge)
-                            Text("Rp ${"%,.0f".format(order.totalAmount)}", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                            Text("Rp ${"%,.0f".format(order.totalAmount)}", color = BizgrowColors.Success, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(8.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(order.createdAt, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                                 val statusColor = when(order.status) {
-                                    "Completed" -> Color(0xFF2E7D32)
-                                    "Cancelled" -> Color(0xFFC62828)
-                                    else -> Color(0xFFEF6C00)
+                                    "Completed" -> BizgrowColors.Success
+                                    "Cancelled" -> BizgrowColors.Danger
+                                    else -> BizgrowColors.Warning
                                 }
                                 SuggestionChip(
                                     onClick = {},

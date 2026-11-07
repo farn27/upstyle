@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
 import io.github.aakira.napier.Napier
 import com.upstyle.bizgrow.utils.AuditLogger
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.minus
 
 /**
  * AppViewModel memegang semua state aplikasi.
@@ -94,6 +96,10 @@ class AppViewModel(
     private val navigationManager = NavigationManager()
     val screen = navigationManager.screen
     val screenStack: List<Screen> get() = navigationManager.screenStack.value
+    /** Ukuran back stack (untuk arah animasi transisi maju / mundur). */
+    val screenStackFlow: StateFlow<Int> = navigationManager.screenStack
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, navigationManager.screenStack.value.size)
     val canNavigateBack: Boolean get() = navigationManager.canNavigateBack
     fun navigate(s: Screen) = navigationManager.navigate(s)
     fun navigateBack() = navigationManager.navigateBack()
@@ -108,6 +114,8 @@ class AppViewModel(
 
     private fun setLoading(v: Boolean) { _uiState.update { it.copy(isLoading = v, error = null) } }
     private fun setError(msg: String) { _uiState.update { it.copy(isLoading = false, error = msg) } }
+    /** Tampilkan pesan error dari UI (mis. printer belum dikonfigurasi). */
+    fun showError(msg: String) = setError(msg)
     private fun setSuccess(msg: String) { _uiState.update { it.copy(isLoading = false, successMessage = msg, error = null) } }
     fun clearMessages() { _uiState.update { it.copy(error = null, successMessage = null) } }
 
@@ -476,6 +484,22 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadLabaRugi error", e) }
     }
     
+    private val _laporanLengkap = MutableStateFlow<LaporanLengkap?>(null)
+    val laporanLengkap: StateFlow<LaporanLengkap?> = _laporanLengkap.asStateFlow()
+    private val _laporanMemuat = MutableStateFlow(false)
+    val laporanMemuat: StateFlow<Boolean> = _laporanMemuat.asStateFlow()
+    fun loadLaporanLengkap(tahun: Int, bulan: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        _laporanMemuat.value = true
+        try {
+            val res = api.getLaporanLengkap(unitId, tahun, bulan)
+            if (res.success) _laporanLengkap.value = res.data else setError(res.message ?: "Gagal memuat laporan")
+        } catch (e: Exception) {
+            setError("Koneksi gagal: ${e.message}")
+        } finally { _laporanMemuat.value = false }
+    }
+
     private val _katalogData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.KatalogData?>(null)
     val katalogData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.KatalogData?> = _katalogData.asStateFlow()
     fun loadKatalog() = viewModelScope.launch {
@@ -524,7 +548,7 @@ class AppViewModel(
             if (res.success) {
                 if (_activeUnitId.value == unitId) {
                     _activeUnitId.value = 0
-                    _financeData.value = null
+                    _financeData.value = null; _riwayat.value = null
                 }
                 loadUnits()
                 setSuccess("Bisnis berhasil dihapus")
@@ -688,12 +712,16 @@ class AppViewModel(
     }
     private val _financeData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
     val financeData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _financeData.asStateFlow()
+    private val _riwayat = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
+    /** Data untuk layar Riwayat Transaksi — selalu sepanjang waktu, terpisah dari filter periode dashboard. */
+    val riwayat: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _riwayat.asStateFlow()
+
     fun loadFinanceData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
         try {
             val res = api.getFinanceData(unitId)
-            if (res.success) _financeData.value = res.data
+            if (res.success) _riwayat.value = res.data
         } catch (e: Exception) { Napier.e("loadFinanceData error", e) }
     }
     // ─── Sinkron offline (opsi B: antrean dikirim ulang ke API biasa) ─────────
@@ -719,6 +747,14 @@ class AppViewModel(
         _antreanOfflineCount.value = antreanOffline.size()
         setSuccess("Offline: data disimpan di HP dan dikirim otomatis saat online")
     }
+
+    /** Isi antrean offline yang belum terkirim (untuk layar Sinkronisasi). */
+    fun daftarAntreanOffline(): List<com.upstyle.bizgrow.data.SyncQueueItem> = antreanOffline.getAll()
+    /** Data offline yang ditolak server (tidak akan dikirim ulang). */
+    fun daftarAntreanGagal(): List<com.upstyle.bizgrow.data.SyncQueueItem> = antreanOffline.getGagal()
+    fun hapusAntreanGagal() { antreanOffline.hapusGagal() }
+    /** true kalau sinkronisasi sedang berjalan */
+    val sedangSinkronOffline: Boolean get() = sedangSinkron
 
     /** Kirim antrean offline. Aman dipanggil kapan saja (berulang tidak membuat data dobel). */
     fun sinkronkanOffline() = viewModelScope.launch {
@@ -847,6 +883,40 @@ class AppViewModel(
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
 
+    private val _posQueue = MutableStateFlow<List<PosQueueItem>>(emptyList())
+    val posQueue: StateFlow<List<PosQueueItem>> = _posQueue.asStateFlow()
+    fun loadPosQueue() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getPosQueue(unitId)
+            if (res.success) _posQueue.value = res.data?.queue.orEmpty()
+        } catch (e: Exception) { Napier.e("loadPosQueue error", e) }
+    }
+    fun ubahStatusAntrean(orderId: Int, status: String) = viewModelScope.launch {
+        try {
+            val res = api.updatePosQueueStatus(orderId, status)
+            if (res.success) loadPosQueue() else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun createPosVoucher(v: PosVoucher) =
+        jalankanMasterData("Voucher dibuat", { loadPosVouchers() }) { api.createPosVoucher(v.copy(unitId = it)) }
+    fun updatePosVoucher(v: PosVoucher) =
+        jalankanMasterData("Voucher diperbarui", { loadPosVouchers() }) { api.updatePosVoucher(v.copy(unitId = it)) }
+    fun deletePosVoucher(id: Int) =
+        jalankanMasterData("Voucher dinonaktifkan", { loadPosVouchers() }) { api.deletePosVoucher(id) }
+
+    fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
+        jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
+
+    fun createCoa(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?) =
+        jalankanMasterData("Akun COA dibuat", { loadChartOfAccounts() }) { api.createCoa(it, kode, nama, tipe, normalBalance, deskripsi) }
+    fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean) =
+        jalankanMasterData("Akun COA diperbarui", { loadChartOfAccounts() }) { api.updateCoa(id, nama, deskripsi, aktif) }
+    fun deleteCoa(id: Int) =
+        jalankanMasterData("Akun COA dinonaktifkan", { loadChartOfAccounts() }) { api.deleteCoa(id) }
+
     fun seedDefaultCoa(type: String = "LAINNYA") =
         jalankanMasterData("COA standar dibuat", { loadChartOfAccounts() }) { api.seedDefaultCoa(it, type) }
 
@@ -858,14 +928,11 @@ class AppViewModel(
             if (res.success) _fixedAssets.value = res.data ?: emptyList()
         } catch (e: Exception) { Napier.e("loadFixedAssets error", e) }
     }
-    fun createEmployee(fullName: String, position: String, salary: Double, pin: String, role: String,
-                       email: String = "", phone: String = "", division: String = "") = viewModelScope.launch {
+    fun createEmployee(body: CreateEmployeeBody) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val res = api.createEmployee(CreateEmployeeRequest(
-                employee = CreateEmployeeBody(fullName, position, salary, pin, role, unitId, email, phone, division)
-            ))
+            val res = api.createEmployee(CreateEmployeeRequest(employee = body.copy(unitId = unitId)))
             if (res.success) { loadHrData(); setSuccess("Karyawan berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah karyawan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -1004,7 +1071,26 @@ class AppViewModel(
         _cart.value = current
     }
     
-    fun checkout(metode: String, onSuccess: (Boolean) -> Unit) = viewModelScope.launch {
+    /** Pilihan tambahan saat bayar di kasir (jenis pesanan, meja, voucher, bayar terpisah, catatan). */
+    data class PosCheckoutOpsi(
+        val orderType: String = "TAKEAWAY",
+        val meja: String? = null,
+        val antrean: String? = null,
+        val catatan: String? = null,
+        val voucherKode: String? = null,
+        val diterima: Double? = null,
+        val kembalian: Double? = null,
+        val split: List<SplitPayment>? = null
+    )
+
+    /** Validasi voucher ke server: (pesan, potongan) — potongan null bila tidak valid. */
+    suspend fun cekVoucher(kode: String, totalBelanja: Double): Pair<String, Double?> {
+        val unitId = _activeUnitId.value
+        return try { api.validatePosVoucher(unitId, kode.trim().uppercase(), totalBelanja) }
+        catch (e: Exception) { "Koneksi gagal: ${e.message}" to null }
+    }
+
+    fun checkout(metode: String, opsi: PosCheckoutOpsi = PosCheckoutOpsi(), onSuccess: (Boolean) -> Unit) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
         val cartItems = _cart.value
@@ -1025,8 +1111,16 @@ class AppViewModel(
                 subtotal = subtotal,
                 diskon = diskon,
                 total = total,
-                paymentMethod = metode,
-                items = items
+                paymentMethod = if (!opsi.split.isNullOrEmpty()) "SPLIT" else metode,
+                items = items,
+                voucherCode = opsi.voucherKode?.takeIf { it.isNotBlank() },
+                orderType = opsi.orderType,
+                tableNumber = opsi.meja?.takeIf { it.isNotBlank() },
+                queueNumber = opsi.antrean?.takeIf { it.isNotBlank() },
+                notes = opsi.catatan?.takeIf { it.isNotBlank() },
+                amountPaid = opsi.diterima,
+                changeAmount = opsi.kembalian,
+                payments = opsi.split?.takeIf { it.isNotEmpty() }
             ))
             val res = api.checkout(req)
             if (res.success) {
@@ -1135,10 +1229,35 @@ class AppViewModel(
     }
     fun updatePoStatus(poId: String, status: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
+        setLoading(true)
         try {
-            api.updatePoStatus(UpdatePoStatusRequest(poId, status, unitId))
-            loadScmData()
-        } catch (e: Exception) { Napier.e("updatePoStatus error", e) }
+            val res = api.updatePoStatus(UpdatePoStatusRequest(poId, status, unitId))
+            if (res.success) {
+                loadScmData()
+                if (status == "RECEIVED") loadProducts() // stok bertambah
+                setSuccess(res.message ?: "Status PO diperbarui")
+            } else setError(res.message ?: "Gagal mengubah status PO")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    /** Buat purchase order satu barang (API mobile /api/app/scm action create-po). */
+    fun createPurchaseOrder(supplierId: String, productId: String, qty: Int, unitCost: Double, onDone: (Boolean) -> Unit = {}) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        setLoading(true)
+        try {
+            val nomor = "PO-M${currentTimeMillis().toString().takeLast(8)}"
+            val res = api.createPurchaseOrder(CreatePoRequest(po = CreatePoBody(nomor, supplierId, productId, qty, unitCost, unitCost * qty, unitId)))
+            if (res.success) { loadScmData(); setSuccess("Purchase order $nomor dibuat"); onDone(true) }
+            else { setError(res.message ?: "Gagal membuat PO"); onDone(false) }
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onDone(false) }
+    }
+    fun deleteSupplier(supplierId: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        setLoading(true)
+        try {
+            val res = api.deleteSupplier(supplierId, unitId)
+            if (res.success) { loadScmData(); setSuccess("Supplier dihapus") }
+            else setError(res.message ?: "Supplier tidak bisa dihapus")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun createSupplier(name: String, contactName: String, phone: String, email: String, category: String, address: String) = viewModelScope.launch {
         setLoading(true)
@@ -1231,14 +1350,34 @@ class AppViewModel(
     val shopeeState: StateFlow<ShopeeState> = _shopeeState.asStateFlow()
 
     private val _advancedSettingsState = MutableStateFlow(AdvancedSettingsState())
+    private val _themeMode = MutableStateFlow(session.getThemeMode())
+    /** "system" | "light" | "dark" — disimpan lokal supaya tema langsung berlaku saat aplikasi dibuka. */
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+    fun setThemeMode(mode: String) {
+        session.setThemeMode(mode)
+        _themeMode.value = mode
+    }
     val advancedSettingsState: StateFlow<AdvancedSettingsState> = _advancedSettingsState.asStateFlow()
 
     // Chat & AI
-    private val _chatHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
-    val chatHistory: StateFlow<List<ChatMessage>> = _chatHistory.asStateFlow()
+    /** Chat Bizgrow AI (sesi, saran, grafik, kartu transaksi) — lihat [AiChatController]. */
+    val ai: AiChatController by lazy {
+        AiChatController(
+            scope = viewModelScope,
+            session = session,
+            api = { api },
+            units = { _units.value },
+            activeUnit = { activeUnit.value },
+            onError = { setError(it) },
+            onTransaksiTersimpan = { loadDashboard(); loadFinanceData(); setSuccess("Transaksi tersimpan") }
+        )
+    }
 
-    private val _isChatLoading = MutableStateFlow(false)
-    val isChatLoading: StateFlow<Boolean> = _isChatLoading.asStateFlow()
+    /** Buka layar AI dan langsung kirim [prompt] (dipakai kartu AI di Beranda). */
+    fun tanyaAi(prompt: String? = null) {
+        navigate(Screen.AiChat)
+        if (!prompt.isNullOrBlank()) { ai.muat(); ai.kirim(prompt) }
+    }
 
     // ─── AI Entry (NLP Transaction) ───────────────────────────────────────────
     private val _isAiEntryLoading = MutableStateFlow(false)
@@ -1403,7 +1542,7 @@ class AppViewModel(
             if (unitId > 0) {
                 SocketManager.joinUnit(unitId)
                 // Reset all module data so they reload fresh for the new unit
-                _financeData.value = null
+                _financeData.value = null; _riwayat.value = null
                 _hrData.value = null
                 _scmData.value = null
                 _marketingData.value = null
@@ -1437,12 +1576,32 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Dashboard ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+    private val _periodeDashboard = MutableStateFlow("Semua")
+    /** Preset periode dashboard (Semua / Hari Ini / Kemarin / 7 Hari / Bulan Ini). */
+    val periodeDashboard: StateFlow<String> = _periodeDashboard.asStateFlow()
+
+    fun setPeriodeDashboard(p: String) { if (p != _periodeDashboard.value) { _periodeDashboard.value = p; loadDashboard() } }
+
+    /** Rentang tanggal (WIB) untuk sebuah preset; null,null = semua waktu. */
+    private fun rentangPeriode(p: String): Pair<String?, String?> {
+        val hariIni = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Jakarta")).date
+        fun hari(offset: Int) = hariIni.minus(-offset, kotlinx.datetime.DateTimeUnit.DAY).toString()
+        return when (p) {
+            "Hari Ini" -> hari(0) to hari(0)
+            "Kemarin" -> hari(-1) to hari(-1)
+            "7 Hari" -> hari(-6) to hari(0)
+            "Bulan Ini" -> kotlinx.datetime.LocalDate(hariIni.year, hariIni.monthNumber, 1).toString() to hari(0)
+            else -> null to null
+        }
+    }
+
     fun loadDashboard() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
         _dashboardState.update { it.copy(isLoading = true, error = null) }
         try {
-            val res = api.getFinanceData(unitId)
+            val (mulai, akhir) = rentangPeriode(_periodeDashboard.value)
+            val res = api.getFinanceData(unitId, mulai, akhir)
             if (res.success) {
                 _dashboardState.update { it.copy(isLoading = false, financeData = res.data) }
                 // Also update the separate financeData flow used by DashboardScreen
@@ -2028,41 +2187,12 @@ class AppViewModel(
     fun updatePreferences(darkMode: Boolean, notifEnabled: Boolean) = viewModelScope.launch {
         try {
             val res = api.updatePreferences(darkMode, notifEnabled)
-            if (res.success) { _advancedSettingsState.update { it.copy(darkMode = darkMode, notifEnabled = notifEnabled) }; setSuccess("Preferensi berhasil disimpan!") }
+            if (res.success) { _advancedSettingsState.update { it.copy(darkMode = darkMode, notifEnabled = notifEnabled) }; setThemeMode(if (darkMode) "dark" else "light"); setSuccess("Preferensi berhasil disimpan!") }
             else setError(res.message ?: "Gagal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Chat & AI Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-    fun sendChat(message: String) = viewModelScope.launch {
-        val userMsg = ChatMessage(role = "user", content = message)
-        _chatHistory.value = _chatHistory.value + userMsg
-        try {
-            _isChatLoading.value = true
-            val slug = activeUnit.value?.slug ?: ""
-            val history = _chatHistory.value.takeLast(10)
-            val res = api.chat(ChatRequest(message = message, activeUnitSlug = slug, history = history))
-            val reply = ChatMessage(role = "assistant", content = res.reply ?: "Maaf, tidak ada respons.")
-            _chatHistory.value = _chatHistory.value + reply
-        } catch (e: Exception) {
-            // Tambahkan pesan error sebagai bubble AI agar konteks chat tetap jelas
-            val errMsg = ChatMessage(role = "assistant", content = "Koneksi gagal. Coba lagi. (${e.message})")
-            _chatHistory.value = _chatHistory.value + errMsg
-        } finally {
-            _isChatLoading.value = false
-        }
-    }
-
-    fun loadChatHistory() = viewModelScope.launch {
-        // Chat history bersifat in-session — kosongkan saat screen baru dibuka
-        // Jika di masa depan ada endpoint history, ganti ini dengan API call
-        _chatHistory.value = emptyList()
-    }
-
-    fun clearChat() {
-        _chatHistory.value = emptyList()
-    }
-
     // ─── AI Entry (NLP Transaction) ───────────────────────────────────────────
 
     /**

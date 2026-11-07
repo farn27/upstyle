@@ -11,7 +11,7 @@ import { generateInvoiceHTML, generateInvoiceNumber } from '$lib/server/invoiceG
 import { log } from '$lib/server/logger';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 
-export async function GET({ params, url, cookies }) {
+export async function GET({ params, url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 

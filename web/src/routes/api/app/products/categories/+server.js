@@ -21,7 +21,7 @@ export async function GET({ url, cookies, request }) {
             .where(eq(kategoriProduk.unitId, Number(unitId)))
             .orderBy(kategoriProduk.namaKategori);
 
-        return json({ success: true, categories });
+        return json({ success: true, data: categories, categories }); // `data` dibaca app mobile
     } catch (err) {
         log.api.error({ err }, 'API GET CATEGORIES ERROR');
         return json({ success: false, message: "Gagal mengambil kategori" }, { status: 500 });

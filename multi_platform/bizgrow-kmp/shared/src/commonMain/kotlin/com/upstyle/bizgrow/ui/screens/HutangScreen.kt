@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.Payable
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -270,9 +271,9 @@ fun HutangScreen(viewModel: AppViewModel) {
 @Composable
 fun PayableItem(payable: Payable, onClick: () -> Unit) {
     val statusColor = when (payable.status) {
-        "LUNAS" -> Color(0xFF2E7D32)
-        "SEBAGIAN" -> Color(0xFFEF6C00)
-        else -> Color(0xFFC62828)
+        "LUNAS" -> BizgrowColors.Success
+        "SEBAGIAN" -> BizgrowColors.Warning
+        else -> BizgrowColors.Danger
     }
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onClick() },

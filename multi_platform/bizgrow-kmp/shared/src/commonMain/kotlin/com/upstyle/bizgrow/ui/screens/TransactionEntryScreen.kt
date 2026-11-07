@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.ChartOfAccount
 import com.upstyle.bizgrow.data.Product
@@ -251,7 +252,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
             if (!hasCoa) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                    colors = CardDefaults.cardColors(containerColor = BizgrowColors.WarningLight),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
@@ -260,8 +261,8 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("COA belum di-setup", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFE65100))
-                            Text("Chart of Accounts diperlukan untuk entri transaksi double-entry.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFBF360C))
+                            Text("COA belum di-setup", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = BizgrowColors.WarningDark)
+                            Text("Chart of Accounts diperlukan untuk entri transaksi double-entry.", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.WarningDark)
                         }
                         TextButton(onClick = { viewModel.navigate(Screen.Coa) }) {
                             Text("Setup COA")

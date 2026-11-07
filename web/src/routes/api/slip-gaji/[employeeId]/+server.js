@@ -11,7 +11,7 @@ import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
-export async function GET({ params, url, cookies }) {
+export async function GET({ params, url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 

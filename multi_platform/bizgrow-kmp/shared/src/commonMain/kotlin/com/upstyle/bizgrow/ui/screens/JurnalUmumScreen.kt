@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.CreateJournalLineBody
 import com.upstyle.bizgrow.data.JournalEntry
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,7 +156,7 @@ fun AddJurnalSheet(
                             Text("Baris ${index + 1}", fontWeight = FontWeight.Medium)
                             if (lines.size > 2) {
                                 IconButton(onClick = { lines.removeAt(index) }) {
-                                    Icon(Icons.Default.Delete, null, tint = Color(0xFFC62828))
+                                    Icon(Icons.Default.Delete, null, tint = BizgrowColors.Danger)
                                 }
                             }
                         }
@@ -245,7 +246,7 @@ fun AddJurnalSheet(
 @Composable
 fun JournalEntryItem(entry: JournalEntry) {
     var expanded by remember { mutableStateOf(false) }
-    val statusColor = if (entry.status == "POSTED") Color(0xFF2E7D32) else Color.Gray
+    val statusColor = if (entry.status == "POSTED") BizgrowColors.Success else Color.Gray
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { expanded = !expanded },
@@ -281,7 +282,7 @@ fun JournalEntryItem(entry: JournalEntry) {
                             if (isDebit) "Db ${formatCurrency(amount)}" else "Kr ${formatCurrency(amount)}",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (isDebit) MaterialTheme.colorScheme.primary else Color(0xFFC62828)
+                            color = if (isDebit) MaterialTheme.colorScheme.primary else BizgrowColors.Danger
                         )
                     }
                 }

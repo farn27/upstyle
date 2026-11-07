@@ -108,7 +108,9 @@ data class Transaction(
     val abcCategoryId: Int? = null,
     val productId: String? = null,
     val qty: Int = 1,
-    val hppTotal: Double = 0.0
+    val hppTotal: Double = 0.0,
+    /** Nama akun kas/metode bayar yang sudah diterjemahkan server (mis. "Kas Tunai", "QRIS"). */
+    val metodeLabel: String? = null
 )
 
 @Serializable
@@ -152,7 +154,9 @@ data class FinanceData(
 data class FinanceSummary(
     @SerialName("total_masuk") val totalMasuk: Double = 0.0,
     @SerialName("total_keluar") val totalKeluar: Double = 0.0,
-    @SerialName("total_hpp") val totalHpp: Double = 0.0
+    @SerialName("total_hpp") val totalHpp: Double = 0.0,
+    /** Saldo kas sepanjang waktu (modal awal + masuk − keluar); tidak ikut filter periode. */
+    val saldoKas: Double? = null
 )
 
 @Serializable
@@ -174,6 +178,9 @@ data class FinanceKpi(
     val target: Double = 0.0,
     val current: Double = 0.0
 )
+
+/** Rentang periode dashboard — sama dengan preset web (zona WIB). */
+val PresetPeriode = listOf("Semua", "Hari Ini", "Kemarin", "7 Hari", "Bulan Ini")
 
 @Serializable
 data class CreateTransactionRequest(val transaction: TransactionBody)
@@ -217,8 +224,12 @@ data class Product(
     val status: String = "active",
     val hasVariant: Int = 0,
     val showInPos: Int = 1,
-    val variants: List<ProductVariant> = emptyList()
-)
+    val variants: List<ProductVariant> = emptyList(),
+    /** BARANG_JADI (dijual) | BAHAN_BAKU | KEMASAN | PERLENGKAPAN — hanya barang jadi yang boleh di kasir */
+    val jenis: String = "BARANG_JADI"
+) {
+    val bisaDijual: Boolean get() = jenis.isBlank() || jenis.equals("BARANG_JADI", ignoreCase = true)
+}
 
 @Serializable
 data class ProductVariant(
@@ -318,6 +329,7 @@ data class CheckoutBody(
     val voucherCode: String? = null,
     val orderType: String = "TAKEAWAY", // DINE_IN | TAKEAWAY | DELIVERY
     val tableNumber: String? = null,
+    val queueNumber: String? = null,
     val notes: String? = null,
     val amountPaid: Double? = null,
     val changeAmount: Double? = null,
@@ -450,7 +462,15 @@ data class CreateEmployeeBody(
     val emergencyContact: String = "",
     val emergencyRelation: String = "",
     val bloodType: String = "",
-    val employeeIdCard: String = ""
+    val employeeIdCard: String = "",
+    val password: String = "",
+    val division: String = "",
+    val jobGrade: String = "",
+    val contractStart: String = "",
+    val contractEnd: String = "",
+    val bankName: String = "",
+    val bankAccountNumber: String = "",
+    val taxId: String = ""
 )
 
 @Serializable
@@ -925,9 +945,13 @@ data class ChatRequest(
 
 @Serializable
 data class ChatResponse(
-    val reply: String,
+    val reply: String = "",
     val suggestions: List<String> = emptyList(),
-    val intent: String? = null
+    val intent: String? = null,
+    /** Konfigurasi Chart.js dari server (type + data.labels + data.datasets). */
+    val chartData: kotlinx.serialization.json.JsonElement? = null,
+    /** Transaksi hasil deteksi bahasa natural — perlu dilengkapi akun kas & COA sebelum disimpan. */
+    val transactionPreviews: List<TrxPreview>? = null
 )
 
 @Serializable
@@ -2045,3 +2069,107 @@ data class SyncQueueFlushRequest(
     val unitId: Int,
     val items: List<SyncQueueItem>
 )
+
+// ─── Laporan lengkap (sama dengan halaman Laporan web) ───────────────────────
+
+@Serializable
+data class AkunSaldo(val id: Int = 0, val kodeAkun: String = "", val namaAkun: String = "", val saldo: Double = 0.0)
+
+@Serializable
+data class LaporanSummary(
+    val totalMasuk: Double = 0.0,
+    val totalKeluar: Double = 0.0,
+    val totalHpp: Double = 0.0,
+    val jumlahTrx: Int = 0,
+    val labaKotor: Double = 0.0
+)
+
+@Serializable
+data class LaporanArusBulan(val bulan: Int = 0, val masuk: Double = 0.0, val keluar: Double = 0.0)
+
+@Serializable
+data class LaporanProdukLaris(
+    val productId: String? = null,
+    val namaProduk: String? = null,
+    val totalRevenue: Double = 0.0,
+    val totalQty: Double = 0.0
+)
+
+@Serializable
+data class LaporanMetodeBayar(val metode: String = "KAS", val total: Double = 0.0)
+
+@Serializable
+data class LaporanTrxTerbaru(
+    val id: Int = 0,
+    val kategoriTrx: String = "",
+    val nominal: Double = 0.0,
+    val keterangan: String = "",
+    val tanggal: Long? = null
+)
+
+@Serializable
+data class LaporanDashboard(
+    val summary: LaporanSummary = LaporanSummary(),
+    val arusKas: List<LaporanArusBulan> = emptyList(),
+    val produkTerlaris: List<LaporanProdukLaris> = emptyList(),
+    val metodeBayarStats: List<LaporanMetodeBayar> = emptyList(),
+    val riwayatTrx: List<LaporanTrxTerbaru> = emptyList()
+)
+
+@Serializable
+data class LaporanLabaRugi(
+    val pendapatan: List<AkunSaldo> = emptyList(),
+    val hpp: List<AkunSaldo> = emptyList(),
+    val beban: List<AkunSaldo> = emptyList(),
+    val pendapatanLainnya: List<AkunSaldo> = emptyList(),
+    val bebanLainnya: List<AkunSaldo> = emptyList(),
+    val totalPendapatan: Double = 0.0,
+    val totalHpp: Double = 0.0,
+    val totalBeban: Double = 0.0,
+    val totalPendapatanLainnya: Double = 0.0,
+    val totalBebanLainnya: Double = 0.0,
+    val labaKotor: Double = 0.0,
+    val labaBersih: Double = 0.0
+)
+
+@Serializable
+data class LaporanNeraca(
+    val asetLancar: List<AkunSaldo> = emptyList(),
+    val asetTetap: List<AkunSaldo> = emptyList(),
+    val liabilitasLancar: List<AkunSaldo> = emptyList(),
+    val liabilitasJangkaPanjang: List<AkunSaldo> = emptyList(),
+    val ekuitas: List<AkunSaldo> = emptyList(),
+    val totalAsetLancar: Double = 0.0,
+    val totalAsetTetap: Double = 0.0,
+    val totalAset: Double = 0.0,
+    val totalLiabilitasLancar: Double = 0.0,
+    val totalLiabilitasPanjang: Double = 0.0,
+    val totalLiabilitas: Double = 0.0,
+    val totalEkuitas: Double = 0.0
+)
+
+@Serializable
+data class LaporanLengkap(
+    val tahun: Int = 0,
+    val bulan: String = "all",
+    val dashboard: LaporanDashboard = LaporanDashboard(),
+    val labaRugi: LaporanLabaRugi = LaporanLabaRugi(),
+    val neraca: LaporanNeraca = LaporanNeraca()
+)
+
+// ─── Antrean dapur / kasir ───────────────────────────────────────────────────
+
+@Serializable
+data class PosQueueItem(
+    val id: Int = 0,
+    val orderNumber: String = "",
+    val queueNumber: String = "",
+    val fulfillmentStatus: String = "PENDING",
+    val orderType: String = "TAKEAWAY",
+    val tableNumber: String? = null,
+    val total: Double = 0.0,
+    val createdAt: String? = null
+)
+
+@Serializable
+data class PosQueueData(val queue: List<PosQueueItem> = emptyList())

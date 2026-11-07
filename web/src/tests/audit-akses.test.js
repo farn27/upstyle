@@ -303,6 +303,34 @@ describe.skipIf(!TEST_DB)('Audit: harga, isolasi unit, piutang, retur', () => {
 		expect(data.units.map((/** @type {any} */ u) => u.id)).toEqual([id.unitA]);
 	});
 
+	it('Endpoint GET lama tidak lagi crash "request is not defined" (dulu selalu 500)', async () => {
+		login.userId = null;
+		const rute = [
+			['../routes/api/updates/+server.js', {}],
+			['../routes/api/qr/+server.js', {}],
+			['../routes/api/invoice/[orderId]/+server.js', { orderId: '1' }],
+			['../routes/api/slip-gaji/[employeeId]/+server.js', { employeeId: '1' }]
+		];
+		for (const [path, params] of rute) {
+			const mod = await import(/* @vite-ignore */ path);
+			const res = await mod.GET({ url: new URL('http://x?slug=a'), cookies, request: req('GET'), params });
+			expect(res.status).toBe(401);
+		}
+	});
+
+	it('Pengadaan mobile: PO dengan produk / supplier unit lain ditolak', async () => {
+		const scm = await import('../routes/api/app/scm/+server.js');
+		const [supA] = await db.insert(s.suppliers).values({ unitId: id.unitA, namaSupplier: 'Supplier A' });
+		const [supB] = await db.insert(s.suppliers).values({ unitId: id.unitB, namaSupplier: 'Supplier B' });
+		login.userId = id.userA;
+		const buat = (/** @type {any} */ po) => scm.POST({ request: req('POST', { action: 'create-po', po: { poNumber: `PO-T-${Date.now()}`, unitId: id.unitA, qty: 2, unitCost: 1000, ...po } }), cookies });
+		expect((await buat({ supplierId: supA.insertId, productId: id.pB })).status).toBe(404);
+		expect((await buat({ supplierId: supB.insertId, productId: id.pA })).status).toBe(404);
+		expect((await buat({ supplierId: supA.insertId, productId: id.pA, qty: -3 })).status).toBe(422);
+		const ok = await buat({ supplierId: supA.insertId, productId: id.pA });
+		expect(ok.status).toBe(200);
+	});
+
 	it('Batas paket: akun free maksimal 3 unit', async () => {
 		expect((await r.plan.cekBatasUnit(db, id.userA)).boleh).toBe(true);
 		id.unitTambahan = [];

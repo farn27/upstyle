@@ -24,6 +24,7 @@ import com.upstyle.bizgrow.data.Employee
 import com.upstyle.bizgrow.data.PayrollRecord
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.todayDate
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -290,12 +291,12 @@ fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>) {
                     Text(employee?.position ?: "", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Surface(
-                    color = if (isPaid) Color(0xFF2E7D32).copy(alpha = 0.1f) else Color(0xFFEF6C00).copy(alpha = 0.1f),
+                    color = if (isPaid) BizgrowColors.Success.copy(alpha = 0.1f) else BizgrowColors.Warning.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         record.status,
-                        color = if (isPaid) Color(0xFF2E7D32) else Color(0xFFEF6C00),
+                        color = if (isPaid) BizgrowColors.Success else BizgrowColors.Warning,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -312,11 +313,11 @@ fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>) {
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Tunjangan", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("+${formatCurrency(record.allowance)}", color = Color(0xFF2E7D32))
+                    Text("+${formatCurrency(record.allowance)}", color = BizgrowColors.Success)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Potongan", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("-${formatCurrency(record.deduction)}", color = Color(0xFFC62828))
+                    Text("-${formatCurrency(record.deduction)}", color = BizgrowColors.Danger)
                 }
             }
             Spacer(Modifier.height(8.dp))

@@ -13,6 +13,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -313,6 +318,15 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("type", "laba-rugi")
             parameter("start", startDate)
             parameter("end", endDate)
+        }.body()
+
+    /** Laporan lengkap (dashboard analisis + laba rugi + neraca). bulan = "all" atau 1..12. */
+    suspend fun getLaporanLengkap(unitId: Int, tahun: Int, bulan: String): ApiResponse<LaporanLengkap> =
+        client.get("api/app/finance/laporan") {
+            parameter("unitId", unitId)
+            parameter("type", "report")
+            parameter("tahun", tahun)
+            parameter("bulan", bulan)
         }.body()
 
     suspend fun getArusKas(unitId: Int, startDate: String, endDate: String): ApiResponse<ArusKasData> =
@@ -665,6 +679,21 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
 
+    suspend fun getPosQueue(unitId: Int): ApiResponse<PosQueueData> =
+        client.get("api/app/pos") {
+            parameter("unitId", unitId)
+            parameter("action", "queue")
+        }.body()
+
+    suspend fun updatePosQueueStatus(orderId: Int, status: String): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/pos") {
+            setBody(buildJsonObject {
+                put("action", "update-queue-status")
+                put("orderId", orderId)
+                put("status", status)
+            })
+        }.body())
+
     // POS shift → api/app/pos (action=shifts | open-shift | close-shift)
     suspend fun getPosShifts(unitId: Int): ApiResponse<List<PosShift>> =
         client.get("api/app/pos") {
@@ -819,6 +848,54 @@ class UpstyleApi(private val client: HttpClient) {
 
     suspend fun getPosVouchers(unitId: Int): ApiResponse<List<PosVoucher>> =
         client.get("api/app/pos/vouchers") { parameter("unitId", unitId) }.body()
+
+    /** Cek kode voucher untuk total belanja tertentu. Mengembalikan (pesan, potongan Rp) — potongan 0 bila tidak valid. */
+    suspend fun validatePosVoucher(unitId: Int, kode: String, totalBelanja: Double): Pair<String, Double?> {
+        val res: JsonObject = client.put("api/app/pos/vouchers") {
+            setBody(buildJsonObject {
+                put("action", "validate-voucher")
+                put("unitId", unitId)
+                put("code", kode)
+                put("purchaseAmount", totalBelanja)
+            })
+        }.body()
+        val ok = res["success"]?.jsonPrimitive?.booleanOrNull == true
+        val pesan = res["message"]?.jsonPrimitive?.contentOrNull ?: if (ok) "Voucher valid" else "Voucher tidak valid"
+        val potongan = res["voucher"]?.jsonObject?.get("discountAmount")?.jsonPrimitive?.doubleOrNull
+        return pesan to (if (ok) potongan else null)
+    }
+
+    suspend fun createPosVoucher(v: PosVoucher): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/pos/vouchers") {
+            setBody(buildJsonObject {
+                put("unitId", v.unitId)
+                put("code", v.code)
+                put("discountType", v.discountType)
+                put("discountValue", v.discountValue)
+                put("maxUsage", v.maxUsage)
+                put("minPurchase", v.minPurchase)
+                put("validFrom", v.validFrom)
+                put("validUntil", v.validUntil)
+            })
+        }.body())
+
+    suspend fun updatePosVoucher(v: PosVoucher): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/pos/vouchers") {
+            setBody(buildJsonObject {
+                put("action", "update-voucher")
+                put("voucherId", v.id)
+                put("discountType", v.discountType)
+                put("discountValue", v.discountValue)
+                put("maxUsage", v.maxUsage)
+                put("minPurchase", v.minPurchase)
+                put("validFrom", v.validFrom)
+                put("validUntil", v.validUntil)
+                put("isActive", v.isActive)
+            })
+        }.body())
+
+    suspend fun deletePosVoucher(id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/pos/vouchers") { parameter("voucherId", id) }.body())
 
     // Business plan → api/app/business-plan (simpan = POST upsert by id, hapus = ?id=, terapkan = /apply)
     suspend fun getBusinessPlans(unitId: Int): ApiResponse<List<BusinessPlan>> {
@@ -1101,6 +1178,42 @@ class UpstyleApi(private val client: HttpClient) {
     // Tutup buku → api/app/finance/close-period
     suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
         client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()
+
+    suspend fun createClosingPeriod(unitId: Int, mulai: String, akhir: String, keterangan: String?): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/close-period") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("periodStart", mulai)
+                put("periodEnd", akhir)
+                keterangan?.takeIf { it.isNotBlank() }?.let { put("keterangan", it) }
+            })
+        }.body())
+
+    // COA → api/app/finance/coa (tambah / ubah nama-deskripsi-status / nonaktifkan)
+    suspend fun createCoa(unitId: Int, kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/coa") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                put("kodeAkun", kode)
+                put("namaAkun", nama)
+                put("tipeAkun", tipe)
+                put("normalBalance", normalBalance)
+                deskripsi?.takeIf { it.isNotBlank() }?.let { put("deskripsi", it) }
+            })
+        }.body())
+
+    suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/finance/coa") {
+            setBody(buildJsonObject {
+                put("id", id)
+                put("namaAkun", nama)
+                put("deskripsi", deskripsi ?: "")
+                put("isActive", aktif)
+            })
+        }.body())
+
+    suspend fun deleteCoa(id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/coa") { parameter("coaId", id) }.body())
 
     // Persetujuan → api/app/hr/approvals
     suspend fun getApprovals(unitId: Int): ApiResponse<ApprovalsData> =

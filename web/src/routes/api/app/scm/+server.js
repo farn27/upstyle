@@ -135,14 +135,26 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: "poNumber, supplierId, productId, unitId wajib diisi" }, { status: 400 });
             }
 
+            // Supplier & barang HARUS milik unit ini (dulu produk unit lain bisa masuk PO,
+            // lalu saat diterima stok unit lain yang bertambah)
+            const [supplierRow] = await db.select({ id: suppliers.id }).from(suppliers)
+                .where(and(eq(suppliers.id, Number(supplierId)), eq(suppliers.unitId, Number(unitId)))).limit(1);
+            if (!supplierRow) return json({ success: false, message: "Supplier tidak ditemukan di unit ini" }, { status: 404 });
+            const prod = await db.query.products.findFirst({
+                where: and(eq(products.id, String(productId)), eq(products.unitId, Number(unitId)))
+            });
+            if (!prod) return json({ success: false, message: "Barang tidak ditemukan di unit ini" }, { status: 404 });
+            const jumlah = Number(qty);
+            const harga = Number(unitCost);
+            if (!Number.isInteger(jumlah) || jumlah <= 0 || !(harga >= 0)) {
+                return json({ success: false, message: "Jumlah harus bilangan bulat > 0 dan harga tidak boleh negatif" }, { status: 422 });
+            }
+            const total = jumlah * harga;
+
             let newPoId = null;
 
             await db.transaction(async (tx) => {
-                // Get product name
-                const prod = await tx.query.products.findFirst({
-                    where: eq(products.id, productId)
-                });
-                const prodName = prod ? prod.nama : 'Produk';
+                const prodName = prod.nama;
 
                 // Get next 7 days for expected_date
                 const expectedDate = new Date();
@@ -150,21 +162,21 @@ export async function POST({ request, cookies }) {
 
                 // Insert PO
                 const [poResult] = await tx.insert(purchaseOrders).values({
-                    poNumber, unitId: Number(unitId), supplierId: Number(supplierId), createdBy: userId, status: 'DRAFT', totalAmount: String(totalAmount || 0), expectedDate: expectedDate
+                    poNumber, unitId: Number(unitId), supplierId: Number(supplierId), createdBy: userId, status: 'DRAFT', totalAmount: String(total), expectedDate: expectedDate
                 });
                 
                 newPoId = poResult.insertId;
 
                 // Insert PO item
                 await tx.insert(purchaseOrderItems).values({
-                    poId: newPoId, productId: productId, qtyOrdered: Number(qty || 0), unitPrice: String(unitCost || 0), totalPrice: String(totalAmount || 0)
+                    poId: newPoId, productId: prod.id, qtyOrdered: jumlah, unitPrice: String(harga), totalPrice: String(total)
                 });
 
                 // Log action
                 await tx.insert(riwayatAksi).values({
                     userId,
                     unitId: Number(unitId),
-                    pesan: `PO Baru Dibuat: ${poNumber} untuk ${prodName} (${qty} unit)`,
+                    pesan: `PO Baru Dibuat: ${poNumber} untuk ${prodName} (${jumlah} unit)`,
                     kategori: 'SCM',
                     tipe: 'info'
                 });

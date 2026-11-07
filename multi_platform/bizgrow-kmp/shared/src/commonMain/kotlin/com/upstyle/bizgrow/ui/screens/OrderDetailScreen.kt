@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,10 +77,10 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
                             Column {
                                 Text("Status Pesanan", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 val statusColor = when (order.status) {
-                                    "DELIVERED", "Completed" -> Color(0xFF2E7D32)
-                                    "CANCELLED", "Cancelled" -> Color(0xFFC62828)
-                                    "SHIPPED" -> Color(0xFF1565C0)
-                                    else -> Color(0xFFEF6C00)
+                                    "DELIVERED", "Completed" -> BizgrowColors.Success
+                                    "CANCELLED", "Cancelled" -> BizgrowColors.Danger
+                                    "SHIPPED" -> BizgrowColors.Info
+                                    else -> BizgrowColors.Warning
                                 }
                                 Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp)) {
                                     Text(
@@ -165,7 +166,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
                             HorizontalDivider()
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Total", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text("Rp ${"%,.0f".format(order.totalAmount)}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF2E7D32))
+                                Text("Rp ${"%,.0f".format(order.totalAmount)}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BizgrowColors.Success)
                             }
                         }
                     }
@@ -184,9 +185,9 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
                             ) {
                                 statusOptions.forEach { statusOpt ->
                                     val statusColor = when (statusOpt) {
-                                        "DELIVERED" -> Color(0xFF2E7D32)
-                                        "CANCELLED" -> Color(0xFFC62828)
-                                        "SHIPPED" -> Color(0xFF1565C0)
+                                        "DELIVERED" -> BizgrowColors.Success
+                                        "CANCELLED" -> BizgrowColors.Danger
+                                        "SHIPPED" -> BizgrowColors.Info
                                         "PAID" -> Color(0xFF1976D2)
                                         else -> MaterialTheme.colorScheme.primary
                                     }
