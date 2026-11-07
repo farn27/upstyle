@@ -172,7 +172,34 @@ fun HomeScreen(viewModel: AppViewModel) {
                 tampil.isEmpty() -> item { EmptyView("Tidak ditemukan", "Tidak ada unit dengan kata \"$query\".", Icons.Rounded.SearchOff) }
                 else -> {
                     item { Spacer(Modifier.height(14.dp)) }
-                    itemsIndexed(tampil, key = { _, u -> u.id }) { i, unit ->
+                    // Business Planning Wizard (sama dengan kartu "Planning" di halaman Struktur Bisnis web)
+                    item {
+                        BizSurface(
+                            Modifier.padding(horizontal = 20.dp, vertical = 6.dp).fillMaxWidth().enterAnimation(0),
+                            onClick = { viewModel.navigate(Screen.BusinessPlan) }, contentPadding = PaddingValues(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconBadge(Icons.Rounded.Map, BizgrowColors.Violet)
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("Business Planning", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                    Text("Rancang rencana bisnis dengan bantuan AI, lalu terapkan jadi unit baru", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+                    val pusat = tampil.filter { it.isCabang != 1 }
+                    val cabang = tampil.filter { it.isCabang == 1 }
+                    if (pusat.isNotEmpty()) item { SectionTitle("Kantor Pusat", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${pusat.size} unit") }
+                    itemsIndexed(pusat, key = { _, u -> u.id }) { i, unit ->
+                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
+                            viewModel.selectUnit(unit.id)
+                            viewModel.navigate(Screen.Dashboard)
+                        }
+                    }
+                    if (cabang.isNotEmpty()) item { SectionTitle("Cabang", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${cabang.size} unit") }
+                    itemsIndexed(cabang, key = { _, u -> u.id }) { i, unit ->
                         UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
                             viewModel.selectUnit(unit.id)
                             viewModel.navigate(Screen.Dashboard)
