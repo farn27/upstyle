@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { products, riwayatAksi, unitBisnis } from '$lib/server/schema';
 import { eq, and, desc, sql, isNull } from 'drizzle-orm';
@@ -201,7 +202,7 @@ export async function PUT({ request, cookies }) {
             const currentMetadata = product.metadata || {};
             const updatedMetadata = {
                 ...currentMetadata,
-                publishedAt: publish ? new Date().toISOString() : null,
+                publishedAt: publish ? nowSqlWIB() : null,
                 lastPublishAction: publish ? 'published' : 'unpublished'
             };
 
@@ -288,7 +289,7 @@ export async function DELETE({ url, cookies, request }) {
             // Soft delete
             await db.update(products)
                 .set({ 
-                    deletedAt: new Date().toISOString(),
+                    deletedAt: nowSqlWIB(),
                     status: 'archived'
                 })
                 .where(eq(products.id, productId));

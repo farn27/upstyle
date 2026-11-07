@@ -6,7 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { tanggalWIBPlusHari } from '$lib/server/dateUtils';
+import { tanggalWIBPlusHari, nowSqlWIB } from '$lib/server/dateUtils';
 
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -49,7 +49,7 @@ export async function POST({ request, cookies }) {
             quotationNumber, unitId: Number(unitId), customerId: customerId || null,
             totalAmount: String(totalAmount), status: 'DRAFT',
             validUntil: validUntil || tanggalWIBPlusHari(7),
-            notes: notes || null, createdAt: new Date().toISOString()
+            notes: notes || null, createdAt: nowSqlWIB()
         });
         const quoId = result.insertId;
 

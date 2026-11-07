@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { marketingCampaigns, riwayatAksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -49,7 +50,7 @@ export async function POST({ request, cookies }) {
         await db.insert(marketingCampaigns).values({
             unitId: Number(unitId), name, type, status: 'DRAFT',
             budget: String(budget), composeSubject: composeSubject || null,
-            composeText: composeText || null, createdAt: new Date().toISOString()
+            composeText: composeText || null, createdAt: nowSqlWIB()
         });
         await db.insert(riwayatAksi).values({ userId, unitId: Number(unitId), pesan: `Kampanye baru: ${name}`, kategori: 'MARKETING', tipe: 'success' });
         return json({ success: true, message: 'Kampanye berhasil dibuat' });

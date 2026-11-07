@@ -172,7 +172,7 @@ export const actions = {
                             const [newCat] = await tx.insert(kategoriProduk).values({
                                 unitId: unit.id,
                                 namaKategori: kategoriInput
-                            }).$returningId();
+                            }).then(([r]) => [{ id: r.insertId }]);
                             finalKategoriId = newCat.id;
                         }
                     }

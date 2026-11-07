@@ -34,7 +34,7 @@ export const load = async ({ params, cookies }) => {
             contactEmail: unit.email || '',
             contactAddress: unit.alamat || '',
             isPublished: true
-        }).$returningId();
+        }).then(([r]) => [{ id: r.insertId }]);
 
         settings = await db.query.websiteSettings.findFirst({
             where: eq(websiteSettings.id, inserted.id)

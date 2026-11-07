@@ -584,7 +584,7 @@ data class CreateDealBody(
     val contactName: String,
     val companyName: String,
     val dealValue: Double,
-    val stage: String = "PROSPECT",
+    val stage: String = "PROSPEK",
     val phone: String = "",
     val unitId: Int,
     val kontakId: Int? = null

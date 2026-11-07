@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { approvalRequests, approvalLogs, employees, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
@@ -143,7 +144,7 @@ export async function POST({ request, cookies }) {
                 description,
                 receiptUrl: receiptUrl || null,
                 expenseDate,
-                requestedAt: new Date().toISOString()
+                requestedAt: nowSqlWIB()
             };
 
             const [result] = await db.insert(approvalRequests).values({
@@ -204,7 +205,7 @@ export async function POST({ request, cookies }) {
                 purpose,
                 repaymentMonths,
                 monthlyDeduction,
-                requestedAt: new Date().toISOString()
+                requestedAt: nowSqlWIB()
             };
 
             const [result] = await db.insert(approvalRequests).values({
@@ -284,7 +285,7 @@ export async function PUT({ request, cookies }) {
                     .set({ 
                         status: 'APPROVED',
                         note: note || 'Approved',
-                        updatedAt: new Date().toISOString()
+                        updatedAt: nowSqlWIB()
                     })
                     .where(eq(approvalRequests.id, Number(requestId)));
 
@@ -294,7 +295,7 @@ export async function PUT({ request, cookies }) {
                     approverId: String(userId),
                     action: 'APPROVE',
                     notes: note || 'Approved',
-                    createdAt: new Date().toISOString()
+                    createdAt: nowSqlWIB()
                 });
 
                 // Create financial transaction if needed
@@ -365,7 +366,7 @@ export async function PUT({ request, cookies }) {
                     .set({ 
                         status: 'REJECTED',
                         note: reason,
-                        updatedAt: new Date().toISOString()
+                        updatedAt: nowSqlWIB()
                     })
                     .where(eq(approvalRequests.id, Number(requestId)));
 
@@ -375,7 +376,7 @@ export async function PUT({ request, cookies }) {
                     approverId: String(userId),
                     action: 'REJECT',
                     notes: reason,
-                    createdAt: new Date().toISOString()
+                    createdAt: nowSqlWIB()
                 });
 
                 // Log action

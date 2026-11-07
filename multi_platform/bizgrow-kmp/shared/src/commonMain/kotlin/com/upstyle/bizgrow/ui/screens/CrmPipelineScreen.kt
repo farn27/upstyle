@@ -24,7 +24,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @Composable
 fun CrmPipelineScreen(viewModel: AppViewModel) {
     val deals by viewModel.crmDeals.collectAsState(initial = viewModel.crmDeals.value)
-    val stages = listOf("PROSPECT", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST")
+    val stages = listOf("PROSPEK", "FOLLOW-UP", "NEGOSIASI", "WON", "LOST")
     var selectedDeal by remember { mutableStateOf<com.upstyle.bizgrow.data.CrmDeal?>(null) }
     var showStageSheet by remember { mutableStateOf(false) }
 

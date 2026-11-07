@@ -8,6 +8,10 @@ import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { z } from 'zod';
 
+/** Nama tahap dari app lama → id tahap yang dipakai pipeline web */
+const PETA_TAHAP = { prospect: 'prospek', lead: 'prospek', qualified: 'follow-up', proposal: 'follow-up', negotiation: 'negosiasi' };
+const normTahap = (s) => { const k = String(s || '').trim().toLowerCase(); return PETA_TAHAP[k] || k || 'prospek'; };
+
 // 1. GET: Ambil semua deals (dengan kontak info) untuk unitId (with pagination)
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -40,7 +44,7 @@ export async function GET({ url, cookies, request }) {
             contactName: d.contact?.nama || 'Pelanggan',
             companyName: d.contact?.perusahaan || 'Perusahaan',
             dealValue: Number(d.nilai || 0),
-            stage: (d.stage || 'PROSPECT').toUpperCase(),
+            stage: normTahap(d.stage).toUpperCase(),
             phone: d.contact?.telepon || '',
             unitId: d.unitId,
             kontakId: d.kontakId || null,
@@ -72,6 +76,27 @@ export async function POST({ request, cookies }) {
 
     try {
         const body = await request.json();
+
+        // Tambah kontak CRM dari app: { action:'create-contact', contact:{ nama, telepon, email, perusahaan, stage, sumber, unitId } }
+        if (body?.action === 'create-contact') {
+            const c = z.object({
+                nama: z.string().trim().min(1, 'Nama kontak wajib diisi').max(150),
+                telepon: z.string().max(30).optional().default(''),
+                email: z.union([z.literal(''), z.string().email('Format email tidak valid')]).optional().default(''),
+                perusahaan: z.string().max(150).optional().default(''),
+                stage: z.string().max(50).optional().default('lead'),
+                sumber: z.string().max(80).optional().default('manual'),
+                unitId: z.coerce.number().int().positive('unitId wajib diisi')
+            }).safeParse(body.contact || {});
+            if (!c.success) return json({ success: false, message: c.error.issues[0]?.message || 'Input kontak tidak valid' }, { status: 400 });
+            const d = c.data;
+            const [hasil] = await db.insert(crmContacts).values({
+                ownerId: userId, unitId: d.unitId, nama: d.nama, telepon: d.telepon || null, email: d.email || null,
+                perusahaan: d.perusahaan || null, stage: d.stage.toLowerCase(), sumber: d.sumber
+            });
+            await db.insert(riwayatAksi).values({ userId, unitId: d.unitId, pesan: `Kontak CRM baru: ${d.nama}`, kategori: 'CRM', tipe: 'success' });
+            return json({ success: true, message: 'Kontak berhasil ditambahkan', id: hasil.insertId });
+        }
 
         // ─── Zod validation ────────────────────────────────────────────────────
         const crmPostSchema = z.object({
@@ -115,7 +140,7 @@ export async function POST({ request, cookies }) {
                     telepon: phone || null,
                     perusahaan: companyName || null,
                     stage: stage?.toLowerCase() || 'lead'
-                }).$returningId();
+                }).then(([r]) => [{ id: r.insertId }]);
                 contactId = newContact.id;
             }
 
@@ -126,9 +151,9 @@ export async function POST({ request, cookies }) {
                 kontakId: contactId,
                 namaDeal: `${companyName || contactName} - Deal`,
                 nilai: String(dealValue || 0),
-                stage: stage?.toLowerCase() || 'prospek',
+                stage: normTahap(stage),
                 status: 'open'
-            }).$returningId();
+            }).then(([r]) => [{ id: r.insertId }]);
             
             dealId = newDeal.id;
 
@@ -173,7 +198,7 @@ export async function PUT({ request, cookies }) {
         }
 
         await db.transaction(async (tx) => {
-            const nextStageLower = stage.toLowerCase();
+            const nextStageLower = normTahap(stage);
             const statusVal = nextStageLower === 'won' ? 'won' : (nextStageLower === 'lost' ? 'lost' : 'open');
 
             await tx.update(crmDeals)

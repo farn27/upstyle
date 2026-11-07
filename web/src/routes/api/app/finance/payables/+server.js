@@ -44,7 +44,7 @@ export async function GET({ url, cookies, request }) {
 	}
 }
 
-export async function POST({ request, cookies }) {
+export async function POST({ request, cookies, url }) {
 	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) {
 		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
@@ -52,9 +52,11 @@ export async function POST({ request, cookies }) {
 
 	try {
 		const body = await request.json();
-		const { unitId, contactId, nomorFaktur, tanggal, jatuhTempo, nominal, keterangan } = body;
+		const unitId = body.unitId ?? url.searchParams.get('unitId');
+		const { contactId, tanggal, jatuhTempo, nominal, keterangan } = body;
+		const nomorFaktur = String(body.nomorFaktur || '').trim() || `FKT-${Date.now()}`;
 
-		if (!unitId || !contactId || !nomorFaktur || !tanggal || !jatuhTempo || nominal == null) {
+		if (!unitId || !contactId || !tanggal || !jatuhTempo || nominal == null) {
 			return json({ success: false, message: 'Data tidak lengkap' }, { status: 400 });
 		}
 

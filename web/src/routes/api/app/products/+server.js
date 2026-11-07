@@ -21,6 +21,20 @@ export async function GET({ url, cookies, request }) {
     if (!unitId) return json({ success: false, message: "unitId wajib diisi" }, { status: 400 });
 
     try {
+        // Riwayat mutasi stok (layar Log Stok di app): ?action=stock-logs[&productId=...]
+        if (url.searchParams.get('action') === 'stock-logs') {
+            const uid = Number(url.searchParams.get('unitId'));
+            const pid = url.searchParams.get('productId');
+            const baris = await db.select().from(stockLogs)
+                .where(pid ? and(eq(stockLogs.unitId, uid), eq(stockLogs.productId, pid)) : eq(stockLogs.unitId, uid))
+                .orderBy(sql`${stockLogs.createdAt} DESC`)
+                .limit(200);
+            return json({ success: true, data: baris.map(b => ({
+                id: b.id, productId: b.productId || '', userId: String(b.userId), unitId: b.unitId,
+                stokAwal: b.stokAwal, perubahan: b.perubahan, stokAkhir: b.stokAkhir,
+                alasan: b.alasan, keterangan: b.keterangan || '', createdAt: String(b.createdAt || '')
+            })) });
+        }
         const pagination = parsePagination(url);
 
         // Get total count
@@ -85,6 +99,29 @@ export async function POST({ request, cookies }) {
     try {
         const body = await request.json();
 
+        // Koreksi stok manual dari app: { action:'adjust-stock', productId, unitId, perubahan, alasan, keterangan }
+        if (body?.action === 'adjust-stock') {
+            const perubahan = Math.trunc(Number(body.perubahan));
+            if (!body.productId || !Number.isFinite(perubahan) || perubahan === 0) {
+                return json({ success: false, message: 'Produk dan jumlah perubahan (bukan 0) wajib diisi' }, { status: 400 });
+            }
+            const ALASAN = ['MASUK', 'KELUAR', 'PENJUALAN', 'OPNAME', 'RUSAK', 'RETUR', 'ADJUSTMENT'];
+            const alasan = ALASAN.includes(String(body.alasan || '').toUpperCase()) ? String(body.alasan).toUpperCase() : 'ADJUSTMENT';
+            const prod = await db.query.products.findFirst({ where: eq(products.id, String(body.productId)) });
+            if (!prod || !(await unitMilikUser(db, userId, prod.unitId))) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
+            const stokBaru = Number(prod.stok || 0) + perubahan;
+            if (stokBaru < 0) return json({ success: false, message: `Stok tidak cukup (tersedia ${prod.stok})` }, { status: 409 });
+            await db.transaction(async (tx) => {
+                await tx.update(products).set({ stok: stokBaru }).where(eq(products.id, prod.id));
+                await tx.insert(stockLogs).values({
+                    id: crypto.randomUUID(), productId: prod.id, userId: String(userId), unitId: prod.unitId,
+                    stokAwal: Number(prod.stok || 0), perubahan, stokAkhir: stokBaru, alasan,
+                    keterangan: String(body.keterangan || '').slice(0, 500) || null
+                });
+            });
+            return json({ success: true, message: 'Stok berhasil dikoreksi', data: { stok: stokBaru } });
+        }
+
         // ─── Zod validation ───────────────────────────────────────────────────
         const productPostSchema = z.object({
             nama: z.string().min(1, 'Nama produk wajib diisi').max(255),
@@ -128,7 +165,7 @@ export async function POST({ request, cookies }) {
                     const [newCat] = await tx.insert(kategoriProduk).values({
                         unitId: Number(unitId),
                         namaKategori: cleanCatName
-                    }).$returningId();
+                    }).then(([r]) => [{ id: r.insertId }]);
                     kategoriId = newCat.id;
                 }
             }
@@ -210,7 +247,7 @@ export async function PUT({ request, cookies }) {
                     const [newCat] = await tx.insert(kategoriProduk).values({
                         unitId: Number(unitId),
                         namaKategori: cleanCatName
-                    }).$returningId();
+                    }).then(([r]) => [{ id: r.insertId }]);
                     kategoriId = newCat.id;
                 }
             }

@@ -104,7 +104,7 @@ fun CrmScreen(viewModel: AppViewModel) {
 
 @Composable
 fun DealsTab(deals: List<CrmDeal>, onStageChange: (Int, String) -> Unit, onDelete: (Int) -> Unit) {
-    val stages = listOf("PROSPECT", "PROPOSAL", "NEGOTIATION", "WON", "LOST")
+    val stages = listOf("PROSPEK", "FOLLOW-UP", "NEGOSIASI", "WON", "LOST")
     if (deals.isEmpty()) { EmptyState(Icons.Default.Contacts, "Belum ada deals", "Tambah deal pertama"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         items(deals, key = { it.id }) { deal ->
@@ -217,9 +217,9 @@ fun AddDealSheet(onDismiss: () -> Unit, onSave: (String, String, Double, String,
     var contactName by remember { mutableStateOf("") }
     var companyName by remember { mutableStateOf("") }
     var dealValue by remember { mutableStateOf("") }
-    var stage by remember { mutableStateOf("PROSPECT") }
+    var stage by remember { mutableStateOf("PROSPEK") }
     var phone by remember { mutableStateOf("") }
-    val stages = listOf("PROSPECT", "PROPOSAL", "NEGOTIATION", "WON")
+    val stages = listOf("PROSPEK", "FOLLOW-UP", "NEGOSIASI", "WON")
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

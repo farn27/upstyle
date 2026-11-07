@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { landingPages, users, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -125,7 +126,7 @@ export async function POST({ request, cookies }) {
 			contentJson: contentJson ?? null,
 			templateId: templateId ?? null,
 			isActive: true,
-			createdAt: new Date().toISOString()
+			createdAt: nowSqlWIB()
 		});
 
 		await db.insert(riwayatAksi).values({

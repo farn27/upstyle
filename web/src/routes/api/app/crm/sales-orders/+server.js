@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { salesOrders, salesOrderItems, crmContacts, products, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -46,7 +47,7 @@ export async function POST({ request, cookies }) {
         const [result] = await db.insert(salesOrders).values({
             orderNumber, unitId: Number(unitId), customerId: customerId || null,
             totalAmount: String(totalAmount), status: 'PENDING',
-            notes: notes || null, createdAt: new Date().toISOString()
+            notes: notes || null, createdAt: nowSqlWIB()
         });
         const soId = result.insertId;
 

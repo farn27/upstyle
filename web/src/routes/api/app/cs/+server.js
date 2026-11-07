@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { supportTickets, supportTicketMessages, crmContacts, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -53,7 +54,7 @@ export async function POST({ request, cookies }) {
         action: z.string().optional(),
         subject: z.string().min(1).max(200),
         customerName: z.string().min(1),
-        priority: z.enum(['LOW','MEDIUM','HIGH','URGENT']).default('MEDIUM'),
+        priority: z.preprocess((v) => (typeof v === 'string' ? v.toUpperCase() : v), z.enum(['LOW','MEDIUM','HIGH','URGENT'])).default('MEDIUM'),
         message: z.string().optional().default(''),
         unitId: z.coerce.number().int().positive()
     });
@@ -77,7 +78,7 @@ export async function POST({ request, cookies }) {
             priority,
             status: 'OPEN',
             ticketNumber,
-            createdAt: new Date().toISOString()
+            createdAt: nowSqlWIB()
         });
 
         const ticketId = result.insertId;
@@ -89,7 +90,7 @@ export async function POST({ request, cookies }) {
                 senderType: 'CUSTOMER',
                 senderId: userId,
                 message: message.trim(),
-                createdAt: new Date().toISOString()
+                createdAt: nowSqlWIB()
             });
         }
 

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { crmTasks, crmContacts, crmDeals, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -53,7 +54,7 @@ export async function POST({ request, cookies }) {
         await db.insert(crmTasks).values({
             ownerId: userId, unitId: Number(unitId), deskripsi,
             kontakId: kontakId || null, dealId: dealId || null,
-            deadline: deadline || null, status: 'pending', createdAt: new Date().toISOString()
+            deadline: deadline || null, status: 'pending', createdAt: nowSqlWIB()
         });
         await db.insert(riwayatAksi).values({ userId, unitId: Number(unitId), pesan: `Task baru: ${deskripsi}`, kategori: 'CRM', tipe: 'info' });
         return json({ success: true, message: 'Task berhasil dibuat' });

@@ -71,8 +71,8 @@ export async function POST({ request, cookies }) {
 
         const [result] = await db.insert(leaveRequests).values({
             employeeId, type,
-            startDate: new Date(startDate).toISOString(),
-            endDate: new Date(endDate).toISOString(),
+            startDate: new Date(startDate).toISOString().slice(0, 19).replace('T', ' '),
+            endDate: new Date(endDate).toISOString().slice(0, 19).replace('T', ' '),
             reason, status: 'pending'
         });
 

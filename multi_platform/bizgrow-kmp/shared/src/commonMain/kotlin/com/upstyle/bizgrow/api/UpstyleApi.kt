@@ -254,7 +254,7 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
 
     suspend fun payReceivable(req: PayInvoiceRequest): ApiResponse<Unit> =
-        client.post("api/app/finance/receivables") {
+        client.put("api/app/finance/receivables") {
             setBody(buildJsonObject { put("action", "pay"); put("invoiceId", req.invoiceId); put("nominalBayar", req.nominalBayar); req.kasCoaId?.let { put("kasCoaId", it) } })
         }.body()
 
@@ -272,7 +272,7 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
 
     suspend fun payPayable(req: PayInvoiceRequest): ApiResponse<Unit> =
-        client.post("api/app/finance/payables") {
+        client.put("api/app/finance/payables") {
             setBody(buildJsonObject { put("action", "pay"); put("invoiceId", req.invoiceId); put("nominalBayar", req.nominalBayar); req.kasCoaId?.let { put("kasCoaId", it) } })
         }.body()
 

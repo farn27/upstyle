@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { supportTickets, riwayatAksi } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
@@ -26,7 +27,7 @@ export async function PUT({ params, request, cookies }) {
         }
 
         await db.update(supportTickets)
-            .set({ status, ...(status === 'RESOLVED' ? { resolvedAt: new Date().toISOString() } : {}) })
+            .set({ status, ...(status === 'RESOLVED' ? { resolvedAt: nowSqlWIB() } : {}) })
             .where(eq(supportTickets.id, ticketId));
 
         await db.insert(riwayatAksi).values({

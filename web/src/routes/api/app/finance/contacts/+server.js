@@ -39,13 +39,13 @@ export async function POST({ request, cookies }) {
 
     const schema = z.object({
         namaKontak: z.string().min(1).max(150),
-        tipeKontak: z.enum(['CUSTOMER','SUPPLIER','BOTH']).default('CUSTOMER'),
+        tipeKontak: z.preprocess((v) => (typeof v === 'string' ? v.toUpperCase() : v), z.enum(['CUSTOMER','SUPPLIER','BOTH'])).default('CUSTOMER'),
         unitId: z.coerce.number().int().positive(),
-        email: z.string().email().optional().or(z.literal('')),
-        telepon: z.string().optional(),
-        alamat: z.string().optional(),
+        email: z.string().email().nullish().or(z.literal('')),
+        telepon: z.string().nullish(),
+        alamat: z.string().nullish(),
         termPembayaran: z.coerce.number().optional().default(30),
-        npwp: z.string().max(30).optional(),
+        npwp: z.string().max(30).nullish(),
         limitKredit: z.coerce.number().min(0).optional().default(0)
     });
 

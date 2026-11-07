@@ -65,7 +65,7 @@ export async function POST({ request, cookies }) {
                             const [newCat] = await tx.insert(kategoriProduk).values({
                                 unitId: Number(unitId),
                                 namaKategori: cleanName
-                            }).$returningId();
+                            }).then(([r]) => [{ id: r.insertId }]);
                             kategoriId = newCat.id;
                         }
                     }

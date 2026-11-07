@@ -70,13 +70,14 @@ export async function GET({ url, cookies, request }) {
     }
 }
 
-export async function POST({ request, cookies }) {
+export async function POST({ request, cookies, url }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return json({ success: false, message: 'Unauthorized', data: null }, { status: 401 });
 
     try {
         const body = await request.json();
-        const { unitId, tanggal, memo, referensi, lines } = body;
+        const unitId = body.unitId ?? url.searchParams.get('unitId');
+        const { tanggal, memo, referensi, lines } = body;
 
         if (!unitId || !tanggal || !Array.isArray(lines) || lines.length === 0) {
             return json({ success: false, message: 'Data input tidak lengkap (unitId, tanggal, lines wajib diisi)', data: null }, { status: 400 });

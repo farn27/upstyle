@@ -54,7 +54,7 @@ export async function GET({ url, cookies, request }) {
                 colorPrimary: '#4F46E5',
                 heroTitle: `Selamat Datang di ${unit.namaUnit}`,
                 isPublished: true
-            }).$returningId();
+            }).then(([r]) => [{ id: r.insertId }]);
 
             settings = await db.query.websiteSettings.findFirst({
                 where: eq(websiteSettings.id, inserted.id)
