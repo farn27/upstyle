@@ -1,5 +1,8 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.upstyle.bizgrow.data
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -21,10 +24,14 @@ data class PaginatedResponse<T>(
     val success: Boolean,
     val data: List<T> = emptyList(),
     val pagination: Pagination? = null,
+    /** Server /api/app mengirim metadata halaman di `meta` (bukan `pagination`). */
+    val meta: Pagination? = null,
     val message: String? = null
 ) {
     /** Alias so call sites can use either `.error` or `.message` (sama seperti ApiResponse). */
     val error: String? get() = message
+    /** Masih ada halaman berikutnya? */
+    val adaHalamanBerikut: Boolean get() = (meta ?: pagination)?.hasNext == true
 }
 
 @Serializable
@@ -32,7 +39,8 @@ data class Pagination(
     val page: Int = 1,
     val limit: Int = 20,
     val total: Int = 0,
-    val totalPages: Int = 1
+    val totalPages: Int = 1,
+    val hasNext: Boolean = false
 )
 
 // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -363,7 +371,7 @@ data class PosData(
 
 @Serializable
 data class CheckoutRequest(
-    val action: String = "checkout",
+    @EncodeDefault val action: String = "checkout",
     val order: CheckoutBody
 )
 
@@ -393,7 +401,7 @@ data class CheckoutBody(
 
 @Serializable
 data class CreateCustomerRequest(
-    val action: String = "create-customer",
+    @EncodeDefault val action: String = "create-customer",
     val customer: CreateCustomerBody
 )
 
@@ -516,7 +524,7 @@ data class RingkasanPayroll(val dibayar: Int = 0, val belumDibayar: Int = 0, val
 
 @Serializable
 data class CreateEmployeeRequest(
-    val action: String = "create-employee",
+    @EncodeDefault val action: String = "create-employee",
     val employee: CreateEmployeeBody
 )
 
@@ -551,7 +559,7 @@ data class CreateEmployeeBody(
 
 @Serializable
 data class CheckInRequest(
-    val action: String = "check-in",
+    @EncodeDefault val action: String = "check-in",
     val employeeId: Int,
     val unitId: Int,
     val date: String,
@@ -560,7 +568,7 @@ data class CheckInRequest(
 
 @Serializable
 data class CheckOutRequest(
-    val action: String = "check-out",
+    @EncodeDefault val action: String = "check-out",
     val employeeId: Int,
     val date: String,
     val time: String
@@ -568,7 +576,7 @@ data class CheckOutRequest(
 
 @Serializable
 data class ProcessPayrollRequest(
-    val action: String = "process-payroll",
+    @EncodeDefault val action: String = "process-payroll",
     val payroll: ProcessPayrollBody
 )
 
@@ -607,10 +615,11 @@ data class CrmContact(
 @Serializable
 data class CrmDeal(
     val id: Int,
-    val contactName: String,
-    val companyName: String,
-    val dealValue: Double,
-    val stage: String,
+    val namaDeal: String = "",
+    val contactName: String = "",
+    val companyName: String = "",
+    val dealValue: Double = 0.0,
+    val stage: String = "PROSPEK",
     val phone: String = "",
     val unitId: Int,
     val kontakId: Int? = null,
@@ -633,7 +642,7 @@ data class CrmActivity(
 
 @Serializable
 data class CreateContactRequest(
-    val action: String = "create-contact",
+    @EncodeDefault val action: String = "create-contact",
     val contact: CreateContactBody
 )
 
@@ -659,7 +668,8 @@ data class CreateDealBody(
     val stage: String = "PROSPEK",
     val phone: String = "",
     val unitId: Int,
-    val kontakId: Int? = null
+    val kontakId: Int? = null,
+    val namaDeal: String? = null
 )
 
 @Serializable
@@ -667,7 +677,7 @@ data class UpdateDealStageRequest(val dealId: Int, val stage: String, val unitId
 
 @Serializable
 data class CreateActivityRequest(
-    val action: String = "create-activity",
+    @EncodeDefault val action: String = "create-activity",
     val activity: CreateActivityBody
 )
 
@@ -741,7 +751,7 @@ data class ScmData(
 
 @Serializable
 data class CreateSupplierRequest(
-    val action: String = "create-supplier",
+    @EncodeDefault val action: String = "create-supplier",
     val supplier: CreateSupplierBody
 )
 
@@ -758,7 +768,7 @@ data class CreateSupplierBody(
 
 @Serializable
 data class CreatePoRequest(
-    val action: String = "create-po",
+    @EncodeDefault val action: String = "create-po",
     val po: CreatePoBody
 )
 
@@ -1019,7 +1029,7 @@ data class TicketMessage(
 
 @Serializable
 data class CreateTicketRequest(
-    val action: String = "create",
+    @EncodeDefault val action: String = "create",
     val subject: String,
     val customerName: String,
     val priority: String = "medium",
@@ -1234,7 +1244,7 @@ data class PortalResult(val loginSlug: String = "", val portalPath: String = "")
 @Serializable
 data class UpdateUnitSettingsRequest(
     val unitId: Int,
-    val action: String = "updateBusiness",
+    @EncodeDefault val action: String = "updateBusiness",
     val namaUnit: String? = null,
     val kategori: String? = null,
     val alamat: String? = null,
@@ -1260,14 +1270,14 @@ data class PosShift(
 
 @Serializable
 data class OpenShiftRequest(
-    val action: String = "open-shift",
+    @EncodeDefault val action: String = "open-shift",
     val unitId: Int,
     val modalAwal: Double
 )
 
 @Serializable
 data class CloseShiftRequest(
-    val action: String = "close-shift",
+    @EncodeDefault val action: String = "close-shift",
     val shiftId: Int,
     val kasAkhirAktual: Double,
     val catatan: String = "",
@@ -1298,7 +1308,7 @@ data class ReturnItem(
 
 @Serializable
 data class CreateReturnRequest(
-    val action: String = "create-return",
+    @EncodeDefault val action: String = "create-return",
     val orderId: String,
     val items: List<ReturnItem>,
     val reason: String,
@@ -1486,7 +1496,9 @@ data class CrmTask(
     val dealId: Int? = null,
     val deskripsi: String,
     val deadline: String? = null,
-    val status: String = "pending"
+    val status: String = "pending",
+    val contactName: String = "",
+    val createdAt: String = ""
 )
 
 @Serializable

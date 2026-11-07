@@ -705,16 +705,41 @@ class AppViewModel(
 
 
     
+    private val _crmMemuat = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val crmMemuat: kotlinx.coroutines.flow.StateFlow<Boolean> = _crmMemuat.asStateFlow()
+
+    /** Muat semua deal & kontak (halaman 100 baris, maksimal 10 halaman) — dulu hanya 20 baris pertama. */
     fun loadCrmData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        _crmMemuat.value = true
         try {
-            val dealsRes = api.getCrmDeals(unitId)
-            if (dealsRes.success) _crmDeals.value = dealsRes.data
-            val contactsRes = api.getCrmContacts(unitId)
-            if (contactsRes.success) _crmContacts.value = contactsRes.data
+            val deals = mutableListOf<com.upstyle.bizgrow.data.CrmDeal>()
+            var hal = 1
+            while (hal <= 10) {
+                val r = api.getCrmDeals(unitId, hal)
+                if (!r.success) break
+                deals += r.data
+                if (!r.adaHalamanBerikut) break
+                hal++
+            }
+            _crmDeals.value = deals
+            val kontak = mutableListOf<com.upstyle.bizgrow.data.CrmContact>()
+            hal = 1
+            while (hal <= 10) {
+                val r = api.getCrmContacts(unitId, hal)
+                if (!r.success) break
+                kontak += r.data
+                if (!r.adaHalamanBerikut) break
+                hal++
+            }
+            _crmContacts.value = kontak
         } catch (e: Exception) { Napier.e("loadCrmData error", e) }
+        _crmMemuat.value = false
     }
+    /** Muat ulang semua data CRM (deal, kontak, aktivitas, tugas) — pull-to-refresh / setelah ubah. */
+    fun muatSemuaCrm() { loadCrmData(); loadCrmActivities(); loadCrmTasks() }
+
     fun loadCrmActivities() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -726,9 +751,17 @@ class AppViewModel(
     fun updateDealStage(dealId: Int, stage: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         try {
-            api.updateDealStage(UpdateDealStageRequest(dealId, stage, unitId))
-            loadCrmData()
-        } catch (e: Exception) { Napier.e("updateDealStage error", e) }
+            val res = api.updateDealStage(UpdateDealStageRequest(dealId, stage, unitId))
+            if (res.success) { loadCrmData(); setSuccess("Deal dipindah ke ${stage.lowercase().replaceFirstChar { it.uppercase() }}") }
+            else setError(res.message ?: "Gagal memindah deal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahDeal(dealId: Int, nama: String, nilai: Double) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahDeal(dealId, nama, nilai)
+            if (res.success) { loadCrmData(); setSuccess("Deal diperbarui") } else setError(res.message ?: "Gagal memperbarui deal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun deleteDeal(dealId: Int) = viewModelScope.launch {
         setLoading(true)
@@ -739,11 +772,11 @@ class AppViewModel(
             else setError(res.message ?: "Gagal hapus deal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
-    fun createDeal(contactName: String, companyName: String, dealValue: Double, stage: String, phone: String) = viewModelScope.launch {
+    fun createDeal(contactName: String, companyName: String, dealValue: Double, stage: String, phone: String, namaDeal: String? = null, kontakId: Int? = null) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val res = api.createDeal(CreateDealRequest(CreateDealBody(contactName, companyName, dealValue, stage, phone, unitId)))
+            val res = api.createDeal(CreateDealRequest(CreateDealBody(contactName, companyName, dealValue, stage, phone, unitId, kontakId, namaDeal?.takeIf { it.isNotBlank() })))
             if (res.success) { loadCrmData(); setSuccess("Deal berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah deal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -755,6 +788,47 @@ class AppViewModel(
             val res = api.createContact(CreateContactRequest(contact = CreateContactBody(nama, telepon, email, perusahaan, stage, unitId = unitId)))
             if (res.success) { loadCrmData(); setSuccess("Kontak berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahKontak(id: Int, nama: String, telepon: String, email: String, perusahaan: String, stage: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahKontak(id, nama, telepon, email, perusahaan, stage)
+            if (res.success) { loadCrmData(); setSuccess("Kontak diperbarui") } else setError(res.message ?: "Gagal memperbarui kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun hapusKontak(id: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.hapusKontak(id)
+            if (res.success) { muatSemuaCrm(); setSuccess("Kontak dihapus") } else setError(res.message ?: "Gagal menghapus kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun catatAktivitas(kontakId: Int, tipe: String, catatan: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createActivity(CreateActivityRequest(activity = CreateActivityBody(kontakId, tipe, catatan, unitId)))
+            if (res.success) { loadCrmActivities(); setSuccess("Aktivitas dicatat") } else setError(res.message ?: "Gagal mencatat aktivitas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun buatTugasCrm(deskripsi: String, kontakId: Int?, dealId: Int?, deadline: String?) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.buatTugasCrm(_activeUnitId.value, deskripsi, kontakId, dealId, deadline)
+            if (res.success) { loadCrmTasks(); setSuccess("Tugas dibuat") } else setError(res.message ?: "Gagal membuat tugas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahTugasCrm(id: Int, status: String? = null, deskripsi: String? = null, deadline: String? = null) = viewModelScope.launch {
+        try {
+            val res = api.ubahTugasCrm(id, status, deskripsi, deadline)
+            if (res.success) { loadCrmTasks(); if (status == null) setSuccess("Tugas diperbarui") } else setError(res.message ?: "Gagal memperbarui tugas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun hapusTugasCrm(id: Int) = viewModelScope.launch {
+        try {
+            val res = api.hapusTugasCrm(id)
+            if (res.success) { loadCrmTasks(); setSuccess("Tugas dihapus") } else setError(res.message ?: "Gagal menghapus tugas")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun loadCrmTasks() = viewModelScope.launch {
@@ -821,7 +895,7 @@ class AppViewModel(
         _riwayatMemuat.value = false
     }
     // ─── Sinkron offline (opsi B: antrean dikirim ulang ke API biasa) ─────────
-    private val jsonAntrean = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    private val jsonAntrean = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val antreanOffline = com.upstyle.bizgrow.cache.SyncQueue(session)
     private val _antreanOfflineCount = kotlinx.coroutines.flow.MutableStateFlow(antreanOffline.size())
     /** Jumlah data yang menunggu dikirim (tampilkan sebagai badge "menunggu sinkron") */

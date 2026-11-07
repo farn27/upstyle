@@ -253,17 +253,55 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── CRM ──────────────────────────────────────────────────────────────────
 
-    suspend fun getCrmContacts(unitId: Int): PaginatedResponse<CrmContact> =
+    suspend fun getCrmContacts(unitId: Int, page: Int = 1): PaginatedResponse<CrmContact> =
         client.get("api/app/crm") {
             parameter("unitId", unitId)
             parameter("type", "contacts")
+            parameter("limit", 100); parameter("page", page)
         }.body()
 
     suspend fun createContact(req: CreateContactRequest): ApiResponse<Unit> =
         client.post("api/app/crm") { setBody(req) }.body()
 
-    suspend fun getCrmDeals(unitId: Int): PaginatedResponse<CrmDeal> =
-        client.get("api/app/crm") { parameter("unitId", unitId) }.body()
+    suspend fun getCrmDeals(unitId: Int, page: Int = 1): PaginatedResponse<CrmDeal> =
+        client.get("api/app/crm") { parameter("unitId", unitId); parameter("limit", 100); parameter("page", page) }.body()
+
+    /** Ubah nama / nilai deal (tahap tetap lewat [updateDealStage]). */
+    suspend fun ubahDeal(dealId: Int, namaDeal: String, nilai: Double): ApiResponse<JsonObject> =
+        client.put("api/app/crm") {
+            setBody(buildJsonObject { put("dealId", dealId); put("namaDeal", namaDeal); put("nilai", nilai) })
+        }.body()
+
+    suspend fun ubahKontak(contactId: Int, nama: String, telepon: String, email: String, perusahaan: String, stage: String): ApiResponse<JsonObject> =
+        client.put("api/app/crm/contacts/$contactId") {
+            setBody(buildJsonObject { put("nama", nama); put("telepon", telepon); put("email", email); put("perusahaan", perusahaan); put("stage", stage) })
+        }.body()
+
+    suspend fun hapusKontak(contactId: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/crm/contacts/$contactId").body()
+
+    suspend fun buatTugasCrm(unitId: Int, deskripsi: String, kontakId: Int?, dealId: Int?, deadline: String?): ApiResponse<JsonObject> =
+        client.post("api/app/crm/tasks") {
+            setBody(buildJsonObject {
+                put("unitId", unitId); put("deskripsi", deskripsi)
+                if (kontakId != null) put("kontakId", kontakId)
+                if (dealId != null) put("dealId", dealId)
+                if (!deadline.isNullOrBlank()) put("deadline", deadline)
+            })
+        }.body()
+
+    suspend fun ubahTugasCrm(taskId: Int, status: String? = null, deskripsi: String? = null, deadline: String? = null): ApiResponse<JsonObject> =
+        client.put("api/app/crm/tasks") {
+            setBody(buildJsonObject {
+                put("taskId", taskId)
+                if (status != null) put("status", status)
+                if (deskripsi != null) put("deskripsi", deskripsi)
+                if (deadline != null) put("deadline", deadline)
+            })
+        }.body()
+
+    suspend fun hapusTugasCrm(taskId: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/crm/tasks") { parameter("taskId", taskId) }.body()
 
     suspend fun createDeal(req: CreateDealRequest): ApiResponse<Unit> =
         client.post("api/app/crm") { setBody(req) }.body()
