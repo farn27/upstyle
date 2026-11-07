@@ -5,7 +5,7 @@ import { eq, and, desc, sql, lte, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
-import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { nowWIB, nowSqlWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { hitungSaldoKas, targetBulananOtomatis, labelMetodeBayar } from '$lib/financeDashboard';
 import { z } from 'zod';
 import { log } from '$lib/server/logger.js';
@@ -87,7 +87,7 @@ export async function GET({ url, cookies, request }) {
             unitId: t.unitId,
             kategoriTrx: t.kategoriTrx,
             nominal: Number(t.nominal || 0),
-            tanggal: t.tanggal ? new Date(t.tanggal).getTime() : Date.now(),
+            tanggal: t.tanggal ? String(t.tanggal) : nowSqlWIB(),
             keterangan: t.keterangan || '',
             metodeBayar: t.metodeBayar || 'KAS',
             abcCategoryId: t.abcCategoryId || null,
@@ -103,9 +103,32 @@ export async function GET({ url, cookies, request }) {
             unitId: l.unitId,
             pesan: l.pesan,
             tipe: (l.tipe || 'INFO').toUpperCase(),
-            waktu: l.waktu ? new Date(l.waktu).getTime() : Date.now(),
+            waktu: l.waktu ? String(l.waktu) : nowSqlWIB(),
             kategori: l.kategori || 'SYSTEM'
         }));
+
+        // Grafik arus kas periode ini: per jam bila satu hari (Hari Ini/Kemarin), selain itu per tanggal
+        const perJam = adaRentang && mulai === akhir;
+        const kunciWaktu = perJam ? sql`DATE_FORMAT(${transaksi.tanggal}, '%H:00')` : sql`DATE_FORMAT(${transaksi.tanggal}, '%Y-%m-%d')`;
+        const grafikRaw = await db.select({
+            label: sql`${kunciWaktu}`.as('label'),
+            masuk: sql`COALESCE(SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            keluar: sql`COALESCE(SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%keluar%' THEN ${transaksi.nominal} ELSE 0 END), 0)`
+        }).from(transaksi).where(filterTrx).groupBy(sql`${kunciWaktu}`).orderBy(sql`${kunciWaktu} DESC`).limit(60);
+        const grafik = grafikRaw.reverse().map(g => ({ label: String(g.label), masuk: Number(g.masuk), keluar: Number(g.keluar) }));
+
+        // Produk terlaris (pendapatan per produk, 5 teratas)
+        const terlarisRaw = await db.select({
+            nama: products.nama,
+            total: sql`COALESCE(SUM(${transaksi.nominal}), 0)`,
+            qty: sql`COALESCE(SUM(${transaksi.qty}), 0)`
+        }).from(transaksi)
+            .innerJoin(products, eq(products.id, transaksi.productId))
+            .where(and(filterTrx, sql`LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%'`))
+            .groupBy(products.id, products.nama)
+            .orderBy(sql`SUM(${transaksi.nominal}) DESC`)
+            .limit(5);
+        const produkTerlaris = terlarisRaw.map(p => ({ nama: p.nama, total: Number(p.total), qty: Number(p.qty) }));
 
         // Calculate BI metrics matching mobile logic
         const totalMasuk = Number(ringkas?.total_masuk || 0);
@@ -189,7 +212,10 @@ export async function GET({ url, cookies, request }) {
                 biMetrics,
                 summary,
                 alerts: { receivables: piutangLewat.length, payables: hutangLewat.length, lowStock: stokMenipis.length },
-                lowStockItems: stokMenipis.slice(0, 20).map(p => ({ nama: p.nama, stok: p.stok })),
+                lowStockItems: stokMenipis.slice(0, 20).map(p => ({ nama: p.nama, stok: p.stok, minStok: p.minStok ?? 5 })),
+                grafik,
+                produkTerlaris,
+                perJam,
                 bankBalances,
                 kpi: { target: targetBulananOtomatis(unit?.modalAwal), current: Number(totalUnit?.masukBulanIni || 0) }
             }

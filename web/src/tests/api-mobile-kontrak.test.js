@@ -94,6 +94,15 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		expect(d.kpi.current).toBe(300000);
 		expect(Array.isArray(d.bankBalances)).toBe(true);
 		expect(d.transactions[0]).toHaveProperty('metodeLabel');
+		// tanggal dikirim sebagai teks WIB apa adanya (bukan epoch yang bergeser zona server)
+		expect(String(d.transactions.find((t) => t.keterangan === 'JUAL').tanggal)).toBe(`${tgl} 10:00:00`);
+		// grafik per tanggal dihitung server untuk seluruh periode
+		expect(d.grafik.find((g) => g.label === tgl)).toMatchObject({ masuk: 300000, keluar: 100000 });
+		expect(Array.isArray(d.produkTerlaris)).toBe(true);
+		// satu hari → grafik per jam
+		const sehari = await ambil(`&start=${tgl}&end=${tgl}`);
+		expect(sehari.perJam).toBe(true);
+		expect(sehari.grafik.find((g) => g.label === '10:00')).toMatchObject({ masuk: 300000 });
 		// rentang di masa lalu → ringkasan 0, tetapi saldo kas tetap sepanjang waktu
 		const lama = await ambil('&start=2000-01-01&end=2000-01-02');
 		expect(lama.summary.total_masuk).toBe(0);

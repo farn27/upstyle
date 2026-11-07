@@ -75,6 +75,40 @@ fun sapaanWaktu(): String {
     }
 }
 
+private val namaHariPanjang = listOf("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu")
+
+/** Jam & tanggal berjalan (widget jam di Beranda web). */
+@Composable
+private fun JamBeranda(modifier: Modifier = Modifier) {
+    var sekarang by remember { mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())) }
+    LaunchedEffect(Unit) { while (true) { sekarang = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()); kotlinx.coroutines.delay(1000) } }
+    fun d2(n: Int) = n.toString().padStart(2, '0')
+    Row(
+        modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Rounded.Schedule, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text("${d2(sekarang.hour)}:${d2(sekarang.minute)}:${d2(sekarang.second)}", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(
+                "${namaHariPanjang[sekarang.dayOfWeek.ordinal]}, ${sekarang.dayOfMonth} ${namaBulanPendek(sekarang.monthNumber)} ${sekarang.year}",
+                style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+private data class Divisi(val nama: String, val deskripsi: String, val icon: ImageVector, val warna: Color, val tujuan: Screen)
+
+private val daftarDivisi = listOf(
+    Divisi("Keuangan & POS", "Arus kas, kasir, stok, laporan laba rugi", Icons.Rounded.AccountBalanceWallet, BizgrowColors.Primary, Screen.Dashboard),
+    Divisi("Penjualan (CRM)", "Pipeline deal penjualan & CRM", Icons.Rounded.Handshake, BizgrowColors.Violet, Screen.Crm),
+    Divisi("Pemasaran (Ads)", "Analisis ads tracking & voucher campaign", Icons.Rounded.Campaign, Color(0xFFEC4899), Screen.Marketing),
+    Divisi("Layanan CS", "Komplain & resolusi SLA support", Icons.Rounded.SupportAgent, BizgrowColors.Info, Screen.Cs),
+    Divisi("E-Commerce Store", "Katalog online & pesanan", Icons.Rounded.ShoppingBag, BizgrowColors.Warning, Screen.Katalog),
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: AppViewModel) {
@@ -84,6 +118,15 @@ fun HomeScreen(viewModel: AppViewModel) {
     val user = viewModel.currentUser
     var showCreate by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    // Divisi yang menunggu pilihan unit (bila punya lebih dari satu unit)
+    var pilihUntuk by remember { mutableStateOf<Divisi?>(null) }
+    fun bukaDivisi(d: Divisi) {
+        when {
+            units.isEmpty() -> showCreate = true
+            units.size == 1 -> { viewModel.selectUnit(units.first().id); viewModel.navigate(d.tujuan) }
+            else -> pilihUntuk = d
+        }
+    }
 
     LaunchedEffect(Unit) { viewModel.loadUnits() }
 
@@ -148,6 +191,8 @@ fun HomeScreen(viewModel: AppViewModel) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.75f)
                         )
+                        Spacer(Modifier.height(14.dp))
+                        JamBeranda()
                     }
                 }
             }
@@ -171,7 +216,44 @@ fun HomeScreen(viewModel: AppViewModel) {
                 }
                 tampil.isEmpty() -> item { EmptyView("Tidak ditemukan", "Tidak ada unit dengan kata \"$query\".", Icons.Rounded.SearchOff) }
                 else -> {
-                    item { Spacer(Modifier.height(14.dp)) }
+                    item { Spacer(Modifier.height(6.dp)) }
+                    val pusat = tampil.filter { it.isCabang != 1 }
+                    val cabang = tampil.filter { it.isCabang == 1 }
+                    if (pusat.isNotEmpty()) item { SectionTitle("Kantor Pusat", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${pusat.size} unit") }
+                    itemsIndexed(pusat, key = { _, u -> u.id }) { i, unit ->
+                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
+                            viewModel.selectUnit(unit.id)
+                            viewModel.navigate(Screen.Dashboard)
+                        }
+                    }
+                    if (cabang.isNotEmpty()) item { SectionTitle("Cabang", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${cabang.size} unit") }
+                    itemsIndexed(cabang, key = { _, u -> u.id }) { i, unit ->
+                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
+                            viewModel.selectUnit(unit.id)
+                            viewModel.navigate(Screen.Dashboard)
+                        }
+                    }
+                    item { KartuAiBeranda(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 14.dp).enterAnimation(0)) }
+                    item {
+                        SectionTitle("Divisi bisnis", Modifier.padding(horizontal = 20.dp), subtitle = "Pusat komando unit usaha Anda")
+                        Spacer(Modifier.height(8.dp))
+                        daftarDivisi.forEachIndexed { i, d ->
+                            BizSurface(
+                                Modifier.padding(horizontal = 20.dp, vertical = 4.dp).fillMaxWidth().enterAnimation(i),
+                                onClick = { bukaDivisi(d) }, contentPadding = PaddingValues(14.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconBadge(d.icon, d.warna)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(d.nama, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        Text(d.deskripsi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                        }
+                    }
                     // Business Planning Wizard (sama dengan kartu "Planning" di halaman Struktur Bisnis web)
                     item {
                         BizSurface(
@@ -189,21 +271,29 @@ fun HomeScreen(viewModel: AppViewModel) {
                             }
                         }
                     }
-                    val pusat = tampil.filter { it.isCabang != 1 }
-                    val cabang = tampil.filter { it.isCabang == 1 }
-                    if (pusat.isNotEmpty()) item { SectionTitle("Kantor Pusat", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${pusat.size} unit") }
-                    itemsIndexed(pusat, key = { _, u -> u.id }) { i, unit ->
-                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
-                            viewModel.selectUnit(unit.id)
-                            viewModel.navigate(Screen.Dashboard)
-                        }
-                    }
-                    if (cabang.isNotEmpty()) item { SectionTitle("Cabang", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${cabang.size} unit") }
-                    itemsIndexed(cabang, key = { _, u -> u.id }) { i, unit ->
-                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
-                            viewModel.selectUnit(unit.id)
-                            viewModel.navigate(Screen.Dashboard)
-                        }
+                }
+            }
+            item { KalenderDeadline(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+            item { KabarTerbaru(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
+            item { BizgrowAcademy(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
+            item { BantuanSistem(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+        }
+    }
+
+    pilihUntuk?.let { d ->
+        ModalBottomSheet(
+            onDismissRequest = { pilihUntuk = null },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text(d.nama, style = MaterialTheme.typography.titleLarge)
+                Text("Pilih unit bisnis yang ingin dibuka", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                units.forEach { u ->
+                    UnitCard(u, Modifier.padding(vertical = 4.dp)) {
+                        pilihUntuk = null
+                        viewModel.selectUnit(u.id)
+                        viewModel.navigate(d.tujuan)
                     }
                 }
             }

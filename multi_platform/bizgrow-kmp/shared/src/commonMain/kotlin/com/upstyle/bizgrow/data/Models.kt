@@ -147,8 +147,18 @@ data class FinanceData(
     val summary: FinanceSummary = FinanceSummary(),
     val alerts: FinanceAlerts = FinanceAlerts(),
     val bankBalances: List<BankBalance> = emptyList(),
-    val kpi: FinanceKpi = FinanceKpi()
+    val kpi: FinanceKpi = FinanceKpi(),
+    /** Titik grafik arus kas periode terpilih (per jam bila satu hari, selain itu per tanggal). */
+    val grafik: List<TitikGrafik> = emptyList(),
+    val produkTerlaris: List<ProdukTerlaris> = emptyList(),
+    val perJam: Boolean = false
 )
+
+@Serializable
+data class TitikGrafik(val label: String = "", val masuk: Double = 0.0, val keluar: Double = 0.0)
+
+@Serializable
+data class ProdukTerlaris(val nama: String = "", val total: Double = 0.0, val qty: Int = 0)
 
 @Serializable
 data class FinanceSummary(
