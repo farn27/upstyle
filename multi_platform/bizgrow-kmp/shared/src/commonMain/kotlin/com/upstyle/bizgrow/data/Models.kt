@@ -973,12 +973,21 @@ data class ArusKasData(
 @Serializable
 data class EcommerceOrder(
     val id: Int,
-    val unitId: Int,
-    val orderNumber: String,
-    val customerName: String,
+    val unitId: Int = 0,
+    val orderNumber: String = "",
+    val customerName: String = "",
+    val customerEmail: String = "",
     val customerPhone: String = "",
-    val totalAmount: Double,
-    val status: String,
+    val shippingAddress: String = "",
+    val subtotal: Double = 0.0,
+    val discountAmount: Double = 0.0,
+    val totalAmount: Double = 0.0,
+    /** PENDING, PAID, FAILED, EXPIRED */
+    val paymentStatus: String = "PENDING",
+    /** PENDING, PROCESSING, SHIPPED, DELIVERED */
+    val shippingStatus: String = "PENDING",
+    /** Gabungan dari server: PENDING, PAID, PROCESSING, SHIPPED, COMPLETED, CANCELLED */
+    val status: String = "PENDING",
     val source: String = "manual",
     val createdAt: String = "",
     val items: List<EcommerceOrderItem> = emptyList()
@@ -986,14 +995,17 @@ data class EcommerceOrder(
 
 @Serializable
 data class EcommerceOrderItem(
-    val id: Int,
-    val orderId: Int,
-    val productId: String,
-    val productName: String,
-    val qty: Int,
-    val price: Double,
-    val subtotal: Double
-)
+    val id: Int = 0,
+    val ecommerceOrderId: Int = 0,
+    val productId: String? = null,
+    val productName: String = "",
+    val qty: Int = 1,
+    val price: Double = 0.0,
+    val total: Double = 0.0
+) {
+    /** Alias lama. */
+    val subtotal: Double get() = total
+}
 
 // â”€â”€â”€ CS / Support Tickets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

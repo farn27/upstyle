@@ -1,142 +1,109 @@
 package com.upstyle.bizgrow.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.collectAsState
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import com.upstyle.bizgrow.data.EcommerceOrder
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
-import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
-@OptIn(ExperimentalMaterial3Api::class)
+internal val FILTER_PESANAN = listOf(
+    "SEMUA" to "Semua", "PENDING" to "Belum bayar", "PAID" to "Perlu diproses", "PROCESSING" to "Diproses",
+    "SHIPPED" to "Dikirim", "COMPLETED" to "Selesai", "CANCELLED" to "Batal"
+)
+
+internal fun labelStatusPesanan(s: String): String = FILTER_PESANAN.firstOrNull { it.first == s.uppercase() }?.second ?: s
+
+internal fun warnaStatusPesanan(s: String): Color = when (s.uppercase()) {
+    "PAID" -> BizgrowColors.Info
+    "PROCESSING" -> BizgrowColors.Warning
+    "SHIPPED" -> BizgrowColors.Violet
+    "COMPLETED" -> BizgrowColors.Success
+    "CANCELLED" -> BizgrowColors.Danger
+    else -> Color(0xFF64748B)
+}
+
+/** Pesanan toko online: daftar dengan filter status dan ringkasan. */
 @Composable
 fun OrdersScreen(viewModel: AppViewModel) {
-    val ordersState by viewModel.ordersState.collectAsState()
-    var selectedFilter by remember { mutableStateOf("All") }
-    val filters = listOf("All", "Pending", "Processing", "Shipped", "Completed", "Cancelled")
-
+    val state by viewModel.ordersState.collectAsState(initial = viewModel.ordersState.value)
+    var filter by remember { mutableStateOf("SEMUA") }
     val listState = rememberLazyListState()
 
-    // Trigger initial load
-    LaunchedEffect(Unit) {
-        viewModel.loadOrders()
-    }
+    LaunchedEffect(Unit) { viewModel.loadOrders() }
 
-    // Trigger load-more when near the bottom of the list
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
-            .distinctUntilChanged()
-            .collect { lastVisibleIndex ->
-                val totalItems = listState.layoutInfo.totalItemsCount
-                if (lastVisibleIndex != null && totalItems > 0 && lastVisibleIndex >= totalItems - 3) {
-                    viewModel.loadMoreOrders()
-                }
-            }
-    }
+    val semua = state.orders
+    val tampil = semua.filter { filter == "SEMUA" || it.status.uppercase() == filter }
+    val pendapatan = semua.filter { it.status.uppercase() != "CANCELLED" && it.paymentStatus == "PAID" }.sumOf { it.totalAmount }
+    val perluProses = semua.count { it.status.uppercase() == "PAID" }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Pesanan") },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
-                    }
-                }
-            )
-        }
+    // muat halaman berikutnya saat mendekati akhir daftar
+    val akhir by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 } }
+    LaunchedEffect(akhir, tampil.size) { if (tampil.isNotEmpty() && akhir >= tampil.size - 3) viewModel.loadMoreOrders() }
+
+    BizScreen(
+        title = "Pesanan online", subtitle = "${semua.size} pesanan",
+        onBack = { viewModel.navigateBack() },
+        actions = { BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadOrders() } },
+        bottomBar = { BottomNavBar(viewModel, Screen.Orders) }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Total: ${ordersState.orders.size} Pesanan", fontWeight = FontWeight.Bold)
-                    val todayRev = ordersState.orders.filter { it.status != "Cancelled" }.sumOf { it.totalAmount }
-                    Text("Pendapatan: Rp ${"%,.0f".format(todayRev)}", fontWeight = FontWeight.Bold)
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile("Sudah dibayar", pendapatan.rupiahRingkas(), Icons.Rounded.Payments, BizgrowColors.Success, Modifier.weight(1f))
+                StatTile("Perlu diproses", "$perluProses", Icons.Rounded.Inventory2, BizgrowColors.Info, Modifier.weight(1f))
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FILTER_PESANAN.forEach { (id, label) ->
+                    val n = if (id == "SEMUA") semua.size else semua.count { it.status.uppercase() == id }
+                    FilterPill("$label ($n)", filter == id, { filter = id })
                 }
             }
-
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filters) { filter ->
-                    FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = { selectedFilter = filter },
-                        label = { Text(filter) }
-                    )
+            Spacer(Modifier.height(8.dp))
+            when {
+                state.isLoading && semua.isEmpty() -> SkeletonList(5, Modifier.padding(16.dp))
+                state.error != null && semua.isEmpty() -> ErrorView(state.error ?: "", { viewModel.loadOrders() })
+                tampil.isEmpty() -> EmptyView(
+                    if (semua.isEmpty()) "Belum ada pesanan" else "Tidak ada pesanan ${labelStatusPesanan(filter).lowercase()}",
+                    "Pesanan dari toko online pelanggan akan muncul di sini.", Icons.Rounded.ShoppingBag
+                )
+                else -> LazyColumn(state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(tampil, key = { it.id }) { o -> KartuPesanan(o) { viewModel.navigate(Screen.OrderDetail(o.id)) } }
                 }
             }
+        }
+    }
+}
 
-            val filteredOrders = ordersState.orders.filter { selectedFilter == "All" || it.status == selectedFilter }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredOrders) { order ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable { viewModel.navigate(Screen.OrderDetail(order.id)) },
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("#${order.orderNumber}", fontWeight = FontWeight.Bold)
-                                Badge { Text(order.source) }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Text(order.customerName, style = MaterialTheme.typography.bodyLarge)
-                            Text("Rp ${"%,.0f".format(order.totalAmount)}", color = BizgrowColors.Success, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(8.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(order.createdAt, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                val statusColor = when(order.status) {
-                                    "Completed" -> BizgrowColors.Success
-                                    "Cancelled" -> BizgrowColors.Danger
-                                    else -> BizgrowColors.Warning
-                                }
-                                SuggestionChip(
-                                    onClick = {},
-                                    label = { Text(order.status) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = statusColor.copy(alpha = 0.1f))
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Bottom loading indicator for pagination
-                item {
-                    if (ordersState.isLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        }
-                    }
-                }
+@Composable
+private fun KartuPesanan(o: EcommerceOrder, onClick: () -> Unit) {
+    val warna = warnaStatusPesanan(o.status)
+    BizSurface(Modifier.fillMaxWidth(), onClick = onClick, contentPadding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Rounded.ShoppingBag, warna, size = 46.dp, iconSize = 22.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(o.customerName.ifBlank { "Pelanggan" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(o.orderNumber, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${o.items.sumOf { it.qty }} barang • ${o.createdAt.take(10)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(o.totalAmount.rupiah(), fontWeight = FontWeight.Bold, color = BizgrowColors.Success)
+                StatusChip(labelStatusPesanan(o.status), warna)
             }
         }
     }

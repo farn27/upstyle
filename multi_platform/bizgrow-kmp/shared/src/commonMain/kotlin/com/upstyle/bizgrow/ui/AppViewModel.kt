@@ -351,6 +351,15 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("markNotifRead error", e) }
     }
     
+    fun ubahStatusPesanan(orderId: Int, paymentStatus: String? = null, shippingStatus: String? = null) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusPesanan(orderId, paymentStatus, shippingStatus)
+            if (res.success) { loadOrders(); loadOrderDetail(orderId); setSuccess("Status pesanan diperbarui") }
+            else setError(res.message ?: "Gagal memperbarui pesanan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun updateOrderStatus(orderId: Int, status: String) = viewModelScope.launch {
         setLoading(true)
         try {

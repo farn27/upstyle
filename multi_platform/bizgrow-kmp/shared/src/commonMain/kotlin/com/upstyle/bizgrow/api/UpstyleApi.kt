@@ -535,6 +535,15 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("status" to status))
         }.body()
 
+    /** Ubah status bayar dan/atau kirim pesanan toko online (nilai enum web). */
+    suspend fun ubahStatusPesanan(orderId: Int, paymentStatus: String? = null, shippingStatus: String? = null): ApiResponse<Unit> =
+        client.put("api/app/orders/$orderId") {
+            setBody(buildJsonObject {
+                if (paymentStatus != null) put("paymentStatus", paymentStatus)
+                if (shippingStatus != null) put("shippingStatus", shippingStatus)
+            })
+        }.body()
+
     // ─── CS / Support Tickets ─────────────────────────────────────────────────
 
     suspend fun getTickets(unitId: Int): ApiResponse<List<SupportTicket>> =
