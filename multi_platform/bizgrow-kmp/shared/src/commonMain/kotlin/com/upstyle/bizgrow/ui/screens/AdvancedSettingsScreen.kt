@@ -107,7 +107,7 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
         profilePhone = state.phone
     }
     LaunchedEffect(state.darkMode, state.notifEnabled) {
-        darkMode = state.darkMode
+        darkMode = state.darkMode || viewModel.themeMode.value == "dark"
         notifEnabled = state.notifEnabled
     }
 

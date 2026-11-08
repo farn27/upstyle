@@ -77,8 +77,10 @@ export const actions = {
 
             if (nominalSelisih > 0) {
                 // Find Accounts
-                const akunPersediaanArr = await tx.select().from(chartOfAccounts).where(and(eq(chartOfAccounts.unitId, unit.id), eq(chartOfAccounts.tipeAkun, 'PERSEDIAAN'))).limit(1);
-                const akunKerugianArr = await tx.select().from(chartOfAccounts).where(and(eq(chartOfAccounts.unitId, unit.id), eq(chartOfAccounts.tipeAkun, 'BEBAN_OPERASIONAL'))).limit(1);
+                const { akunSelisihStok } = await import('$lib/server/stokOpname.js');
+                const akunSel = await akunSelisihStok(tx, unit.id);
+                const akunPersediaanArr = akunSel.persediaan ? [akunSel.persediaan] : [];
+                const akunKerugianArr = akunSel.beban ? [akunSel.beban] : [];
                 
                 if (akunPersediaanArr.length > 0 && akunKerugianArr.length > 0) {
                     const akunPersediaan = akunPersediaanArr[0];

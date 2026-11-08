@@ -1244,6 +1244,9 @@ data class PosFeatureOverride(
 // â”€â”€â”€ POS Shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Serializable
+data class RealtimeConfig(val socketUrl: String = "", val token: String = "", val exp: Long = 0)
+
+@Serializable
 data class UpdatePortalRequest(
     val unitId: Int,
     val generateNewSlug: Boolean,
@@ -1586,10 +1589,12 @@ data class MarketingCampaign(
 data class StockOpnameSession(
     val id: Int = 0,
     val unitId: Int,
-    val warehouseId: Int,
+    val warehouseId: Int = 0,
     val createdBy: Int = 0,
     val status: String = "DRAFT",
     val notes: String? = null,
+    val createdAt: String = "",
+    val completedAt: String? = null,
     val items: List<StockOpnameItem> = emptyList()
 )
 
@@ -1598,6 +1603,7 @@ data class StockOpnameItem(
     val id: Int = 0,
     val opnameId: Int = 0,
     val productId: String,
+    val productName: String = "",
     val systemStock: Int,
     val actualStock: Int,
     val difference: Int = 0,

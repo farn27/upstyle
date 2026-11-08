@@ -187,12 +187,7 @@ fun KatalogProductCard(product: KatalogProduct, onToggle: (String) -> Unit) {
     ) {
         Column {
             Box {
-                AsyncImage(
-                    model = product.foto ?: "https://via.placeholder.com/150",
-                    contentDescription = product.nama,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(140.dp)
-                )
+                com.upstyle.bizgrow.ui.design.ProductThumb(product.nama, product.foto, Modifier.fillMaxWidth().height(140.dp), androidx.compose.ui.graphics.RectangleShape)
                 if (product.isPublished) {
                     Surface(
                         modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),

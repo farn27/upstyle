@@ -325,8 +325,9 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.updateLeadStatus(leadId, status, unitId)
-            if (res.success) loadMarketingData()
-        } catch (e: Exception) { Napier.e("updateLeadStatus error", e) }
+            if (res.success) { loadMarketingData(); setSuccess("Lead dijadikan kontak CRM") }
+            else setError(res.message ?: "Gagal memproses lead")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     
     private val _notifications = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>>(emptyList())
@@ -1872,6 +1873,17 @@ class AppViewModel(
         }
     }
 
+    /** Ambil alamat + token realtime dari backend lalu sambungkan Socket.io (tanpa alamat bawaan di app). */
+    fun sambungkanRealtime(unitId: Int) = viewModelScope.launch {
+        if (unitId <= 0 || !session.isLoggedIn()) return@launch
+        try {
+            val cfg = api.getRealtimeConfig(unitId).data ?: return@launch
+            if (cfg.socketUrl.isBlank() || cfg.token.isBlank()) return@launch // server belum mengaktifkan realtime
+            SocketManager.disconnect()
+            SocketManager.connect(cfg.socketUrl, unitId, session.getUserId(), cfg.token)
+        } catch (e: Exception) { Napier.w("Realtime tidak tersambung: ${e.message}", tag = "AppViewModel") }
+    }
+
     private fun setupSocket() = viewModelScope.launch {
         try {
             SocketManager.events.collect { event ->
@@ -1882,12 +1894,20 @@ class AppViewModel(
                     is RealtimeEvent.Notification -> loadNotifications()
                     is RealtimeEvent.OrderStatusChanged -> loadOrders()
                     is RealtimeEvent.PosCashAlert -> refreshAll()
-                    is RealtimeEvent.TicketMessage -> loadTicketMessages(event.data.toIntOrNull() ?: 0)
+                    is RealtimeEvent.TicketMessage -> {
+                        val id = Regex("\"ticketId\"\\s*:\\s*(\\d+)").find(event.data)?.groupValues?.get(1)?.toIntOrNull() ?: event.data.toIntOrNull() ?: 0
+                        if (id > 0) loadTicketMessages(id)
+                        loadTickets()
+                    }
                     is RealtimeEvent.Connected -> {
                         val active = _activeUnitId.value
                         if (active > 0) SocketManager.joinUnit(active)
                     }
-                    RealtimeEvent.Disconnected -> {}
+                    RealtimeEvent.Disconnected -> {
+                        // token berlaku 1 jam → minta token baru lalu sambung lagi bila masih login
+                        kotlinx.coroutines.delay(5000)
+                        if (session.isLoggedIn() && !SocketManager.isConnected()) sambungkanRealtime(_activeUnitId.value)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -1924,6 +1944,7 @@ class AppViewModel(
             val unit = _units.value.find { it.id == unitId }
             session.setActiveUnit(unitId, unit?.name ?: "", unit?.slug ?: "")
             if (unitId > 0) {
+                sambungkanRealtime(unitId)
                 SocketManager.joinUnit(unitId)
                 // Reset all module data so they reload fresh for the new unit
                 _financeData.value = null; _riwayat.value = null
@@ -2498,8 +2519,9 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.toggleLandingPage(pageId, unitId, isActive)
-            if (res.success) loadLandingPages()
-        } catch (e: Exception) { Napier.e("toggleLandingPageActive error", e) }
+            if (res.success) { loadLandingPages(); setSuccess(if (isActive) "Landing page diaktifkan" else "Landing page dinonaktifkan") }
+            else setError(res.message ?: "Gagal mengubah status landing page")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Shopee Integration ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
@@ -2704,6 +2726,16 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Stock Opname Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+    /** Simpan hasil hitung fisik; [onSelesai] dipanggil bila berhasil (form ditutup). */
+    fun simpanStokOpname(catatan: String?, items: List<Pair<String, Int>>, onGagal: () -> Unit = {}, onSelesai: () -> Unit) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.simpanStokOpname(_activeUnitId.value, catatan, items)
+            if (res.success) { loadStockOpnameList(); loadProducts(); loadLowStock(); setSuccess(res.message ?: "Stok opname selesai"); onSelesai() }
+            else { setError(res.message ?: "Gagal menyimpan stok opname"); onGagal() }
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onGagal() }
+    }
+
     fun loadStockOpnameList() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -2826,6 +2858,7 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadMoreNotifications error", e) }
     }
     fun logout() = viewModelScope.launch {
+        SocketManager.disconnect()
         session.clearSession()
         navigationManager.navigateToRoot(Screen.Login)
     }

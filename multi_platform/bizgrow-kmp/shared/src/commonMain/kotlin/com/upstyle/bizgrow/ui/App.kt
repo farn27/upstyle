@@ -33,6 +33,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
         "light" -> false
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
+    androidx.compose.runtime.CompositionLocalProvider(com.upstyle.bizgrow.ui.design.LocalServerUrl provides viewModel.session.getServerUrl()) {
     BizgrowTheme(darkTheme = gelap) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
@@ -145,7 +146,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Advanced Finance
                     is Screen.Coa           -> CoaScreen(viewModel)
                     is Screen.FixedAssets   -> FixedAssetsScreen(viewModel)
-                    is Screen.Neraca        -> NeracaScreen(viewModel)
+                    is Screen.Neraca        -> LaporanScreen(viewModel, tabAwal = 2)
                     is Screen.Budget        -> BudgetScreen(viewModel)
                     is Screen.TaxRates      -> TaxRatesScreen(viewModel)
                     is Screen.ClosingPeriod -> ClosingPeriodScreen(viewModel)
@@ -261,6 +262,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                 ToastPill(terakhir, terakhirError, onClose = { viewModel.clearMessages() })
             }
         }
+    }
     }
 }
 

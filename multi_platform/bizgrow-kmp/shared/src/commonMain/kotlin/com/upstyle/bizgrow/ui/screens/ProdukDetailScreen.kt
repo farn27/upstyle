@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.design.ProductThumb
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 
@@ -79,13 +80,7 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Product header image
             Box(modifier = Modifier.fillMaxWidth().height(200.dp)) {
-                AsyncImage(
-                    model = product.foto?.takeIf { it.isNotBlank() }
-                        ?: "https://ui-avatars.com/api/?name=${product.nama.take(2)}&background=EEF2FF&color=5B50F0&size=400&bold=true",
-                    contentDescription = product.nama,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                ProductThumb(product.nama, product.foto, Modifier.fillMaxSize(), androidx.compose.ui.graphics.RectangleShape, viewModel.session.getServerUrl(), fontSize = androidx.compose.ui.unit.TextUnit(48f, androidx.compose.ui.unit.TextUnitType.Sp))
                 // Stock badge overlay
                 val isLowStock = product.stok in 1..product.minStok
                 val isHabis = product.stok == 0

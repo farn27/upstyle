@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.design.ProductThumb
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
@@ -629,15 +630,7 @@ fun ProductItemCardWithVariants(
                 }
 
                 // Product image
-                AsyncImage(
-                    model = product.foto?.takeIf { it.isNotBlank() }
-                        ?: "https://ui-avatars.com/api/?name=${product.nama.take(2)}&background=EFF0FE&color=5B5FEF&size=128",
-                    contentDescription = product.nama,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                )
+                ProductThumb(product.nama, product.foto, Modifier.size(64.dp), RoundedCornerShape(20.dp))
 
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(

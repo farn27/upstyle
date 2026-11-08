@@ -72,6 +72,10 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(UpdatePortalRequest(unitId, buatBaru, "updatePortal"))
         }.body()
 
+    /** Konfigurasi realtime (alamat Socket.io + token) dari backend; socketUrl kosong = realtime tidak aktif. */
+    suspend fun getRealtimeConfig(unitId: Int): ApiResponse<RealtimeConfig> =
+        client.get("api/app/realtime") { parameter("unitId", unitId) }.body()
+
     // ─── Finance ──────────────────────────────────────────────────────────────
 
     suspend fun getFinanceData(unitId: Int, startDate: String? = null, endDate: String? = null): ApiResponse<FinanceData> =
@@ -764,8 +768,8 @@ class UpstyleApi(private val client: HttpClient) {
     }
 
     suspend fun submitTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
-        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
-        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
+        kirimTiketBantuan(req.title, req.description, req.priority, unitId)
+
 
     suspend fun runDiagnostics(unitId: Int): ApiResponse<DiagnosticResult> =
         client.post("api/app/help/diagnostics") {
@@ -868,8 +872,19 @@ class UpstyleApi(private val client: HttpClient) {
 
     /** Overload accepting [SubmitSupportTicketRequest] directly — AppViewModel calls `submitSupportTicket(req)`. */
     suspend fun submitSupportTicket(req: SubmitSupportTicketRequest): ApiResponse<Unit> =
-        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
-        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
+        kirimTiketBantuan(req.title, req.description, req.priority, req.unitId, req.screenContext)
+
+    /** Tiket ke tim Bizgrow (email dukungan lewat server). */
+    private suspend fun kirimTiketBantuan(judul: String, isi: String, prioritas: String, unitId: Int, layar: String? = null): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/help") {
+            setBody(buildJsonObject {
+                put("action", "ticket"); put("title", judul); put("description", isi); put("priority", prioritas); put("unitId", unitId)
+                layar?.let { put("screenContext", it) }
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
 
     // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
 
@@ -1418,6 +1433,16 @@ class UpstyleApi(private val client: HttpClient) {
                 put("type", type)
             })
         }.body())
+
+    /** Simpan stok opname: item = (productId, stok fisik). Stok sistem diambil server saat itu juga. */
+    suspend fun simpanStokOpname(unitId: Int, catatan: String?, items: List<Pair<String, Int>>): ApiResponse<JsonObject> =
+        client.post("api/app/products/stock-opname") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                if (!catatan.isNullOrBlank()) put("notes", catatan)
+                putJsonArray("items") { items.forEach { (id, fisik) -> add(buildJsonObject { put("productId", id); put("actualStock", fisik) }) } }
+            })
+        }.body()
 
     suspend fun getStockOpnameList(unitId: Int): ApiResponse<List<StockOpnameSession>> =
         client.get("api/app/products/stock-opname") { parameter("unitId", unitId) }.body()

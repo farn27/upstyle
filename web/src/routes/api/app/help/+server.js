@@ -2,6 +2,11 @@ import { json } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
+import { db } from '$lib/server/drizzle';
+import { users, riwayatAksi } from '$lib/server/schema';
+import { eq } from 'drizzle-orm';
+import { sendEmail, emailBase } from '$lib/server/email';
+import { env } from '$env/dynamic/private';
 
 const HELP_ITEMS = [
 	{ id: 1, q: "Bagaimana cara mengubah kata sandi?", a: "Buka Pengaturan → Profil → Ubah kata sandi. Masukkan kata sandi lama dan baru (minimal 8 karakter), lalu simpan.", category: "Akun" },
@@ -52,6 +57,28 @@ export async function POST({ request, cookies }) {
 
 	try {
 		const body = await request.json();
+
+		// Kirim tiket ke tim Bizgrow (email ke SUPPORT_EMAIL) — dulu tombolnya selalu gagal "belum tersedia"
+		if (body?.action === 'ticket') {
+			const judul = String(body?.title || '').trim().slice(0, 150);
+			const isi = String(body?.description || '').trim().slice(0, 4000);
+			if (!judul || !isi) return apiError('Judul dan deskripsi wajib diisi', 422);
+			const tujuan = env.SUPPORT_EMAIL;
+			if (!tujuan) return apiError('Saluran dukungan belum diaktifkan oleh admin (SUPPORT_EMAIL belum diatur)', 503);
+			const pengguna = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { username: true, email: true } });
+			const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+			const kirim = await sendEmail({
+				to: tujuan,
+				subject: `[Tiket ${String(body?.priority || 'medium').toUpperCase()}] ${judul}`,
+				html: emailBase(`<h3>${esc(judul)}</h3><p style="white-space:pre-wrap">${esc(isi)}</p><hr><p style="color:#64748b;font-size:13px">Dari: ${esc(pengguna?.username || '?')} &lt;${esc(pengguna?.email || '?')}&gt; • unit #${Number(body?.unitId) || '-'}${body?.screenContext ? ' • layar ' + esc(body.screenContext) : ''}</p>`, 'Tiket dukungan')
+			});
+			if (!kirim.success) return apiError('Tiket belum terkirim, coba lagi nanti', 502);
+			if (Number(body?.unitId)) {
+				await db.insert(riwayatAksi).values({ userId, unitId: Number(body.unitId), pesan: `Tiket dukungan dikirim: ${judul}`, kategori: 'BANTUAN', tipe: 'info' }).catch(() => {});
+			}
+			return apiSuccess({ message: 'Tiket terkirim' }, 'Tiket terkirim ke tim Bizgrow');
+		}
+
 		const id = Number(body?.id);
 		const feedback = String(body?.feedback || '').trim();
 		const rating = body?.rating;

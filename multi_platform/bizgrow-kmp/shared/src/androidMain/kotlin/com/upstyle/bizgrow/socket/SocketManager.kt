@@ -103,12 +103,14 @@ actual object SocketManager {
 
     actual fun isConnected(): Boolean = socket?.connected() == true
 
+    /**
+     * [serverUrl] sudah alamat server realtime dari backend (`PUBLIC_SOCKET_URL`). Tidak ada alamat yang di-hardcode di app;
+     * hanya untuk pengembangan lokal (http tanpa konfigurasi) dipakai port Socket.io bawaan 13337 pada host yang sama.
+     */
     private fun deriveSocketUrl(serverUrl: String): String = try {
-        if (serverUrl.contains("vercel.app") || serverUrl.startsWith("https://")) {
-            "https://203.194.113.29.sslip.io"
-        } else {
-            val uri = URI.create(serverUrl.trimEnd('/'))
+        val uri = URI.create(serverUrl.trimEnd('/'))
+        if (uri.scheme == "http" && uri.port == -1 || (uri.scheme == "http" && uri.port in setOf(5173, 4173, 3000))) {
             "${uri.scheme}://${uri.host}:13337"
-        }
+        } else serverUrl.trimEnd('/')
     } catch (_: Exception) { "" }
 }
