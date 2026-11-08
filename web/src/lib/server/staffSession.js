@@ -15,6 +15,9 @@ export async function getStaffSession(token) {
   const key = `staff_session:${token}`;
   const raw = await redis.get(key);
   if (!raw) return null;
+  // Klien Upstash otomatis mem-parse nilai JSON, jadi raw biasanya sudah berupa objek.
+  // Dulu selalu JSON.parse(raw) → gagal ("[object Object]") → sesi dianggap tidak ada → login portal staf berputar kembali ke halaman login.
+  if (typeof raw === 'object') return raw;
   try {
     return JSON.parse(raw);
   } catch {
