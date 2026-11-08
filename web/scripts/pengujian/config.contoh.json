@@ -1,5 +1,6 @@
 {
   "baseUrl": "https://ALAMAT-SERVER-UJI",
+  "socketUrl": "https://ALAMAT-VPS-SOCKETIO",
   "jedaAiMs": 4000,
   "tenantA": { "email": "pemilik.a@contoh.id", "password": "ISI", "unitId": 0, "slug": "esteh-uji" },
   "tenantB": { "email": "pemilik.b@contoh.id", "password": "ISI", "unitId": 0, "slug": "bubur-uji" },

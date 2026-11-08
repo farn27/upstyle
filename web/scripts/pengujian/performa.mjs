@@ -1,5 +1,5 @@
 // Pengujian realtime & performa (Tabel 4.8).
-//   node performa.mjs pos   : waktu dari permintaan bayar (POS checkout) sampai event 'pos-transaction' diterima klien Socket.io
+//   node performa.mjs pos   : (config: socketUrl) waktu dari permintaan bayar (POS checkout) sampai event 'pos-transaction' diterima klien Socket.io
 //   node performa.mjs stok  : waktu respons GET /api/low-stock (pengganti "peringatan stok realtime", lihat PANDUAN)
 // Satu mesin = satu jam, jadi tidak ada selisih jam antarperangkat. Untuk kondisi "HP → laptop", ukur manual (video layar) dan tulis di Catatan.
 import fs from 'node:fs';
@@ -16,9 +16,11 @@ const { token } = await masuk(base, A);
 const baris = [];
 
 if (mode === 'pos') {
-	const rt = await minta(`${base}/api/app/realtime?unitId=${A.unitId}`, { token });
-	const { socketUrl, token: st } = rt.json?.data ?? {};
-	if (!socketUrl) { console.error('PUBLIC_SOCKET_URL belum diset di server / realtime tidak tersedia:', rt.teks); process.exit(1); }
+	// Token & alamat socket persis seperti dasbor web: /api/socket-token (token) + alamat VPS Socket.io (PUBLIC_SOCKET_URL) dari config.
+	const rt = await minta(`${base}/api/socket-token?unitId=${A.unitId}`, { token });
+	const st = rt.json?.token;
+	const socketUrl = c.socketUrl;
+	if (!socketUrl || !st) { console.error('Isi "socketUrl" di config.json (alamat VPS Socket.io = nilai PUBLIC_SOCKET_URL) dan pastikan /api/socket-token memberi token:', rt.status, rt.teks.slice(0, 200)); process.exit(1); }
 	const sock = io(socketUrl, { auth: { token: st }, transports: ['websocket'] });
 	await new Promise((ok, gagal) => { sock.on('connected', ok); sock.on('connect_error', gagal); setTimeout(() => gagal(new Error('timeout konek socket')), 15000); });
 	console.log('Socket terhubung ke', socketUrl);

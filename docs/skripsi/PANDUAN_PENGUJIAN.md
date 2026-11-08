@@ -42,6 +42,7 @@ terukur (milidetik), dapat diulang, dan menyimpan keluaran mentah sehingga dapat
    cd web/scripts/pengujian
    cp config.contoh.json config.json     # isi URL, email/sandi pemilik A & B, unitId, slug, produk performa
    ```
+   Isi juga `socketUrl` = alamat VPS Socket.io (nilai `PUBLIC_SOCKET_URL` di Vercel); skrip performa memakai `/api/socket-token`, jalur yang sama dengan dasbor web.
    `config.json` dan `bukti/` otomatis diabaikan git (berisi kata sandi). Node ≥ 18, `npm install` di folder `web/` sudah cukup.
 5. **Catat konfigurasi** di sheet `Petunjuk`: tanggal, nilai `GROQ_MODEL` (per 8 Nov 2026 tidak diset di Vercel), commit yang
    ter-deploy (`git rev-parse --short HEAD`), perangkat & jaringan.
@@ -70,7 +71,7 @@ node ratelimit.mjs           # skenario 4a (11 percobaan web) & 4b (16 percobaan
   - `POS-07` (mobile → web) dan `DSB-05` (dasbor realtime): gunakan dua perangkat, rekam layar.
 - **Performa POS**:
   ```bash
-  node performa.mjs pos      # 20 percobaan, jeda 3 dtk → performa/pos.csv
+  node performa.mjs pos      # 20 percobaan, jeda 3 dtk → performa/pos.csv (butuh socketUrl di config.json)
   ```
   Mengukur dari permintaan checkout sampai event Socket.io diterima, di **satu mesin satu jam** (tanpa selisih jam).
   Ini berbeda dari definisi "HP → laptop" di sheet; jika ingin kondisi itu, rekam layar 60 fps pada kedua perangkat dan hitung
