@@ -1,0 +1,648 @@
+{
+ "ekstraksi": [
+  {
+   "id": "E01",
+   "tenant": "A",
+   "masukan": "es teh lemon 3",
+   "kategori": "Masuk",
+   "produk": "Es Teh Lemon",
+   "qty": 3,
+   "nominal": 21000,
+   "catatan": ""
+  },
+  {
+   "id": "E02",
+   "tenant": "A",
+   "masukan": "jual es teh original 10 gelas",
+   "kategori": "Masuk",
+   "produk": "Es Teh Original",
+   "qty": 10,
+   "nominal": 50000,
+   "catatan": ""
+  },
+  {
+   "id": "E03",
+   "tenant": "A",
+   "masukan": "laku es teh susu dua",
+   "kategori": "Masuk",
+   "produk": "Es Teh Susu",
+   "qty": 2,
+   "nominal": 16000,
+   "catatan": "angka ditulis dengan huruf"
+  },
+  {
+   "id": "E04",
+   "tenant": "A",
+   "masukan": "tadi kejual 5 jumbo",
+   "kategori": "Masuk",
+   "produk": "Es Teh Jumbo",
+   "qty": 5,
+   "nominal": 30000,
+   "catatan": "nama produk disingkat"
+  },
+  {
+   "id": "E05",
+   "tenant": "A",
+   "masukan": "esteh leci 4 cup",
+   "kategori": "Masuk",
+   "produk": "Es Teh Leci",
+   "qty": 4,
+   "nominal": 32000,
+   "catatan": "penulisan digabung"
+  },
+  {
+   "id": "E06",
+   "tenant": "A",
+   "masukan": "beli gula 2 kg 36rb",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 36000,
+   "catatan": "pengeluaran; qty tidak dinilai"
+  },
+  {
+   "id": "E07",
+   "tenant": "A",
+   "masukan": "belanja teh tubruk 25 ribu",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 25000,
+   "catatan": ""
+  },
+  {
+   "id": "E08",
+   "tenant": "A",
+   "masukan": "bayar es batu 15k",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 15000,
+   "catatan": "singkatan k"
+  },
+  {
+   "id": "E09",
+   "tenant": "A",
+   "masukan": "beli cup plastik 1 pak 30.000",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 30000,
+   "catatan": "format titik ribuan"
+  },
+  {
+   "id": "E10",
+   "tenant": "A",
+   "masukan": "es teh ori 7, bayar qris",
+   "kategori": "Masuk",
+   "produk": "Es Teh Original",
+   "qty": 7,
+   "nominal": 35000,
+   "catatan": "singkatan ori"
+  },
+  {
+   "id": "E11",
+   "tenant": "A",
+   "masukan": "lemon tea 2",
+   "kategori": "Masuk",
+   "produk": "Es Teh Lemon",
+   "qty": 2,
+   "nominal": 14000,
+   "catatan": "nama produk dalam bahasa Inggris"
+  },
+  {
+   "id": "E12",
+   "tenant": "A",
+   "masukan": "teh susu sepuluh",
+   "kategori": "Masuk",
+   "produk": "Es Teh Susu",
+   "qty": 10,
+   "nominal": 80000,
+   "catatan": "angka huruf"
+  },
+  {
+   "id": "E13",
+   "tenant": "A",
+   "masukan": "beli susu kental manis 3 kaleng 33rb",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 33000,
+   "catatan": "jebakan: kata \"susu\" mirip produk"
+  },
+  {
+   "id": "E14",
+   "tenant": "A",
+   "masukan": "bayar listrik 120 ribu",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 120000,
+   "catatan": ""
+  },
+  {
+   "id": "E15",
+   "tenant": "A",
+   "masukan": "es teh 3",
+   "kategori": "Masuk",
+   "produk": "Es Teh Original",
+   "qty": 3,
+   "nominal": 15000,
+   "catatan": "ambigu: varian tidak disebut"
+  },
+  {
+   "id": "E16",
+   "tenant": "B",
+   "masukan": "bubur biasa 6",
+   "kategori": "Masuk",
+   "produk": "Bubur Ayam Biasa",
+   "qty": 6,
+   "nominal": 60000,
+   "catatan": ""
+  },
+  {
+   "id": "E17",
+   "tenant": "B",
+   "masukan": "jual bubur spesial 4 porsi",
+   "kategori": "Masuk",
+   "produk": "Bubur Ayam Spesial",
+   "qty": 4,
+   "nominal": 60000,
+   "catatan": ""
+  },
+  {
+   "id": "E18",
+   "tenant": "B",
+   "masukan": "bubur telur 3",
+   "kategori": "Masuk",
+   "produk": "Bubur Ayam Telur",
+   "qty": 3,
+   "nominal": 39000,
+   "catatan": ""
+  },
+  {
+   "id": "E19",
+   "tenant": "B",
+   "masukan": "sate usus 10 tusuk",
+   "kategori": "Masuk",
+   "produk": "Sate Usus",
+   "qty": 10,
+   "nominal": 30000,
+   "catatan": ""
+  },
+  {
+   "id": "E20",
+   "tenant": "B",
+   "masukan": "sate ati 5",
+   "kategori": "Masuk",
+   "produk": "Sate Ati Ampela",
+   "qty": 5,
+   "nominal": 20000,
+   "catatan": "nama produk disingkat"
+  },
+  {
+   "id": "E21",
+   "tenant": "B",
+   "masukan": "laku bubur ayam spesial dua",
+   "kategori": "Masuk",
+   "produk": "Bubur Ayam Spesial",
+   "qty": 2,
+   "nominal": 30000,
+   "catatan": "angka huruf"
+  },
+  {
+   "id": "E22",
+   "tenant": "B",
+   "masukan": "beli beras 5 kilo 70rb",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 70000,
+   "catatan": ""
+  },
+  {
+   "id": "E23",
+   "tenant": "B",
+   "masukan": "isi bensin viar 30 ribu",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 30000,
+   "catatan": ""
+  },
+  {
+   "id": "E24",
+   "tenant": "B",
+   "masukan": "beli ayam 2 ekor 90k",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 90000,
+   "catatan": "jebakan: kata \"ayam\" mirip produk"
+  },
+  {
+   "id": "E25",
+   "tenant": "B",
+   "masukan": "bayar gas melon 22rb",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 22000,
+   "catatan": ""
+  },
+  {
+   "id": "E26",
+   "tenant": "B",
+   "masukan": "beli kerupuk 1 bal 45.000",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 45000,
+   "catatan": ""
+  },
+  {
+   "id": "E27",
+   "tenant": "B",
+   "masukan": "pagi ini bubur biasa 15 porsi",
+   "kategori": "Masuk",
+   "produk": "Bubur Ayam Biasa",
+   "qty": 15,
+   "nominal": 150000,
+   "catatan": ""
+  },
+  {
+   "id": "E28",
+   "tenant": "B",
+   "masukan": "bubur 2",
+   "kategori": "Masuk",
+   "produk": "Bubur Ayam Biasa",
+   "qty": 2,
+   "nominal": 20000,
+   "catatan": "ambigu: varian tidak disebut"
+  },
+  {
+   "id": "E29",
+   "tenant": "B",
+   "masukan": "beli daun bawang sama seledri 10rb",
+   "kategori": "Keluar",
+   "produk": null,
+   "qty": null,
+   "nominal": 10000,
+   "catatan": "dua barang, satu nominal"
+  },
+  {
+   "id": "E30",
+   "tenant": "B",
+   "masukan": "jual sate ati ampela 8",
+   "kategori": "Masuk",
+   "produk": "Sate Ati Ampela",
+   "qty": 8,
+   "nominal": 32000,
+   "catatan": ""
+  }
+ ],
+ "akun": [
+  {
+   "id": "P01",
+   "tenant": "A",
+   "masukan": "jual es teh lemon 2, bayar tunai",
+   "catatan": "",
+   "akun_kode": "4-1001",
+   "akun_nama": "Pendapatan Minuman & Kopi",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P02",
+   "tenant": "A",
+   "masukan": "es teh susu 3 bayar qris",
+   "catatan": "QRIS masuk rekening",
+   "akun_kode": "4-1001",
+   "akun_nama": "Pendapatan Minuman & Kopi",
+   "kas_kode": "1-1002",
+   "kas_nama": "Bank BCA"
+  },
+  {
+   "id": "P03",
+   "tenant": "A",
+   "masukan": "beli gula pasir 18rb",
+   "catatan": "bahan baku minuman",
+   "akun_kode": "5-1001",
+   "akun_nama": "HPP Minuman",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P04",
+   "tenant": "A",
+   "masukan": "beli cup 16oz 1 pak 28rb",
+   "catatan": "",
+   "akun_kode": "5-1002",
+   "akun_nama": "HPP Kemasan",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P05",
+   "tenant": "A",
+   "masukan": "beli sedotan dan plastik 15rb",
+   "catatan": "",
+   "akun_kode": "5-1002",
+   "akun_nama": "HPP Kemasan",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P06",
+   "tenant": "A",
+   "masukan": "bayar sewa tempat bulan ini 500rb transfer",
+   "catatan": "",
+   "akun_kode": "6-1002",
+   "akun_nama": "Beban Sewa Ruko",
+   "kas_kode": "1-1002",
+   "kas_nama": "Bank BCA"
+  },
+  {
+   "id": "P07",
+   "tenant": "A",
+   "masukan": "gaji karyawan part time 300rb",
+   "catatan": "nama akun tidak sama persis",
+   "akun_kode": "6-1001",
+   "akun_nama": "Gaji Barista",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P08",
+   "tenant": "A",
+   "masukan": "bayar listrik 120rb",
+   "catatan": "akun tambahan",
+   "akun_kode": "6-1003",
+   "akun_nama": "Beban Listrik & Air",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P09",
+   "tenant": "A",
+   "masukan": "beli teh hitam 1 kg 40rb via transfer",
+   "catatan": "",
+   "akun_kode": "5-1001",
+   "akun_nama": "HPP Minuman",
+   "kas_kode": "1-1002",
+   "kas_nama": "Bank BCA"
+  },
+  {
+   "id": "P10",
+   "tenant": "A",
+   "masukan": "jual snack risol 5",
+   "catatan": "bukan produk terdaftar",
+   "akun_kode": "4-1002",
+   "akun_nama": "Pendapatan Snack / Pastry",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Cafe"
+  },
+  {
+   "id": "P11",
+   "tenant": "B",
+   "masukan": "bubur spesial 3 tunai",
+   "catatan": "",
+   "akun_kode": "4-1001",
+   "akun_nama": "Pendapatan Dine-in",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P12",
+   "tenant": "B",
+   "masukan": "pesanan gofood bubur biasa 2",
+   "catatan": "kanal ojol",
+   "akun_kode": "4-1002",
+   "akun_nama": "Pendapatan Delivery (Ojol)",
+   "kas_kode": "1-1100",
+   "kas_nama": "Piutang Merchant (Gojek/Grab)"
+  },
+  {
+   "id": "P13",
+   "tenant": "B",
+   "masukan": "beli beras 10 kg 130rb",
+   "catatan": "",
+   "akun_kode": "5-1001",
+   "akun_nama": "HPP Makanan",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P14",
+   "tenant": "B",
+   "masukan": "beli ayam 3 ekor 135rb",
+   "catatan": "",
+   "akun_kode": "5-1001",
+   "akun_nama": "HPP Makanan",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P15",
+   "tenant": "B",
+   "masukan": "beli es teh buat dijual lagi 20rb",
+   "catatan": "",
+   "akun_kode": "5-1002",
+   "akun_nama": "HPP Minuman",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P16",
+   "tenant": "B",
+   "masukan": "bayar gas 3 kg 22rb",
+   "catatan": "",
+   "akun_kode": "6-1002",
+   "akun_nama": "Beban Gas & Listrik",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P17",
+   "tenant": "B",
+   "masukan": "isi bensin viar 25rb",
+   "catatan": "akun tambahan",
+   "akun_kode": "6-1004",
+   "akun_nama": "Beban Bensin Kendaraan",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P18",
+   "tenant": "B",
+   "masukan": "potongan aplikasi grabfood 12rb",
+   "catatan": "",
+   "akun_kode": "6-1003",
+   "akun_nama": "Potongan / Komisi Ojol",
+   "kas_kode": "1-1100",
+   "kas_nama": "Piutang Merchant (Gojek/Grab)"
+  },
+  {
+   "id": "P19",
+   "tenant": "B",
+   "masukan": "bayar asisten masak 75rb",
+   "catatan": "",
+   "akun_kode": "6-1001",
+   "akun_nama": "Gaji Chef & Waiter",
+   "kas_kode": "1-1001",
+   "kas_nama": "Kas Kasir Resto"
+  },
+  {
+   "id": "P20",
+   "tenant": "B",
+   "masukan": "transfer dari pembeli langganan bubur 50rb",
+   "catatan": "",
+   "akun_kode": "4-1001",
+   "akun_nama": "Pendapatan Dine-in",
+   "kas_kode": "1-1002",
+   "kas_nama": "Bank BCA"
+  }
+ ],
+ "analitis": [
+  {
+   "id": "A01",
+   "tenant": "A",
+   "masukan": "berapa total pemasukan bulan ini?",
+   "query": "SELECT SUM(nominal) FROM transaksi WHERE unit_id=@unit AND kategori_trx='MASUK' AND tanggal >= DATE_FORMAT(CURDATE(),'%Y-%m-01');",
+   "catatan": ""
+  },
+  {
+   "id": "A02",
+   "tenant": "A",
+   "masukan": "berapa pengeluaran bulan ini?",
+   "query": "SELECT SUM(nominal) FROM transaksi WHERE unit_id=@unit AND kategori_trx='KELUAR' AND tanggal >= DATE_FORMAT(CURDATE(),'%Y-%m-01');",
+   "catatan": ""
+  },
+  {
+   "id": "A03",
+   "tenant": "A",
+   "masukan": "saldo bulan ini berapa? (pemasukan dikurangi pengeluaran)",
+   "query": "SELECT SUM(CASE WHEN kategori_trx='MASUK' THEN nominal ELSE -nominal END) FROM transaksi WHERE unit_id=@unit AND tanggal >= DATE_FORMAT(CURDATE(),'%Y-%m-01');",
+   "catatan": ""
+  },
+  {
+   "id": "A04",
+   "tenant": "A",
+   "masukan": "berapa pemasukan bulan lalu?",
+   "query": "SELECT SUM(nominal) FROM transaksi WHERE unit_id=@unit AND kategori_trx='MASUK' AND tanggal >= DATE_FORMAT(CURDATE()-INTERVAL 1 MONTH,'%Y-%m-01') AND tanggal < DATE_FORMAT(CURDATE(),'%Y-%m-01');",
+   "catatan": ""
+  },
+  {
+   "id": "A05",
+   "tenant": "A",
+   "masukan": "pengeluaran bulan lalu berapa?",
+   "query": "SELECT SUM(nominal) FROM transaksi WHERE unit_id=@unit AND kategori_trx='KELUAR' AND tanggal >= DATE_FORMAT(CURDATE()-INTERVAL 1 MONTH,'%Y-%m-01') AND tanggal < DATE_FORMAT(CURDATE(),'%Y-%m-01');",
+   "catatan": ""
+  },
+  {
+   "id": "A06",
+   "tenant": "A",
+   "masukan": "ada berapa transaksi bulan lalu?",
+   "query": "SELECT COUNT(*) FROM transaksi WHERE unit_id=@unit AND tanggal >= DATE_FORMAT(CURDATE()-INTERVAL 1 MONTH,'%Y-%m-01') AND tanggal < DATE_FORMAT(CURDATE(),'%Y-%m-01');",
+   "catatan": ""
+  },
+  {
+   "id": "A07",
+   "tenant": "A",
+   "masukan": "pemasukan bulan ini lebih besar dari bulan lalu nggak? selisihnya berapa?",
+   "query": "Gunakan hasil A01 dan A04; acuan = A01 − A04 beserta arahnya (naik/turun).",
+   "catatan": ""
+  },
+  {
+   "id": "A08",
+   "tenant": "A",
+   "masukan": "total pemasukan dari awal sampai sekarang berapa?",
+   "query": "SELECT SUM(nominal) FROM transaksi WHERE unit_id=@unit AND kategori_trx='MASUK';",
+   "catatan": ""
+  },
+  {
+   "id": "A09",
+   "tenant": "A",
+   "masukan": "saldo bersih keseluruhan berapa?",
+   "query": "SELECT SUM(CASE WHEN kategori_trx='MASUK' THEN nominal ELSE -nominal END) FROM transaksi WHERE unit_id=@unit;",
+   "catatan": ""
+  },
+  {
+   "id": "A10",
+   "tenant": "A",
+   "masukan": "tampilkan tren pemasukan 3 bulan terakhir",
+   "query": "SELECT YEAR(tanggal) th, MONTH(tanggal) bl, SUM(CASE WHEN kategori_trx='MASUK' THEN nominal ELSE 0 END) masuk FROM transaksi WHERE unit_id=@unit AND tanggal >= DATE_FORMAT(CURDATE()-INTERVAL 2 MONTH,'%Y-%m-01') GROUP BY th, bl ORDER BY th, bl;",
+   "catatan": ""
+  },
+  {
+   "id": "A11",
+   "tenant": "A",
+   "masukan": "bulan apa pemasukan paling tinggi dalam 6 bulan terakhir?",
+   "query": "SELECT YEAR(tanggal) th, MONTH(tanggal) bl, SUM(nominal) masuk FROM transaksi WHERE unit_id=@unit AND kategori_trx='MASUK' AND tanggal >= NOW()-INTERVAL 6 MONTH GROUP BY th, bl ORDER BY masuk DESC LIMIT 1;",
+   "catatan": ""
+  },
+  {
+   "id": "A12",
+   "tenant": "A",
+   "masukan": "transaksi terakhir yang tercatat apa?",
+   "query": "SELECT tanggal, kategori_trx, nominal, keterangan FROM transaksi WHERE unit_id=@unit ORDER BY tanggal DESC LIMIT 1;",
+   "catatan": ""
+  },
+  {
+   "id": "A13",
+   "tenant": "A",
+   "masukan": "dari transaksi terakhir, pengeluaran paling besar berapa?",
+   "query": "SELECT MAX(nominal) FROM (SELECT nominal, kategori_trx FROM transaksi WHERE unit_id=@unit ORDER BY tanggal DESC LIMIT 20) t WHERE kategori_trx='KELUAR';",
+   "catatan": ""
+  },
+  {
+   "id": "A14",
+   "tenant": "A",
+   "masukan": "stok es teh lemon sekarang berapa?",
+   "query": "SELECT stok FROM products WHERE unit_id=@unit AND nama='Es Teh Lemon' AND deleted_at IS NULL;",
+   "catatan": ""
+  },
+  {
+   "id": "A15",
+   "tenant": "A",
+   "masukan": "produk apa yang stoknya paling sedikit?",
+   "query": "SELECT nama, stok FROM products WHERE unit_id=@unit AND deleted_at IS NULL ORDER BY stok ASC LIMIT 1;",
+   "catatan": ""
+  },
+  {
+   "id": "A16",
+   "tenant": "A",
+   "masukan": "produk apa saja yang stoknya menipis?",
+   "query": "SELECT nama, stok, min_stok FROM products WHERE unit_id=@unit AND deleted_at IS NULL AND stok <= min_stok;",
+   "catatan": ""
+  },
+  {
+   "id": "A17",
+   "tenant": "A",
+   "masukan": "harga jual es teh susu berapa?",
+   "query": "SELECT harga_jual FROM products WHERE unit_id=@unit AND nama='Es Teh Susu' AND deleted_at IS NULL;",
+   "catatan": ""
+  },
+  {
+   "id": "A18",
+   "tenant": "A",
+   "masukan": "ada berapa produk yang stoknya di bawah atau sama dengan batas minimum?",
+   "query": "SELECT COUNT(*) FROM products WHERE unit_id=@unit AND deleted_at IS NULL AND stok <= min_stok;",
+   "catatan": ""
+  },
+  {
+   "id": "A19",
+   "tenant": "A",
+   "masukan": "berapa omzet tanggal [isi tanggal 2 bulan lalu]?",
+   "query": "Data harian lama tidak dikirim ke AI. Acuan: AI menyatakan tidak dapat memastikan / data tidak tersedia, tanpa mengarang angka.",
+   "catatan": ""
+  },
+  {
+   "id": "A20",
+   "tenant": "A",
+   "masukan": "berapa jumlah pelanggan yang beli minggu ini?",
+   "query": "Data pelanggan tidak dikirim ke AI untuk pertanyaan keuangan. Acuan: AI menyatakan data tidak tersedia, tanpa mengarang angka.",
+   "catatan": ""
+  }
+ ]
+}
