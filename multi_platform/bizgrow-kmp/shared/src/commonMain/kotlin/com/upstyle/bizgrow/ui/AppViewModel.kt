@@ -1242,11 +1242,11 @@ class AppViewModel(
         jalankanMasterData("Periode dibuka kembali", { loadClosingPeriods() }) { api.bukaKembaliPeriode(it, id) }
 
     /** Simpan akun COA baru; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
-    suspend fun simpanCoaBaru(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): String? {
+    suspend fun simpanCoaBaru(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?, parentId: Int? = null): String? {
         val unitId = _activeUnitId.value
         if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
         return try {
-            val res = api.createCoa(unitId, kode, nama, tipe, normalBalance, deskripsi)
+            val res = api.createCoa(unitId, kode, nama, tipe, normalBalance, deskripsi, parentId)
             if (res.success) { loadChartOfAccounts(); setSuccess("Akun COA dibuat"); null } else (res.message ?: "Gagal membuat akun")
         } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
     }
@@ -1273,8 +1273,8 @@ class AppViewModel(
 
     fun createCoa(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?) =
         jalankanMasterData("Akun COA dibuat", { loadChartOfAccounts() }) { api.createCoa(it, kode, nama, tipe, normalBalance, deskripsi) }
-    fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean) =
-        jalankanMasterData("Akun COA diperbarui", { loadChartOfAccounts() }) { api.updateCoa(id, nama, deskripsi, aktif) }
+    fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean, parentId: Int = 0) =
+        jalankanMasterData("Akun COA diperbarui", { loadChartOfAccounts() }) { api.updateCoa(id, nama, deskripsi, aktif, parentId) }
     fun deleteCoa(id: Int) =
         jalankanMasterData("Akun COA dinonaktifkan", { loadChartOfAccounts() }) { api.deleteCoa(id) }
 
@@ -2603,8 +2603,9 @@ class AppViewModel(
                     isLoading = false,
                     username = res.data["username"] ?: session.getUsername(),
                     email = res.data["email"] ?: session.getEmail(),
-                    phone = res.data["phone"] ?: ""
+                    avatarUrl = res.data["avatarUrl"] ?: ""
                 ) }
+                _profilVersi.value++
             } else {
                 _advancedSettingsState.update { it.copy(isLoading = false) }
             }
@@ -2614,12 +2615,22 @@ class AppViewModel(
         }
     }
 
-    fun saveProfile(name: String, email: String, phone: String) = viewModelScope.launch {
+    private val _profilVersi = MutableStateFlow(0)
+    /** Naik setiap profil berubah (nama/email/foto) agar layar yang membaca sesi ikut menyegarkan diri. */
+    val profilVersi: StateFlow<Int> = _profilVersi.asStateFlow()
+    val avatarUrl: String get() = _advancedSettingsState.value.avatarUrl
+
+    fun saveProfile(name: String, email: String, avatarUrl: String) = viewModelScope.launch {
         _advancedSettingsState.update { it.copy(isSaving = true, error = null) }
         val unitId = _activeUnitId.value
         try {
-            val res = api.updateProfile(unitId, mapOf("name" to name, "email" to email, "phone" to phone))
-            if (res.success) { _advancedSettingsState.update { it.copy(isSaving = false, successMessage = "Profil berhasil disimpan!") }; setSuccess("Profil berhasil disimpan!") }
+            val res = api.updateProfile(unitId, mapOf("name" to name, "email" to email, "avatarUrl" to avatarUrl))
+            if (res.success) {
+                session.getToken()?.let { session.saveSession(it, session.getRole(), email, name, session.getUserId()) }
+                _advancedSettingsState.update { it.copy(isSaving = false, username = name, email = email, avatarUrl = avatarUrl, successMessage = "Profil berhasil disimpan!") }
+                _profilVersi.value++
+                setSuccess("Profil berhasil disimpan!")
+            }
             else { _advancedSettingsState.update { it.copy(isSaving = false, error = res.error) }; setError(res.message ?: "Gagal") }
         } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }

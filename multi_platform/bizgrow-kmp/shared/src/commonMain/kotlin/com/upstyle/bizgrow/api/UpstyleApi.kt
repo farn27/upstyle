@@ -1332,11 +1332,11 @@ class UpstyleApi(private val client: HttpClient) {
     // Profil & akun → api/app/settings (mode=profile | password | preferences)
     suspend fun getProfileSettings(): ApiResponse<Map<String, String>> {
         val res: ApiResponse<ProfilDto> = client.get("api/app/settings") { parameter("mode", "profile") }.body()
-        return res.mapData { mapOf("username" to it.username, "email" to it.email, "name" to it.name, "phone" to it.phone) }
+        return res.mapData { mapOf("username" to it.username, "email" to it.email, "name" to it.name, "avatarUrl" to it.avatarUrl) }
     }
 
     suspend fun updateProfile(unitId: Int, data: Map<String, String>): ApiResponse<Unit> =
-        ubahSettings("profile", data.filterValues { it.isNotBlank() }.mapValues { JsonPrimitive(it.value) })
+        ubahSettings("profile", data.filter { it.key == "avatarUrl" || it.value.isNotBlank() }.mapValues { JsonPrimitive(it.value) })
 
     suspend fun changePassword(data: Map<String, String>): ApiResponse<Unit> =
         ubahSettings("password", data.mapValues { JsonPrimitive(it.value) })
@@ -1571,7 +1571,7 @@ class UpstyleApi(private val client: HttpClient) {
         }.body())
 
     // COA → api/app/finance/coa (tambah / ubah nama-deskripsi-status / nonaktifkan)
-    suspend fun createCoa(unitId: Int, kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): ApiResponse<Unit> =
+    suspend fun createCoa(unitId: Int, kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?, parentId: Int? = null): ApiResponse<Unit> =
         tanpaData(client.post("api/app/finance/coa") {
             setBody(buildJsonObject {
                 put("unitId", unitId)
@@ -1580,6 +1580,7 @@ class UpstyleApi(private val client: HttpClient) {
                 put("tipeAkun", tipe)
                 put("normalBalance", normalBalance)
                 deskripsi?.takeIf { it.isNotBlank() }?.let { put("deskripsi", it) }
+                parentId?.let { put("parentId", it) }
             })
         }.body())
 
@@ -1589,13 +1590,15 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(buildJsonObject { put("action", "generate-ai"); put("unitId", unitId); put("deskripsi", deskripsi); put("tambahkan", tambahkan) })
         }.body())
 
-    suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean): ApiResponse<Unit> =
+    /** [parentId] 0 = lepas dari induk. */
+    suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean, parentId: Int = 0): ApiResponse<Unit> =
         tanpaData(client.put("api/app/finance/coa") {
             setBody(buildJsonObject {
                 put("id", id)
                 put("namaAkun", nama)
                 put("deskripsi", deskripsi ?: "")
                 put("isActive", aktif)
+                put("parentId", parentId)
             })
         }.body())
 
@@ -1774,7 +1777,7 @@ private fun TaxRate.keJson(withId: Boolean) = buildJsonObject {
 private data class IdDto(val id: Int = 0)
 
 @Serializable
-private data class ProfilDto(val username: String = "", val email: String = "", val name: String = "", val phone: String = "")
+private data class ProfilDto(val username: String = "", val email: String = "", val name: String = "", val avatarUrl: String = "")
 
 @Serializable
 private data class HelpItemDto(val id: Int = 0, val q: String = "", val a: String = "", val category: String = "")

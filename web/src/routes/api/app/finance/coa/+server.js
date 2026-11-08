@@ -38,6 +38,21 @@ export async function GET({ url, cookies, request }) {
     }
 }
 
+/** Akun induk harus ada di unit yang sama, bukan akun itu sendiri, dan tidak boleh membuat lingkaran. null = tanpa induk. */
+async function cekInduk(unitId, parentId, selfId = null) {
+    if (parentId === null || parentId === undefined || parentId === '' || Number(parentId) === 0) return { ok: true, id: null };
+    const pid = Number(parentId);
+    if (!Number.isInteger(pid) || pid < 0) return { ok: false, pesan: 'Akun induk tidak valid' };
+    if (selfId !== null && pid === Number(selfId)) return { ok: false, pesan: 'Akun tidak bisa menjadi induk dirinya sendiri' };
+    let kini = await db.query.chartOfAccounts.findFirst({ where: eq(chartOfAccounts.id, pid) });
+    if (!kini || kini.unitId !== Number(unitId)) return { ok: false, pesan: 'Akun induk tidak ditemukan di unit ini' };
+    for (let i = 0; i < 20 && kini && selfId !== null; i++) {
+        if (kini.id === Number(selfId)) return { ok: false, pesan: 'Akun induk membuat lingkaran hierarki' };
+        kini = kini.parentId ? await db.query.chartOfAccounts.findFirst({ where: eq(chartOfAccounts.id, kini.parentId) }) : null;
+    }
+    return { ok: true, id: pid };
+}
+
 // POST: Create a new COA
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -111,7 +126,11 @@ export async function POST({ request, cookies }) {
             }, { status: 400 });
         }
 
+        const induk = await cekInduk(unitId, body.parentId);
+        if (!induk.ok) return json({ success: false, message: induk.pesan, data: null }, { status: 422 });
+
         const [result] = await db.insert(chartOfAccounts).values({
+            parentId: induk.id,
             unitId: Number(unitId),
             kodeAkun: String(kodeAkun),
             namaAkun: String(namaAkun),
@@ -129,6 +148,7 @@ export async function POST({ request, cookies }) {
             tipeAkun,
             normalBalance,
             deskripsi: deskripsi || null,
+            parentId: induk.id,
             isActive: 1
         };
 
@@ -165,6 +185,11 @@ export async function PUT({ request, cookies }) {
         if (namaAkun !== undefined) updateData.namaAkun = String(namaAkun);
         if (deskripsi !== undefined) updateData.deskripsi = deskripsi;
         if (isActive !== undefined) updateData.isActive = isActive ? 1 : 0;
+        if (body.parentId !== undefined) {
+            const induk = await cekInduk(akun.unitId, body.parentId, akun.id);
+            if (!induk.ok) return json({ success: false, message: induk.pesan, data: null }, { status: 422 });
+            updateData.parentId = induk.id;
+        }
 
         if (Object.keys(updateData).length === 0) {
             return json({ success: false, message: 'Tidak ada data yang diubah', data: null }, { status: 400 });

@@ -428,7 +428,7 @@ fun CoaScreen(viewModel: AppViewModel) {
                     item(key = "h-$kode") { Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = BizgrowColors.Primary, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp)) }
                     itemsIndexed(akun, key = { _, a -> a.id }) { i, a ->
                         ListRow(
-                            a.namaAkun, Modifier.enterAnimation(i), subtitle = "${a.kodeAkun} • normal ${if (a.normalBalance == "DEBIT") "debit" else "kredit"}",
+                            a.namaAkun, Modifier.enterAnimation(i), subtitle = "${a.kodeAkun} • normal ${if (a.normalBalance == "DEBIT") "debit" else "kredit"}" + (a.parentId?.let { pid -> daftar.firstOrNull { it.id == pid }?.let { " • sub dari ${it.kodeAkun}" } } ?: ""),
                             trailing = { if (a.isActive != 1) StatusChip("Nonaktif", BizgrowColors.Warning) }, onClick = { edit = a }, showChevron = true
                         )
                     }
@@ -445,6 +445,7 @@ fun CoaScreen(viewModel: AppViewModel) {
         var nama by remember(awal) { mutableStateOf(awal?.namaAkun ?: "") }
         var desk by remember(awal) { mutableStateOf(awal?.deskripsi ?: "") }
         var aktif by remember(awal) { mutableStateOf((awal?.isActive ?: 1) == 1) }
+        var induk by remember(awal) { mutableStateOf(awal?.parentId?.toString() ?: "") }
         var galat by remember(awal) { mutableStateOf<String?>(null) }
         var menyimpan by remember(awal) { mutableStateOf(false) }
         val kodeBentrok = awal == null && daftar.any { it.kodeAkun.equals(kode.trim(), true) }
@@ -459,11 +460,11 @@ fun CoaScreen(viewModel: AppViewModel) {
                 if (awal == null) {
                     menyimpan = true
                     scope.launch {
-                        val err = viewModel.simpanCoaBaru(kode.trim(), nama.trim(), tipe, normalDari(tipe), desk.ifBlank { null })
+                        val err = viewModel.simpanCoaBaru(kode.trim(), nama.trim(), tipe, normalDari(tipe), desk.ifBlank { null }, induk.toIntOrNull())
                         menyimpan = false
                         if (err == null) { tambah = false } else galat = err
                     }
-                } else { viewModel.updateCoa(awal.id, nama.trim(), desk.ifBlank { null }, aktif); edit = null }
+                } else { viewModel.updateCoa(awal.id, nama.trim(), desk.ifBlank { null }, aktif, induk.toIntOrNull() ?: 0); edit = null }
             }
         ) {
             PilihanField("Jenis akun", tipeCoa, tipe, { t -> tipe = t; if (awal == null && !kodeDiubahManual) kode = sarankanKode(t, daftar) }, enabled = awal == null)
@@ -471,6 +472,11 @@ fun CoaScreen(viewModel: AppViewModel) {
                 supportingText = if (kodeBentrok) "Kode ini sudah dipakai akun lain" else null)
             BizTextField(nama, { nama = it }, "Nama akun", placeholder = "Kas Kecil")
             Text("Saldo normal: ${if (normalDari(tipe) == "DEBIT") "Debit" else "Kredit"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PilihanField(
+                "Sub-akun dari (opsional)",
+                listOf("" to "— Bukan sub-akun —") + daftar.filter { it.id != awal?.id && it.isActive == 1 }.map { it.id.toString() to "[${it.kodeAkun}] ${it.namaAkun}" },
+                induk, { induk = it }, placeholder = "— Bukan sub-akun —"
+            )
             BizTextField(desk, { desk = it }, "Deskripsi (opsional)", placeholder = "Tulis catatan…", singleLine = false)
             if (awal != null) SwitchBaris("Akun aktif", "Akun nonaktif tidak muncul di pilihan transaksi", aktif) { aktif = it }
             galat?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = BizgrowColors.Danger, fontWeight = FontWeight.SemiBold) }

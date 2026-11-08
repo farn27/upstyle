@@ -125,6 +125,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // CS - both Screen.Cs and Screen.CsInbox map to the same screen
                     is Screen.Cs           -> CsInboxScreen(viewModel)
                     is Screen.CsInbox      -> CsInboxScreen(viewModel)
+                    is Screen.KnowledgeBase -> KnowledgeBaseScreen(viewModel)
                     is Screen.TicketDetail -> TicketDetailScreen(viewModel, target.ticketId)
 
                     // Ecommerce

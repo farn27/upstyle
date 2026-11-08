@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { users, riwayatAksi } from '$lib/server/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
@@ -34,7 +34,8 @@ export async function GET({ url, cookies, request }) {
                     role: true,
                     companyId: true,
                     createdAt: true,
-                    emailVerifiedAt: true
+                    emailVerifiedAt: true,
+                    avatarUrl: true
                 }
             });
 
@@ -45,7 +46,7 @@ export async function GET({ url, cookies, request }) {
                 username: user.username || '',
                 email: user.email || '',
                 name: user.username || '',
-                phone: '',
+                avatarUrl: user.avatarUrl || '',
                 role: user.role || 'free',
                 companyId: user.companyId ?? null,
                 createdAt: user.createdAt || '',
@@ -73,9 +74,9 @@ export async function PUT({ request, cookies }) {
 
         if (mode === 'profile') {
             const schema = z.object({
-                name: z.string().min(1).max(100).optional(),
-                email: z.string().email().optional(),
-                phone: z.string().optional()
+                name: z.string().trim().min(3, 'Nama minimal 3 karakter').max(50).optional(),
+                email: z.string().trim().toLowerCase().email('Format email tidak valid').max(100).optional(),
+                avatarUrl: z.string().trim().url('URL foto tidak valid').max(500).optional().or(z.literal(''))
             });
 
             const parsed = schema.safeParse(body);
@@ -84,7 +85,7 @@ export async function PUT({ request, cookies }) {
                 return apiError(msg, 422);
             }
 
-            const { name, email, phone } = parsed.data;
+            const { name, email, avatarUrl } = parsed.data;
 
             const existing = await db.query.users.findFirst({
                 where: eq(users.id, userId),
@@ -94,7 +95,13 @@ export async function PUT({ request, cookies }) {
 
             const updateData = {};
             if (name !== undefined) updateData.username = name;
-            if (email !== undefined) updateData.email = email;
+            if (email !== undefined) {
+                // Sama dengan web: email tidak boleh dipakai akun lain (dulu jadi error 500 dari unique key)
+                const dipakai = await db.select({ id: users.id }).from(users).where(and(eq(users.email, email), ne(users.id, userId))).limit(1);
+                if (dipakai.length > 0) return apiError('Email sudah dipakai akun lain', 409);
+                updateData.email = email;
+            }
+            if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl || null;
 
             await db.update(users).set(updateData).where(eq(users.id, userId));
 

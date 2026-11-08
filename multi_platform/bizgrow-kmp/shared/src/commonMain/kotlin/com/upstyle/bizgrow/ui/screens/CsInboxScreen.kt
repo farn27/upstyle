@@ -66,7 +66,10 @@ fun CsInboxScreen(viewModel: AppViewModel) {
 
     BizScreen(
         title = "Inbox CS", subtitle = "${tickets.size} tiket", onBack = { viewModel.navigateBack() },
-        actions = { BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadTickets() } },
+        actions = {
+            BizIconButton(Icons.Rounded.MenuBook, "Knowledge base") { viewModel.navigate(Screen.KnowledgeBase) }
+            BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadTickets() }
+        },
         floatingActionButton = { FabTambah("Tiket") { baru = true } }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {

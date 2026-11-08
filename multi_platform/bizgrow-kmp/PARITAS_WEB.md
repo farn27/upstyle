@@ -7,15 +7,15 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 |---|---|---|
 | Beranda web (`/`) | ✅ | Kalender deadline pajak (dihitung otomatis), update, Academy, bantuan, kartu AI |
 | Struktur bisnis (`/finance`) | ✅ | Pisah Kantor Pusat / Cabang, kartu Business Planning |
-| Dashboard unit (`finance/[slug]`) | ✅ | Periode, ringkasan, analisis, target bulan ini, risk assessment, kas & bank, stok menipis, tagihan jatuh tempo, audit log. ❌ mode grafik "ITEMS" |
+| Dashboard unit (`finance/[slug]`) | ✅ | Periode, ringkasan, analisis, target bulan ini, risk assessment, kas & bank, stok menipis, tagihan jatuh tempo, audit log. Mode grafik CASH / ITEMS (produk terlaris) |
 | Chat AI (`ChatAI.svelte`) | ✅ | Sambutan 4 tab + prompt, saran lanjutan, riwayat sesi 30 hari, konteks unit, tabel/metric/alert/progress/grid/steps, grafik, kartu transaksi (kas/COA), salin, detail, mode instan. ❌ unggah file CSV/gambar (butuh file picker native) |
 | AI Advisor / Laporan WA | 🟡 | Ada sebagai tab di layar AI; tampilan belum dirombak |
-| Riwayat transaksi (`history`) | ✅ | Filter periode/jenis/pencarian, urutan, detail + saldo setelah transaksi, ekspor lewat layar Ekspor. ❌ filter kategori ABC, cetak invoice, paginasi (100 terbaru) |
+| Riwayat transaksi (`history`) | ✅ | Filter periode/jenis/pencarian/kategori ABC, urutan, detail + saldo setelah transaksi, muat lebih lama (paginasi), ekspor lewat layar Ekspor, invoice (cetak / simpan PDF) dari detail transaksi |
 | Entri transaksi (`entry`) | ✅ | AI sinkron, COA, kas, produk, qty + cek stok. ❌ tambah akun kas baru dari form (lewat layar COA) |
 | Laporan (`laporan`) | ✅ | Dashboard analisis, laba rugi formal, neraca (data sama dgn web via helper bersama) |
-| Buku besar / Jurnal umum | 🟡 | Filter bulan/tahun & referensi belum lengkap |
+| Buku besar / Jurnal umum | ✅ | Filter akun + bulan/tahun, referensi jurnal manual |
 | Piutang / Hutang | ✅ | Pilih akun kas saat bayar; hutang asal pengadaan kini dijurnal. ❌ cetak PDF |
-| Master data: pajak, aset tetap, anggaran, COA, tutup buku | ✅ | CRUD lengkap. ❌ COA parent/generate AI, aset ↔ akun COA, realisasi anggaran |
+| Master data: pajak, aset tetap, anggaran, COA, tutup buku | ✅ | CRUD lengkap. COA: sub-akun (induk) + buat otomatis AI/template, aset ↔ akun COA |
 | Master data: kontak akuntansi | ✅ | CRUD + termin & limit kredit |
 | HR: tambah karyawan | ✅ | Identitas, pekerjaan, kompensasi, kontak darurat, akses portal |
 | HR: detail karyawan / payroll / absensi | ✅ | Profil lengkap + ubah, KPI, riwayat jabatan, dokumen, tandai payroll lunas, edit departemen. ❌ komponen gaji earnings/deductions, slip PDF, dasbor HR eksekutif |
@@ -23,7 +23,7 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 | POS: antrean & dapur | ✅ | Auto-refresh 15 dtk |
 | POS: voucher/promo | ✅ | CRUD + kuota |
 | POS: shift (setor/tarik kas), laporan kasir, pesanan ditunda | ✅ | Pesanan ditunda hilang jika aplikasi ditutup. ❌ PIN otorisasi (tidak relevan untuk pemilik), kelola fitur POS & produk tampil di POS |
-| Produk | 🟡 | ❌ atribut/varian lengkap di form tambah, impor CSV (file picker) |
+| Produk | ✅ | Atribut/varian (maks 3 opsi, kombinasi otomatis) di form tambah; impor CSV lewat layar Impor |
 | Pengadaan | ✅ | Detail PO: terima barang, tagihan, retur, bayar faktur, tutup/batal + saran restock. ❌ laporan pembelian, cetak PO |
 | CRM | ✅ | Deal (nama, nilai, tahap, hapus), kontak (daftar, cari, detail, ubah, hapus), aktivitas, tugas follow-up, pipeline kanban. ❌ kampanye CRM (halaman web hanya placeholder) |
 | Penjualan: penawaran & sales order | ✅ | Buat dengan item, alur status, konversi penawaran ACCEPTED → sales order (sekali) |
@@ -32,7 +32,7 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 | Marketing / Landing page / Sosmed / Website / Katalog | ✅ | Lead per unit → kontak CRM, slug unik, jadwal posting, foto dari galeri, URL publik asli, katalog aktif/nonaktif tersimpan |
 | Unit bisnis: portal staff | ✅ | Lihat/salin/buat ulang link login staff |
 | Impor produk/pelanggan | ✅ (Android) | Pemilih file CSV/Excel + validasi; iOS belum |
-| Settings / billing / help | ✅ | Ganti password (argon2), FAQ bantuan nyata. ❌ avatar URL, ulasan aplikasi |
+| Settings / billing / help | ✅ | Ganti password (argon2), nama/email (min 3 huruf, email unik), URL foto profil tampil di Profil. Kolom "Telepon" palsu dihapus (server tak punya kolomnya) |
 | Planning wizard | ✅ | 7 langkah lengkap + bantuan AI + proyeksi, ringkasan AI. Terapkan ke unit lewat daftar plan |
 | Portal staff, toko publik, auth web | — | Bukan bagian aplikasi pemilik |
 
@@ -90,3 +90,11 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 - Tab "Tiket" lama di app (tiket pelanggan, tombol buat selalu gagal) diganti "Hubungi".
 - Beda yang disengaja: "Pintasan keyboard" hanya web; tab "Status sistem" web masih ping simulasi — app memakai Diagnostik nyata.
 - Test: `web/src/tests/bantuan-app.test.js`.
+
+## Sisa paritas (audit lanjutan)
+- **Knowledge Base CS**: layar baru (cari ke server, filter kategori, tambah, buka, hapus) dari tombol buku di Inbox CS — sebelumnya ViewModel & API ada tetapi tidak punya layar.
+- **Profil**: URL foto profil (web `avatarUrl`) kini bisa diatur & tampil di header Profil; nama/email di sesi ikut diperbarui setelah simpan. API app kini menolak email ganda (409, dulu error 500) dan nama < 3 huruf.
+- **COA sub-akun**: API `finance/coa` menerima `parentId` (satu unit, bukan diri sendiri, tanpa lingkaran; `0` = lepas).
+- Test: `profil-coa-app.test.js`.
+- **Sengaja tidak ditiru**: unggah file di Chat AI web hanya merangkum CSV (gambar: "OCR segera hadir", Excel: tidak didukung); kampanye CRM web hanya placeholder; Shopee/e-commerce integrasi.
+- **Masih ❌**: cetak invoice dari layar Piutang/Hutang (`piutang|hutang/invoice/[id]`) dan cetak PO (`po/[id]/cetak`) — yang sudah: invoice transaksi & slip gaji; iOS belum diverifikasi.

@@ -878,7 +878,9 @@ data class ChartOfAccount(
     val tipeAkun: String = "",
     val normalBalance: String = "DEBIT",
     val isActive: Int = 1,
-    val deskripsi: String? = null
+    val deskripsi: String? = null,
+    /** Akun induk (sub-akun) — sama dengan "Sub-Akun Dari" di web. */
+    val parentId: Int? = null
 )
 
 @Serializable

@@ -62,6 +62,7 @@ sealed class Screen {
     object CrmContacts : Screen()
     object CrmActivities : Screen()
     object CsInbox : Screen()
+    object KnowledgeBase : Screen()
     object Profile : Screen()
     object Settings : Screen()
     object Auth : Screen()

@@ -210,7 +210,7 @@ data class AdvancedSettingsState(
     val successMessage: String? = null,
     val username: String = "",
     val email: String = "",
-    val phone: String = "",
+    val avatarUrl: String = "",
     val darkMode: Boolean = false,
     val notifEnabled: Boolean = true
 )

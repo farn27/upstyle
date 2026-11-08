@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -81,7 +81,7 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
     // Profil tab state
     var profileName by remember { mutableStateOf("") }
     var profileEmail by remember { mutableStateOf("") }
-    var profilePhone by remember { mutableStateOf("") }
+    var profileAvatar by remember { mutableStateOf("") }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -101,10 +101,10 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
     LaunchedEffect(Unit) { viewModel.loadProfileSettings() }
 
     // Populate fields from state
-    LaunchedEffect(state.username, state.email, state.phone) {
+    LaunchedEffect(state.username, state.email, state.avatarUrl) {
         profileName = state.username
         profileEmail = state.email
-        profilePhone = state.phone
+        profileAvatar = state.avatarUrl
     }
     LaunchedEffect(state.darkMode, state.notifEnabled) {
         darkMode = state.darkMode || viewModel.themeMode.value == "dark"
@@ -132,7 +132,7 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
                 FloatingActionButton(
                     onClick = {
                         if (selectedTab == 0) {
-                            viewModel.saveProfile(profileName.trim(), profileEmail.trim(), profilePhone.trim())
+                            viewModel.saveProfile(profileName.trim(), profileEmail.trim(), profileAvatar.trim())
                         } else {
                             viewModel.updatePreferences(darkMode, notifEnabled)
                         }
@@ -173,10 +173,10 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
                     state = state,
                     profileName = profileName,
                     profileEmail = profileEmail,
-                    profilePhone = profilePhone,
+                    profileAvatar = profileAvatar,
                     onNameChange = { profileName = it },
                     onEmailChange = { profileEmail = it },
-                    onPhoneChange = { profilePhone = it },
+                    onAvatarChange = { profileAvatar = it },
                     onShowPasswordDialog = { showPasswordDialog = true }
                 )
 
@@ -336,10 +336,10 @@ private fun ProfilTab(
     state: com.upstyle.bizgrow.ui.state.AdvancedSettingsState,
     profileName: String,
     profileEmail: String,
-    profilePhone: String,
+    profileAvatar: String,
     onNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
-    onPhoneChange: (String) -> Unit,
+    onAvatarChange: (String) -> Unit,
     onShowPasswordDialog: () -> Unit
 ) {
     if (state.isLoading) {
@@ -384,13 +384,13 @@ private fun ProfilTab(
                         leadingIcon = { Icon(Icons.Default.Email, null, tint = BizgrowColors.Gray400) }
                     )
                     OutlinedTextField(
-                        value = profilePhone,
-                        onValueChange = onPhoneChange,
-                        label = { Text("Telepon") },
+                        value = profileAvatar,
+                        onValueChange = onAvatarChange,
+                        label = { Text("URL foto profil (opsional)") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Phone, null, tint = BizgrowColors.Gray400) }
+                        leadingIcon = { Icon(Icons.Default.Link, null, tint = BizgrowColors.Gray400) }
                     )
                 }
             }
