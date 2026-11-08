@@ -125,7 +125,7 @@ describe.skipIf(!TEST_DB)('Audit: harga, isolasi unit, piutang, retur', () => {
 		expect(ink.data).toMatchObject({ ppn: 595, total: 6000 });
 
 		// jurnal seimbang: Dr kas = Kr pendapatan + Kr PPN Keluaran
-		const [jr] = await db.select().from(s.journalEntries).where(o.eq(s.journalEntries.sourceId, String(eks.id)));
+		const [jr] = await db.select().from(s.journalEntries).where(o.and(o.eq(s.journalEntries.sourceId, String(eks.id)), o.eq(s.journalEntries.unitId, id.unitA)));
 		const baris = await db.select().from(s.journalEntryLines).where(o.eq(s.journalEntryLines.journalId, jr.id));
 		const debit = baris.reduce((a, b) => a + Number(b.debit), 0);
 		const kredit = baris.reduce((a, b) => a + Number(b.kredit), 0);
