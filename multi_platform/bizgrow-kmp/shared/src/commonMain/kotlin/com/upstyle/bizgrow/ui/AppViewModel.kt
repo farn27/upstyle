@@ -384,6 +384,20 @@ class AppViewModel(
     }
     private val _leaveRequests = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.LeaveRequest>>(emptyList())
     val leaveRequests: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.LeaveRequest>> = _leaveRequests.asStateFlow()
+    fun ajukanCuti(employeeId: Int, tipe: String, mulai: String, selesai: String, alasan: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ajukanCuti(_activeUnitId.value, employeeId, tipe, mulai, selesai, alasan)
+            if (res.success) { loadLeaveRequests(); setSuccess("Pengajuan dicatat") } else setError(res.message ?: "Gagal mengajukan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun putusCuti(leaveId: Int, setuju: Boolean) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.putusCuti(leaveId, if (setuju) "approved" else "rejected")
+            if (res.success) { loadLeaveRequests(); setSuccess(res.message ?: "Tersimpan") } else setError(res.message ?: "Gagal memproses")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     fun loadLeaveRequests() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -2734,6 +2748,14 @@ class AppViewModel(
             if (res.success) { loadStockOpnameList(); loadProducts(); loadLowStock(); setSuccess(res.message ?: "Stok opname selesai"); onSelesai() }
             else { setError(res.message ?: "Gagal menyimpan stok opname"); onGagal() }
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onGagal() }
+    }
+
+    fun ubahHargaProduk(productId: String, hargaBeli: Double, hargaJual: Double, minStok: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahHarga(productId, hargaBeli, hargaJual, minStok)
+            if (res.success) { loadProducts(); setSuccess("Harga diperbarui") } else setError(res.message ?: "Gagal memperbarui harga")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
     fun loadStockOpnameList() = viewModelScope.launch {

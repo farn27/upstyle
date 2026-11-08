@@ -966,6 +966,17 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
     }
 
+    suspend fun ajukanCuti(unitId: Int, employeeId: Int, tipe: String, mulai: String, selesai: String, alasan: String): ApiResponse<JsonObject> =
+        client.post("api/app/hr/leave") {
+            setBody(buildJsonObject {
+                put("unitId", unitId); put("employeeId", employeeId); put("type", tipe)
+                put("startDate", mulai); put("endDate", selesai); put("reason", alasan)
+            })
+        }.body()
+
+    suspend fun putusCuti(leaveId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/hr/leave") { setBody(buildJsonObject { put("leaveId", leaveId); put("status", status) }) }.body()
+
     suspend fun getLeaveRequests(unitId: Int): ApiResponse<List<LeaveRequest>> =
         client.get("api/app/hr/leave") { parameter("unitId", unitId) }.body()
 
@@ -1433,6 +1444,12 @@ class UpstyleApi(private val client: HttpClient) {
                 put("type", type)
             })
         }.body())
+
+    /** Ubah harga beli / jual (dan stok minimum) satu produk. */
+    suspend fun ubahHarga(productId: String, hargaBeli: Double, hargaJual: Double, minStok: Int): ApiResponse<JsonObject> =
+        client.put("api/app/products/pricing") {
+            setBody(buildJsonObject { put("id", productId); put("hargaBeli", hargaBeli); put("hargaJual", hargaJual); put("minStok", minStok) })
+        }.body()
 
     /** Simpan stok opname: item = (productId, stok fisik). Stok sistem diambil server saat itu juga. */
     suspend fun simpanStokOpname(unitId: Int, catatan: String?, items: List<Pair<String, Int>>): ApiResponse<JsonObject> =
