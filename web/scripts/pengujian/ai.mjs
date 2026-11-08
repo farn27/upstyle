@@ -62,7 +62,16 @@ async function entri(k) {
 	const slug = sesiTenant[k.tenant].cfg.slug;
 	const kirim = () => minta(`${c.baseUrl}/finance/${slug}/entry?/prosesAI`, { method: 'POST', headers: { origin: c.baseUrl, 'x-sveltekit-action': 'true', cookie: cookieWeb[k.tenant] }, body: new URLSearchParams({ teksInput: k.masukan }) });
 	let r = await kirim(), ulang = false, data = urai(r);
-	if (data?.error && /terlalu banyak permintaan ai|kuota ai/i.test(String(data.error))) { console.log('   kuota AI → tunggu 65 dtk lalu ulang sekali'); await tidur(65000); r = await kirim(); ulang = true; data = urai(r); }
+	for (let percobaan = 0; percobaan < 3 && data?.error; percobaan++) {
+		const pesan = String(data.error);
+		const bizgrow = /terlalu banyak permintaan ai|kuota ai/i.test(pesan);
+		const groq429 = /429|rate limit/i.test(pesan);
+		if (!bizgrow && !groq429) break;
+		const m = /try again in ([\d.]+)\s?(ms|s|m)\b/i.exec(pesan);
+		const detik = bizgrow ? 65 : m ? Math.ceil(Number(m[1]) * (m[2] === 'ms' ? 0.001 : m[2] === 'm' ? 60 : 1)) + 3 : 20;
+		console.log(`   ${bizgrow ? 'kuota Bizgrow' : 'batas penyedia model (429)'} → tunggu ${detik} dtk lalu ulang (${percobaan + 1}/3)`);
+		await tidur(detik * 1000); r = await kirim(); ulang = true; data = urai(r);
+	}
 	const ok = data?.success === true && data.hasil;
 	return { r: { ...r, status: ok ? 200 : 502, json: ok ? r.json : { message: data?.error ?? `respons tidak dikenali (HTTP ${r.status}): ${String(r.teks).slice(0, 80)}` } }, ulang, h0: ok ? data.hasil : null, via: 'web', mentahRespons: data ?? r.teks };
 }
@@ -73,7 +82,7 @@ const ringkasEk = (h) => h ? `${h.kategori} | ${h.produk ?? '-'} | ${h.qty ?? '-
 const berkasCsv = {};
 function tulisBaris(nama, row) {
 	const kolom = ['id', 'tenant', ...runList.flatMap((r) => [`R${r}_ringkas`, `R${r}_nilai`, `R${r}_salah`, `R${r}_ms`, `R${r}_catatan`])];
-	if (!berkasCsv[nama]) { berkasCsv[nama] = path.join(dir, `${nama}-${waktu}.csv`); fs.writeFileSync(berkasCsv[nama], kolom.join(',') + '\n'); }
+	if (!berkasCsv[nama]) { berkasCsv[nama] = path.join(dir, `${nama}-${waktu}.csv`); fs.writeFileSync(berkasCsv[nama], '\ufeff' + kolom.join(',') + '\n'); // BOM: agar Excel membaca UTF-8 }
 	fs.appendFileSync(berkasCsv[nama], csv([row], kolom).split('\n').slice(1).join('\n'));
 }
 const baris = { ekstraksi: [], akun: [], analitis: [] };

@@ -25,7 +25,7 @@ def baca(sub, berkas):
     dasar = os.path.splitext(berkas)[0]
     hasil = []
     for f in sorted(glob.glob(os.path.join(a.bukti, sub, dasar + '.csv')) + glob.glob(os.path.join(a.bukti, sub, dasar + '-*.csv'))):
-        with open(f, newline='', encoding='utf-8') as fh: hasil += list(csv.DictReader(fh))
+        with open(f, newline='', encoding='utf-8-sig') as fh: hasil += list(csv.DictReader(fh))
     return hasil
 
 def cari_baris(ws, kolom_id, awal, akhir):
