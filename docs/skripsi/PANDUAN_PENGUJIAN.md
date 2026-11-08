@@ -33,8 +33,10 @@ terukur (milidetik), dapat diulang, dan menyimpan keluaran mentah sehingga dapat
 2. **Data uji** sesuai sheet `Data Uji`: Tenant A (Esteh Uji, CAFE) dan Tenant B (Bubur Uji, RESTORAN), produk, stok, COA.
    Kode akun COA di sheet harus sama persis dengan yang ada di Bizgrow (jika beda, ubah acuan *sebelum* uji dan catat).
    Isi transaksi sintetis Tenant A ≥ 3 bulan kalender, ≥ 20 transaksi di bulan berjalan (butuh untuk kasus A04–A11).
-3. **Peran.** Pemilik = akun `users`. **Manajer/staf/kasir = karyawan** yang masuk lewat `/portal/<login_slug>` dengan PIN
-   (bukan akun `users` berperan). Buat karyawan berperan *kasir*, *staf*, *manajer* di menu HR Tenant A; kasir dipakai di skenario 3.
+3. **Peran.** Kedua studi kasus tidak punya karyawan, jadi **seluruh uji POS/fungsional dijalankan dengan akun pemilik** (web dan
+   mobile). Satu-satunya yang butuh peran lain adalah **skenario keamanan 3 (otorisasi)**: buat satu karyawan *kasir* uji di Tenant A
+   (login lewat `/portal/<login_slug>` dengan PIN). Itu menguji kontrol sistem, bukan kebutuhan UMKM; jika dosen setuju, skenario
+   ini dapat dihapus dari Tabel 3.2/4.7 (jumlah skenario menjadi enam).
 4. **Konfigurasi skrip:**
    ```bash
    cd web/scripts/pengujian
