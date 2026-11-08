@@ -13,7 +13,8 @@ import { todayStrWIB, thisMonthWIB, formatMonthID } from '$lib/server/dateUtils'
 
 const schema = z.object({
 	unitId: z.coerce.number().int().positive(),
-	periode: z.enum(['hari_ini', 'kemarin', 'minggu_ini', 'bulan_ini']).default('hari_ini')
+	// terima juga label tampilan app ("Hari Ini", "Bulan Ini") → hari_ini, bulan_ini
+	periode: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase().replace(/\s+/g, '_') : v), z.enum(['hari_ini', 'kemarin', 'minggu_ini', 'bulan_ini'])).default('hari_ini')
 });
 
 const idr = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -31,7 +32,7 @@ export async function POST({ request, cookies }) {
 	try { body = await request.json(); } catch { return apiError('Invalid JSON', 400); }
 
 	const parsed = schema.safeParse(body);
-	if (!parsed.success) return apiError(parsed.error.errors[0]?.message, 422);
+	if (!parsed.success) return apiError(parsed.error.issues?.[0]?.message || 'Input tidak valid', 422);
 
 	const { unitId, periode } = parsed.data;
 

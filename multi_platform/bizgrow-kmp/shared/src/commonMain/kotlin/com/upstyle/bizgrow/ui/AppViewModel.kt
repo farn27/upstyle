@@ -1286,7 +1286,7 @@ class AppViewModel(
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val res = api.getLaporanWa(LaporanWaRequest(unitId, periode))
+            val res = api.getLaporanWa(LaporanWaRequest(unitId, periode.trim().lowercase().replace(' ', '_')))
             if (res.success) { _laporanWa.value = res.data; _uiState.update { it.copy(isLoading = false) } }
             else setError(res.message ?: "Gagal load laporan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }

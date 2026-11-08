@@ -25,8 +25,14 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 | POS: shift (setor/tarik kas), laporan kasir, pesanan ditunda | ✅ | Pesanan ditunda hilang jika aplikasi ditutup. ❌ PIN otorisasi (tidak relevan untuk pemilik), kelola fitur POS & produk tampil di POS |
 | Produk | 🟡 | ❌ atribut/varian lengkap di form tambah, impor CSV (file picker) |
 | Pengadaan | ✅ | Detail PO: terima barang, tagihan, retur, bayar faktur, tutup/batal + saran restock. ❌ laporan pembelian, cetak PO |
-| CRM / CS | 🟡 | Kontak, pipeline, aktivitas, tiket dasar. ❌ kampanye CRM, detail kontak |
-| Settings / billing / help | 🟡 | ❌ avatar URL, modal awal & kategori, ulasan aplikasi |
+| CRM | ✅ | Deal (nama, nilai, tahap, hapus), kontak (daftar, cari, detail, ubah, hapus), aktivitas, tugas follow-up, pipeline kanban. ❌ kampanye CRM (halaman web hanya placeholder) |
+| Penjualan: penawaran & sales order | ✅ | Buat dengan item, alur status, konversi penawaran ACCEPTED → sales order (sekali) |
+| CS (tiket) | ✅ | Inbox dengan filter & pencarian, detail + percakapan, ubah status/prioritas, pelanggan tersimpan |
+| Pesanan toko online | ✅ | Status bayar & kirim terpisah seperti web, detail, WhatsApp pelanggan |
+| Marketing / Landing page / Sosmed / Website / Katalog | ✅ | Lead per unit → kontak CRM, slug unik, jadwal posting, foto dari galeri, URL publik asli, katalog aktif/nonaktif tersimpan |
+| Unit bisnis: portal staff | ✅ | Lihat/salin/buat ulang link login staff |
+| Impor produk/pelanggan | ✅ (Android) | Pemilih file CSV/Excel + validasi; iOS belum |
+| Settings / billing / help | ✅ | Ganti password (argon2), FAQ bantuan nyata. ❌ avatar URL, ulasan aplikasi |
 | Planning wizard | ✅ | 7 langkah lengkap + bantuan AI + proyeksi, ringkasan AI. Terapkan ke unit lewat daftar plan |
 | Portal staff, toko publik, auth web | — | Bukan bagian aplikasi pemilik |
 
@@ -40,3 +46,15 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 - `POST /api/app/finance/payables` (bayar hutang) tidak menjurnal/kas keluar untuk tagihan pengadaan → kini memakai `bayarTagihan` seperti web.
 - `pos` action `verify-pin` selalu gagal dan bisa dipakai menebak PIN karyawan tenant lain → diperbaiki.
 - Payroll: status `DIBAYAR` vs `PAID` dan filter bulan memakai teks → dipakai `periodMonth/periodYear`.
+
+## Perbaikan sesi "lengkapi semua modul"
+- **Klien Ktor tidak mengirim properti bernilai default** (`action = "checkout"`, `"create-contact"`, …) → banyak tombol berujung "aksi tidak dikenali". Sekarang `encodeDefaults = true` + `@EncodeDefault` pada semua `action`.
+- `GET crm?type=contacts` tidak ada → tab Kontak selalu kosong; daftar deal terpotong 20 baris; kontak tertanam di deal tanpa `ownerId/unitId` membuat seluruh deal gagal dibaca.
+- Status tiket CS (`Open` vs `OPEN`) tidak cocok → inbox selalu kosong; ubah status mengirim nilai enum salah.
+- Pesanan toko online: model app memerlukan `status` yang tidak dikirim server → daftar pesanan tidak pernah terbaca.
+- **Kebocoran lintas tenant**: lead marketing (semua unit) dan riwayat payroll (gaji semua unit) tidak difilter unit → diperbaiki + tes.
+- Penawaran: konversi lama membuat POS order dan mengisi status `CONVERTED` yang tidak ada di enum → selalu gagal; sales order lama mencatat pemasukan sebelum dibayar.
+- Katalog online "tersimpan" padahal server tidak menyimpan apa pun; situs publik tetap terbuka walau dinonaktifkan; URL contoh palsu (`katalog.bizgrow.id`).
+- Slug unik: karyawan (tabrakan acak 4 digit), landing page, situs web; jadwal sosmed memakai `new Date()` → zona waktu salah.
+- Laporan WA: app mengirim label tampilan ("Bulan Ini") yang ditolak server.
+- Ganti password app memakai plaintext (tidak cocok argon2); link portal staff mengubah slug unit.
