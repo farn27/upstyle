@@ -8,6 +8,7 @@ import org.koin.core.context.startKoin
 class BizgrowApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.upstyle.bizgrow.data.SessionRepository.serverBawaan = BuildConfig.SERVER_URL
         startKoin {
             androidContext(this@BizgrowApp)
             modules(sharedModule)

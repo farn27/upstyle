@@ -68,8 +68,8 @@ jobs:
           -F "platform=android" \
           "https://api.appetize.io/v1/apps")
 
-        echo "📋 Raw API Response:"
-        echo "$RESPONSE"
+        # Respons mentah TIDAK dicetak: berisi privateKey Appetize (rahasia) yang akan bocor ke log publik.
+        echo "📋 Respons diterima ($(echo "$RESPONSE" | wc -c) byte)"
 
         # Parse publicKey dengan jq
         PUBLIC_KEY=$(echo "$RESPONSE" | jq -r '.publicKey // .appKey // ""')
