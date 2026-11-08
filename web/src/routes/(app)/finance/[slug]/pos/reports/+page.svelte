@@ -143,7 +143,7 @@
             </td>
 
             <td class="py-4 text-[11px] font-black text-slate-900 dark:text-white font-mono">
-                Rp {Number(trx.nominal).toLocaleString('id-ID')}
+                Rp {Number(trx.total).toLocaleString('id-ID')}
             </td>
 
             <td class="py-4 text-right">
@@ -281,7 +281,7 @@
             <div class="pt-4 flex justify-between items-center border-t-2 border-slate-100 dark:border-slate-800">
                 <span class="text-xs font-black text-slate-900 dark:text-white uppercase">Total Nominal</span>
                 <span class="text-xl font-mono font-black text-blue-600">
-                    Rp {Number(selectedTrx.nominal).toLocaleString('id-ID')}
+                    Rp {Number(selectedTrx.total).toLocaleString('id-ID')}
                 </span>
             </div>
         </div>
