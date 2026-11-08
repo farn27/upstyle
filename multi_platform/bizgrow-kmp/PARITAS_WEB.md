@@ -81,3 +81,12 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 - Paritas: 6 model pendapatan, 6 channel, 6 platform online (nama sama dengan web), tombol "Minta AI review" di langkah 3, canvas tersimpan (`canvasJson`).
 - Server: mode AI baru `review`; konteks AI kini ringkasan berlabel lengkap (dulu JSON dipotong 400–600 karakter sehingga modal, biaya, dan channel sering tidak terbaca AI); prompt canvas meminta JSON murni.
 - Daftar rencana (app) menampilkan progres langkah, status Draf/Selesai/Diterapkan; "Terapkan" dulu memakai unit aktif secara diam-diam — kini memilih tujuan secara eksplisit.
+
+## Pusat Bantuan / FAQ
+- **Satu sumber konten**: `web/src/lib/bantuanKonten.js` (FAQ, kategori, panduan, kendala) dipakai halaman web `/help` **dan** `GET /api/app/help` — isi web & app selalu identik. Dulu app punya 17 FAQ sendiri yang berbeda dengan web, tanpa Panduan/Kendala.
+- **App (4 tab)**: Panduan (5 panduan langkah-demi-langkah), FAQ (15 pertanyaan + filter kategori + cari), Kendala (kasir/keuangan/sinkronisasi + solusi), Hubungi (tiket ke tim Bizgrow, ulasan bintang, tautan Diagnostik).
+- FAQ tambahan di kedua sisi: portal staff, impor data, PPN, penawaran → SO, lead → CRM, Business Planning, tiket CS.
+- **Ulasan aplikasi** di web kini sungguhan terkirim (`action:'review'` → email ke `SUPPORT_EMAIL`); sebelumnya hanya `console`/simulasi.
+- Tab "Tiket" lama di app (tiket pelanggan, tombol buat selalu gagal) diganti "Hubungi".
+- Beda yang disengaja: "Pintasan keyboard" hanya web; tab "Status sistem" web masih ping simulasi — app memakai Diagnostik nyata.
+- Test: `web/src/tests/bantuan-app.test.js`.

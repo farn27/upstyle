@@ -1243,6 +1243,31 @@ data class PosFeatureOverride(
 
 // â”€â”€â”€ POS Shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// ─── Pusat Bantuan (konten sama dengan halaman /help web, dari GET /api/app/help) ───
+
+@Serializable
+data class BantuanFaq(val id: Int = 0, val q: String = "", val a: String = "", val category: String = "")
+
+@Serializable
+data class BantuanKategori(val id: String = "", val label: String = "")
+
+@Serializable
+data class BantuanPanduan(val title: String = "", val desc: String = "", val steps: List<String> = emptyList())
+
+@Serializable
+data class BantuanMasalah(val problem: String = "", val solution: String = "")
+
+@Serializable
+data class BantuanTroubleshoot(val id: String = "", val label: String = "", val masalah: List<BantuanMasalah> = emptyList())
+
+@Serializable
+data class BantuanKonten(
+    val items: List<BantuanFaq> = emptyList(),
+    val kategori: List<BantuanKategori> = emptyList(),
+    val panduan: List<BantuanPanduan> = emptyList(),
+    val troubleshoot: List<BantuanTroubleshoot> = emptyList()
+)
+
 @Serializable
 data class DokumenLink(val url: String = "", val berlakuMenit: Int = 10)
 

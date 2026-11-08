@@ -1,107 +1,87 @@
-﻿package com.upstyle.bizgrow.ui.screens
+package com.upstyle.bizgrow.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.upstyle.bizgrow.data.HelpArticle
-import com.upstyle.bizgrow.data.HelpFaqItem
-import com.upstyle.bizgrow.data.SupportTicket
+import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
+import com.upstyle.bizgrow.ui.design.*
+import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val tabBantuan = listOf("Panduan", "FAQ", "Kendala", "Hubungi")
+
+/** Pusat Bantuan — konten sama dengan halaman /help di web: panduan modul, FAQ (cari + kategori), troubleshooting, hubungi tim & ulasan. */
 @Composable
 fun HelpCenterScreen(viewModel: AppViewModel) {
-    val helpState by viewModel.helpState.collectAsState()
-    val csState by viewModel.csState.collectAsState()
-    var selectedTab by remember { mutableStateOf(0) }
+    val konten by viewModel.bantuan.collectAsState(initial = viewModel.bantuan.value)
+    val galat by viewModel.bantuanGalat.collectAsState(initial = viewModel.bantuanGalat.value)
+    var tab by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadContextualHelp("general")
-        viewModel.loadHelpFaqs()
-        viewModel.loadTickets()
-    }
+    LaunchedEffect(Unit) { viewModel.muatBantuan() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Pusat Bantuan", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.navigate(Screen.Diagnostics) }) {
-                        Icon(Icons.Default.BugReport, contentDescription = "Diagnostik")
-                    }
-                }
-            )
+    BizScreen(
+        title = "Pusat bantuan", subtitle = "Panduan, FAQ, dan dukungan", onBack = { viewModel.navigateBack() },
+        actions = {
+            BizIconButton(Icons.Rounded.AutoAwesome, "Tanya Asisten AI") { viewModel.navigate(Screen.AiChat) }
+            BizIconButton(Icons.Rounded.MonitorHeart, "Diagnostik sistem") { viewModel.navigate(Screen.Diagnostics) }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            TabRow(selectedTabIndex = selectedTab) {
-                listOf("Bantuan", "FAQ", "Tiket").forEachIndexed { i, t ->
-                    Tab(selected = selectedTab == i, onClick = { selectedTab = i }, text = { Text(t) })
-                }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background) {
+                tabBantuan.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
             }
-            when (selectedTab) {
-                0 -> BantuanTab(helpState.articles)
-                1 -> FaqTab(helpState.faqs, helpState.searchResults, viewModel)
-                2 -> TiketTab(csState.tickets, viewModel)
+            val k = konten
+            when {
+                tab == 3 -> TabHubungi(viewModel)
+                k == null && galat != null -> ErrorView(galat ?: "", { viewModel.muatBantuan() })
+                k == null -> SkeletonList(5, Modifier.padding(16.dp))
+                tab == 0 -> TabPanduan(k.panduan)
+                tab == 1 -> TabFaq(k)
+                else -> TabKendala(k.troubleshoot)
             }
         }
     }
 }
 
 @Composable
-private fun BantuanTab(articles: List<HelpArticle>) {
-    if (articles.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    Icons.Default.HelpOutline,
-                    contentDescription = null,
-                    modifier = Modifier.size(56.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+private fun KartuLipat(judul: String, ringkas: String? = null, label: String? = null, isi: @Composable ColumnScope.() -> Unit) {
+    var buka by remember { mutableStateOf(false) }
+    BizSurface(Modifier.fillMaxWidth(), onClick = { buka = !buka }, contentPadding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                if (label != null) Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = BizgrowColors.Primary, fontWeight = FontWeight.Bold)
+                Text(judul, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                if (ringkas != null && !buka) Text(ringkas, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(if (buka) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.outline)
+        }
+        AnimatedVisibility(buka) { Column(Modifier.padding(top = 10.dp), content = isi) }
+    }
+}
+
+@Composable
+private fun TabPanduan(daftar: List<BantuanPanduan>) {
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(daftar, key = { it.title }) { g ->
+            KartuLipat(g.title, ringkas = g.desc) {
+                Text(g.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                Text("Tidak ada artikel bantuan", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    } else {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(articles) { article ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(article.title, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = article.content.take(100) + if (article.content.length > 100) "..." else "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (article.tags.isNotEmpty()) {
-                            Spacer(Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                article.tags.take(3).forEach { tag ->
-                                    SuggestionChip(onClick = {}, label = { Text(tag, fontSize = 10.sp) })
-                                }
-                            }
-                        }
+                g.steps.forEachIndexed { i, langkah ->
+                    Row(Modifier.padding(vertical = 4.dp)) {
+                        Text("${i + 1}.", fontWeight = FontWeight.Bold, color = BizgrowColors.Primary, modifier = Modifier.width(24.dp))
+                        Text(langkah, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -110,39 +90,21 @@ private fun BantuanTab(articles: List<HelpArticle>) {
 }
 
 @Composable
-private fun FaqTab(
-    faqs: List<HelpFaqItem>,
-    searchResults: List<HelpArticle>,
-    viewModel: AppViewModel
-) {
-    var query by remember { mutableStateOf("") }
-    Column(modifier = Modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it; viewModel.searchHelp(it) },
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            placeholder = { Text("Cari bantuan...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true
-        )
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (query.isBlank()) {
-                items(faqs) { faq -> FaqItem(faq) }
-            } else {
-                items(searchResults) { article ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(article.title, fontWeight = FontWeight.Medium)
-                            Text(
-                                text = article.content.take(80) + if (article.content.length > 80) "..." else "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+private fun TabFaq(k: BantuanKonten) {
+    var cari by remember { mutableStateOf("") }
+    var kat by remember { mutableStateOf("") }
+    val tampil = k.items.filter { (kat.isBlank() || it.category == kat) && (cari.isBlank() || it.q.contains(cari, true) || it.a.contains(cari, true)) }
+    Column(Modifier.fillMaxSize()) {
+        BizSearchField(cari, { cari = it }, "Cari pertanyaan…", Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterPill("Semua", kat.isBlank(), { kat = "" })
+            k.kategori.forEach { c -> FilterPill(c.label, kat == c.id, { kat = c.id }) }
+        }
+        if (tampil.isEmpty()) EmptyView("Tidak ada hasil", "Coba kata kunci lain, atau tanya Asisten AI / hubungi tim kami.", Icons.Rounded.SearchOff)
+        else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(tampil, key = { it.id }) { f ->
+                KartuLipat(f.q, label = k.kategori.firstOrNull { it.id == f.category }?.label ?: f.category) {
+                    Text(f.a, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -150,88 +112,71 @@ private fun FaqTab(
 }
 
 @Composable
-private fun FaqItem(faq: HelpFaqItem) {
-    var expanded by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { expanded = !expanded }
-            .padding(bottom = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(faq.question, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null
-                )
+private fun TabKendala(grup: List<BantuanTroubleshoot>) {
+    var pilih by remember { mutableStateOf(grup.firstOrNull()?.id ?: "") }
+    val aktif = grup.firstOrNull { it.id == pilih } ?: grup.firstOrNull()
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            grup.forEach { g -> FilterPill(g.label, aktif?.id == g.id, { pilih = g.id }) }
+        }
+        LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(aktif?.masalah.orEmpty(), key = { it.problem }) { m ->
+                KartuLipat(m.problem, label = "Kendala") { Text(m.solution, style = MaterialTheme.typography.bodyMedium) }
             }
-            if (expanded) {
+        }
+    }
+}
+
+@Composable
+private fun TabHubungi(viewModel: AppViewModel) {
+    val awal = remember { viewModel.ulasanTersimpan() }
+    var judul by remember { mutableStateOf("") }
+    var isi by remember { mutableStateOf("") }
+    var prioritas by remember { mutableStateOf("medium") }
+    var bintang by remember { mutableStateOf(awal?.first ?: 0) }
+    var komentar by remember { mutableStateOf(awal?.second.orEmpty()) }
+    var terkirimUlasan by remember { mutableStateOf(awal != null) }
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            BizSurface(Modifier.fillMaxWidth()) {
+                Text("Kirim tiket ke tim Bizgrow", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Untuk kendala yang tidak terjawab di panduan atau FAQ.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(10.dp))
+                BizTextField(judul, { judul = it }, "Judul masalah *")
                 Spacer(Modifier.height(8.dp))
-                Text(faq.answer, style = MaterialTheme.typography.bodySmall)
+                BizTextField(isi, { isi = it }, "Ceritakan kendalanya *", singleLine = false)
+                Spacer(Modifier.height(8.dp))
+                PilihanPil("Prioritas", listOf("low" to "Rendah", "medium" to "Sedang", "high" to "Tinggi"), prioritas) { prioritas = it }
+                Spacer(Modifier.height(10.dp))
+                BizButton("Kirim tiket", onClick = { viewModel.kirimTiketTim(judul.trim(), isi.trim(), prioritas) { judul = ""; isi = "" } }, modifier = Modifier.fillMaxWidth(), enabled = judul.isNotBlank() && isi.isNotBlank(), icon = Icons.Rounded.Send)
             }
         }
-    }
-}
-
-@Composable
-private fun TiketTab(tickets: List<SupportTicket>, viewModel: AppViewModel) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Button(
-            onClick = { viewModel.navigate(Screen.SupportTicketDetail(0)) },
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text("Buat Tiket Baru")
-        }
-        if (tickets.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Belum ada tiket", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(tickets) { ticket ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.navigate(Screen.SupportTicketDetail(ticket.id)) }
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    ticket.subject,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                val statusColor = when (ticket.status) {
-                                    "open"        -> MaterialTheme.colorScheme.error
-                                    "in_progress" -> MaterialTheme.colorScheme.tertiary
-                                    else          -> MaterialTheme.colorScheme.primary
-                                }
-                                Surface(
-                                    color = statusColor.copy(alpha = 0.15f),
-                                    shape = MaterialTheme.shapes.small
-                                ) {
-                                    Text(
-                                        ticket.status,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        fontSize = 10.sp,
-                                        color = statusColor
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Prioritas: ${ticket.priority} • ${ticket.createdAt}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+        item {
+            BizSurface(Modifier.fillMaxWidth()) {
+                Text("Ulasan aplikasi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(if (terkirimUlasan) "Terima kasih! Kamu bisa memperbarui ulasanmu." else "Seberapa puas kamu memakai Bizgrow?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    (1..5).forEach { n ->
+                        BizIconButton(if (n <= bintang) Icons.Rounded.Star else Icons.Rounded.StarBorder, "$n bintang", tint = if (n <= bintang) BizgrowColors.Warning else MaterialTheme.colorScheme.outline) { bintang = n }
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                BizTextField(komentar, { komentar = it }, "Komentar (opsional)", singleLine = false)
+                Spacer(Modifier.height(10.dp))
+                BizButton(if (terkirimUlasan) "Perbarui ulasan" else "Kirim ulasan", onClick = { viewModel.kirimUlasan(bintang, komentar.trim()); terkirimUlasan = true }, modifier = Modifier.fillMaxWidth(), enabled = bintang > 0, icon = Icons.Rounded.Star)
+            }
+        }
+        item {
+            BizSurface(Modifier.fillMaxWidth(), onClick = { viewModel.navigate(Screen.Diagnostics) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconBadge(Icons.Rounded.MonitorHeart, BizgrowColors.Success); Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Diagnostik sistem", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("Cek koneksi server, database, dan layanan secara langsung", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
                 }
             }
         }

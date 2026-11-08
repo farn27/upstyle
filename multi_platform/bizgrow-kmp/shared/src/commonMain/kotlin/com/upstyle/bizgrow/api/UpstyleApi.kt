@@ -72,6 +72,14 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(UpdatePortalRequest(unitId, buatBaru, "updatePortal"))
         }.body()
 
+    suspend fun getBantuan(): ApiResponse<BantuanKonten> = client.get("api/app/help").body()
+
+    /** Ulasan aplikasi (1–5 bintang + komentar) → diteruskan server ke tim. */
+    suspend fun kirimUlasan(rating: Int, komentar: String): ApiResponse<JsonObject> =
+        client.post("api/app/help") { setBody(buildJsonObject { put("action", "review"); put("rating", rating); put("comment", komentar) }) }.body()
+
+    suspend fun kirimTiketTim(judul: String, isi: String, prioritas: String, unitId: Int): ApiResponse<Unit> = kirimTiketBantuan(judul, isi, prioritas, unitId, "Pusat Bantuan")
+
     /** Link sementara (10 menit) untuk membuka slip gaji / invoice HTML di browser HP. jenis = "slip" | "invoice". */
     suspend fun linkDokumen(jenis: String, id: String, month: Int? = null, year: Int? = null, type: String? = null): ApiResponse<DokumenLink> =
         client.post("api/app/dokumen") {

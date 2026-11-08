@@ -874,6 +874,47 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    private val _bantuan = MutableStateFlow<BantuanKonten?>(null)
+    val bantuan: StateFlow<BantuanKonten?> = _bantuan.asStateFlow()
+    private val _bantuanGalat = MutableStateFlow<String?>(null)
+    val bantuanGalat: StateFlow<String?> = _bantuanGalat.asStateFlow()
+
+    /** Muat konten Pusat Bantuan (panduan, FAQ, troubleshoot) dari server — sumber sama dengan web. */
+    fun muatBantuan() = viewModelScope.launch {
+        _bantuanGalat.value = null
+        try {
+            val res = api.getBantuan()
+            if (res.success && res.data != null) {
+                _bantuan.value = res.data
+                session.saveToCache("bantuan_konten", kotlinx.serialization.json.Json.encodeToString(BantuanKonten.serializer(), res.data))
+            } else _bantuanGalat.value = res.message ?: "Gagal memuat bantuan"
+        } catch (e: Exception) {
+            // offline → pakai salinan terakhir bila ada
+            val simpan = session.loadFromCache("bantuan_konten")
+            val cache = simpan?.let { runCatching { kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString(BantuanKonten.serializer(), it) }.getOrNull() }
+            if (cache != null) _bantuan.value = cache else _bantuanGalat.value = "Tidak ada koneksi dan belum ada salinan bantuan tersimpan"
+        }
+    }
+
+    /** Ulasan tersimpan di perangkat ("bintang|komentar") supaya tidak diminta ulang. */
+    fun ulasanTersimpan(): Pair<Int, String>? = session.loadFromCache("ulasan_app")?.let { v ->
+        v.substringBefore('|').toIntOrNull()?.let { it to v.substringAfter('|', "") }
+    }
+    fun kirimUlasan(rating: Int, komentar: String) = viewModelScope.launch {
+        try {
+            val res = api.kirimUlasan(rating, komentar)
+            if (res.success) { session.saveToCache("ulasan_app", "$rating|$komentar"); setSuccess("Terima kasih! Ulasanmu terkirim") }
+            else setError(res.message ?: "Ulasan belum terkirim")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun kirimTiketTim(judul: String, isi: String, prioritas: String, onSukses: () -> Unit) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.kirimTiketTim(judul, isi, prioritas, unitId)
+            if (res.success) { setSuccess("Tiket terkirim ke tim Bizgrow"); onSukses() } else setError(res.message ?: "Tiket belum terkirim")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun markFaqViewed(id: String) = viewModelScope.launch {
         try { api.sendHelpFeedback(id, true) } catch (_: Exception) {}
     }
