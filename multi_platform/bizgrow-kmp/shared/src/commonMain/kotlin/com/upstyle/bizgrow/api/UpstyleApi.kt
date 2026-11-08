@@ -834,8 +834,7 @@ class UpstyleApi(private val client: HttpClient) {
 
     /** Submits a support ticket using the lightweight [SubmitTicketRequest] form. */
     suspend fun submitSupportTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
-        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
-        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
+        kirimTiketBantuan(req.title, req.description, req.priority, unitId)
 
     // ─── Alias / overload helpers for AppViewModel call-site compatibility ────
 

@@ -118,8 +118,8 @@ fun UsageMetricsScreen(viewModel: AppViewModel) {
                     }
                 }
             }
-            val batasUnit = m?.limits?.maxBusinessUnits?.takeIf { it > 0 } ?: when (paket) { "Pro" -> 10; "Enterprise" -> 999; else -> 3 }
-            item { KuotaBar("Unit bisnis", units.size.toDouble(), batasUnit.toDouble(), Icons.Rounded.Business, BizgrowColors.Primary, 0) }
+            val batasUnit = m?.limits?.maxBusinessUnits ?: 0 // batas dari server (billing), bukan angka bawaan app
+            if (batasUnit > 0) item { KuotaBar("Unit bisnis", units.size.toDouble(), batasUnit.toDouble(), Icons.Rounded.Business, BizgrowColors.Primary, 0) }
             if (m != null) {
                 item { KuotaBar("Produk", m.productCount.toDouble(), m.maxProducts.toDouble(), Icons.Rounded.Inventory2, BizgrowColors.Warning, 1) }
                 item { KuotaBar("Pengguna", m.userCount.toDouble(), m.maxUsers.toDouble(), Icons.Rounded.Group, BizgrowColors.Info, 2) }

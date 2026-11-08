@@ -127,8 +127,8 @@ fun HrScreen(viewModel: AppViewModel) {
                     onDetail = { viewModel.bukaKaryawan(it) }
                 )
                 1 -> AttendanceTab(hrData?.attendance ?: emptyList(), hrData?.employees ?: emptyList())
-                2 -> PayrollHistoryTab(hrData?.payroll ?: emptyList())
-                3 -> LeaveTab(hrData?.leaveRequests ?: emptyList())
+                2 -> PayrollHistoryTab(hrData?.payroll ?: emptyList(), hrData?.employees ?: emptyList())
+                3 -> LeaveTab(hrData?.leaveRequests ?: emptyList(), hrData?.employees ?: emptyList(), onBuka = { viewModel.navigate(Screen.LeaveRequests) })
             }
         }
     }
@@ -241,14 +241,14 @@ fun AttendanceTab(records: List<AttendanceRecord>, employees: List<Employee> = e
 }
 
 @Composable
-fun PayrollHistoryTab(records: List<PayrollRecord>) {
+fun PayrollHistoryTab(records: List<PayrollRecord>, employees: List<Employee> = emptyList()) {
     if (records.isEmpty()) { EmptyState(Icons.Default.Payments, "Belum ada riwayat payroll"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(records, key = { it.id }) { rec ->
             BizCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
+                        Text(employees.firstOrNull { it.id == rec.employeeId }?.fullName ?: "Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
                         Text(rec.monthYear, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -270,15 +270,16 @@ fun PayrollHistoryTab(records: List<PayrollRecord>) {
 }
 
 @Composable
-fun LeaveTab(requests: List<LeaveRequest>) {
+fun LeaveTab(requests: List<LeaveRequest>, employees: List<Employee> = emptyList(), onBuka: () -> Unit = {}) {
     if (requests.isEmpty()) { EmptyState(Icons.Default.BeachAccess, "Belum ada pengajuan cuti"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Button(onClick = onBuka, modifier = Modifier.fillMaxWidth()) { Text("Setujui / tolak pengajuan (${requests.count { it.status.equals("pending", true) }} menunggu)") } }
         items(requests, key = { it.id }) { req ->
             BizCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Karyawan #${req.employeeId}", fontWeight = FontWeight.SemiBold)
-                        Text("${req.type} · ${req.startDate} s/d ${req.endDate}", style = MaterialTheme.typography.bodySmall)
+                        Text(req.employeeName.ifBlank { employees.firstOrNull { it.id == req.employeeId }?.fullName ?: "Karyawan #${req.employeeId}" }, fontWeight = FontWeight.SemiBold)
+                        Text("${if (req.type.equals("overtime", true)) "Lembur" else "Cuti"} · ${req.startDate} s/d ${req.endDate}", style = MaterialTheme.typography.bodySmall)
                         req.reason?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                     StatusBadge(req.status)
