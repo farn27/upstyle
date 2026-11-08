@@ -82,7 +82,7 @@ const ringkasEk = (h) => h ? `${h.kategori} | ${h.produk ?? '-'} | ${h.qty ?? '-
 const berkasCsv = {};
 function tulisBaris(nama, row) {
 	const kolom = ['id', 'tenant', ...runList.flatMap((r) => [`R${r}_ringkas`, `R${r}_nilai`, `R${r}_salah`, `R${r}_ms`, `R${r}_catatan`])];
-	if (!berkasCsv[nama]) { berkasCsv[nama] = path.join(dir, `${nama}-${waktu}.csv`); fs.writeFileSync(berkasCsv[nama], '\ufeff' + kolom.join(',') + '\n'); // BOM: agar Excel membaca UTF-8 }
+	if (!berkasCsv[nama]) { berkasCsv[nama] = path.join(dir, `${nama}-${waktu}.csv`); fs.writeFileSync(berkasCsv[nama], '\ufeff' + kolom.join(',') + '\n'); } // BOM di awal berkas agar Excel membaca UTF-8
 	fs.appendFileSync(berkasCsv[nama], csv([row], kolom).split('\n').slice(1).join('\n'));
 }
 const baris = { ekstraksi: [], akun: [], analitis: [] };
