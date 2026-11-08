@@ -28,7 +28,9 @@ for (const jenis of ['ekstraksi', 'akun', 'analitis']) {
 	const berkas = fs.readdirSync(dir).filter((f) => new RegExp(`^${jenis}-.*\\.csv$`).test(f)).sort();
 	const data = new Map(); // "id|run" -> { nilai, salah, ms }
 	for (const f of berkas) for (const r of bacaCsv(path.join(dir, f))) for (const run of [1, 2, 3]) {
-		const ring = r[`R${run}_ringkas`]; if (ring === undefined || ring === '' || ring.startsWith('(galat')) continue;
+		const ring = r[`R${run}_ringkas`], msKolom = r[`R${run}_ms`];
+		// Panggilan dianggap terjadi bila kolom waktu terisi. Ringkasan boleh kosong (jawaban kosong adalah hasil sah: Tidak sesuai); baris galat dilewati.
+		if (ring === undefined || msKolom === undefined || msKolom === '' || String(ring).startsWith('(galat')) continue;
 		data.set(`${r.id}|${run}`, { id: r.id, run, nilai: r[`R${run}_nilai`], salah: r[`R${run}_salah`], ms: Number(r[`R${run}_ms`]) });
 	}
 	let tanpaNilai = 0;
