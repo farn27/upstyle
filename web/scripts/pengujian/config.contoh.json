@@ -5,5 +5,5 @@
   "tenantA": { "email": "pemilik.a@contoh.id", "password": "ISI", "unitId": 0, "slug": "esteh-uji" },
   "tenantB": { "email": "pemilik.b@contoh.id", "password": "ISI", "unitId": 0, "slug": "bubur-uji" },
   "kasirA": { "staffSessionToken": "" },
-  "performa": { "produkId": "ID-ES-TEH-ORIGINAL-TENANT-A", "percobaan": 20, "jedaMs": 3000 }
+  "performa": { "namaProduk": "Es Teh Original", "percobaan": 20, "jedaMs": 3000 }
 }

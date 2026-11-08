@@ -29,9 +29,10 @@ if (mode === 'pos') {
 
 	// harga & nama produk dari server (harga kiriman app hanya dipakai bila fitur harga bebas aktif)
 	const prod = await minta(`${base}/api/app/products?unitId=${A.unitId}&limit=200`, { token });
-	let p = (prod.json?.data ?? []).find((x) => String(x.id) === String(P.produkId));
+	const daftar = prod.json?.data ?? [];
+	let p = daftar.find((x) => String(x.id) === String(P.produkId)) || daftar.find((x) => String(x.nama).toLowerCase() === String(P.namaProduk || 'Es Teh Original').toLowerCase());
 	if (!p && P.nama && P.hargaJual) p = { id: P.produkId, nama: P.nama, hargaJual: P.hargaJual }; // cadangan bila daftar produk tidak terbaca
-	if (!p) { console.error('performa.produkId tidak ditemukan di Tenant A (isi juga performa.nama & performa.hargaJual bila perlu)'); process.exit(1); }
+	if (!p) { console.error('produk uji tidak ditemukan di Tenant A: pastikan produk "Es Teh Original" ada (atau isi performa.namaProduk / performa.produkId)'); process.exit(1); }
 	for (let i = 1; i <= n; i++) {
 		const orderNumber = `UJI-${Date.now()}-${i}`;
 		const total = Number(p.hargaJual);
