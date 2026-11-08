@@ -58,3 +58,19 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 - Slug unik: karyawan (tabrakan acak 4 digit), landing page, situs web; jadwal sosmed memakai `new Date()` → zona waktu salah.
 - Laporan WA: app mengirim label tampilan ("Bulan Ini") yang ditolak server.
 - Ganti password app memakai plaintext (tidak cocok argon2); link portal staff mengubah slug unit.
+
+## Audit "setengah jadi & hardcode" di mobile
+- **Neraca palsu**: layar Neraca berisi angka karangan (Kas Rp125 jt, dst.) → diganti memakai laporan neraca asli.
+- **Pemindai barcode simulasi** (kotak gelap + animasi laser, tanpa kamera) → kini CameraX + ML Kit; ketik manual tetap ada. iOS: belum.
+- **Realtime Socket.io tidak pernah tersambung** dan alamatnya di-hardcode (IP sslip.io) → alamat & token kini dari `GET /api/app/realtime` (env `PUBLIC_SOCKET_URL`); sambung ulang otomatis saat token habis.
+- **Stok opname hanya riwayat** & server selalu gagal (gudang tidak ada) → form hitung fisik, gudang bawaan otomatis, stok disesuaikan, selisih dijurnal; akun jurnal opname web juga diperbaiki.
+- **Cuti/lembur hanya daftar** → setujui/tolak + catat atas nama karyawan; status huruf besar/kecil dinormalkan.
+- **Harga & margin**: tombol "Edit Harga…" cuma snackbar → editor harga beli/jual/stok minimum + margin.
+- **Target sales**: edit membuat target baru (duplikat) → memakai update-target.
+- **Kampanye**: bisa ubah status & hapus.
+- **Slip gaji & invoice**: link sementara bertanda tangan (`/api/dokumen`) dibuka di browser HP; nama karyawan di slip tadinya "undefined".
+- **Tiket dukungan ke tim Bizgrow** selalu gagal → email ke `SUPPORT_EMAIL`.
+- **Integrasi Shopee palsu** (status disimpan di memori server, token tidak diverifikasi) → dihapus dari app & server.
+- **Foto produk**: URL ui-avatars/placeholder.com & path relatif `/uploads/..` → `ProductThumb` (inisial lokal + alamat server dari `LocalServerUrl`).
+- Alamat server bawaan kini dari konfigurasi build (`-Pbizgrow.serverUrl`), batas unit paket dari server, nama karyawan (bukan "Karyawan #id") di HR.
+- CI tidak lagi mencetak respons Appetize (berisi privateKey).

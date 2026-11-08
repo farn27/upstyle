@@ -2698,6 +2698,30 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    fun ubahTargetSales(targetId: Int, amount: Double) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahTargetSales(targetId, _activeUnitId.value, amount)
+            if (res.success) { loadSalesTargets(); setSuccess("Target diperbarui") } else setError(res.message ?: "Gagal memperbarui target")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun ubahStatusKampanye(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusKampanye(id, _activeUnitId.value, status)
+            if (res.success) { loadMarketingCampaigns(); setSuccess("Status kampanye: $status") } else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun hapusKampanye(id: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.hapusKampanye(id, _activeUnitId.value)
+            if (res.success) { loadMarketingCampaigns(); setSuccess("Kampanye dihapus") } else setError(res.message ?: "Gagal menghapus kampanye")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun deleteSalesTarget(targetId: Int) = viewModelScope.launch {
         try {
             val res = api.deleteSalesTarget(targetId, _activeUnitId.value)

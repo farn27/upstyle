@@ -1374,6 +1374,19 @@ class UpstyleApi(private val client: HttpClient) {
         return ApiResponse(res.success, res.message, null, res.code)
     }
 
+    suspend fun ubahTargetSales(targetId: Int, unitId: Int, targetAmount: Double): ApiResponse<JsonObject> =
+        client.put("api/app/sales/targets") {
+            setBody(buildJsonObject { put("action", "update-target"); put("targetId", targetId); put("unitId", unitId); put("targetAmount", targetAmount) })
+        }.body()
+
+    suspend fun ubahStatusKampanye(campaignId: Int, unitId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/marketing") {
+            setBody(buildJsonObject { put("action", "update-campaign-status"); put("campaignId", campaignId); put("unitId", unitId); put("status", status) })
+        }.body()
+
+    suspend fun hapusKampanye(campaignId: Int, unitId: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/marketing") { parameter("type", "campaign"); parameter("id", campaignId); parameter("unitId", unitId) }.body()
+
     suspend fun deleteSalesTarget(targetId: Int, unitId: Int): ApiResponse<Unit> =
         client.delete("api/app/sales/targets") {
             parameter("type", "target")

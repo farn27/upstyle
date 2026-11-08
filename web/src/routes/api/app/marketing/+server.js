@@ -354,13 +354,16 @@ export async function PUT({ request, cookies }) {
             if (!campaignId || !status) {
                 return json({ success: false, message: 'campaignId dan status wajib diisi' }, { status: 400 });
             }
+            if (!['DRAFT', 'SCHEDULED', 'ACTIVE', 'COMPLETED'].includes(String(status).toUpperCase())) {
+                return json({ success: false, message: 'Status harus DRAFT, SCHEDULED, ACTIVE, atau COMPLETED' }, { status: 400 });
+            }
             const campaign = await db.query.marketingCampaigns.findFirst({ where: eq(marketingCampaigns.id, Number(campaignId)) });
             if (!campaign || !(await unitMilikUser(db, userId, campaign.unitId))) {
                 return json({ success: false, message: 'Campaign tidak ditemukan' }, { status: 404 });
             }
 
             await db.update(marketingCampaigns)
-                .set({ status })
+                .set({ status: String(status).toUpperCase() })
                 .where(eq(marketingCampaigns.id, Number(campaignId)));
 
             await db.insert(riwayatAksi).values({

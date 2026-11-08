@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -85,7 +86,7 @@ fun MarketingCampaignsScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(marketingCampaigns) { campaign ->
-                        CampaignCard(campaign = campaign)
+                        CampaignCard(campaign = campaign, onStatus = { viewModel.ubahStatusKampanye(campaign.id, it) }, onHapus = { viewModel.hapusKampanye(campaign.id) })
                     }
                 }
             }
@@ -104,12 +105,13 @@ fun MarketingCampaignsScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-fun CampaignCard(campaign: MarketingCampaign) {
+fun CampaignCard(campaign: MarketingCampaign, onStatus: ((String) -> Unit)? = null, onHapus: (() -> Unit)? = null) {
+    var hapus by remember { mutableStateOf(false) }
     val statusColor = when (campaign.status.uppercase()) {
         "ACTIVE" -> BizgrowColors.Success // Green
         "DRAFT" -> Color.Gray         // Gray
         "COMPLETED" -> Color(0xFF1976D2)
-        "PAUSED" -> BizgrowColors.Warning
+        "SCHEDULED" -> BizgrowColors.Warning
         else -> Color.Gray
     }
 
@@ -201,8 +203,29 @@ fun CampaignCard(campaign: MarketingCampaign) {
                     )
                 }
             }
+
+            if (onStatus != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    listOf("DRAFT" to "Draf", "SCHEDULED" to "Terjadwal", "ACTIVE" to "Aktif", "COMPLETED" to "Selesai").forEach { (id, label) ->
+                        FilterChip(selected = campaign.status.uppercase() == id, onClick = { if (campaign.status.uppercase() != id) onStatus(id) }, label = { Text(label, fontSize = 11.sp) })
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (onHapus != null) IconButton(onClick = { hapus = true }) { Icon(androidx.compose.material.icons.Icons.Rounded.DeleteOutline, "Hapus kampanye", tint = MaterialTheme.colorScheme.error) }
+                }
+            }
+            if (hapus) KonfirmasiHapusKampanye(campaign.name, { hapus = false; onHapus?.invoke() }, { hapus = false })
         }
     }
+}
+
+@Composable
+private fun KonfirmasiHapusKampanye(nama: String, onYa: () -> Unit, onBatal: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onBatal, title = { Text("Hapus kampanye?") }, text = { Text("\"$nama\" akan dihapus permanen.") },
+        confirmButton = { TextButton(onClick = onYa) { Text("Hapus", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = onBatal) { Text("Batal") } }
+    )
 }
 
 @Composable

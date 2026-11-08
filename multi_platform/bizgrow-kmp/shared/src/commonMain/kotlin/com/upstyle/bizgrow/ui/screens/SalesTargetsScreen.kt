@@ -100,8 +100,8 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
         EditTargetDialog(
             target = target,
             onDismiss = { editTarget = null },
-            onSave = { empId, empName, periode, amount ->
-                viewModel.createSalesTarget(empId, empName, periode, amount)
+            onSave = { _, _, _, amount ->
+                viewModel.ubahTargetSales(target.id, amount)
                 editTarget = null
             }
         )
