@@ -189,7 +189,6 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.HelpCenter              -> HelpCenterScreen(viewModel)
                     is Screen.AdvancedSettings        -> AdvancedSettingsScreen(viewModel)
                     is Screen.LandingPageScreen       -> LandingPageScreen(viewModel)
-                    is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
 
                     // Subscription & Billing
                     is Screen.SubscriptionPlans -> SubscriptionPlansScreen(viewModel)

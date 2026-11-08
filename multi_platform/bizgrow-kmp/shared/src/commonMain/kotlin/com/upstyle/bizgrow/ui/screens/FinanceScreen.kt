@@ -53,6 +53,7 @@ private fun rentangRiwayat(periode: String, bulan: Pair<Int, Int>?, kustom: Pair
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceScreen(viewModel: AppViewModel) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     val financeData by viewModel.riwayat.collectAsState(initial = viewModel.riwayat.value)
     val memuat by viewModel.riwayatMemuat.collectAsState()
     var query by remember { mutableStateOf("") }
@@ -318,6 +319,8 @@ fun FinanceScreen(viewModel: AppViewModel) {
                 t.saldoSetelah?.let { BarisDetail("Saldo setelah transaksi", it.rupiah()) }
                 BarisDetail("ID transaksi", "#${t.id}")
                 Spacer(Modifier.height(14.dp))
+                BizOutlineButton("Invoice (cetak / simpan PDF)", onClick = { viewModel.bukaDokumen("invoice", t.id.toString(), type = "manual") { uriHandler.openUri(it) } }, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.Receipt)
+                Spacer(Modifier.height(8.dp))
                 BizOutlineButton("Hapus transaksi", onClick = { hapus = t; detail = null }, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.DeleteOutline, tint = BizgrowColors.Danger)
             }
         }

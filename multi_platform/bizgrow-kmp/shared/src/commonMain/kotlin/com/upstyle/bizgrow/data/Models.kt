@@ -1244,6 +1244,9 @@ data class PosFeatureOverride(
 // â”€â”€â”€ POS Shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Serializable
+data class DokumenLink(val url: String = "", val berlakuMenit: Int = 10)
+
+@Serializable
 data class RealtimeConfig(val socketUrl: String = "", val token: String = "", val exp: Long = 0)
 
 @Serializable
@@ -1869,18 +1872,6 @@ data class LandingPageTemplate(
 
 // â”€â”€â”€ Shopee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-@Serializable
-data class ShopeeIntegration(
-    val id: Int = 0,
-    val unitId: Int,
-    val shopId: String = "",
-    val shopName: String = "",
-    val accessToken: String = "",
-    val refreshToken: String = "",
-    val isActive: Boolean = false,
-    val lastSyncAt: String = "",
-    val connectedAt: String = ""
-)
 
 
 

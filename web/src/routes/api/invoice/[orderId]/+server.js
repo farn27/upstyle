@@ -11,8 +11,9 @@ import { generateInvoiceHTML, generateInvoiceNumber } from '$lib/server/invoiceG
 import { log } from '$lib/server/logger';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 
-export async function GET({ params, url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
+export async function GET({ params, url, cookies, request, locals }) {
+	// userIdOverride hanya diisi route /api/dokumen setelah memverifikasi link sementara bertanda tangan
+	const userId = locals?.userIdOverride || await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	const { orderId } = params;

@@ -72,6 +72,15 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(UpdatePortalRequest(unitId, buatBaru, "updatePortal"))
         }.body()
 
+    /** Link sementara (10 menit) untuk membuka slip gaji / invoice HTML di browser HP. jenis = "slip" | "invoice". */
+    suspend fun linkDokumen(jenis: String, id: String, month: Int? = null, year: Int? = null, type: String? = null): ApiResponse<DokumenLink> =
+        client.post("api/app/dokumen") {
+            setBody(buildJsonObject {
+                put("jenis", jenis); put("id", id)
+                month?.let { put("month", it) }; year?.let { put("year", it) }; type?.let { put("type", it) }
+            })
+        }.body()
+
     /** Konfigurasi realtime (alamat Socket.io + token) dari backend; socketUrl kosong = realtime tidak aktif. */
     suspend fun getRealtimeConfig(unitId: Int): ApiResponse<RealtimeConfig> =
         client.get("api/app/realtime") { parameter("unitId", unitId) }.body()
@@ -1305,11 +1314,6 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
         return ApiResponse(res.success, res.message, null, res.code)
     }
-
-    // Integrasi Shopee tidak dilanjutkan — tidak ada endpoint di server.
-    suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> = fiturDihentikan("Integrasi Shopee")
-    suspend fun connectShopee(integration: ShopeeIntegration): ApiResponse<ShopeeIntegration> = fiturDihentikan("Integrasi Shopee")
-    suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> = fiturDihentikan("Integrasi Shopee")
 
     // Profil & akun → api/app/settings (mode=profile | password | preferences)
     suspend fun getProfileSettings(): ApiResponse<Map<String, String>> {

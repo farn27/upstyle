@@ -50,7 +50,6 @@ sealed class Screen {
     object HelpCenter : Screen()
     object AdvancedSettings : Screen()
     object LandingPageScreen : Screen()
-    object ShopeeIntegrationScreen : Screen()
     object PosShift : Screen()
     object PosReturn : Screen()
     object Absensi : Screen()

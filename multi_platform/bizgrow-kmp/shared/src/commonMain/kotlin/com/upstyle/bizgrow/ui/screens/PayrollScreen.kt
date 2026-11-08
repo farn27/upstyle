@@ -29,6 +29,7 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PayrollScreen(viewModel: AppViewModel) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     val hrData by viewModel.hrData.collectAsState(initial = viewModel.hrData.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
 
@@ -133,7 +134,7 @@ fun PayrollScreen(viewModel: AppViewModel) {
                         )
                     }
                     items(filteredRecords) { record ->
-                        PayrollRecordCard(record, employees, onLunas = { viewModel.tandaiPayrollLunas(listOf(record.id)) })
+                        PayrollRecordCard(record, employees, onLunas = { viewModel.tandaiPayrollLunas(listOf(record.id)) }, onSlip = { viewModel.bukaDokumen("slip", record.employeeId.toString(), record.periodMonth.takeIf { it > 0 }, record.periodYear.takeIf { it > 0 }) { uriHandler.openUri(it) } })
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -285,7 +286,7 @@ fun ProcessPayrollSheet(
 }
 
 @Composable
-fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>, onLunas: (() -> Unit)? = null) {
+fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>, onLunas: (() -> Unit)? = null, onSlip: (() -> Unit)? = null) {
     val employee = employees.firstOrNull { it.id == record.employeeId }
     val isPaid = record.status.equals("PAID", ignoreCase = true) || record.status.equals("DIBAYAR", ignoreCase = true)
 
@@ -334,6 +335,12 @@ fun PayrollRecordCard(record: PayrollRecord, employees: List<Employee>, onLunas:
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Gaji Bersih", fontWeight = FontWeight.Bold)
                 Text(formatCurrency(record.netSalary), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
+            }
+            if (onSlip != null) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = onSlip, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Default.Receipt, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Slip gaji (cetak / simpan PDF)")
+                }
             }
             if (!isPaid && onLunas != null) {
                 Spacer(Modifier.height(10.dp))
