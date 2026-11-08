@@ -68,6 +68,14 @@ async function entri(k) {
 }
 const ringkasEk = (h) => h ? `${h.kategori} | ${h.produk ?? '-'} | ${h.qty ?? '-'} | ${h.nominal}` : '(tidak ada)';
 
+
+// CSV ditulis bertahap (satu baris per kasus selesai). Judul kolom ditulis sekali per berkas.
+const berkasCsv = {};
+function tulisBaris(nama, row) {
+	const kolom = ['id', 'tenant', ...runList.flatMap((r) => [`R${r}_ringkas`, `R${r}_nilai`, `R${r}_salah`, `R${r}_ms`, `R${r}_catatan`])];
+	if (!berkasCsv[nama]) { berkasCsv[nama] = path.join(dir, `${nama}-${waktu}.csv`); fs.writeFileSync(berkasCsv[nama], kolom.join(',') + '\n'); }
+	fs.appendFileSync(berkasCsv[nama], csv([row], kolom).split('\n').slice(1).join('\n'));
+}
 const baris = { ekstraksi: [], akun: [], analitis: [] };
 const mentah = fs.createWriteStream(path.join(dir, `mentah-${waktu}.jsonl`), { flags: 'a' });
 const pilih = (arr) => arr.filter((k) => !hanya || hanya.includes(k.id));
@@ -88,6 +96,7 @@ async function jalankan(nama, daftar, tangani) {
 			console.log(`${k.id} R${run}: ${out.nilai || '-'} (${out.ms} ms) ${out.ringkas?.slice(0, 70) ?? ''}`);
 		}
 		baris[nama].push(row);
+		tulisBaris(nama, row); // langsung ke CSV agar tidak hilang bila proses terputus
 	}
 }
 
@@ -116,9 +125,4 @@ if (['analitis', 'semua'].includes(jenis)) await jalankan('analitis', kasus.anal
 });
 
 mentah.end();
-for (const [nama, rows] of Object.entries(baris)) {
-	if (!rows.length) continue;
-	const kolom = ['id', 'tenant', ...runList.flatMap((r) => [`R${r}_ringkas`, `R${r}_nilai`, `R${r}_salah`, `R${r}_ms`, `R${r}_catatan`])];
-	fs.writeFileSync(path.join(dir, `${nama}-${waktu}.csv`), csv(rows, kolom));
-}
 console.log(`\nSelesai${kering ? ' (mode kering)' : ''}. Keluaran mentah & CSV: ${dir}`);
