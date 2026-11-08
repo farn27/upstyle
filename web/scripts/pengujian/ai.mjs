@@ -43,6 +43,10 @@ const ringkasEk = (h) => h ? `${h.kategori} | ${h.produk ?? '-'} | ${h.qty ?? '-
 const baris = { ekstraksi: [], akun: [], analitis: [] };
 const mentah = fs.createWriteStream(path.join(dir, `mentah-${waktu}.jsonl`), { flags: 'a' });
 const pilih = (arr) => arr.filter((k) => !hanya || hanya.includes(k.id));
+// Kasus A19 memuat placeholder "[isi tanggal 2 bulan lalu]": isi dengan tanggal 12 pada bulan dua bulan sebelum hari uji (WIB).
+const NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const tanggalDuaBulanLalu = (() => { const w = new Date(Date.now() + 7 * 3600e3); const d = new Date(Date.UTC(w.getUTCFullYear(), w.getUTCMonth() - 2, 1)); return `12 ${NAMA_BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`; })();
+const isiPlaceholder = (teks) => String(teks).replace(/\[isi tanggal 2 bulan lalu\]/i, tanggalDuaBulanLalu);
 
 async function jalankan(nama, daftar, tangani) {
 	for (const k of pilih(daftar)) {
@@ -77,8 +81,8 @@ if (['akun', 'semua'].includes(jenis)) await jalankan('akun', kasus.akun, async 
 	return { ms: r.ms, ringkas: h ? `${h.akun_kode ?? '-'} ${h.akun_nama ?? ''} | kas ${h.kas_kode ?? '-'} ${h.kas_nama ?? ''}` : '(tidak ada)', ...nilaiAkun(k, h), catatan: ulang ? 'diulang karena 429' : '' };
 });
 if (['analitis', 'semua'].includes(jenis)) await jalankan('analitis', kasus.analitis, async (k, run) => {
-	const { r, ulang } = await panggil(k.tenant, '/api/chat', { message: k.masukan, activeUnitSlug: sesiTenant[k.tenant].cfg.slug, history: [] });
-	mentah.write(JSON.stringify({ jenis: 'analitis', id: k.id, run, ms: r.ms, status: r.status, ulang, masukan: k.masukan, respons: r.json ?? r.teks }) + '\n');
+	const { r, ulang } = await panggil(k.tenant, '/api/chat', { message: isiPlaceholder(k.masukan), activeUnitSlug: sesiTenant[k.tenant].cfg.slug, history: [] });
+	mentah.write(JSON.stringify({ jenis: 'analitis', id: k.id, run, ms: r.ms, status: r.status, ulang, masukan: isiPlaceholder(k.masukan), respons: r.json ?? r.teks }) + '\n');
 	if (r.status !== 200) return { ms: r.ms, ringkas: `(galat HTTP ${r.status}: ${String(r.json?.message ?? r.json?.reply ?? r.galat ?? '').slice(0, 80)})`, nilai: '', salah: '', catatan: 'ULANGI — galat server/kuota/jaringan, bukan penilaian model' };
 	const reply = r.json?.reply ?? '';
 	const u = usulanAnalitis(k.id, reply, acuanAnalitis);
