@@ -4,11 +4,14 @@
 // Penilaian "usulan" untuk ekstraksi/akun bersifat deterministik; keputusan akhir tetap peneliti (Bab III).
 import fs from 'node:fs';
 import path from 'node:path';
+import { parse as devalueParse } from 'devalue';
 import { muatConfig, minta, masuk, folderBukti, csv, tidur, simpanBukti } from './lib.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : (process.argv[i + 1]?.startsWith('--') || process.argv[i + 1] === undefined ? true : process.argv[i + 1]); };
 const jenis = arg('jenis', 'semua'), kering = process.argv.includes('--kering');
 const runList = String(arg('run', '1,2,3')).split(',').map(Number);
+// Jalur input transaksi yang dievaluasi untuk ekstraksi & akun: 'web' = halaman Entri Transaksi (aksi prosesAI), 'api' = POST /api/app/ai-entry (dipakai app mobile).
+const jalur = String(arg('jalur', 'web'));
 const hanya = arg('kasus', null) ? String(arg('kasus')).split(',') : null;
 const kasus = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, 'kasus-ai.json'), 'utf8'));
 const acuanFile = path.resolve(import.meta.dirname, 'acuan-analitis.json'); // diisi peneliti dari acuan-analitis.sql
@@ -38,6 +41,31 @@ async function panggil(t, jalur, body) {
 	if (r.status === 429) { console.log('   429 kuota/batas → tunggu 65 dtk lalu ulang sekali'); await tidur(65000); r = await minta(`${c.baseUrl}${jalur}`, { method: 'POST', token: s.token, body }); ulang = true; }
 	return { r, ulang };
 }
+
+// ── jalur web: login web → POST /finance/<slug>/entry?/prosesAI (aksi form SvelteKit, hasil berformat devalue)
+const cookieWeb = {};
+async function masukWeb(t) {
+	if (cookieWeb[t]) return;
+	const cfg = c['tenant' + t];
+	const x = await minta(`${c.baseUrl}/auth/login?/login`, { method: 'POST', headers: { origin: c.baseUrl, 'x-sveltekit-action': 'true' }, body: new URLSearchParams({ username: cfg.email, password: cfg.password }) });
+	cookieWeb[t] = x.setCookie.map((s) => s.split(';')[0]).find((s) => s.startsWith('session_id=')) || null;
+	if (!cookieWeb[t]) throw new Error(`Login web gagal untuk tenant ${t} (HTTP ${x.status}). Periksa email/sandi di config.json.`);
+}
+const urai = (r) => { try { return r.json?.type === 'success' ? devalueParse(r.json.data) : null; } catch { return null; } };
+/** Satu panggilan input-transaksi AI untuk kasus k lewat jalur terpilih. Mengembalikan { r, ulang, h0, via, mentahRespons } dengan r.status 200 bila berhasil. */
+async function entri(k) {
+	if (jalur === 'api') {
+		const { r, ulang } = await panggil(k.tenant, '/api/app/ai-entry', { unitId: sesiTenant[k.tenant].cfg.unitId, teksInput: k.masukan });
+		return { r, ulang, h0: r.json?.data?.hasil, via: 'api', mentahRespons: r.json ?? r.teks };
+	}
+	await masukWeb(k.tenant);
+	const slug = sesiTenant[k.tenant].cfg.slug;
+	const kirim = () => minta(`${c.baseUrl}/finance/${slug}/entry?/prosesAI`, { method: 'POST', headers: { origin: c.baseUrl, 'x-sveltekit-action': 'true', cookie: cookieWeb[k.tenant] }, body: new URLSearchParams({ teksInput: k.masukan }) });
+	let r = await kirim(), ulang = false, data = urai(r);
+	if (data?.error && /terlalu banyak permintaan ai|kuota ai/i.test(String(data.error))) { console.log('   kuota AI → tunggu 65 dtk lalu ulang sekali'); await tidur(65000); r = await kirim(); ulang = true; data = urai(r); }
+	const ok = data?.success === true && data.hasil;
+	return { r: { ...r, status: ok ? 200 : 502, json: ok ? r.json : { message: data?.error ?? `respons tidak dikenali (HTTP ${r.status}): ${String(r.teks).slice(0, 80)}` } }, ulang, h0: ok ? data.hasil : null, via: 'web', mentahRespons: data ?? r.teks };
+}
 const ringkasEk = (h) => h ? `${h.kategori} | ${h.produk ?? '-'} | ${h.qty ?? '-'} | ${h.nominal}` : '(tidak ada)';
 
 const baris = { ekstraksi: [], akun: [], analitis: [] };
@@ -64,21 +92,19 @@ async function jalankan(nama, daftar, tangani) {
 }
 
 if (['ekstraksi', 'semua'].includes(jenis)) await jalankan('ekstraksi', kasus.ekstraksi, async (k, run) => {
-	const { r, ulang } = await panggil(k.tenant, '/api/app/ai-entry', { unitId: sesiTenant[k.tenant].cfg.unitId, teksInput: k.masukan });
-	mentah.write(JSON.stringify({ jenis: 'ekstraksi', id: k.id, run, ms: r.ms, status: r.status, ulang, masukan: k.masukan, respons: r.json ?? r.teks }) + '\n');
+	const { r, ulang, h0, via, mentahRespons } = await entri(k);
+	mentah.write(JSON.stringify({ jenis: 'ekstraksi', id: k.id, run, jalur: via, ms: r.ms, status: r.status, ulang, masukan: k.masukan, respons: mentahRespons }) + '\n');
 	if (r.status !== 200) return { ms: r.ms, ringkas: `(galat HTTP ${r.status}: ${String(r.json?.message ?? r.json?.reply ?? r.galat ?? '').slice(0, 80)})`, nilai: '', salah: '', catatan: 'ULANGI — galat server/kuota/jaringan, bukan penilaian model' };
-	const h0 = r.json?.data?.hasil;
 	const h = h0 ? { kategori: h0.kategori, produk: h0.product_id ? petaProduk[k.tenant][String(h0.product_id)] ?? `#${h0.product_id}` : null, qty: h0.qty, nominal: h0.nominal } : null;
 	const n = nilaiEkstraksi(k, h);
-	return { ms: r.ms, ringkas: ringkasEk(h), ...n, catatan: ulang ? 'diulang karena 429' : '' };
+	return { ms: r.ms, ringkas: ringkasEk(h), ...n, catatan: [ulang ? 'diulang karena kuota' : '', `jalur ${via}`].filter(Boolean).join('; ') };
 });
 if (['akun', 'semua'].includes(jenis)) await jalankan('akun', kasus.akun, async (k, run) => {
-	const { r, ulang } = await panggil(k.tenant, '/api/app/ai-entry', { unitId: sesiTenant[k.tenant].cfg.unitId, teksInput: k.masukan });
-	mentah.write(JSON.stringify({ jenis: 'akun', id: k.id, run, ms: r.ms, status: r.status, ulang, masukan: k.masukan, respons: r.json ?? r.teks }) + '\n');
+	const { r, ulang, h0, via, mentahRespons } = await entri(k);
+	mentah.write(JSON.stringify({ jenis: 'akun', id: k.id, run, jalur: via, ms: r.ms, status: r.status, ulang, masukan: k.masukan, respons: mentahRespons }) + '\n');
 	if (r.status !== 200) return { ms: r.ms, ringkas: `(galat HTTP ${r.status}: ${String(r.json?.message ?? r.json?.reply ?? r.galat ?? '').slice(0, 80)})`, nilai: '', salah: '', catatan: 'ULANGI — galat server/kuota/jaringan, bukan penilaian model' };
-	const h0 = r.json?.data?.hasil;
 	const h = h0 ? { akun_kode: petaAkun[k.tenant][h0.coa_id]?.kode, akun_nama: petaAkun[k.tenant][h0.coa_id]?.nama, kas_kode: petaAkun[k.tenant][h0.kas_coa_id]?.kode, kas_nama: petaAkun[k.tenant][h0.kas_coa_id]?.nama } : null;
-	return { ms: r.ms, ringkas: h ? `${h.akun_kode ?? '-'} ${h.akun_nama ?? ''} | kas ${h.kas_kode ?? '-'} ${h.kas_nama ?? ''}` : '(tidak ada)', ...nilaiAkun(k, h), catatan: ulang ? 'diulang karena 429' : '' };
+	return { ms: r.ms, ringkas: h ? `${h.akun_kode ?? '-'} ${h.akun_nama ?? ''} | kas ${h.kas_kode ?? '-'} ${h.kas_nama ?? ''}` : '(tidak ada)', ...nilaiAkun(k, h), catatan: [ulang ? 'diulang karena kuota' : '', `jalur ${via}`].filter(Boolean).join('; ') };
 });
 if (['analitis', 'semua'].includes(jenis)) await jalankan('analitis', kasus.analitis, async (k, run) => {
 	const { r, ulang } = await panggil(k.tenant, '/api/chat', { message: isiPlaceholder(k.masukan), activeUnitSlug: sesiTenant[k.tenant].cfg.slug, history: [] });
