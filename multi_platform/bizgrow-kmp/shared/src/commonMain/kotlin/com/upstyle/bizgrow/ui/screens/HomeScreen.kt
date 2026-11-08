@@ -2,6 +2,7 @@ package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -130,7 +131,7 @@ fun HomeScreen(viewModel: AppViewModel) {
         }
     }
 
-    LaunchedEffect(Unit) { viewModel.loadUnits(); viewModel.loadNotifications() }
+    LaunchedEffect(Unit) { viewModel.loadUnits(); viewModel.loadNotifications(); viewModel.loadBusinessPlans() }
 
     val tampil = remember(units, query) {
         val q = query.trim().lowercase()
@@ -199,6 +200,8 @@ fun HomeScreen(viewModel: AppViewModel) {
                 }
             }
 
+            item { KartuPlanningBeranda(viewModel, Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp).enterAnimation(0)) }
+
             if (units.size > 4) {
                 item {
                     BizSearchField(query, { query = it }, placeholder = "Cari unit bisnis…", modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp))
@@ -251,23 +254,6 @@ fun HomeScreen(viewModel: AppViewModel) {
                                     }
                                     Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
                                 }
-                            }
-                        }
-                    }
-                    // Business Planning Wizard (sama dengan kartu "Planning" di halaman Struktur Bisnis web)
-                    item {
-                        BizSurface(
-                            Modifier.padding(horizontal = 20.dp, vertical = 6.dp).fillMaxWidth().enterAnimation(0),
-                            onClick = { viewModel.navigate(Screen.BusinessPlan) }, contentPadding = PaddingValues(14.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconBadge(Icons.Rounded.Map, BizgrowColors.Violet)
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text("Business Planning", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                    Text("Rancang rencana bisnis dengan bantuan AI, lalu terapkan jadi unit baru", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
                             }
                         }
                     }
@@ -357,5 +343,64 @@ private fun UnitCard(unit: BusinessUnit, modifier: Modifier, jumlahCabang: Int =
                 Icon(Icons.Rounded.ArrowForward, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             }
         }
+    }
+}
+
+
+/**
+ * Kartu Business Planning di lobi: panduan memulai bisnis (nama bisnis → target → modal → channel), lalu AI memeriksa
+ * dan membuatkan canvas + menyiapkan data. Menampilkan kelanjutan draf bila ada.
+ */
+@Composable
+private fun KartuPlanningBeranda(viewModel: AppViewModel, modifier: Modifier = Modifier) {
+    val rencana by viewModel.businessPlansState.collectAsState(initial = viewModel.businessPlansState.value)
+    val daftar = rencana.plans
+    val lanjut = daftar.firstOrNull { it.status == "DRAFT" } ?: daftar.firstOrNull { it.status == "COMPLETE" && !it.isSeeded }
+    val judul: String; val isi: String; val aksi: String
+    when {
+        lanjut != null && lanjut.status == "DRAFT" -> {
+            judul = "Lanjutkan rencana: ${lanjut.title.ifBlank { "bisnis baru" }}"
+            isi = "Langkah ${lanjut.currentStep.coerceIn(1, 7)} dari 7 — selesaikan, lalu AI memeriksa & menyiapkan bisnismu."
+            aksi = "Lanjutkan"
+        }
+        lanjut != null -> {
+            judul = "Rencana \"${lanjut.title.ifBlank { "bisnis baru" }}\" siap diterapkan"
+            isi = "AI sudah membuat Business Canvas. Terapkan untuk menyiapkan produk, akun, dan karyawan template otomatis."
+            aksi = "Lihat & terapkan"
+        }
+        else -> {
+            judul = "Mau mulai bisnis baru?"
+            isi = "Dipandu langkah demi langkah dari nama bisnis sampai proyeksi modal. AI membantu mengisi, memeriksa, lalu membuatkan Business Canvas."
+            aksi = "Mulai Business Planning"
+        }
+    }
+    GradientCard(colors = BizgrowColors.GradPrimary, modifier = modifier.fillMaxWidth(), onClick = { viewModel.bukaWizardPlan(lanjut?.id ?: 0) }) {
+      Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(judul, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text(isi, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White).padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(aksi, style = MaterialTheme.typography.labelLarge, color = BizgrowColors.Violet, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Rounded.ArrowForward, null, tint = BizgrowColors.Violet, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        if (daftar.size > 1 || (daftar.isNotEmpty() && lanjut == null)) {
+            Spacer(Modifier.height(8.dp))
+            Text("Lihat semua rencana (${daftar.size})", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.9f),
+                modifier = Modifier.clickable { viewModel.navigate(Screen.BusinessPlan) })
+        }
+      }
     }
 }

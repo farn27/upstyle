@@ -66,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.upstyle.bizgrow.data.SocialPost
+import com.upstyle.bizgrow.ui.design.FilterPill
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.BizCard
@@ -268,8 +269,8 @@ fun SosmedScreen(viewModel: AppViewModel) {
                     ) {
                         Text("Status", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray700)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StatusChip("DRAFT", postStatus == "DRAFT", BizgrowColors.Warning) { postStatus = "DRAFT" }
-                            StatusChip("SCHEDULED", postStatus == "SCHEDULED", BizgrowColors.Primary) { postStatus = "SCHEDULED" }
+                            FilterPill("DRAFT", postStatus == "DRAFT", { postStatus = "DRAFT" })
+                            FilterPill("SCHEDULED", postStatus == "SCHEDULED", { postStatus = "SCHEDULED" })
                         }
                     }
                     OutlinedButton(

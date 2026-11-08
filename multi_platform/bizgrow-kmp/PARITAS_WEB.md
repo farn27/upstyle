@@ -74,3 +74,10 @@ manual per modul. ✅ = setara web · 🟡 = sebagian · ❌ = belum ada. E-comm
 - **Foto produk**: URL ui-avatars/placeholder.com & path relatif `/uploads/..` → `ProductThumb` (inisial lokal + alamat server dari `LocalServerUrl`).
 - Alamat server bawaan kini dari konfigurasi build (`-Pbizgrow.serverUrl`), batas unit paket dari server, nama karyawan (bukan "Karyawan #id") di HR.
 - CI tidak lagi mencetak respons Appetize (berisi privateKey).
+
+## Business Planning (lobi → wizard → AI → terapkan)
+- **Lobi (Beranda)**: kartu Business Planning ungu di bagian atas (sebelumnya tersembunyi di bawah daftar divisi): "Mulai Business Planning", atau "Lanjutkan rencana … langkah x/7", atau "siap diterapkan".
+- **Alur sama di web & app**: 7 langkah → *AI mengonfirmasi rencana* (skor 0–100, kekuatan, perbaikan) → *generate Business Canvas* (9 blok + ringkasan eksekutif, disimpan) → *terapkan* (unit baru atau unit yang ada: kategori produk, produk contoh, COA, karyawan template, supplier, ABC, pajak).
+- Paritas: 6 model pendapatan, 6 channel, 6 platform online (nama sama dengan web), tombol "Minta AI review" di langkah 3, canvas tersimpan (`canvasJson`).
+- Server: mode AI baru `review`; konteks AI kini ringkasan berlabel lengkap (dulu JSON dipotong 400–600 karakter sehingga modal, biaya, dan channel sering tidak terbaca AI); prompt canvas meminta JSON murni.
+- Daftar rencana (app) menampilkan progres langkah, status Draf/Selesai/Diterapkan; "Terapkan" dulu memakai unit aktif secara diam-diam — kini memilih tujuan secara eksplisit.

@@ -1781,7 +1781,10 @@ data class BusinessPlan(
     val swot: String = "",
     val financialProjection: String = "",
     val actionPlan: String = "",
-    val status: String = "DRAFT", // DRAFT | REVIEW | APPROVED | ACTIVE
+    val status: String = "DRAFT", // DRAFT | COMPLETE | APPLIED
+    /** Langkah wizard terakhir (1–7) dan apakah sudah diterapkan jadi data bisnis. */
+    val currentStep: Int = 1,
+    val isSeeded: Boolean = false,
     val createdAt: String = "",
     val updatedAt: String = ""
 )

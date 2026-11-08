@@ -1214,6 +1214,12 @@ class UpstyleApi(private val client: HttpClient) {
         return ApiResponse(res.success, res.message, null, res.code)
     }
 
+    /** Terapkan plan: unitId null = buat unit baru dari plan. Balasan: unitId + totalRecords. */
+    suspend fun terapkanPlan(planId: Int, unitId: Int?): ApiResponse<JsonObject> =
+        client.post("api/app/business-plan/apply") {
+            setBody(buildJsonObject { put("planId", planId); if (unitId != null && unitId > 0) put("unitId", unitId) })
+        }.body()
+
     suspend fun applyBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> {
         val res: ApiResponse<JsonElement> = client.post("api/app/business-plan/apply") {
             setBody(buildJsonObject {
@@ -1798,10 +1804,13 @@ private data class BusinessPlanDto(
     val targetPasar: String? = null,
     val aiSummary: String? = null,
     val status: String = "DRAFT",
+    val currentStep: Int? = 1,
+    val isSeeded: Int? = 0,
     val createdAt: String? = null,
     val updatedAt: String? = null
 ) {
     fun keModel(unitAktif: Int) = BusinessPlan(
+        currentStep = (currentStep ?: 1).coerceIn(1, 7), isSeeded = (isSeeded ?: 0) != 0,
         id = id, unitId = unitId ?: unitAktif, title = namaBisnis, kategori = kategori,
         description = deskripsi.orEmpty(), executiveSummary = aiSummary.orEmpty(),
         marketAnalysis = targetPasar.orEmpty(), status = status,

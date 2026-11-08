@@ -9,7 +9,7 @@
  *   field: string,         // field yang minta bantuan
  *   kategori: string,      // kategori bisnis
  *   context: object,       // data wizard yang sudah diisi user
- *   mode: 'hint' | 'validate' | 'canvas'
+ *   mode: 'hint' | 'validate' | 'review' | 'canvas'
  * }
  */
 import { json } from '@sveltejs/kit';
@@ -51,6 +51,10 @@ export async function POST({ request, cookies }) {
       // Mode: validasi & saran perbaikan satu step
       prompt = buildValidatePrompt(step, kategoriLabel, context);
       maxTokens = 350;
+    } else if (mode === 'review') {
+      // Mode: konfirmasi akhir seluruh rencana sebelum di-generate (verdict + skor + kekuatan + perbaikan)
+      prompt = buildReviewPrompt(kategoriLabel, context);
+      maxTokens = 600;
     } else if (mode === 'canvas') {
       // Mode: generate Business Model Canvas di akhir wizard
       prompt = buildCanvasPrompt(kategoriLabel, context);
@@ -63,7 +67,7 @@ export async function POST({ request, cookies }) {
         { role: 'system', content: 'Kamu adalah konsultan bisnis UMKM Indonesia yang ringkas dan praktis. Jawab dalam Bahasa Indonesia, to the point, tanpa basa-basi.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.4,
+      temperature: mode === 'canvas' || mode === 'review' ? 0.2 : 0.4,
       max_tokens: maxTokens,
     });
 
@@ -83,17 +87,45 @@ User mengisi field "${field}". Data sejauh ini: ${JSON.stringify(ctx, null, 0).s
 Berikan 2-3 contoh spesifik untuk field "${field}" yang relevan dengan bisnis ${kategoriLabel}. Format: poin pendek.`;
 }
 
+/** Ringkas isi wizard jadi baris berlabel (tidak memotong di tengah field seperti JSON.slice). */
+function ringkasKonteks(ctx, batas = 1800) {
+  const label = {
+    namaBisnis: 'Nama bisnis', deskripsi: 'Deskripsi', visi: 'Visi', misi: 'Misi', targetPasar: 'Target pasar',
+    problemSolving: 'Masalah yang diselesaikan', targetUsia: 'Usia target', targetLokasi: 'Lokasi target',
+    nilaiUtama: 'Nilai utama', keunggulan: 'Keunggulan', kompetitorUtama: 'Kompetitor', modelPendapatan: 'Model pendapatan',
+    estimasiHarga: 'Estimasi harga jual (Rp)', estimasiVolumePerBulan: 'Volume per bulan', modalAwal: 'Modal awal (Rp)',
+    biayaOperasionalPerBulan: 'Biaya operasional per bulan (Rp)', channelPenjualan: 'Channel', platformOnline: 'Platform online'
+  };
+  const baris = [];
+  for (const [k, l] of Object.entries(label)) {
+    const v = ctx?.[k];
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)) continue;
+    baris.push(`${l}: ${Array.isArray(v) ? v.join(', ') : String(v).slice(0, 300)}`);
+  }
+  return baris.join('\n').slice(0, batas) || '(belum ada data)';
+}
+
 function buildValidatePrompt(step, kategoriLabel, ctx) {
-  const stepData = JSON.stringify(ctx, null, 0).substring(0, 400);
-  return `Bisnis: ${kategoriLabel}. Review step ini: ${stepData}.
+  return `Bisnis: ${kategoriLabel}. Review isian wizard berikut:
+${ringkasKonteks(ctx, 900)}
 Berikan feedback singkat: apa yang sudah bagus dan 1-2 hal yang perlu diperbaiki/ditambahkan. Maksimal 4 poin.`;
 }
 
+function buildReviewPrompt(kategoriLabel, ctx) {
+  return `Kamu menilai kelayakan rencana bisnis UMKM sebelum dibuatkan dokumen final.
+Kategori: ${kategoriLabel}.
+${ringkasKonteks(ctx)}
+
+Periksa konsistensi (harga x volume vs biaya vs modal, target pasar vs channel, keunggulan vs kompetitor) dan kelengkapan.
+Balas HANYA JSON:
+{"siap": true/false, "skor": 0-100, "kekuatan": ["..."], "perbaikan": ["..."]}
+"siap" true bila rencana cukup lengkap & masuk akal untuk di-generate. Maksimal 3 kekuatan dan 4 perbaikan, masing-masing satu kalimat pendek.`;
+}
+
 function buildCanvasPrompt(kategoriLabel, ctx) {
-  const data = JSON.stringify(ctx, null, 0).substring(0, 600);
   return `Buat Business Model Canvas ringkas untuk: ${kategoriLabel}.
-Data bisnis: ${data}.
-Format JSON:
+${ringkasKonteks(ctx)}
+Balas HANYA JSON valid (tanpa teks lain, tanpa markdown):
 {
   "value_proposition": "...",
   "customer_segments": "...",

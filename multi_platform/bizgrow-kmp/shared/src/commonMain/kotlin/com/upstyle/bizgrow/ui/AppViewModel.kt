@@ -2921,6 +2921,18 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    /** Terapkan plan jadi data bisnis (unit baru bila [unitId] null). [onSelesai] menerima (berhasil, pesan, jumlah data, unitId). */
+    fun terapkanPlan(planId: Int, unitId: Int?, onSelesai: (Boolean, String, Int, Int) -> Unit) = viewModelScope.launch {
+        try {
+            val res = api.terapkanPlan(planId, unitId)
+            val d = res.data
+            if (res.success) {
+                loadBusinessPlans(); loadUnits()
+                onSelesai(true, res.message ?: "Rencana diterapkan", (d?.get("totalRecords") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0, (d?.get("unitId") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0)
+            } else onSelesai(false, res.message ?: "Gagal menerapkan rencana", 0, 0)
+        } catch (e: Exception) { onSelesai(false, "Koneksi gagal: ${e.message}", 0, 0) }
+    }
+
     fun applyBusinessPlan(id: Int) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
