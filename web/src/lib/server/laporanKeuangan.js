@@ -124,6 +124,57 @@ export async function buatLaporanKeuangan(unit, tahun, bulan) {
         totalAsetLancar: 0, totalAsetTetap: 0, totalAset: 0, totalLiabilitasLancar: 0, totalLiabilitasPanjang: 0, totalLiabilitas: 0, totalEkuitas: 0
     };
 
+    // Neraca bersifat KUMULATIF: saldo semua jurnal sampai akhir periode (dulu hanya mutasi di periode
+    // terpilih, sehingga neraca bulan tertentu tidak memuat saldo awal dan laba bulan-bulan sebelumnya).
+    const pad = (/** @type {number} */ n) => String(n).padStart(2, '0');
+    const awalPeriode = bulan === 'all' ? `${tahun}-01-01` : `${tahun}-${pad(parseInt(bulan))}-01`;
+    const akhirPeriode = bulan === 'all'
+        ? `${tahun}-12-31`
+        : `${tahun}-${pad(parseInt(bulan))}-${pad(new Date(Date.UTC(Number(tahun), parseInt(bulan), 0)).getUTCDate())}`;
+
+    const saldoKumulatif = await db.select({
+        coaId: chartOfAccounts.id,
+        kodeAkun: chartOfAccounts.kodeAkun,
+        namaAkun: chartOfAccounts.namaAkun,
+        tipeAkun: chartOfAccounts.tipeAkun,
+        normalBalance: chartOfAccounts.normalBalance,
+        totalDebit: sql`COALESCE(SUM(${journalEntryLines.debit}), 0)`,
+        totalKredit: sql`COALESCE(SUM(${journalEntryLines.kredit}), 0)`
+    })
+    .from(journalEntryLines)
+    .innerJoin(journalEntries, eq(journalEntryLines.journalId, journalEntries.id))
+    .innerJoin(chartOfAccounts, eq(journalEntryLines.coaId, chartOfAccounts.id))
+    .where(and(eq(journalEntries.unitId, unit.id), sql`${journalEntries.tanggal} <= ${akhirPeriode}`))
+    .groupBy(chartOfAccounts.id, chartOfAccounts.kodeAkun, chartOfAccounts.namaAkun, chartOfAccounts.tipeAkun, chartOfAccounts.normalBalance);
+
+    // Laba (rugi) periode-periode sebelumnya → laba ditahan (tutup buku tidak membuat jurnal penutup)
+    const [rowLabaLalu] = await db.select({
+        nilai: sql`COALESCE(SUM(${journalEntryLines.kredit} - ${journalEntryLines.debit}), 0)`
+    })
+    .from(journalEntryLines)
+    .innerJoin(journalEntries, eq(journalEntryLines.journalId, journalEntries.id))
+    .innerJoin(chartOfAccounts, eq(journalEntryLines.coaId, chartOfAccounts.id))
+    .where(and(
+        eq(journalEntries.unitId, unit.id),
+        sql`${journalEntries.tanggal} < ${awalPeriode}`,
+        sql`${chartOfAccounts.tipeAkun} IN ('PENDAPATAN','HPP','BEBAN_OPERASIONAL','PENDAPATAN_LAINNYA','BEBAN_LAINNYA')`
+    ));
+    const labaDitahan = Number(rowLabaLalu?.nilai || 0);
+
+    saldoKumulatif.forEach(b => {
+        const saldo = b.normalBalance === 'DEBIT' ? (Number(b.totalDebit) - Number(b.totalKredit)) : (Number(b.totalKredit) - Number(b.totalDebit));
+        const data = { id: b.coaId, kodeAkun: b.kodeAkun, namaAkun: b.namaAkun, saldo };
+        if (b.tipeAkun === 'ASET_LANCAR') { neraca.asetLancar.push(data); neraca.totalAsetLancar += saldo; }
+        else if (b.tipeAkun === 'ASET_TETAP') { neraca.asetTetap.push(data); neraca.totalAsetTetap += saldo; }
+        else if (b.tipeAkun === 'LIABILITAS_LANCAR') { neraca.liabilitasLancar.push(data); neraca.totalLiabilitasLancar += saldo; }
+        else if (b.tipeAkun === 'LIABILITAS_JANGKA_PANJANG') { neraca.liabilitasJangkaPanjang.push(data); neraca.totalLiabilitasPanjang += saldo; }
+        else if (b.tipeAkun === 'EKUITAS') { neraca.ekuitas.push(data); neraca.totalEkuitas += saldo; }
+    });
+    if (Math.abs(labaDitahan) >= 0.5) {
+        neraca.ekuitas.push({ id: 0, kodeAkun: '', namaAkun: 'Laba (rugi) ditahan periode sebelumnya', saldo: labaDitahan });
+        neraca.totalEkuitas += labaDitahan;
+    }
+
     balancesRaw.forEach(b => {
         const saldo = b.normalBalance === 'DEBIT' ? (Number(b.totalDebit) - Number(b.totalKredit)) : (Number(b.totalKredit) - Number(b.totalDebit));
         const data = { id: b.coaId, kodeAkun: b.kodeAkun, namaAkun: b.namaAkun, saldo };
@@ -133,12 +184,6 @@ export async function buatLaporanKeuangan(unit, tahun, bulan) {
         else if (b.tipeAkun === 'BEBAN_OPERASIONAL') { labaRugi.beban.push(data); labaRugi.totalBeban += saldo; }
         else if (b.tipeAkun === 'PENDAPATAN_LAINNYA') { labaRugi.pendapatanLainnya.push(data); labaRugi.totalPendapatanLainnya += saldo; }
         else if (b.tipeAkun === 'BEBAN_LAINNYA') { labaRugi.bebanLainnya.push(data); labaRugi.totalBebanLainnya += saldo; }
-        
-        else if (b.tipeAkun === 'ASET_LANCAR') { neraca.asetLancar.push(data); neraca.totalAsetLancar += saldo; }
-        else if (b.tipeAkun === 'ASET_TETAP') { neraca.asetTetap.push(data); neraca.totalAsetTetap += saldo; }
-        else if (b.tipeAkun === 'LIABILITAS_LANCAR') { neraca.liabilitasLancar.push(data); neraca.totalLiabilitasLancar += saldo; }
-        else if (b.tipeAkun === 'LIABILITAS_JANGKA_PANJANG') { neraca.liabilitasJangkaPanjang.push(data); neraca.totalLiabilitasPanjang += saldo; }
-        else if (b.tipeAkun === 'EKUITAS') { neraca.ekuitas.push(data); neraca.totalEkuitas += saldo; }
     });
 
     labaRugi.labaKotor = labaRugi.totalPendapatan - labaRugi.totalHpp;

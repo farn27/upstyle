@@ -1,4 +1,4 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, isRedirect, isHttpError } from '@sveltejs/kit';
 import { pesanAman } from '$lib/server/pesanAman';
 import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle'; 
@@ -54,6 +54,8 @@ export const load = async ({ params, locals, parent }) => {
         return resultData;
 
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         log.api.error({ err: err.message, slug }, 'Produk add: Redis/DB load error');
         const unit = await db.query.unitBisnis.findFirst({
             where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, user.id)),

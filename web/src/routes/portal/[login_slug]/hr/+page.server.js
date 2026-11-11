@@ -1,4 +1,4 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, redirect, isRedirect, isHttpError } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, employees } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -59,6 +59,8 @@ export async function load({ cookies, params }) {
             totalSalary
         };
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         log.api.error({ err }, 'HR Portal Load Error');
         throw error(500, "Internal Server Error");
     }

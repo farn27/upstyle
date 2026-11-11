@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, isRedirect, isHttpError } from '@sveltejs/kit';
 import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, crmDeals, salesTargets, users } from '$lib/server/schema';
@@ -90,6 +90,8 @@ export const load = async ({ params, cookies }) => {
         return { unit: unitData, ...finalData };
 
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         console.error("LOAD SALES DASHBOARD ERROR:", err);
         throw error(500, 'Database error');
     }

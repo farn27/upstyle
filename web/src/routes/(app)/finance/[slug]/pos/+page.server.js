@@ -2,7 +2,7 @@ import { db } from '$lib/server/drizzle';
 import { pesanAman } from '$lib/server/pesanAman';
 import { unitBisnis, products, kategoriProduk, posCustomers, posShifts, posCashTransactions } from '$lib/server/schema';
 import { eq, and, or, asc, desc, sql, isNull } from 'drizzle-orm';
-import { error } from '@sveltejs/kit';
+import { error, isRedirect, isHttpError } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { pusherServer } from '$lib/server/pusher';
@@ -211,6 +211,8 @@ export async function load({ params, cookies, locals }) {
             tarifPpn: (await tarifPpnAktif(db, unitId).catch(() => null))?.persentase ?? 0
         };
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         log.pos.error({ err }, 'POS Load Error');
         throw error(500, 'Gagal memuat data produk');
     }

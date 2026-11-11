@@ -10,7 +10,7 @@ export function hitungPenyusutan(a, sampai) {
 	const sisa = Math.min(Number(a.nilaiSisa) || 0, perolehan);
 	const umurBulan = Math.max(1, Math.round((Number(a.umurEkonomis) || 1) * 12));
 	const mulai = String(a.tanggalPerolehan || '').slice(0, 10);
-	const akhir = (sampai || new Date().toISOString().slice(0, 10)).slice(0, 10);
+	const akhir = (sampai || new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)).slice(0, 10); // hari ini WIB
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(mulai) || mulai > akhir) return { akumulasi: 0, nilaiBuku: perolehan, perBulan: 0, bulanBerjalan: 0 };
 	const [y1, m1, d1] = mulai.split('-').map(Number);
 	const [y2, m2, d2] = akhir.split('-').map(Number);

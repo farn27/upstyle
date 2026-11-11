@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, isRedirect, isHttpError } from '@sveltejs/kit';
 import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, marketingCampaigns, adTrackers, marketingLeads, vouchers, landingPages } from '$lib/server/schema';
@@ -62,6 +62,8 @@ export const load = async ({ params, cookies }) => {
         return { unit, ...finalData };
 
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         console.error("LOAD MARKETING DASHBOARD ERROR:", err);
         throw error(500, 'Database error');
     }

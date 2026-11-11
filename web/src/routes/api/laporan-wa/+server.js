@@ -94,7 +94,7 @@ export async function POST({ request, cookies }) {
 			total_omzet: sql`SUM(${posOrders.total})`
 		})
 		.from(posOrders)
-		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace('tanggal', 'created_at'))));
+		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace(/\btanggal\b/g, 'pos_orders.created_at'))));
 
 	// Top 3 produk hari ini
 	const topProduk = await db.select({
@@ -105,9 +105,9 @@ export async function POST({ request, cookies }) {
 		.from(posOrderItems)
 		.innerJoin(posOrders, eq(posOrders.id, posOrderItems.orderId))
 		.innerJoin(products, eq(products.id, posOrderItems.productId))
-		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace('tanggal', 'pos_orders.created_at'))))
+		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace(/\btanggal\b/g, 'pos_orders.created_at'))))
 		.groupBy(posOrderItems.productId, products.nama)
-		.orderBy(desc(sql`revenue`))
+		.orderBy(desc(sql`SUM(${posOrderItems.total})`))
 		.limit(3);
 
 	const masuk = Number(summary[0]?.masuk || 0);
@@ -133,7 +133,7 @@ export async function POST({ request, cookies }) {
 	if (perubahan) teks += ` (${perubahan} vs sebelumnya)`;
 	teks += `\n`;
 	teks += `❌ Pengeluaran: *${idr(keluar)}*\n`;
-	teks += `${emojiStatus} Laba/Rugi: *${idr(laba)}*\n`;
+	teks += `${emojiStatus} Selisih masuk − keluar: *${idr(laba)}*\n`;
 	teks += `📝 Transaksi: ${totalTrx} entri\n\n`;
 
 	if (totalOrder > 0) {

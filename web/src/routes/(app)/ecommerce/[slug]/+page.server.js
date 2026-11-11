@@ -1,6 +1,6 @@
 import { domainSlugUnik } from '$lib/server/unitBaru';
 import { pesanAman } from '$lib/server/pesanAman';
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, isRedirect, isHttpError } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, ecommerceSettings, ecommerceOrders } from '$lib/server/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
@@ -80,6 +80,8 @@ export const load = async ({ params, cookies }) => {
             recentOrders
         };
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         console.error("LOAD ECOMMERCE ERROR:", err);
         throw error(500, 'Database error');
     }
