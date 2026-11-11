@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { employees, employeeDocuments, employeeKpi, employeeHistory, riwayatAksi } from '$lib/server/schema';
-import { eq, desc } from 'drizzle-orm';
+import { employees, employeeDocuments, employeeKpi, employeeHistory, riwayatAksi, salaryComponents } from '$lib/server/schema';
+import { eq, desc, asc, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { log } from '$lib/server/logger';
@@ -18,7 +18,8 @@ export async function GET({ params, cookies, request }) {
         const emp = await karyawanMilikUser(db, userId, empId);
         if (!emp) return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
 
-        const [documents, kpis, history] = await Promise.all([
+        const [komponen, documents, kpis, history] = await Promise.all([
+            db.select().from(salaryComponents).where(eq(salaryComponents.employeeId, empId)).orderBy(asc(salaryComponents.type), asc(salaryComponents.id)),
             db.query.employeeDocuments.findMany({ where: eq(employeeDocuments.employeeId, empId), orderBy: [desc(employeeDocuments.id)] }),
             db.query.employeeKpi.findMany({ where: eq(employeeKpi.employeeId, empId), orderBy: [desc(employeeKpi.id)] }),
             db.query.employeeHistory.findMany({ where: eq(employeeHistory.employeeId, empId), orderBy: [desc(employeeHistory.id)] })
@@ -38,6 +39,8 @@ export async function GET({ params, cookies, request }) {
                     address: emp.address || '', emergencyContact: emp.emergencyContact || '',
                     jobGrade: emp.jobGrade || '', placementLocation: emp.placementLocation || ''
                 },
+                // komponen gaji (tunjangan / potongan) yang dipakai saat proses payroll
+                components: komponen.map(c => ({ id: c.id, employeeId: empId, name: c.name || '', amount: Number(c.amount || 0), type: c.type || 'addition' })),
                 documents: documents.map(d => ({
                     id: d.id, documentType: d.documentType, fileName: d.fileName || '',
                     filePath: d.filePath, uploadedAt: d.uploadedAt || ''
@@ -106,5 +109,41 @@ export async function PUT({ params, request, cookies }) {
     } catch (err) {
         log.api.error({ err }, 'PUT hr/[employeeId]');
         return json({ success: false, message: 'Gagal update karyawan' }, { status: 500 });
+    }
+}
+
+// POST /api/app/hr/[employeeId] — kelola komponen gaji: { action: 'add-component', component: { name, amount, type } } | { action: 'delete-component', componentId }
+export async function POST({ params, request, cookies }) {
+    const userId = await getCurrentUserId(cookies, request);
+    if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    const empId = Number(params.employeeId);
+    if (!empId) return json({ success: false, message: 'employeeId tidak valid' }, { status: 400 });
+    try {
+        const emp = await karyawanMilikUser(db, userId, empId);
+        if (!emp) return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+        const body = await request.json();
+
+        if (body.action === 'add-component') {
+            const c = body.component || {};
+            const nama = String(c.name || '').trim().slice(0, 100);
+            const nominal = Number(c.amount);
+            const tipe = c.type === 'deduction' ? 'deduction' : 'addition';
+            if (!nama) return json({ success: false, message: 'Nama komponen wajib diisi' }, { status: 422 });
+            if (!(nominal > 0)) return json({ success: false, message: 'Nominal harus lebih dari 0' }, { status: 422 });
+            await db.insert(salaryComponents).values({ employeeId: empId, name: nama, amount: String(nominal), type: tipe });
+            await db.insert(riwayatAksi).values({ userId, unitId: emp.companyId, pesan: `Komponen gaji ${tipe === 'addition' ? 'tunjangan' : 'potongan'} "${nama}" ditambahkan untuk ${emp.fullName}`, kategori: 'HR', tipe: 'info' });
+            return json({ success: true, message: 'Komponen gaji ditambahkan' });
+        }
+        if (body.action === 'delete-component') {
+            const compId = Number(body.componentId);
+            if (!compId) return json({ success: false, message: 'componentId tidak valid' }, { status: 400 });
+            const [r] = await db.delete(salaryComponents).where(and(eq(salaryComponents.id, compId), eq(salaryComponents.employeeId, empId)));
+            if (!r?.affectedRows) return json({ success: false, message: 'Komponen tidak ditemukan' }, { status: 404 });
+            return json({ success: true, message: 'Komponen gaji dihapus' });
+        }
+        return json({ success: false, message: 'Aksi tidak dikenali' }, { status: 400 });
+    } catch (err) {
+        log.api.error({ err }, 'POST hr/[employeeId]');
+        return json({ success: false, message: 'Gagal memproses komponen gaji' }, { status: 500 });
     }
 }

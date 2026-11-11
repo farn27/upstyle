@@ -31,7 +31,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        // Alamat server bawaan: -Pbizgrow.serverUrl=https://… atau env BIZGROW_SERVER_URL (selain itu server produksi)
+        val serverUrl = (project.findProperty("bizgrow.serverUrl") as String?) ?: System.getenv("BIZGROW_SERVER_URL") ?: "https://bizgrows-ten.vercel.app"
+        buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
     }
+    buildFeatures { buildConfig = true }
     buildTypes {
         // Debug boleh HTTP biasa (server dev di emulator / IP LAN). Release wajib HTTPS supaya token
         // login tidak pernah terkirim tanpa enkripsi.

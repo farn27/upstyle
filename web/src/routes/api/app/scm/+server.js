@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { suppliers, purchaseOrders, purchaseOrderItems, products, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
-import { batalPO, hapusSupplier, kirimPO, PengadaanError, terimaSemuaDariMobile } from '$lib/server/pengadaan';
+import { batalPO, buatPO, hapusSupplier, kirimPO, PengadaanError, terimaSemuaDariMobile, ubahSupplier, aturAktifSupplier } from '$lib/server/pengadaan';
 
 // 1. GET: Ambil suppliers dan purchase orders untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -53,7 +54,10 @@ export async function GET({ url, cookies, request }) {
                 phone: details.phone || '',
                 email: details.email || '',
                 category: details.category || '',
-                address: details.address || ''
+                address: details.address || '',
+                npwp: details.npwp || '',
+                termPembayaran: s.termPembayaran ?? 30,
+                isActive: s.isActive ? 1 : 0
             };
         });
 
@@ -70,7 +74,8 @@ export async function GET({ url, cookies, request }) {
                 qty: item?.qtyOrdered || 0,
                 unitCost: Number(item?.unitPrice || 0),
                 totalAmount: Number(po.totalAmount || 0),
-                date: po.createdAt ? new Date(po.createdAt).getTime() : Date.now(),
+                date: po.createdAt ? String(po.createdAt) : '',
+                jumlahItem: po.items?.length || 0,
                 status: po.status || 'DRAFT'
             };
         });
@@ -94,7 +99,7 @@ export async function GET({ url, cookies, request }) {
 
     } catch (err) {
         log.scm.error({ err }, 'API GET SCM ERROR');
-        return json({ success: false, message: "Gagal mengambil data SCM: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal mengambil data SCM: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -185,11 +190,21 @@ export async function POST({ request, cookies }) {
             return json({ success: true, message: "Purchase Order berhasil dibuat", id: String(newPoId) });
         }
 
+        // PO lengkap seperti form web: banyak barang, diskon, ongkir, PPN, perkiraan tiba, catatan
+        if (action === 'create-po-lengkap') {
+            const { unitId, ...isi } = body.po || {};
+            if (!unitId || !(await unitMilikUser(db, userId, Number(unitId)))) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
+            const poId = await buatPO(db, { unitId: Number(unitId), userId }, isi);
+            const [po] = await db.select({ poNumber: purchaseOrders.poNumber }).from(purchaseOrders).where(eq(purchaseOrders.id, poId)).limit(1);
+            return json({ success: true, message: `Purchase Order ${po?.poNumber || ''} berhasil dibuat`, id: String(poId), poNumber: po?.poNumber || '' });
+        }
+
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });
 
     } catch (err) {
+        if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.scm.error({ err }, 'API POST SCM ERROR');
-        return json({ success: false, message: "Gagal membuat SCM: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal membuat SCM: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -201,6 +216,16 @@ export async function PUT({ request, cookies }) {
     try {
         const body = await request.json();
         const { poId, status, unitId } = body;
+
+        // Ubah data supplier / aktifkan-nonaktifkan (sama dengan halaman supplier di web)
+        if (body.action === 'update-supplier' || body.action === 'set-supplier-aktif') {
+            const sup = await db.query.suppliers.findFirst({ where: eq(suppliers.id, Number(body.supplierId)) });
+            if (!sup || !(await unitMilikUser(db, userId, sup.unitId))) return json({ success: false, message: 'Supplier tidak ditemukan' }, { status: 404 });
+            const ctx = { unitId: sup.unitId, userId };
+            if (body.action === 'set-supplier-aktif') await aturAktifSupplier(db, ctx, sup.id, Boolean(body.aktif));
+            else await ubahSupplier(db, ctx, sup.id, body.supplier || {});
+            return json({ success: true, message: body.action === 'set-supplier-aktif' ? 'Status supplier diperbarui' : 'Supplier diperbarui' });
+        }
 
         if (!poId || !status) {
             return json({ success: false, message: "poId dan status wajib diisi" }, { status: 400 });
@@ -220,9 +245,9 @@ export async function PUT({ request, cookies }) {
 
         return json({ success: true, message: `Status PO berhasil diubah menjadi ${status}` });
     } catch (err) {
-        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.scm.error({ err }, 'API PUT SCM ERROR');
-        return json({ success: false, message: "Gagal memperbarui PO: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal memperbarui PO: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -251,7 +276,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: "Supplier berhasil dihapus" });
     } catch (err) {
-        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.scm.error({ err }, 'API DELETE SCM ERROR');
         return json({ success: false, message: "Gagal menghapus supplier" }, { status: 500 });
     }

@@ -1,4 +1,6 @@
 import { json } from '@sveltejs/kit';
+import { slugDasar } from '$lib/server/unitBaru';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { landingPages, users, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -116,7 +118,15 @@ export async function POST({ request, cookies }) {
 			return apiError(msg, 422);
 		}
 
-		const { pageSlug, title, contentJson, templateId } = parsed.data;
+		const { title, contentJson, templateId } = parsed.data;
+		// Alamat publik /w/lp/<slug> unik se-server: rapikan, lalu beri akhiran bila sudah dipakai (dulu duplikat → gagal 500)
+		const dasar = slugDasar(parsed.data.pageSlug).slice(0, 80) || 'halaman';
+		let pageSlug = dasar;
+		for (let i = 0; i < 6; i++) {
+			const ada = await db.query.landingPages.findFirst({ where: eq(landingPages.pageSlug, pageSlug), columns: { id: true } });
+			if (!ada) break;
+			pageSlug = `${dasar}-${Math.random().toString(36).slice(2, 6)}`;
+		}
 
 		const [result] = await db.insert(landingPages).values({
 			unitId,
@@ -125,7 +135,7 @@ export async function POST({ request, cookies }) {
 			contentJson: contentJson ?? null,
 			templateId: templateId ?? null,
 			isActive: true,
-			createdAt: new Date().toISOString()
+			createdAt: nowSqlWIB()
 		});
 
 		await db.insert(riwayatAksi).values({
@@ -161,7 +171,14 @@ export async function PUT({ request, cookies }) {
 		if (!existing) return apiError('Landing page tidak ditemukan', 404);
 
 		const updatePayload = {};
-		if (body.pageSlug !== undefined) updatePayload.pageSlug = String(body.pageSlug);
+		if (body.pageSlug !== undefined) {
+			const slugBaru = slugDasar(body.pageSlug).slice(0, 100);
+			if (slugBaru !== existing.pageSlug) {
+				const dipakai = await db.query.landingPages.findFirst({ where: eq(landingPages.pageSlug, slugBaru), columns: { id: true } });
+				if (dipakai) return apiError('Alamat halaman sudah dipakai, pilih yang lain', 409);
+			}
+			updatePayload.pageSlug = slugBaru;
+		}
 		if (body.title !== undefined) updatePayload.title = String(body.title);
 		if (body.contentJson !== undefined) updatePayload.contentJson = body.contentJson;
 		if (body.templateId !== undefined) updatePayload.templateId = body.templateId ? String(body.templateId) : null;

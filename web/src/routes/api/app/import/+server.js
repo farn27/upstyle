@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
@@ -36,7 +37,7 @@ export async function POST({ request, cookies }) {
 			data: { importId: `IMP-${Date.now()}`, ...hasil, completedAt: new Date().toISOString() }
 		}, { status: hasil.successRows > 0 ? 200 : 422 });
 	} catch (err) {
-		if (err instanceof ImporEksporError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof ImporEksporError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.api.error({ err }, 'POST app/import');
 		return json({ success: false, message: 'Gagal import data. Periksa kembali format file.' }, { status: 500 });
 	}

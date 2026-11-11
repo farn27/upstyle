@@ -3,7 +3,7 @@
     import { fade } from 'svelte/transition';
     export let data;
     
-    let products = data.products || [];
+    $: products = data.products || [];
     let searchTerm = "";
     
     $: filteredProducts = products.filter(p => 

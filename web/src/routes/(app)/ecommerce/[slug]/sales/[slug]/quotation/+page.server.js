@@ -1,4 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, quotations, quotationItems, salesOrders, salesOrderItems, crmContacts, products, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -18,7 +20,7 @@ export const load = async ({ params, cookies, depends }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
 
-    const cacheKey = `sales_quotation:${unit.id}`;
+    const cacheKey = `sales_quotation:${unit.id}:${await versiCache(userId, slug)}`;
     const cached = await redis.get(cacheKey);
 
     let quotationList, contactList, productList;
@@ -95,7 +97,7 @@ export const actions = {
             return { success: true };
         } catch (err) {
             console.error(err);
-            return fail(500, { error: 'Gagal buat penawaran: ' + err.message });
+            return fail(500, { error: 'Gagal buat penawaran: ' + pesanAman(err) });
         }
     },
 
@@ -188,7 +190,7 @@ export const actions = {
             return { success: true, message: `Sales Order berhasil dibuat dari Quotation!`, soId };
         } catch (err) {
             console.error('[Convert Quotation]', err);
-            return fail(500, { error: 'Gagal konversi: ' + err.message });
+            return fail(500, { error: 'Gagal konversi: ' + pesanAman(err) });
         }
     }
 };

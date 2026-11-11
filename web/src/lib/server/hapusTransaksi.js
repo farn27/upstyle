@@ -9,6 +9,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { transaksi, products, journalEntries, journalEntryLines } from '$lib/server/schema';
 import { deltaStokSaatHapus } from '$lib/financeDashboard';
+import { pastikanPeriodeTerbuka } from '$lib/server/periodeTutup';
 
 /**
  * @param {any} tx  transaksi Drizzle (dari db.transaction)
@@ -20,6 +21,7 @@ export async function hapusTransaksi(tx, { unitId, trxId }) {
 		where: and(eq(transaksi.id, trxId), eq(transaksi.unitId, unitId))
 	});
 	if (!trx) return null;
+	await pastikanPeriodeTerbuka(tx, unitId, trx.tanggal);
 
 	const delta = deltaStokSaatHapus(trx);
 	if (delta) {

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { transaksi, journalEntries, journalEntryLines, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc, sql, gte, lte } from 'drizzle-orm';
@@ -299,6 +300,6 @@ export async function GET({ url, cookies, request }) {
 
     } catch (err) {
         log.finance.error({ err }, 'API GET LAPORAN FINANCE ERROR');
-        return json({ success: false, message: 'Gagal mengambil data laporan: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal mengambil data laporan: ' + pesanAman(err) }, { status: 500 });
     }
 }

@@ -1,0 +1,10 @@
+{
+  "_petunjuk": "Salin ke acuan-analitis.json (tanpa .contoh) lalu isi 'angka' dengan hasil acuan-analitis.sql pada hari pengujian. Satu angka per elemen yang harus muncul di jawaban AI.",
+  "A01": { "angka": [0] },
+  "A02": { "angka": [0] },
+  "A03": { "angka": [0] },
+  "A07": { "angka": [0] },
+  "A14": { "angka": [12] },
+  "A19": { "tidakTersedia": true },
+  "A20": { "tidakTersedia": true }
+}

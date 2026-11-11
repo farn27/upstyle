@@ -1,5 +1,8 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.upstyle.bizgrow.data
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -21,10 +24,14 @@ data class PaginatedResponse<T>(
     val success: Boolean,
     val data: List<T> = emptyList(),
     val pagination: Pagination? = null,
+    /** Server /api/app mengirim metadata halaman di `meta` (bukan `pagination`). */
+    val meta: Pagination? = null,
     val message: String? = null
 ) {
     /** Alias so call sites can use either `.error` or `.message` (sama seperti ApiResponse). */
     val error: String? get() = message
+    /** Masih ada halaman berikutnya? */
+    val adaHalamanBerikut: Boolean get() = (meta ?: pagination)?.hasNext == true
 }
 
 @Serializable
@@ -32,7 +39,8 @@ data class Pagination(
     val page: Int = 1,
     val limit: Int = 20,
     val total: Int = 0,
-    val totalPages: Int = 1
+    val totalPages: Int = 1,
+    val hasNext: Boolean = false
 )
 
 // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -72,6 +80,8 @@ data class BusinessUnit(
     val email: String? = null,
     val modalAwal: Double = 0.0,
     val isCabang: Int = 0,
+    /** Id unit induk bila ini cabang. */
+    val cabangDari: Int? = null,
     @SerialName("pos_feature_override") val posFeatureOverride: String? = null,
     val settings: BusinessUnitSettings? = null
 )
@@ -110,7 +120,12 @@ data class Transaction(
     val qty: Int = 1,
     val hppTotal: Double = 0.0,
     /** Nama akun kas/metode bayar yang sudah diterjemahkan server (mis. "Kas Tunai", "QRIS"). */
-    val metodeLabel: String? = null
+    val metodeLabel: String? = null,
+    /** Kategori ABC (nama & level A/B/C) bila transaksi dikategorikan. */
+    val abcNama: String? = null,
+    val abcLevel: String? = null,
+    /** Saldo kas setelah transaksi ini (dihitung server, akurat walau daftar difilter). */
+    val saldoSetelah: Double? = null
 )
 
 @Serializable
@@ -122,7 +137,9 @@ data class RiwayatAksi(
     val waktu: String = "",
     val kategori: String = "",
     val isRead: Int = 0,
-    val link: String? = null
+    val link: String? = null,
+    /** Nama unit asal notifikasi (daftar notifikasi lintas unit). */
+    val unitNama: String = ""
 )
 
 @Serializable
@@ -147,8 +164,34 @@ data class FinanceData(
     val summary: FinanceSummary = FinanceSummary(),
     val alerts: FinanceAlerts = FinanceAlerts(),
     val bankBalances: List<BankBalance> = emptyList(),
-    val kpi: FinanceKpi = FinanceKpi()
+    val kpi: FinanceKpi = FinanceKpi(),
+    /** Titik grafik arus kas periode terpilih (per jam bila satu hari, selain itu per tanggal). */
+    val grafik: List<TitikGrafik> = emptyList(),
+    val produkTerlaris: List<ProdukTerlaris> = emptyList(),
+    val perJam: Boolean = false,
+    /** Masih ada transaksi lebih lama untuk dimuat (paginasi riwayat). */
+    val adaLagi: Boolean = false,
+    val abcOptions: List<AbcOpsi> = emptyList()
 )
+
+@Serializable
+data class AbcOpsi(val id: Int = 0, val nama: String = "", val level: String = "C")
+
+/** Filter daftar riwayat transaksi (diproses server). */
+data class RiwayatFilter(
+    val start: String? = null,
+    val end: String? = null,
+    val jenis: String = "",
+    val q: String = "",
+    val abcId: Int = 0,
+    val urut: String = "terbaru"
+)
+
+@Serializable
+data class TitikGrafik(val label: String = "", val masuk: Double = 0.0, val keluar: Double = 0.0)
+
+@Serializable
+data class ProdukTerlaris(val nama: String = "", val total: Double = 0.0, val qty: Int = 0)
 
 @Serializable
 data class FinanceSummary(
@@ -226,9 +269,25 @@ data class Product(
     val showInPos: Int = 1,
     val variants: List<ProductVariant> = emptyList(),
     /** BARANG_JADI (dijual) | BAHAN_BAKU | KEMASAN | PERLENGKAPAN — hanya barang jadi yang boleh di kasir */
-    val jenis: String = "BARANG_JADI"
+    val jenis: String = "BARANG_JADI",
+    /** Varian terpilih di keranjang kasir (bukan data server). Produk + varian berbeda = baris keranjang berbeda. */
+    @kotlinx.serialization.Transient val varianId: String? = null,
+    @kotlinx.serialization.Transient val varianNama: String? = null
 ) {
     val bisaDijual: Boolean get() = jenis.isBlank() || jenis.equals("BARANG_JADI", ignoreCase = true)
+    /** Produk punya varian yang harus dipilih sebelum masuk keranjang */
+    val perluPilihVarian: Boolean get() = varianId == null && hasVariant == 1 && variants.isNotEmpty()
+
+    /** Salinan produk untuk satu varian: nama, harga, stok, dan SKU mengikuti varian. */
+    fun denganVarian(v: ProductVariant): Product = copy(
+        varianId = v.id,
+        varianNama = v.namaVariasi,
+        nama = "$nama · ${v.namaVariasi}",
+        hargaJual = if (v.hargaJual > 0) v.hargaJual else hargaJual,
+        hargaBeli = if (v.hargaBeli > 0) v.hargaBeli else hargaBeli,
+        stok = v.stok,
+        sku = v.sku.ifBlank { sku }
+    )
 }
 
 @Serializable
@@ -241,6 +300,22 @@ data class ProductVariant(
     val hargaJual: Double = 0.0,
     val stok: Int = 0,
     val minStok: Int = 0
+)
+
+/** Isi formulir produk (tambah / ubah). */
+data class ProdukForm(
+    val nama: String,
+    val jenis: String = "BARANG_JADI",
+    val kategoriId: Int? = null,
+    val kategoriBaru: String = "",
+    val sku: String = "",
+    val barcode: String = "",
+    val hargaBeli: Double = 0.0,
+    val hargaJual: Double = 0.0,
+    val stok: Int = 0,
+    val minStok: Int = 5,
+    val foto: String? = null,
+    val varian: List<ProductVariant> = emptyList()
 )
 
 @Serializable
@@ -312,7 +387,7 @@ data class PosData(
 
 @Serializable
 data class CheckoutRequest(
-    val action: String = "checkout",
+    @EncodeDefault val action: String = "checkout",
     val order: CheckoutBody
 )
 
@@ -330,6 +405,10 @@ data class CheckoutBody(
     val orderType: String = "TAKEAWAY", // DINE_IN | TAKEAWAY | DELIVERY
     val tableNumber: String? = null,
     val queueNumber: String? = null,
+    /** Kenakan PPN penjualan memakai tarif PPN aktif unit (dihitung server). */
+    val kenaiPpn: Boolean = false,
+    /** true = harga sudah termasuk PPN (PPN dipisah dari total). */
+    val ppnInklusif: Boolean = false,
     val notes: String? = null,
     val amountPaid: Double? = null,
     val changeAmount: Double? = null,
@@ -338,7 +417,7 @@ data class CheckoutBody(
 
 @Serializable
 data class CreateCustomerRequest(
-    val action: String = "create-customer",
+    @EncodeDefault val action: String = "create-customer",
     val customer: CreateCustomerBody
 )
 
@@ -432,15 +511,36 @@ data class LeaveRequest(
 
 @Serializable
 data class HrData(
+    val ringkasan: RingkasanHr = RingkasanHr(),
+    val salaryComponents: List<SalaryComponent> = emptyList(),
     val employees: List<Employee> = emptyList(),
     val attendance: List<AttendanceRecord> = emptyList(),
     val payroll: List<PayrollRecord> = emptyList(),
     val leaveRequests: List<LeaveRequest> = emptyList()
 )
 
+/** Ringkasan eksekutif HR dari server (seluruh karyawan unit, bukan hanya halaman yang dimuat). */
+@Serializable
+data class RingkasanHr(
+    val totalKaryawan: Int = 0,
+    val karyawanAktif: Int = 0,
+    val bebanGaji: Double = 0.0,
+    val hadirHariIni: Int = 0,
+    val cutiMenunggu: Int = 0,
+    val kontrakSegeraHabis: Int = 0,
+    val kontrakLewat: Int = 0,
+    val kpiRataRata: Double? = null,
+    val payrollBulanIni: RingkasanPayroll = RingkasanPayroll(),
+    val bulan: Int = 0,
+    val tahun: Int = 0
+)
+
+@Serializable
+data class RingkasanPayroll(val dibayar: Int = 0, val belumDibayar: Int = 0, val nominalDibayar: Double = 0.0, val nominalBelum: Double = 0.0)
+
 @Serializable
 data class CreateEmployeeRequest(
-    val action: String = "create-employee",
+    @EncodeDefault val action: String = "create-employee",
     val employee: CreateEmployeeBody
 )
 
@@ -475,24 +575,27 @@ data class CreateEmployeeBody(
 
 @Serializable
 data class CheckInRequest(
-    val action: String = "check-in",
+    @EncodeDefault val action: String = "check-in",
     val employeeId: Int,
     val unitId: Int,
     val date: String,
-    val time: String
+    val time: String,
+    /** PIN karyawan; diverifikasi server bila karyawan punya PIN */
+    val pin: String? = null
 )
 
 @Serializable
 data class CheckOutRequest(
-    val action: String = "check-out",
+    @EncodeDefault val action: String = "check-out",
     val employeeId: Int,
     val date: String,
-    val time: String
+    val time: String,
+    val pin: String? = null
 )
 
 @Serializable
 data class ProcessPayrollRequest(
-    val action: String = "process-payroll",
+    @EncodeDefault val action: String = "process-payroll",
     val payroll: ProcessPayrollBody
 )
 
@@ -531,10 +634,11 @@ data class CrmContact(
 @Serializable
 data class CrmDeal(
     val id: Int,
-    val contactName: String,
-    val companyName: String,
-    val dealValue: Double,
-    val stage: String,
+    val namaDeal: String = "",
+    val contactName: String = "",
+    val companyName: String = "",
+    val dealValue: Double = 0.0,
+    val stage: String = "PROSPEK",
     val phone: String = "",
     val unitId: Int,
     val kontakId: Int? = null,
@@ -557,7 +661,7 @@ data class CrmActivity(
 
 @Serializable
 data class CreateContactRequest(
-    val action: String = "create-contact",
+    @EncodeDefault val action: String = "create-contact",
     val contact: CreateContactBody
 )
 
@@ -580,10 +684,11 @@ data class CreateDealBody(
     val contactName: String,
     val companyName: String,
     val dealValue: Double,
-    val stage: String = "PROSPECT",
+    val stage: String = "PROSPEK",
     val phone: String = "",
     val unitId: Int,
-    val kontakId: Int? = null
+    val kontakId: Int? = null,
+    val namaDeal: String? = null
 )
 
 @Serializable
@@ -591,7 +696,7 @@ data class UpdateDealStageRequest(val dealId: Int, val stage: String, val unitId
 
 @Serializable
 data class CreateActivityRequest(
-    val action: String = "create-activity",
+    @EncodeDefault val action: String = "create-activity",
     val activity: CreateActivityBody
 )
 
@@ -613,7 +718,10 @@ data class Supplier(
     val phone: String,
     val email: String,
     val category: String,
-    val address: String
+    val address: String,
+    val npwp: String = "",
+    val termPembayaran: Int = 30,
+    val isActive: Int = 1
 )
 
 @Serializable
@@ -629,8 +737,30 @@ data class PurchaseOrder(
     val totalAmount: Double,
     val date: String = "",
     val status: String,
-    val notes: String? = null
+    val notes: String? = null,
+    /** Jumlah baris barang di PO (kartu hanya menampilkan barang pertama). */
+    val jumlahItem: Int = 1
 )
+
+@Serializable
+data class LaporanPembelian(
+    val dari: String = "",
+    val sampai: String = "",
+    val jumlahFaktur: Int = 0,
+    val subtotal: Double = 0.0,
+    val diskon: Double = 0.0,
+    val ongkir: Double = 0.0,
+    val ppn: Double = 0.0,
+    val total: Double = 0.0,
+    val perSupplier: List<LaporanPerSupplier> = emptyList(),
+    val perProduk: List<LaporanPerProduk> = emptyList()
+)
+
+@Serializable
+data class LaporanPerSupplier(val nama: String = "", val jumlah: Int = 0, val total: Double = 0.0)
+
+@Serializable
+data class LaporanPerProduk(val nama: String = "", val qty: Int = 0, val nilai: Double = 0.0)
 
 @Serializable
 data class ScmData(
@@ -640,7 +770,7 @@ data class ScmData(
 
 @Serializable
 data class CreateSupplierRequest(
-    val action: String = "create-supplier",
+    @EncodeDefault val action: String = "create-supplier",
     val supplier: CreateSupplierBody
 )
 
@@ -657,7 +787,7 @@ data class CreateSupplierBody(
 
 @Serializable
 data class CreatePoRequest(
-    val action: String = "create-po",
+    @EncodeDefault val action: String = "create-po",
     val po: CreatePoBody
 )
 
@@ -751,7 +881,9 @@ data class CreatePayableRequest(
 @Serializable
 data class PayInvoiceRequest(
     val invoiceId: Int,
-    val nominalBayar: Double
+    val nominalBayar: Double,
+    /** Akun kas/bank penerima (piutang) atau sumber bayar (hutang); kosong = akun kas default */
+    val kasCoaId: Int? = null
 )
 
 // â”€â”€â”€ Double Entry / Jurnal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -765,7 +897,9 @@ data class ChartOfAccount(
     val tipeAkun: String = "",
     val normalBalance: String = "DEBIT",
     val isActive: Int = 1,
-    val deskripsi: String? = null
+    val deskripsi: String? = null,
+    /** Akun induk (sub-akun) — sama dengan "Sub-Akun Dari" di web. */
+    val parentId: Int? = null
 )
 
 @Serializable
@@ -815,6 +949,8 @@ data class CreateJournalLineBody(
 data class BukuBesarEntry(
     val tanggal: String,
     val keterangan: String,
+    val nomorJurnal: String = "",
+    val sumber: String = "MANUAL",
     val referensi: String? = null,
     val debit: Double = 0.0,
     val kredit: Double = 0.0,
@@ -826,6 +962,9 @@ data class BukuBesarData(
     val account: ChartOfAccount? = null,
     val coa: ChartOfAccount? = null,
     val entries: List<BukuBesarEntry> = emptyList(),
+    val saldoAwal: Double = 0.0,
+    val totalDebit: Double = 0.0,
+    val totalKredit: Double = 0.0,
     val saldoAkhir: Double = 0.0
 )
 
@@ -855,12 +994,21 @@ data class ArusKasData(
 @Serializable
 data class EcommerceOrder(
     val id: Int,
-    val unitId: Int,
-    val orderNumber: String,
-    val customerName: String,
+    val unitId: Int = 0,
+    val orderNumber: String = "",
+    val customerName: String = "",
+    val customerEmail: String = "",
     val customerPhone: String = "",
-    val totalAmount: Double,
-    val status: String,
+    val shippingAddress: String = "",
+    val subtotal: Double = 0.0,
+    val discountAmount: Double = 0.0,
+    val totalAmount: Double = 0.0,
+    /** PENDING, PAID, FAILED, EXPIRED */
+    val paymentStatus: String = "PENDING",
+    /** PENDING, PROCESSING, SHIPPED, DELIVERED */
+    val shippingStatus: String = "PENDING",
+    /** Gabungan dari server: PENDING, PAID, PROCESSING, SHIPPED, COMPLETED, CANCELLED */
+    val status: String = "PENDING",
     val source: String = "manual",
     val createdAt: String = "",
     val items: List<EcommerceOrderItem> = emptyList()
@@ -868,14 +1016,17 @@ data class EcommerceOrder(
 
 @Serializable
 data class EcommerceOrderItem(
-    val id: Int,
-    val orderId: Int,
-    val productId: String,
-    val productName: String,
-    val qty: Int,
-    val price: Double,
-    val subtotal: Double
-)
+    val id: Int = 0,
+    val ecommerceOrderId: Int = 0,
+    val productId: String? = null,
+    val productName: String = "",
+    val qty: Int = 1,
+    val price: Double = 0.0,
+    val total: Double = 0.0
+) {
+    /** Alias lama. */
+    val subtotal: Double get() = total
+}
 
 // â”€â”€â”€ CS / Support Tickets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -911,7 +1062,7 @@ data class TicketMessage(
 
 @Serializable
 data class CreateTicketRequest(
-    val action: String = "create",
+    @EncodeDefault val action: String = "create",
     val subject: String,
     val customerName: String,
     val priority: String = "medium",
@@ -1113,11 +1264,53 @@ data class PosFeatureOverride(
 
 // â”€â”€â”€ POS Shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// ─── Pusat Bantuan (konten sama dengan halaman /help web, dari GET /api/app/help) ───
+
+@Serializable
+data class BantuanFaq(val id: Int = 0, val q: String = "", val a: String = "", val category: String = "")
+
+@Serializable
+data class BantuanKategori(val id: String = "", val label: String = "")
+
+@Serializable
+data class BantuanPanduan(val title: String = "", val desc: String = "", val steps: List<String> = emptyList())
+
+@Serializable
+data class BantuanMasalah(val problem: String = "", val solution: String = "")
+
+@Serializable
+data class BantuanTroubleshoot(val id: String = "", val label: String = "", val masalah: List<BantuanMasalah> = emptyList())
+
+@Serializable
+data class BantuanKonten(
+    val items: List<BantuanFaq> = emptyList(),
+    val kategori: List<BantuanKategori> = emptyList(),
+    val panduan: List<BantuanPanduan> = emptyList(),
+    val troubleshoot: List<BantuanTroubleshoot> = emptyList()
+)
+
+@Serializable
+data class DokumenLink(val url: String = "", val berlakuMenit: Int = 10)
+
+@Serializable
+data class RealtimeConfig(val socketUrl: String = "", val token: String = "", val exp: Long = 0)
+
+@Serializable
+data class UpdatePortalRequest(
+    val unitId: Int,
+    val generateNewSlug: Boolean,
+    val action: String
+)
+
+@Serializable
+data class PortalResult(val loginSlug: String = "", val portalPath: String = "")
+
 @Serializable
 data class UpdateUnitSettingsRequest(
     val unitId: Int,
-    val action: String = "updateBusiness",
+    @EncodeDefault val action: String = "updateBusiness",
     val namaUnit: String? = null,
+    val kategori: String? = null,
     val alamat: String? = null,
     val telepon: String? = null,
     val email: String? = null,
@@ -1141,14 +1334,14 @@ data class PosShift(
 
 @Serializable
 data class OpenShiftRequest(
-    val action: String = "open-shift",
+    @EncodeDefault val action: String = "open-shift",
     val unitId: Int,
     val modalAwal: Double
 )
 
 @Serializable
 data class CloseShiftRequest(
-    val action: String = "close-shift",
+    @EncodeDefault val action: String = "close-shift",
     val shiftId: Int,
     val kasAkhirAktual: Double,
     val catatan: String = "",
@@ -1179,7 +1372,7 @@ data class ReturnItem(
 
 @Serializable
 data class CreateReturnRequest(
-    val action: String = "create-return",
+    @EncodeDefault val action: String = "create-return",
     val orderId: String,
     val items: List<ReturnItem>,
     val reason: String,
@@ -1238,7 +1431,11 @@ data class FixedAsset(
     val akumulasiPenyusutan: Double = 0.0,
     val nilaiBuku: Double = 0.0,
     val status: String = "AKTIF",
-    val keterangan: String? = null
+    val keterangan: String? = null,
+    /** Akun aset tetap di COA (opsional). */
+    val coaId: Int? = null,
+    val penyusutanBulanan: Double = 0.0,
+    val bulanBerjalan: Int = 0
 )
 
 @Serializable
@@ -1260,7 +1457,16 @@ data class BudgetItem(
     val tahun: Int,
     val bulan: Int = 0,
     val nominal: Double,
-    val keterangan: String? = null
+    val keterangan: String? = null,
+    // dihitung server dari jurnal
+    val namaAkun: String = "",
+    val kodeAkun: String = "",
+    val tipeAkun: String = "",
+    val realisasi: Double = 0.0,
+    val progress: Int = 0,
+    val selisih: Double = 0.0,
+    val melebihi: Boolean = false,
+    val pendapatan: Boolean = false
 )
 
 @Serializable
@@ -1354,8 +1560,13 @@ data class CrmTask(
     val dealId: Int? = null,
     val deskripsi: String,
     val deadline: String? = null,
-    val status: String = "pending"
+    val status: String = "pending",
+    val contactName: String = "",
+    val createdAt: String = ""
 )
+
+/** Baris item yang dikirim saat membuat penawaran / sales order. */
+data class ItemJual(val productId: String?, val qty: Int, val price: Double)
 
 @Serializable
 data class Quotation(
@@ -1368,6 +1579,7 @@ data class Quotation(
     val status: String = "DRAFT",
     val validUntil: String = "",
     val notes: String? = null,
+    val createdAt: String = "",
     val items: List<QuotationItem> = emptyList()
 )
 
@@ -1376,6 +1588,7 @@ data class QuotationItem(
     val id: Int = 0,
     val quotationId: Int = 0,
     val productId: String? = null,
+    val productName: String = "",
     val qty: Int = 1,
     val price: Double = 0.0,
     val total: Double = 0.0
@@ -1391,6 +1604,7 @@ data class SalesOrder(
     val totalAmount: Double = 0.0,
     val status: String = "PENDING",
     val notes: String? = null,
+    val createdAt: String = "",
     val items: List<SalesOrderItem> = emptyList()
 )
 
@@ -1399,6 +1613,7 @@ data class SalesOrderItem(
     val id: Int = 0,
     val salesOrderId: Int = 0,
     val productId: String? = null,
+    val productName: String = "",
     val qty: Int = 1,
     val price: Double = 0.0,
     val total: Double = 0.0
@@ -1423,10 +1638,12 @@ data class MarketingCampaign(
 data class StockOpnameSession(
     val id: Int = 0,
     val unitId: Int,
-    val warehouseId: Int,
+    val warehouseId: Int = 0,
     val createdBy: Int = 0,
     val status: String = "DRAFT",
     val notes: String? = null,
+    val createdAt: String = "",
+    val completedAt: String? = null,
     val items: List<StockOpnameItem> = emptyList()
 )
 
@@ -1435,6 +1652,7 @@ data class StockOpnameItem(
     val id: Int = 0,
     val opnameId: Int = 0,
     val productId: String,
+    val productName: String = "",
     val systemStock: Int,
     val actualStock: Int,
     val difference: Int = 0,
@@ -1609,7 +1827,10 @@ data class BusinessPlan(
     val swot: String = "",
     val financialProjection: String = "",
     val actionPlan: String = "",
-    val status: String = "DRAFT", // DRAFT | REVIEW | APPROVED | ACTIVE
+    val status: String = "DRAFT", // DRAFT | COMPLETE | APPLIED
+    /** Langkah wizard terakhir (1–7) dan apakah sudah diterapkan jadi data bisnis. */
+    val currentStep: Int = 1,
+    val isSeeded: Boolean = false,
     val createdAt: String = "",
     val updatedAt: String = ""
 )
@@ -1700,27 +1921,19 @@ data class LandingPageTemplate(
 
 // â”€â”€â”€ Shopee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-@Serializable
-data class ShopeeIntegration(
-    val id: Int = 0,
-    val unitId: Int,
-    val shopId: String = "",
-    val shopName: String = "",
-    val accessToken: String = "",
-    val refreshToken: String = "",
-    val isActive: Boolean = false,
-    val lastSyncAt: String = "",
-    val connectedAt: String = ""
-)
 
 
 
 @Serializable
 data class CreateUnitRequest(
     val name: String,
-    val type: String,
+    val type: String? = null,
     val is_cabang: Boolean = false,
-    val cabang_dari: Int? = null
+    val cabang_dari: Int? = null,
+    val alamat: String? = null,
+    val telepon: String? = null,
+    val email: String? = null,
+    val modal_awal: Double? = null
 )
 
 // ─── Subscription & Billing ───────────────────────────────────────────────────
@@ -2173,3 +2386,142 @@ data class PosQueueItem(
 
 @Serializable
 data class PosQueueData(val queue: List<PosQueueItem> = emptyList())
+
+// ─── Detail Purchase Order (padanan pengadaan/po/[id] di web) ────────────────
+
+@Serializable
+data class PoItemDetail(
+    val id: Int = 0,
+    val productId: String = "",
+    val namaProduk: String = "",
+    val sku: String = "",
+    val qtyOrdered: Int = 0,
+    val qtyReceived: Int = 0,
+    val qtyInvoiced: Int = 0,
+    val qtyReturned: Int = 0,
+    val unitPrice: Double = 0.0,
+    val totalPrice: Double = 0.0
+)
+
+@Serializable
+data class PoPenerimaan(val id: Int = 0, val nomor: String = "", val tanggal: String = "", val noSuratJalan: String = "", val ringkasan: String = "")
+
+@Serializable
+data class PoTagihan(
+    val id: Int = 0,
+    val nomorFaktur: String = "",
+    val tanggal: String = "",
+    val jatuhTempo: String = "",
+    val total: Double = 0.0,
+    val payableId: Int = 0,
+    val nominalHutang: Double = 0.0,
+    val sudahDibayar: Double = 0.0,
+    val statusHutang: String = ""
+)
+
+@Serializable
+data class PoRetur(val id: Int = 0, val nomor: String = "", val tanggal: String = "", val alasan: String = "", val ringkasan: String = "")
+
+@Serializable
+data class PoAkunKas(val id: Int = 0, val kodeAkun: String = "", val namaAkun: String = "")
+
+@Serializable
+data class PoDetail(
+    val id: Int = 0,
+    val poNumber: String = "",
+    val status: String = "",
+    val supplierName: String = "",
+    val supplierPhone: String = "",
+    val notes: String = "",
+    val diskon: Double = 0.0,
+    val ongkir: Double = 0.0,
+    val ppnPersen: Double = 0.0,
+    val totalAmount: Double = 0.0,
+    val expectedDate: String? = null,
+    val items: List<PoItemDetail> = emptyList(),
+    val penerimaan: List<PoPenerimaan> = emptyList(),
+    val tagihan: List<PoTagihan> = emptyList(),
+    val retur: List<PoRetur> = emptyList(),
+    val akunKas: List<PoAkunKas> = emptyList()
+)
+
+// ─── Detail karyawan (api/app/hr/[employeeId]) ───────────────────────────────
+
+@Serializable
+data class HrKaryawan(
+    val id: Int = 0,
+    val fullName: String = "",
+    val position: String = "",
+    val salary: Double = 0.0,
+    val joinDate: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val division: String = "",
+    val status: String = "active",
+    val employmentStatus: String = "",
+    val contractStart: String = "",
+    val contractEnd: String = "",
+    val bankName: String = "",
+    val bankAccountNumber: String = "",
+    val address: String = "",
+    val emergencyContact: String = "",
+    val jobGrade: String = "",
+    val placementLocation: String = ""
+)
+
+@Serializable
+data class HrKpi(val id: Int = 0, val periodMonth: Int = 0, val periodYear: Int = 0, val score: Double = 0.0, val notes: String = "")
+
+@Serializable
+data class HrRiwayatJabatan(val id: Int = 0, val oldPosition: String = "", val newPosition: String = "", val changeDate: String = "", val reason: String = "")
+
+@Serializable
+data class HrDokumen(val id: Int = 0, val documentType: String = "", val fileName: String = "", val uploadedAt: String = "")
+
+@Serializable
+data class HrDetailData(
+    val employee: HrKaryawan = HrKaryawan(),
+    val components: List<SalaryComponent> = emptyList(),
+    val kpis: List<HrKpi> = emptyList(),
+    val history: List<HrRiwayatJabatan> = emptyList(),
+    val documents: List<HrDokumen> = emptyList()
+)
+
+// ─── Laporan POS (api/app/pos/reports) ───────────────────────────────────────
+
+@Serializable
+data class PosReportSummary(
+    val totalRevenue: Double = 0.0,
+    val totalOrders: Int = 0,
+    val averageOrder: Double = 0.0,
+    val paidOrders: Int = 0,
+    val cancelledOrders: Int = 0
+)
+
+@Serializable
+data class PosTopProduct(val name: String = "", val qty: Int = 0, val revenue: Double = 0.0)
+
+@Serializable
+data class PosReport(
+    val summary: PosReportSummary = PosReportSummary(),
+    val topProducts: List<PosTopProduct> = emptyList(),
+    val paymentBreakdown: Map<String, Double> = emptyMap()
+)
+
+// ─── Rekap pajak (api/app/finance/pajak) ─────────────────────────────────────
+
+@Serializable
+data class TarifPpn(val id: Int = 0, val namaPajak: String = "", val persentase: Double = 0.0)
+
+@Serializable
+data class PpnBulan(val bulan: Int = 0, val keluaran: Double = 0.0, val masukan: Double = 0.0, val kurangBayar: Double = 0.0)
+
+@Serializable
+data class RekapPajak(
+    val tahun: Int = 0,
+    val tarifPpn: TarifPpn? = null,
+    val bulan: List<PpnBulan> = emptyList(),
+    val totalKeluaran: Double = 0.0,
+    val totalMasukan: Double = 0.0,
+    val totalKurangBayar: Double = 0.0
+)

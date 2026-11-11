@@ -1,4 +1,5 @@
 import { redis } from '$lib/server/redis';
+import { tandaiBerubah } from './cacheVersi.js';
 import { log } from '$lib/server/logger';
 import { dev } from '$app/environment';
 import crypto from 'crypto';
@@ -118,7 +119,8 @@ export async function hapusSemuaSesiUser(userId, opsi = {}) {
 			await r.del(...dihapus.map((t) => `session:${t}`));
 			await r.srem(kunciIndeks(Number(userId)), ...dihapus);
 		}
-		await r.del(`hooks_user:${userId}`, `layout_session_v2:${userId}`).catch(() => {});
+		await r.del(`hooks_user:${userId}`).catch(() => {});
+		await tandaiBerubah({ userId }).catch(() => {});
 		return dihapus.length;
 	} catch (e) {
 		log.auth.warn({ err: pesanError(e) }, 'Gagal mengakhiri sesi user');

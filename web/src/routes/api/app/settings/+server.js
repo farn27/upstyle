@@ -1,13 +1,22 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { users, riwayatAksi } from '$lib/server/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
+import argon2 from 'argon2';
 
 // GET /api/app/settings/profile
+/** Riwayat hanya dicatat bila user punya unit (FK unit_id); kegagalan log tidak boleh menggagalkan simpan. */
+async function catatRiwayat(userId, unitId, pesan) {
+    if (!unitId) return;
+    try {
+        await db.insert(riwayatAksi).values({ userId, unitId, pesan, kategori: 'SETTINGS', tipe: 'info' });
+    } catch (e) { console.error('catatRiwayat gagal', e?.message); }
+}
+
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return apiUnauthorized();
@@ -25,7 +34,8 @@ export async function GET({ url, cookies, request }) {
                     role: true,
                     companyId: true,
                     createdAt: true,
-                    emailVerifiedAt: true
+                    emailVerifiedAt: true,
+                    avatarUrl: true
                 }
             });
 
@@ -36,7 +46,7 @@ export async function GET({ url, cookies, request }) {
                 username: user.username || '',
                 email: user.email || '',
                 name: user.username || '',
-                phone: '',
+                avatarUrl: user.avatarUrl || '',
                 role: user.role || 'free',
                 companyId: user.companyId ?? null,
                 createdAt: user.createdAt || '',
@@ -64,9 +74,9 @@ export async function PUT({ request, cookies }) {
 
         if (mode === 'profile') {
             const schema = z.object({
-                name: z.string().min(1).max(100).optional(),
-                email: z.string().email().optional(),
-                phone: z.string().optional()
+                name: z.string().trim().min(3, 'Nama minimal 3 karakter').max(50).optional(),
+                email: z.string().trim().toLowerCase().email('Format email tidak valid').max(100).optional(),
+                avatarUrl: z.string().trim().url('URL foto tidak valid').max(500).optional().or(z.literal(''))
             });
 
             const parsed = schema.safeParse(body);
@@ -75,27 +85,27 @@ export async function PUT({ request, cookies }) {
                 return apiError(msg, 422);
             }
 
-            const { name, email, phone } = parsed.data;
+            const { name, email, avatarUrl } = parsed.data;
 
             const existing = await db.query.users.findFirst({
                 where: eq(users.id, userId),
-                columns: { id: true, email: true }
+                columns: { id: true, email: true, companyId: true }
             });
             if (!existing) return apiUnauthorized('User tidak ditemukan');
 
             const updateData = {};
             if (name !== undefined) updateData.username = name;
-            if (email !== undefined) updateData.email = email;
+            if (email !== undefined) {
+                // Sama dengan web: email tidak boleh dipakai akun lain (dulu jadi error 500 dari unique key)
+                const dipakai = await db.select({ id: users.id }).from(users).where(and(eq(users.email, email), ne(users.id, userId))).limit(1);
+                if (dipakai.length > 0) return apiError('Email sudah dipakai akun lain', 409);
+                updateData.email = email;
+            }
+            if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl || null;
 
             await db.update(users).set(updateData).where(eq(users.id, userId));
 
-            await db.insert(riwayatAksi).values({
-                userId,
-                unitId: existing.companyId ?? 0,
-                pesan: 'Profil pengguna diperbarui',
-                kategori: 'SETTINGS',
-                tipe: 'info'
-            });
+            await catatRiwayat(userId, existing.companyId, 'Profil pengguna diperbarui');
 
             return apiSuccess({ message: 'Profil berhasil diperbarui' }, 'OK');
         }
@@ -114,28 +124,24 @@ export async function PUT({ request, cookies }) {
 
             const { currentPassword, newPassword } = parsed.data;
 
-            const [user] = await db.select({ id: true, password: true, companyId: true })
+            const [user] = await db.select({ id: users.id, password: users.password, companyId: users.companyId })
                	.from(users)
                	.where(eq(users.id, userId));
 
-            if (!user || !user.password) {
-                return apiError('User tidak ditemukan atau tidak memiliki kata sandi', 404);
-            }
+            if (!user) return apiError('User tidak ditemukan', 404);
+            if (!user.password) return apiError('Akun ini login via Google dan tidak punya kata sandi lokal', 400);
 
-            const ok = currentPassword === user.password;
+            // Kata sandi tersimpan sebagai hash argon2 (sama dengan login & halaman pengaturan web).
+            // Dulu dibandingkan sebagai teks biasa sehingga selalu 'tidak cocok' — dan bila lolos akan menyimpan teks biasa.
+            let ok = false;
+            try { ok = await argon2.verify(user.password, currentPassword); } catch { ok = false; }
             if (!ok) return apiError('Kata sandi lama tidak cocok', 400, 'INVALID_CREDENTIALS');
 
             await db.update(users)
-               	.set({ password: newPassword })
+               	.set({ password: await argon2.hash(newPassword) })
                	.where(eq(users.id, userId));
 
-            await db.insert(riwayatAksi).values({
-                userId,
-                unitId: user.companyId ?? 0,
-                pesan: 'Kata sandi diubah',
-                kategori: 'SETTINGS',
-                tipe: 'info'
-            });
+            await catatRiwayat(userId, user.companyId, 'Kata sandi diubah');
 
             return apiSuccess({ message: 'Kata sandi berhasil diubah' }, 'OK');
         }

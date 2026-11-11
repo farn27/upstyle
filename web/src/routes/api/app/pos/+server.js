@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { posOrders, posOrderItems, posCustomers, products, productVariants, transaksi, riwayatAksi, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees, vouchers } from '$lib/server/schema';
-import { eq, and, desc, isNull, sql } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { log } from '$lib/server/logger';
@@ -9,19 +10,13 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
-import { unitMilikUser } from '$lib/server/apiUnitGuard';
+import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
+import { cocokkanPin, hashPin } from '$lib/server/pinKaryawan';
+import { checkRateLimit } from '$lib/server/rateLimit';
 import { bisaDijual } from '$lib/jenisProduk';
-import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { getActivePosFeatures } from '$lib/posFeatures';
-
-/** Error checkout yang pesannya aman ditampilkan */
-class CheckoutError extends Error {
-    /** @param {string} message @param {number} [status] */
-    constructor(message, status = 400) {
-        super(message);
-        this.status = status;
-    }
-}
+import { prosesCheckoutPos, siarkanCheckoutPos, PosError } from '$lib/server/posCheckout';
 
 // 1. GET: Ambil list order POS dan customer POS untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -65,7 +60,7 @@ export async function GET({ url, cookies, request }) {
                 .from(posOrders)
                 .where(and(
                     eq(posOrders.unitId, Number(unitId)),
-                    isNull(posOrders.queueNumber).not(),
+                    isNotNull(posOrders.queueNumber),
                     sql`${posOrders.fulfillmentStatus} != 'COMPLETED'`
                 ))
                 .orderBy(posOrders.queueNumber);
@@ -186,6 +181,8 @@ export async function POST({ request, cookies }) {
                     amountPaid: z.coerce.number().optional(),
                     changeAmount: z.coerce.number().optional(),
                     voucherCode: z.string().optional(),
+                    kenaiPpn: z.boolean().optional(),
+                    ppnInklusif: z.boolean().optional(),
                     payments: z.array(z.object({
                         method: z.string(),
                         amount: z.coerce.number()
@@ -205,6 +202,17 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: msg }, { status: 400 });
             }
         }
+        /** Baris shift lengkap dalam bentuk model PosShift aplikasi HP (id, unitId, userId, waktuBuka wajib). */
+        const shiftLengkap = async (/** @type {number} */ idShift) => {
+            const [sh] = await db.select().from(posShifts).where(eq(posShifts.id, idShift)).limit(1);
+            if (!sh) return null;
+            return {
+                id: sh.id, unitId: sh.unitId, userId: sh.userId, waktuBuka: sh.waktuBuka, waktuTutup: sh.waktuTutup ?? null,
+                modalAwal: Number(sh.modalAwal || 0), kasAkhir: Number(sh.kasAkhir || 0), kasAkhirAktual: Number(sh.kasAkhirAktual || 0),
+                selisih: Number(sh.selisih || 0), status: sh.status || 'OPEN', catatan: sh.catatan ?? null
+            };
+        };
+
         if (action === 'open-shift') {
             const schema = z.object({
                 action: z.literal('open-shift'),
@@ -240,7 +248,7 @@ export async function POST({ request, cookies }) {
             const schema = z.object({
                 action: z.literal('verify-pin'),
                 employeeId: z.coerce.number().int().positive(),
-                pin: z.string().length(4, 'PIN harus 4 digit')
+                pin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka')
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
@@ -279,221 +287,84 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments, diskon } = body.order;
+            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, voucherCode, payments, diskon, kenaiPpn, ppnInklusif } = body.order;
 
-            let finalOrderId = null;
-            let subtotal = 0;
-            let diskonFinal = 0;
-            let total = 0;
+            // Unit dipastikan milik user oleh guardUnitApiApp (hooks); di sini diambil datanya saja
+            const unitRow = await db.query.unitBisnis.findFirst({ where: and(eq(unitBisnis.id, Number(unitId)), eq(unitBisnis.userId, userId)) });
+            if (!unitRow) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
+            const unit = { id: unitRow.id, slug: unitRow.slug, userId: Number(unitRow.userId), kategori: unitRow.kategori, posFeatureOverride: unitRow.posFeatureOverride };
+
+            let hasil;
             try {
-            await db.transaction(async (tx) => {
-                const unitRow = await tx.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
-                if (!unitRow) throw new CheckoutError('Unit tidak ditemukan', 404);
-                const fitur = getActivePosFeatures(unitRow.kategori, unitRow.posFeatureOverride);
-
-                // 0. Normalisasi item: produk HARUS milik unit ini, harga dari database
-                //    (harga kiriman app hanya dipakai kalau fitur harga bebas/openPrice aktif)
-                if (!Array.isArray(items) || items.length === 0) throw new CheckoutError('Keranjang kosong');
-                const baris = [];
-                for (const item of items) {
-                    const qty = Number(item?.qty);
-                    if (!Number.isInteger(qty) || qty <= 0 || qty > 1_000_000) {
-                        throw new CheckoutError(`Jumlah ${item?.productName || 'barang'} tidak valid`);
-                    }
-                    const prod = await tx.query.products.findFirst({
-                        where: and(eq(products.id, String(item?.productId ?? '')), eq(products.unitId, Number(unitId)))
-                    });
-                    if (!prod) throw new CheckoutError(`Produk ${item?.productName || ''} tidak ditemukan di unit ini`.trim(), 404);
-                    if (!bisaDijual(prod.jenis)) {
-                        throw new CheckoutError(`${prod.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
-                    }
-                    let harga = Number(prod.hargaJual || 0);
-                    let namaItem = item.productName || prod.nama;
-                    if (item.variantId) {
-                        const varian = await tx.query.productVariants.findFirst({
-                            where: and(eq(productVariants.id, String(item.variantId)), eq(productVariants.productId, prod.id))
-                        });
-                        if (!varian) throw new CheckoutError(`Varian ${prod.nama} tidak ditemukan`, 404);
-                        // pos_order_items.variant_id bertipe INT sedangkan ID varian UUID → simpan namanya saja
-                        if (!String(namaItem).includes(varian.namaVariasi)) namaItem = `${prod.nama} - ${varian.namaVariasi}`;
-                        if (Number(varian.hargaJual) > 0) harga = Number(varian.hargaJual);
-                    }
-                    if (fitur.openPrice) {
-                        const hargaApp = Number(item.price);
-                        if (Number.isFinite(hargaApp) && hargaApp >= 0) harga = hargaApp;
-                    }
-                    baris.push({ prod, qty, harga, nama: namaItem });
-                }
-                subtotal = baris.reduce((sum, b) => sum + b.harga * b.qty, 0);
-
-                /** @type {number | null} */
-                let voucherIdDipakai = null;
-                // Diskon: voucher divalidasi di server; diskon manual hanya kalau fiturnya aktif.
-                // (Pemakaian voucher dicatat lewat action 'use-voucher' di /api/app/pos/vouchers.)
-                if (voucherCode) {
-                    const v = await tx.query.vouchers.findFirst({
-                        where: and(eq(vouchers.code, String(voucherCode)), eq(vouchers.unitId, Number(unitId)))
-                    });
-                    const hariIni = todayStrWIB();
-                    if (v && v.isActive && v.validFrom <= hariIni && v.validUntil >= hariIni && subtotal >= Number(v.minPurchase || 0)) {
-                        diskonFinal = v.discountType === 'PERCENTAGE'
-                            ? Math.floor(subtotal * (Number(v.discountValue) / 100))
-                            : Number(v.discountValue);
-                        voucherIdDipakai = v.id;
-                    }
-                } else if (fitur.manualDiscount) {
-                    diskonFinal = Number(diskon || 0);
-                }
-                if (!Number.isFinite(diskonFinal) || diskonFinal < 0) diskonFinal = 0;
-                diskonFinal = Math.min(diskonFinal, subtotal);
-                total = subtotal - diskonFinal;
-
-                // 1. Insert order (nilai resmi dihitung server)
-                const [orderInsertResult] = await tx.insert(posOrders).values({
-                    orderNumber: orderNumber || `POS-${unitId}-${Date.now()}`, 
-                    unitId: Number(unitId), 
-                    customerId: customerId || null, 
-                    createdBy: userId, 
-                    subtotal: String(subtotal), 
-                    discount: String(diskonFinal), 
-                    total: String(total), 
-                    paymentMethod: paymentMethod || 'CASH', 
-                    status: 'PAID',
-                    orderType: orderType || 'TAKEAWAY',
-                    tableNumber: tableNumber || null,
-                    queueNumber: queueNumber || null,
-                    fulfillmentStatus: queueNumber ? 'PENDING' : 'COMPLETED',
-                    notes: notes || null,
-                    amountPaid: String(amountPaid !== undefined && amountPaid !== null ? amountPaid : total),
-                    change: String(changeAmount || 0), // kolomnya bernama "change" (dulu changeAmount → tidak pernah tersimpan)
-                    voucherId: voucherIdDipakai
+                // Logika checkout sama persis dengan kasir web (lib/server/posCheckout.js)
+                hasil = await prosesCheckoutPos(db, { unit, kasirPemilik: true, namaKasir: null }, {
+                    items: items.map((/** @type {any} */ i) => ({
+                        productId: String(i.productId),
+                        variantId: i.variantId ? String(i.variantId) : null,
+                        qty: Number(i.qty),
+                        harga: i.price,
+                        nama: i.productName
+                    })),
+                    customerId: customerId ? Number(customerId) : null,
+                    voucherCode: voucherCode || null,
+                    diskonManual: diskon,
+                    paymentMethod,
+                    payments: Array.isArray(payments) ? payments : null,
+                    amountPaid,
+                    orderType,
+                    tableNumber,
+                    queueNumber,
+                    notes,
+                    kenaiPpn: Boolean(kenaiPpn),
+                    ppnInklusif: Boolean(ppnInklusif),
+                    orderNumber,
+                    // Penjualan offline yang baru tersinkron tetap dicatat walau stok sudah habis (stok berhenti di 0)
+                    izinkanStokKurang: true
                 });
-
-                finalOrderId = orderInsertResult.insertId;
-
-                // Insert payments if split payment
-                if (payments && Array.isArray(payments) && payments.length > 0) {
-                    for (const p of payments) {
-                        await tx.insert(posPayments).values({
-                            orderId: finalOrderId,
-                            method: p.method,
-                            amount: String(p.amount)
-                        });
-                    }
-                }
-
-                // 2. Insert items and reduce stock
-                for (const { prod, qty, harga, nama } of baris) {
-                    const nominal = harga * qty;
-
-                    // Atomik (aman untuk beberapa kasir). Penjualan offline yang disinkron belakangan tetap
-                    // dicatat walau stok sudah habis — stok berhenti di 0 seperti perilaku sebelumnya.
-                    await tx.update(products)
-                        .set({ stok: sql`GREATEST(${products.stok} - ${qty}, 0)` })
-                        .where(and(eq(products.id, prod.id), eq(products.unitId, Number(unitId))));
-
-                    await tx.insert(posOrderItems).values({
-                        orderId: finalOrderId, productId: prod.id, variantId: null, productName: nama, qty: qty, price: String(harga), total: String(nominal), costTotal: String(Number(prod.hargaBeli || 0) * qty)
-                    });
-
-                    // Save transaction
-                    await tx.insert(transaksi).values({
-                        userId: userId,
-                        unitId: Number(unitId),
-                        keterangan: `Penjualan POS: ${nama} (${qty}x)`,
-                        nominal: String(nominal),
-                        totalHarga: String(nominal),
-                        kategoriTrx: 'MASUK',
-                        metodeBayar: paymentMethod || 'CASH',
-                        productId: prod.id,
-                        qty: qty,
-                        hppTotal: String(Number(prod.hargaBeli || 0) * qty)
-                    });
-                }
-
-                // 3. Log action
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId),
-                    pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(total)}`,
-                    kategori: 'POS',
-                    tipe: 'success'
-                });
-
-                // 4. Accounting COA Journal entries
-                const coaCash = await tx.query.chartOfAccounts.findFirst({
-                    where: and(eq(chartOfAccounts.unitId, Number(unitId)), eq(chartOfAccounts.tipeAkun, 'ASET_LANCAR'))
-                });
-                const coaRevenue = await tx.query.chartOfAccounts.findFirst({
-                    where: and(eq(chartOfAccounts.unitId, Number(unitId)), eq(chartOfAccounts.tipeAkun, 'PENDAPATAN'))
-                });
-
-                if (coaCash && coaRevenue && Number(total || 0) > 0) {
-                    const [jurnalResult] = await tx.insert(journalEntries).values({
-                        unitId: Number(unitId), userId: String(userId), tanggal: todayStrWIB(), nomorJurnal: `JRN-POS-${orderNumber}`, referensi: orderNumber, memo: 'Pendapatan POS', sourceType: 'POS', sourceId: String(finalOrderId), totalDebit: String(total), totalKredit: String(total), status: 'POSTED'
-                    });
-                    const journalId = jurnalResult.insertId;
-
-                    // Debit Cash
-                    await tx.insert(journalEntryLines).values({
-                        journalId, coaId: coaCash.id, keterangan: `Penerimaan Kas - ${orderNumber}`, debit: String(total), kredit: '0'
-                    });
-
-                    // Credit Revenue
-                    await tx.insert(journalEntryLines).values({
-                        journalId, coaId: coaRevenue.id, keterangan: `Pendapatan Penjualan - ${orderNumber}`, debit: '0', kredit: String(total)
-                    });
-                }
-            });
             } catch (e) {
-                if (e instanceof CheckoutError) return json({ success: false, message: e.message }, { status: e.status });
+                if (e instanceof PosError) return json({ success: false, message: pesanAman(e) }, { status: e.status });
+                // order_number unik: kiriman ulang dari antrean offline tidak boleh tercatat dua kali
+                if (/** @type {any} */ (e)?.code === 'ER_DUP_ENTRY' || /Duplicate entry/i.test(String(/** @type {any} */ (e)?.message))) {
+                    return json({ success: false, message: 'Transaksi dengan nomor ini sudah tercatat' }, { status: 409 });
+                }
                 throw e;
             }
 
-            const unit = await db.query.unitBisnis.findFirst({
-                where: eq(unitBisnis.id, Number(unitId))
+            await siarkanCheckoutPos(unit, hasil);
+
+            return json({
+                success: true,
+                message: "Transaksi berhasil diproses",
+                id: String(hasil.orderId),
+                data: { orderNumber: hasil.orderNumber, subtotal: hasil.subtotal, discount: hasil.discount, ppn: hasil.ppn, total: hasil.total, paid: hasil.paid, change: hasil.change }
             });
-            const slug = unit?.slug || '';
-            if (slug) {
-                const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
-                if (productKeys.length > 0) await redis.del(...productKeys);
-
-                // Trigger on correct unit room for web notifications
-                triggerEvent(`unit-${unitId}`, 'pos-transaction', {
-                    orderNumber,
-                    total: Number(total),
-                    unitId: Number(unitId),
-                    timestamp: nowWIB()
-                });
-                triggerEvent(`unit-${unitId}`, 'notification', {
-                    id: Date.now(),
-                    unitId: Number(unitId),
-                    pesan: `POS: Transaksi #${orderNumber} - Rp ${String(total)}`,
-                    kategori: 'POS',
-                    tipe: 'success',
-                    waktu: nowWIB()
-                });
-            }
-
-            return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId), data: { subtotal, discount: diskonFinal, total } });
         }
 
         if (action === 'open-shift') {
             const { unitId, modalAwal } = body.shift;
             
+            // Satu shift terbuka per unit (web & mobile memakai shift yang sama)
+            const [terbuka] = await db.select({ id: posShifts.id }).from(posShifts)
+                .where(and(eq(posShifts.unitId, Number(unitId)), eq(posShifts.status, 'OPEN'))).limit(1);
+            if (terbuka) {
+                return json({ success: true, message: "Shift sudah terbuka", data: await shiftLengkap(terbuka.id) });
+            }
             const [result] = await db.insert(posShifts).values({
                 unitId: Number(unitId),
                 userId: userId,
-                waktuBuka: new Date(),
+                waktuBuka: nowSqlWIB(), // dulu new Date() (UTC) padahal kolom lain WIB
                 modalAwal: String(modalAwal),
+                kasAkhir: String(modalAwal), // kas laci yang diharapkan mulai dari modal awal
                 status: 'OPEN'
             });
             
             await db.insert(riwayatAksi).values({
-                userId, unitId: Number(unitId), pesan: `POS Shift dibuka. Modal: Rp ${String(modalAwal)}`, kategori: 'POS', tipe: 'success'
+                userId, unitId: Number(unitId), pesan: `POS Shift dibuka. Modal: Rp ${Number(modalAwal || 0).toLocaleString('id-ID')}`, kategori: 'POS', tipe: 'success'
             });
             
-            return json({ success: true, message: "Shift berhasil dibuka", data: { id: result.insertId } });
+            // Dulu data hanya { id } → app HP gagal membaca PosShift (unitId/userId/waktuBuka wajib) dan
+            // menampilkan galat padahal shift sudah terbuka
+            return json({ success: true, message: "Shift berhasil dibuka", data: await shiftLengkap(Number(result.insertId)) });
         }
 
         if (action === 'close-shift') {
@@ -507,43 +378,50 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: "Shift tidak ditemukan" }, { status: 404 });
             }
             
-            // Optional: kalkulasi selisih di sini, atau berasumsi client/sistem telah hitung.
-            // Di sini kita update saja dulu
-            
+            if (shift.status !== 'OPEN') {
+                return json({ success: false, message: "Shift sudah ditutup" }, { status: 409 });
+            }
+            // Selisih = kas aktual − kas yang diharapkan (modal + penjualan tunai ± setor/tarik), sama seperti web
+            const selisih = Number(kasAkhirAktual) - Number(shift.kasAkhir || 0);
             await db.update(posShifts).set({
-                waktuTutup: new Date(),
+                waktuTutup: nowSqlWIB(),
                 kasAkhirAktual: String(kasAkhirAktual),
+                selisih: String(selisih),
                 status: 'CLOSED'
             }).where(eq(posShifts.id, Number(shiftId)));
             
             await db.insert(riwayatAksi).values({
-                userId, unitId: Number(unitId), pesan: `POS Shift ditutup`, kategori: 'POS', tipe: 'success'
+                userId, unitId: shift.unitId, pesan: `POS Shift ditutup${selisih !== 0 ? `. Selisih kas: Rp ${selisih.toLocaleString('id-ID')}` : ''}`, kategori: 'POS', tipe: selisih !== 0 ? 'info' : 'success'
             });
             
-            return json({ success: true, message: "Shift berhasil ditutup" });
+            const tutup = await shiftLengkap(Number(shiftId));
+            return json({ success: true, message: "Shift berhasil ditutup", data: { ...tutup, kasDiharapkan: Number(shift.kasAkhir || 0) } });
         }
 
         if (action === 'verify-pin') {
             const { employeeId, pin } = body;
 
-            const employee = await db.query.employees.findFirst({
-                where: eq(employees.id, Number(employeeId))
-            });
-
+            // Hanya karyawan di unit milik user (mencegah menebak PIN karyawan tenant lain)
+            const employee = await karyawanMilikUser(db, userId, employeeId);
             if (!employee) {
                 return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
             }
 
-            // Verify PIN - assume PIN stored as hash
-            const pinHash = await hashEmployeePassword(pin);
-            const isValidPin = pinHash === employee.pin; // You might need to adjust this based on your PIN storage method
-
-            if (!isValidPin) {
-                return json({ success: false, message: "PIN salah" }, { status: 400 });
+            // Cegah tebak-tebakan PIN: 5 percobaan per 15 menit per karyawan
+            const rlPin = await checkRateLimit({ key: String(employee.id), prefix: 'rl:pos:pin', limit: 5, windowSec: 15 * 60 });
+            if (!rlPin.allowed) {
+                return json({ success: false, message: "Terlalu banyak percobaan PIN. Coba lagi nanti." }, { status: 429 });
+            }
+            const { cocok, perluHashUlang } = await cocokkanPin(employee.pin, pin);
+            if (!cocok) {
+                return json({ success: false, message: employee.pin ? "PIN salah" : "PIN karyawan belum diatur" }, { status: 400 });
+            }
+            if (perluHashUlang) {
+                await db.update(employees).set({ pin: await hashPin(String(pin)) }).where(eq(employees.id, employee.id)).catch(() => {});
             }
 
-            return json({ 
-                success: true, 
+            return json({
+                success: true,
                 message: "PIN benar",
                 employee: {
                     id: employee.id,
@@ -584,6 +462,6 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.pos.error({ err }, 'API POST POS ERROR');
-        return json({ success: false, message: "Gagal memproses POS: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal memproses POS: " + pesanAman(err) }, { status: 500 });
     }
 }

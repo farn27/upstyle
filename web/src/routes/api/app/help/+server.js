@@ -2,39 +2,17 @@ import { json } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError, apiUnauthorized } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
+import { db } from '$lib/server/drizzle';
+import { users, riwayatAksi } from '$lib/server/schema';
+import { eq } from 'drizzle-orm';
+import { sendEmail, emailBase } from '$lib/server/email';
+import { env } from '$env/dynamic/private';
 
-const HELP_ITEMS = [
-	{
-		id: 1,
-		q: 'Bagaimana cara mengubah kata sandi?',
-		a: 'Buka halaman Pengaturan Akun, lalu pilih Ubah Kata Sandi. Masukkan kata sandi lama dan baru, lalu simpan.',
-		category: 'Akun'
-	},
-	{
-		id: 2,
-		q: 'Mengapa pesanan saya tidak muncul di daftar?',
-		a: 'Periksa status pesanan dan filter yang diterapkan. Jika tetap tidak muncul, coba muat ulang atau hubungi tim dukungan.',
-		category: 'Pesanan'
-	},
-	{
-		id: 3,
-		q: 'Apakah saya bisa menambahkan lebih dari satu unit bisnis?',
-		a: 'Ya, Anda bisa menambahkan beberapa unit bisnis dari menu Organisasi, asumsi paket mendukung.',
-		category: 'Akun'
-	},
-	{
-		id: 4,
-		q: 'Cara menghubungkan akun Shopee?',
-		a: 'Buka Pengaturan Integrasi, pilih Shopee, lalu ikuti proses授权. Saat ini tersedia placeholder untuk koneksi awal.',
-		category: 'Integrasi'
-	},
-	{
-		id: 5,
-		q: 'Bagaimana cara menggunakan landing page template?',
-		a: 'Pilih menu Landing Page, klik Templates, lalu pilih template yang sesuai untuk membuat halaman baru.',
-		category: 'Panduan'
-	}
-];
+import { FAQS, PANDUAN, TROUBLESHOOT, KATEGORI_FAQ } from '$lib/bantuanKonten.js';
+
+/** Satu sumber konten dengan halaman web /help. id = urutan FAQ (1-based). */
+const HELP_ITEMS = FAQS.map((f, i) => ({ id: i + 1, q: f.q, a: f.a, category: f.cat }));
+const LABEL_TROUBLESHOOT = { pos: 'Kasir & hardware', finance: 'Keuangan', sync: 'Sinkronisasi marketplace' };
 
 export async function GET({ url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
@@ -52,7 +30,14 @@ export async function GET({ url, cookies, request }) {
 			items = items.filter(item => item.q.toLowerCase().includes(query) || item.a.toLowerCase().includes(query));
 		}
 
-		return apiSuccess({ items, total: items.length }, 'OK');
+		return apiSuccess({
+			items, total: items.length,
+			kategori: Object.entries(KATEGORI_FAQ).map(([id, label]) => ({ id, label })),
+			panduan: PANDUAN.map((g) => ({ title: g.title, desc: g.desc, steps: g.steps })),
+			troubleshoot: Object.entries(TROUBLESHOOT).map(([id, daftar]) => ({
+				id, label: LABEL_TROUBLESHOOT[id] || id, masalah: daftar.map((m) => ({ problem: m.problem, solution: m.solution }))
+			}))
+		}, 'OK');
 	} catch (err) {
 		log.api.error({ err }, 'GET /api/app/help');
 		return apiError('Gagal memuat pusat bantuan', 500);
@@ -65,6 +50,43 @@ export async function POST({ request, cookies }) {
 
 	try {
 		const body = await request.json();
+
+		// Kirim tiket ke tim Bizgrow (email ke SUPPORT_EMAIL) — dulu tombolnya selalu gagal "belum tersedia"
+		if (body?.action === 'ticket') {
+			const judul = String(body?.title || '').trim().slice(0, 150);
+			const isi = String(body?.description || '').trim().slice(0, 4000);
+			if (!judul || !isi) return apiError('Judul dan deskripsi wajib diisi', 422);
+			const tujuan = env.SUPPORT_EMAIL;
+			if (!tujuan) return apiError('Saluran dukungan belum diaktifkan oleh admin (SUPPORT_EMAIL belum diatur)', 503);
+			const pengguna = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { username: true, email: true } });
+			const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+			const kirim = await sendEmail({
+				to: tujuan,
+				subject: `[Tiket ${String(body?.priority || 'medium').toUpperCase()}] ${judul}`,
+				html: emailBase(`<h3>${esc(judul)}</h3><p style="white-space:pre-wrap">${esc(isi)}</p><hr><p style="color:#64748b;font-size:13px">Dari: ${esc(pengguna?.username || '?')} &lt;${esc(pengguna?.email || '?')}&gt; • unit #${Number(body?.unitId) || '-'}${body?.screenContext ? ' • layar ' + esc(body.screenContext) : ''}</p>`, 'Tiket dukungan')
+			});
+			if (!kirim.success) return apiError('Tiket belum terkirim, coba lagi nanti', 502);
+			if (Number(body?.unitId)) {
+				await db.insert(riwayatAksi).values({ userId, unitId: Number(body.unitId), pesan: `Tiket dukungan dikirim: ${judul}`, kategori: 'BANTUAN', tipe: 'info' }).catch(() => {});
+			}
+			return apiSuccess({ message: 'Tiket terkirim' }, 'Tiket terkirim ke tim Bizgrow');
+		}
+
+		// Ulasan aplikasi (bintang + komentar) → diteruskan ke tim lewat email dukungan
+		if (body?.action === 'review') {
+			const bintang = Math.round(Number(body?.rating));
+			if (!(bintang >= 1 && bintang <= 5)) return apiError('Rating harus 1-5', 422);
+			const komentar = String(body?.comment || '').trim().slice(0, 1500);
+			log.api.info({ userId, bintang, komentar }, 'help.review');
+			const tujuan = env.SUPPORT_EMAIL;
+			if (tujuan) {
+				const pengguna = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { username: true, email: true } });
+				const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+				await sendEmail({ to: tujuan, subject: `[Ulasan ${bintang}★] dari ${pengguna?.username || 'pengguna'}`, html: emailBase(`<h3>Ulasan ${bintang} dari 5</h3><p style="white-space:pre-wrap">${esc(komentar || '(tanpa komentar)')}</p><hr><p style="color:#64748b;font-size:13px">${esc(pengguna?.username || '?')} &lt;${esc(pengguna?.email || '?')}&gt;</p>`, 'Ulasan aplikasi') }).catch(() => {});
+			}
+			return apiSuccess({ message: 'Terima kasih atas ulasanmu' }, 'Ulasan diterima');
+		}
+
 		const id = Number(body?.id);
 		const feedback = String(body?.feedback || '').trim();
 		const rating = body?.rating;

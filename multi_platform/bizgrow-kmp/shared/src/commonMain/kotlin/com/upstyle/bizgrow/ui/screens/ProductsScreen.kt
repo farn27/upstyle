@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.design.ProductThumb
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
@@ -120,13 +123,13 @@ fun ProductsScreen(viewModel: AppViewModel) {
                     } else {
                         Column {
                             Text(
-                                "Inventaris Produk",
+                                "Produk",
                                 fontWeight = FontWeight.Black,
-                                color = BizgrowColors.Gray950,
+                                color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 20.sp
                             )
                             Text(
-                                "${products.size} Total Item",
+                                "${products.size} produk",
                                 fontSize = 12.sp,
                                 color = BizgrowColors.Gray500,
                                 fontWeight = FontWeight.Medium
@@ -194,6 +197,11 @@ fun ProductsScreen(viewModel: AppViewModel) {
                                     text = { Text("Pricing Massal") },
                                     leadingIcon = { Icon(Icons.Default.PriceChange, null) },
                                     onClick = { viewModel.navigate(Screen.Pricing); showMenu = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Kategori Produk") },
+                                    leadingIcon = { Icon(Icons.Default.Category, null) },
+                                    onClick = { viewModel.navigate(Screen.KategoriProduk); showMenu = false }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Sampah Produk") },
@@ -398,7 +406,8 @@ fun ProductsScreen(viewModel: AppViewModel) {
             ) {
                 listOf(
                     Triple("Semua", products.size, BizgrowColors.Primary),
-                    Triple("Low Stock", lowStockProducts.size, BizgrowColors.Warning),
+                    // Jumlah dihitung dengan aturan yang sama dengan filter & label LOW di kartu (dulu dari API lain → "Low Stock (0)")
+                    Triple("Low Stock", products.count { it.stok in 1..it.minStok }, BizgrowColors.Warning),
                     Triple("Habis", products.count { it.stok <= 0 }, BizgrowColors.Danger)
                 ).forEach { (label, count, color) ->
                     val isSelected = filterType == label
@@ -500,26 +509,9 @@ fun ProductsScreen(viewModel: AppViewModel) {
             }
         }
 
-        // ── Add product bottom sheet ──────────────────────────────────────────
+        // ── Tambah produk (form lengkap: jenis, kategori, barcode, varian, foto) ──
         if (showAddProductSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showAddProductSheet = false },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                containerColor = BizgrowColors.Surface,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-            ) {
-                AddProductForm(
-                    kategoriList = kategoriList,
-                    onDismiss = { showAddProductSheet = false },
-                    onSubmit = { nama, hargaBeli, hargaJual, stok, minStok, sku, barcode, kategoriId, fotoUri ->
-                        viewModel.addProduct(
-                            nama, hargaBeli, hargaJual, stok, minStok, sku, barcode, kategoriId, fotoUri
-                        ) { success ->
-                            if (success) showAddProductSheet = false
-                        }
-                    }
-                )
-            }
+            ProdukFormSheet(viewModel, null, kategoriList, onDismiss = { showAddProductSheet = false })
         }
 
         // ── Advanced filter bottom sheet ──────────────────────────────────────
@@ -641,15 +633,7 @@ fun ProductItemCardWithVariants(
                 }
 
                 // Product image
-                AsyncImage(
-                    model = product.foto?.takeIf { it.isNotBlank() }
-                        ?: "https://ui-avatars.com/api/?name=${product.nama.take(2)}&background=EFF0FE&color=5B5FEF&size=128",
-                    contentDescription = product.nama,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                )
+                ProductThumb(product.nama, product.foto, Modifier.size(64.dp), RoundedCornerShape(20.dp))
 
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
@@ -719,7 +703,7 @@ fun ProductItemCardWithVariants(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        "Rp ${"%,.0f".format(product.hargaJual.toDouble())}",
+                        "${(product.hargaJual.toDouble()).toDouble().rupiah()}",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = BizgrowColors.Primary
@@ -855,7 +839,7 @@ fun VariantRow(variant: ProductVariant) {
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                "Rp ${"%,.0f".format(variant.hargaJual)}",
+                "${(variant.hargaJual).toDouble().rupiah()}",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = BizgrowColors.Primary
@@ -890,12 +874,7 @@ fun AdvancedProductFilterSheet(
     var localKategoriId by remember { mutableStateOf(selectedKategoriId) }
     var expandedKategori by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BizgrowColors.Surface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss, containerColor = BizgrowColors.Surface, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -926,7 +905,7 @@ fun AdvancedProductFilterSheet(
                 ) {
                     Text("Rentang Harga Jual", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray800)
                     Text(
-                        "Rp ${"%,.0f".format(localPriceRange.start)} – Rp ${"%,.0f".format(localPriceRange.endInclusive)}",
+                        "${(localPriceRange.start).toDouble().rupiah()} – ${(localPriceRange.endInclusive).toDouble().rupiah()}",
                         fontSize = 12.sp,
                         color = BizgrowColors.Primary,
                         fontWeight = FontWeight.Medium
@@ -1253,177 +1232,6 @@ fun ProductItemCard(product: Product, onClick: () -> Unit) {
         onStockMovement = {},
         onPricingStrategy = {}
     )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AddProductForm (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddProductForm(
-    kategoriList: List<KategoriProduk>,
-    onDismiss: () -> Unit,
-    onSubmit: (nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, minStok: Int, sku: String, barcode: String?, kategoriId: Int?, fotoUri: String?) -> Unit
-) {
-    var nama by remember { mutableStateOf("") }
-    var hargaBeli by remember { mutableStateOf("") }
-    var hargaJual by remember { mutableStateOf("") }
-    var stok by remember { mutableStateOf("0") }
-    var minStok by remember { mutableStateOf("5") }
-    var sku by remember { mutableStateOf("") }
-    var barcode by remember { mutableStateOf("") }
-    var selectedKategoriId by remember { mutableStateOf<Int?>(null) }
-    var expandedKategori by remember { mutableStateOf(false) }
-    var fotoUrl by remember { mutableStateOf<String?>(null) }
-
-    val imagePickerLauncher = rememberImagePickerLauncher { uri -> fotoUrl = uri }
-
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text("Produk Baru", fontSize = 20.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Gray950)
-            TextButton(onClick = onDismiss) { Text("Batal", color = BizgrowColors.Gray500, fontWeight = FontWeight.Bold) }
-        }
-
-        // Photo picker
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Card(
-                modifier = Modifier.size(80.dp).clickable { imagePickerLauncher() },
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = BizgrowColors.Gray100)
-            ) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (fotoUrl != null) {
-                        AsyncImage(model = fotoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)))
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.CameraAlt, null, Modifier.size(24.dp), tint = BizgrowColors.Gray500)
-                            Spacer(Modifier.height(4.dp))
-                            Text("Foto", fontSize = 10.sp, color = BizgrowColors.Gray500, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-            Column {
-                Text("Foto Produk", fontWeight = FontWeight.Bold, color = BizgrowColors.Gray900)
-                Text("Opsional · Tap untuk pilih foto", fontSize = 12.sp, color = BizgrowColors.Gray500)
-                if (fotoUrl != null) {
-                    TextButton(onClick = { fotoUrl = null }, contentPadding = PaddingValues(0.dp)) {
-                        Text("Hapus foto", fontSize = 12.sp, color = BizgrowColors.Danger, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        HorizontalDivider(color = BizgrowColors.Gray200)
-
-        OutlinedTextField(
-            value = nama, onValueChange = { nama = it },
-            label = { Text("Nama Produk *") },
-            leadingIcon = { Icon(Icons.Default.Inventory, null, tint = BizgrowColors.Gray400) },
-            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = hargaBeli, onValueChange = { hargaBeli = it },
-                label = { Text("Harga Beli") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true,
-                prefix = { Text("Rp ", fontSize = 12.sp) },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-            )
-            OutlinedTextField(
-                value = hargaJual, onValueChange = { hargaJual = it },
-                label = { Text("Harga Jual *") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true,
-                prefix = { Text("Rp ", fontSize = 12.sp) },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-            )
-        }
-
-        val hBeliVal = hargaBeli.toDoubleOrNull() ?: 0.0
-        val hJualVal = hargaJual.toDoubleOrNull() ?: 0.0
-        if (hBeliVal > 0 && hJualVal > 0) {
-            val margin = ((hJualVal - hBeliVal) / hBeliVal * 100).toInt()
-            val marginColor = if (margin >= 0) BizgrowColors.Success else BizgrowColors.Danger
-            Surface(color = marginColor.copy(alpha = 0.1f), shape = RoundedCornerShape(12.dp)) {
-                Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Margin keuntungan", fontSize = 13.sp, color = BizgrowColors.Gray700, fontWeight = FontWeight.Medium)
-                    Text("$margin%", fontWeight = FontWeight.Black, color = marginColor)
-                }
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = stok, onValueChange = { stok = it },
-                label = { Text("Stok Awal") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-            )
-            OutlinedTextField(
-                value = minStok, onValueChange = { minStok = it },
-                label = { Text("Min Stok") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-            )
-        }
-
-        OutlinedTextField(
-            value = sku, onValueChange = { sku = it },
-            label = { Text("SKU") },
-            leadingIcon = { Icon(Icons.Default.Tag, null, tint = BizgrowColors.Gray400) },
-            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-        )
-
-        if (kategoriList.isNotEmpty()) {
-            ExposedDropdownMenuBox(expanded = expandedKategori, onExpandedChange = { expandedKategori = !expandedKategori }) {
-                OutlinedTextField(
-                    value = kategoriList.firstOrNull { it.id == selectedKategoriId }?.namaKategori ?: "Pilih Kategori (opsional)",
-                    onValueChange = {}, readOnly = true,
-                    label = { Text("Kategori") },
-                    leadingIcon = { Icon(Icons.Default.Category, null, tint = BizgrowColors.Gray400) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedKategori) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BizgrowColors.Primary, unfocusedBorderColor = BizgrowColors.Gray300)
-                )
-                ExposedDropdownMenu(expanded = expandedKategori, onDismissRequest = { expandedKategori = false }) {
-                    DropdownMenuItem(text = { Text("Tanpa Kategori") }, onClick = { selectedKategoriId = null; expandedKategori = false })
-                    kategoriList.forEach { k -> DropdownMenuItem(text = { Text(k.namaKategori) }, onClick = { selectedKategoriId = k.id; expandedKategori = false }) }
-                }
-            }
-        }
-
-        Button(
-            onClick = {
-                if (nama.isNotBlank() && hargaJual.isNotBlank()) {
-                    onSubmit(nama, hargaBeli.toDoubleOrNull() ?: 0.0, hargaJual.toDoubleOrNull() ?: 0.0, stok.toIntOrNull() ?: 0, minStok.toIntOrNull() ?: 5, sku, barcode.ifBlank { null }, selectedKategoriId, fotoUrl)
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Primary),
-            enabled = nama.isNotBlank() && hargaJual.isNotBlank()
-        ) {
-            Icon(Icons.Default.Save, null, tint = BizgrowColors.White)
-            Spacer(Modifier.width(8.dp))
-            Text("Simpan Produk", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.White)
-        }
-        Spacer(Modifier.height(32.dp))
-    }
 }
 
 @androidx.compose.runtime.Composable

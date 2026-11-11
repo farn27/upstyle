@@ -1,15 +1,20 @@
 import { json } from '@sveltejs/kit';
+import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
-import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi, approvalRequests, shifts } from '$lib/server/schema';
-import { eq, and, desc, inArray, like, isNull, sql } from 'drizzle-orm';
+import { employees, attendance, payrolls, riwayatAksi, salaryComponents, approvalRequests, shifts } from '$lib/server/schema';
+import { eq, and, desc, inArray, like, isNull, sql, gte } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { encryptField, decryptField } from '$lib/server/encryption';
+import { hashPin, cocokkanPin } from '$lib/server/pinKaryawan';
+import { checkRateLimit } from '$lib/server/rateLimit';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { thisMonthWIB } from '$lib/server/dateUtils';
+import { ringkasanHr } from '$lib/server/ringkasanHr';
+import { bayarPayroll } from '$lib/server/bayarGaji';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -58,8 +63,10 @@ export async function GET({ url, cookies, request }) {
         // Get attendance (filter by employee IDs, not company_id)
         let attendanceList = [];
         if (employeeIds.length > 0) {
+            // 45 hari terakhir saja (dulu seluruh riwayat → muatan terus membesar)
+            const sejak = new Date(Date.now() + 7 * 3600e3 - 45 * 86400e3).toISOString().slice(0, 10);
             attendanceList = await db.query.attendance.findMany({
-                where: inArray(attendance.employeeId, employeeIds),
+                where: and(inArray(attendance.employeeId, employeeIds), gte(attendance.checkIn, `${sejak} 00:00:00`)),
                 orderBy: [desc(attendance.id)],
                 with: {
                     employee: true
@@ -70,8 +77,11 @@ export async function GET({ url, cookies, request }) {
         // Get payrolls (filter by employee IDs, not company_id)
         let payrollList = [];
         if (employeeIds.length > 0) {
+            // 12 bulan terakhir
+            const nowWib = thisMonthWIB();
+            const batasBulan = nowWib.year * 12 + nowWib.month - 12;
             payrollList = await db.query.payrolls.findMany({
-                where: inArray(payrolls.employeeId, employeeIds),
+                where: and(inArray(payrolls.employeeId, employeeIds), sql`(${payrolls.periodYear} * 12 + ${payrolls.periodMonth}) > ${batasBulan}`),
                 orderBy: [desc(payrolls.id)],
                 with: {
                     employee: true
@@ -117,7 +127,9 @@ export async function GET({ url, cookies, request }) {
             fullName: e.fullName || '',
             position: e.position || '',
             salary: Number(e.salary || 0),
-            pin: decryptField(e.pin || '', true),
+            // PIN tidak pernah dikirim ke klien (dulu didekripsi dan dikirim apa adanya)
+            pin: '',
+            hasPin: Boolean(e.pin),
             role: e.role || 'staff',
             unitId: e.companyId,
             email: e.email || '',
@@ -180,9 +192,13 @@ export async function GET({ url, cookies, request }) {
             type: sc.type || 'addition'
         }));
 
+        // Ringkasan eksekutif (kartu di atas halaman HR) — dari seluruh karyawan unit, bukan hanya halaman ini
+        const ringkasan = await ringkasanHr(db, Number(unitId));
+
         return json({
             success: true,
             data: {
+                ringkasan,
                 employees: mappedEmployees,
                 attendance: mappedAttendance,
                 payroll: mappedPayroll,
@@ -220,7 +236,7 @@ export async function POST({ request, cookies }) {
                     fullName: z.string().min(2, 'Nama minimal 2 karakter'),
                     position: z.string().min(1, 'Jabatan wajib diisi'),
                     salary: z.coerce.number().min(0),
-                    pin: z.string().length(4, 'PIN harus 4 digit').regex(/^\d+$/),
+                    pin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka'),
                     role: z.enum(['admin', 'manager', 'finance', 'hr', 'cashier', 'operator', 'staff', 'employee']).default('staff'),
                     unitId: z.coerce.number().int().positive(),
                     taxId: z.string().optional(),
@@ -259,6 +275,7 @@ export async function POST({ request, cookies }) {
                 unitId: z.coerce.number().int().positive(),
                 date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal YYYY-MM-DD'),
                 time: z.string().regex(/^\d{2}:\d{2}$/, 'Format waktu HH:MM'),
+                pin: z.string().max(12).optional().nullable(),
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
@@ -273,6 +290,7 @@ export async function POST({ request, cookies }) {
                 employeeId: z.coerce.number().int().positive(),
                 date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
                 time: z.string().regex(/^\d{2}:\d{2}$/),
+                pin: z.string().max(12).optional().nullable(),
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
@@ -339,12 +357,11 @@ export async function POST({ request, cookies }) {
                 passwordAwal = passwordPlain;
             }
             const passwordHash = await hashEmployeePassword(passwordPlain);
-            const pinHash = await hashEmployeePassword(pin || "1234");
-            const encryptedPin = encryptField(pin || "1234", true); // Encrypt PIN
+            const encryptedPin = await hashPin(String(pin)); // PIN disimpan sebagai hash (bukan terenkripsi)
             const encryptedTaxId = encryptField(taxId || '', true); // Encrypt tax ID
             const encryptedBankAccount = encryptField(bankAccountNumber || '', true); // Encrypt bank account
             
-            const slug = `${fullName.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
+            const slug = await slugKaryawanUnik(db, fullName);
 
             const [result] = await db.insert(employees).values({
                 companyId: Number(unitId), 
@@ -385,8 +402,28 @@ export async function POST({ request, cookies }) {
             return json({ success: true, message: "Karyawan berhasil dibuat", data: { id: result.insertId, slug, ...(passwordAwal ? { passwordAwal } : {}) } });
         }
 
+        if (action === 'check-in' || action === 'check-out') {
+            // Karyawan harus milik pemilik akun ini (dulu ID karyawan usaha lain pun bisa diabsenkan)
+            const emp = await db.query.employees.findFirst({ where: eq(employees.id, Number(body.employeeId)), columns: { id: true, pin: true } });
+            if (!emp || !(await karyawanMilikUser(db, userId, emp.id))) {
+                return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+            }
+            // PIN karyawan diverifikasi di server bila karyawan punya PIN (dulu PIN apa pun diterima — B-16)
+            if (emp.pin) {
+                const batas = await checkRateLimit({ key: `${userId}:${emp.id}`, prefix: 'rl:absen-pin', limit: 5, windowSec: 900 });
+                if (!batas.allowed) return json({ success: false, message: 'Terlalu banyak percobaan PIN. Coba lagi 15 menit lagi.' }, { status: 429 });
+                const { cocok } = await cocokkanPin(emp.pin, String(body.pin || ''));
+                if (!cocok) return json({ success: false, message: 'PIN karyawan salah' }, { status: 403 });
+            }
+        }
+
         if (action === 'check-in') {
             const { employeeId, unitId, date, time } = body;
+            const sudah = await db.query.attendance.findFirst({
+                where: and(eq(attendance.employeeId, Number(employeeId)), like(attendance.checkIn, `${date}%`)),
+                columns: { id: true }
+            });
+            if (sudah) return json({ success: false, message: 'Karyawan ini sudah check-in hari ini' }, { status: 409 });
             
             const checkInDateTime = `${date} ${time}:00`;
             const [result] = await db.insert(attendance).values({
@@ -418,37 +455,33 @@ export async function POST({ request, cookies }) {
             const { employeeId, monthYear, periodMonth, periodYear, salary, allowance, deduction, netSalary, unitId } = body.payroll;
             const { month, year } = parseMonthYear(monthYear);
 
-            await db.transaction(async (tx) => {
-                await tx.insert(payrolls).values({
+            // Nominal harus konsisten & tidak boleh diproses dua kali untuk karyawan + periode yang sama
+            const bulanGaji = Number(periodMonth || month);
+            const tahunGaji = Number(periodYear || year);
+            if (Math.abs((Number(salary) + Number(allowance) - Number(deduction)) - Number(netSalary)) > 0.5) {
+                return json({ success: false, message: 'Gaji bersih tidak sama dengan gaji pokok + tunjangan − potongan' }, { status: 422 });
+            }
+            const sudahAda = await db.query.payrolls.findFirst({ where: and(eq(payrolls.employeeId, Number(employeeId)), eq(payrolls.periodMonth, bulanGaji), eq(payrolls.periodYear, tahunGaji)) });
+            if (sudahAda) return json({ success: false, message: `Payroll karyawan ini untuk ${monthYear} sudah diproses` }, { status: 409 });
+
+            if (!(await karyawanMilikUser(db, userId, Number(employeeId)))) {
+                return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+            }
+            const emp = await db.query.employees.findFirst({ where: eq(employees.id, Number(employeeId)), columns: { companyId: true } });
+
+            await db.transaction(async (/** @type {any} */ tx) => {
+                const [baru] = await tx.insert(payrolls).values({
                     employeeId: Number(employeeId),
-                    periodMonth: Number(periodMonth || month),
-                    periodYear: Number(periodYear || year),
+                    periodMonth: bulanGaji,
+                    periodYear: tahunGaji,
                     basicSalary: String(salary),
                     allowances: String(allowance),
                     deductions: String(deduction),
                     netSalary: String(netSalary),
-                    paymentStatus: 'paid'
+                    paymentStatus: 'unpaid'
                 });
-
-                // Get employee name
-                const emp = await tx.query.employees.findFirst({
-                    where: eq(employees.id, Number(employeeId))
-                });
-                const empName = emp ? emp.fullName : 'Karyawan';
-
-                // Record financial expense
-                await tx.insert(transaksi).values({
-                    unitId: Number(unitId), userId, kategoriTrx: 'KELUAR', nominal: String(netSalary), totalHarga: String(netSalary), keterangan: `Gaji Karyawan: ${empName} (${monthYear})`
-                });
-
-                // Save action log
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId),
-                    pesan: `Penggajian diproses untuk ${empName} (${monthYear}) sebesar Rp ${String(netSalary)}`,
-                    tipe: 'success',
-                    kategori: 'HR'
-                });
+                // Dicatat sebagai beban gaji lewat transaksi + jurnal (dulu transaksi tanpa jurnal)
+                await bayarPayroll(tx, { unitId: Number(emp?.companyId), userId, payrollIds: [Number(baru.insertId)] });
             });
 
             return json({ success: true, message: "Payroll berhasil diproses" });
@@ -510,7 +543,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.hr.error({ err }, 'API POST HR ERROR');
-        return json({ success: false, message: "Gagal memproses aksi HR: " + err.message }, { status: 500 });
+        return json({ success: false, message: (err instanceof Error && /tutup buku|sudah dibayar/i.test(err.message)) ? err.message : "Gagal memproses aksi HR" }, { status: 500 });
     }
 }
 

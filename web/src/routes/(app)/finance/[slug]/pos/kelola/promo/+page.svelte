@@ -4,7 +4,7 @@
     export let data;
     export let form;
     
-    let promos = data.promos || [];
+    $: promos = data.promos || [];
     let showAddModal = false;
 
     function formatRupiah(angka) {

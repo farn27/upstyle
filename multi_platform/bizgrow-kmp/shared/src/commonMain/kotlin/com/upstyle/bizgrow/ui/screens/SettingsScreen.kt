@@ -116,6 +116,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
     if (showServerDialog) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = { showServerDialog = false },
             shape = RoundedCornerShape(24.dp),
             containerColor = MaterialTheme.colorScheme.surface,

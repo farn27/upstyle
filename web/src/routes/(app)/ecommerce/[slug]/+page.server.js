@@ -1,4 +1,6 @@
-import { error, fail } from '@sveltejs/kit';
+import { domainSlugUnik } from '$lib/server/unitBaru';
+import { pesanAman } from '$lib/server/pesanAman';
+import { error, fail, isRedirect, isHttpError } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, ecommerceSettings, ecommerceOrders } from '$lib/server/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
@@ -25,7 +27,7 @@ export const load = async ({ params, cookies }) => {
             await db.insert(ecommerceSettings).values({
                 unitId: unit.id,
                 storefrontName: unit.namaUnit + " Store",
-                domainSlug: unit.slug,
+                domainSlug: await domainSlugUnik(db, unit.slug, 'toko'),
                 isActive: false
             });
             storeSettings = await db.query.ecommerceSettings.findFirst({
@@ -78,6 +80,8 @@ export const load = async ({ params, cookies }) => {
             recentOrders
         };
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         console.error("LOAD ECOMMERCE ERROR:", err);
         throw error(500, 'Database error');
     }
@@ -102,7 +106,7 @@ export const actions = {
             });
             return { success: true, message: 'Pengaturan toko berhasil diperbarui!' };
         } catch (err) {
-            if (err instanceof TokoError) return fail(err.status, { error: err.message });
+            if (err instanceof TokoError) return fail(err.status, { error: pesanAman(err) });
             console.error("UPDATE STORE SETTINGS ERROR:", err);
             return fail(500, { error: 'Gagal memperbarui pengaturan toko.' });
         }

@@ -1,11 +1,13 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
-import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines } from '$lib/server/schema';
-import { eq, and, desc, sql, lte, inArray } from 'drizzle-orm';
+import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines, abcCategories } from '$lib/server/schema';
+import { eq, and, asc, desc, sql, lte, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
-import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { nowWIB, nowSqlWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { hitungSaldoKas, targetBulananOtomatis, labelMetodeBayar } from '$lib/financeDashboard';
 import { z } from 'zod';
 import { log } from '$lib/server/logger.js';
@@ -54,8 +56,55 @@ export async function GET({ url, cookies, request }) {
             filterTrx = and(filterTrx, sql`DATE(${transaksi.tanggal}) >= ${mulai}`, sql`DATE(${transaksi.tanggal}) <= ${akhir}`);
         }
 
-        // Fetch transactions (100 terbaru pada rentang yang dipilih)
-        const txList = await db.select().from(transaksi).where(filterTrx).orderBy(desc(transaksi.tanggal), desc(transaksi.id)).limit(100);
+        // Filter riwayat (opsional): jenis, kata kunci, kategori ABC
+        const jenis = (url.searchParams.get('jenis') || '').toLowerCase();
+        if (jenis === 'masuk' || jenis === 'keluar') filterTrx = and(filterTrx, sql`LOWER(${transaksi.kategoriTrx}) LIKE ${'%' + jenis + '%'}`);
+        const kataKunci = (url.searchParams.get('q') || '').trim().slice(0, 100);
+        if (kataKunci) filterTrx = and(filterTrx, sql`LOWER(${transaksi.keterangan}) LIKE ${'%' + kataKunci.toLowerCase().replace(/[%_]/g, '') + '%'}`);
+        const abcId = Number(url.searchParams.get('abcId') || 0);
+        if (abcId > 0) filterTrx = and(filterTrx, eq(transaksi.abcCategoryId, abcId));
+
+        // Halaman transaksi: default 100 terbaru, bisa dimuat bertahap (limit maks 300 + offset)
+        const batas = Math.min(Math.max(Number(url.searchParams.get('limit') || 100), 1), 300);
+        const geser = Math.max(Number(url.searchParams.get('offset') || 0), 0);
+        const urut = url.searchParams.get('urut') || 'terbaru';
+        const urutan = urut === 'terlama' ? [asc(transaksi.tanggal), asc(transaksi.id)]
+            : urut === 'nominal_desc' ? [desc(transaksi.nominal), desc(transaksi.id)]
+            : urut === 'nominal_asc' ? [asc(transaksi.nominal), desc(transaksi.id)]
+            : [desc(transaksi.tanggal), desc(transaksi.id)];
+        const txPlus = await db.select().from(transaksi).where(filterTrx).orderBy(...urutan).limit(batas + 1).offset(geser);
+        const adaLagi = txPlus.length > batas;
+        const txList = txPlus.slice(0, batas);
+
+        // Saldo kas setelah tiap transaksi (modal awal + akumulasi seluruh transaksi unit sampai baris itu),
+        // dihitung dari akumulasi sebelum baris paling lama pada halaman ini — tetap benar walau difilter/dipaginasi
+        const delta = sql`CASE WHEN UPPER(${transaksi.kategoriTrx}) = 'MASUK' THEN ${transaksi.nominal} WHEN UPPER(${transaksi.kategoriTrx}) = 'KELUAR' THEN -${transaksi.nominal} ELSE 0 END`;
+        const saldoSetelah = new Map();
+        if (txList.length > 0) {
+            const kronologis = [...txList].sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || a.id - b.id);
+            const tertua = kronologis[0];
+            const [sebelum] = await db.select({ total: sql`COALESCE(SUM(${delta}), 0)` }).from(transaksi).where(and(
+                eq(transaksi.unitId, Number(unitId)),
+                sql`(${transaksi.tanggal} < ${tertua.tanggal} OR (${transaksi.tanggal} = ${tertua.tanggal} AND ${transaksi.id} < ${tertua.id}))`
+            ));
+            // Baris di antara yang difilter tetap dihitung: ambil seluruh baris unit dari 'tertua' ke 'terbaru'
+            const terbaru = kronologis[kronologis.length - 1];
+            const rentangPenuh = await db.select({ id: transaksi.id, kategoriTrx: transaksi.kategoriTrx, nominal: transaksi.nominal }).from(transaksi).where(and(
+                eq(transaksi.unitId, Number(unitId)),
+                sql`(${transaksi.tanggal} > ${tertua.tanggal} OR (${transaksi.tanggal} = ${tertua.tanggal} AND ${transaksi.id} >= ${tertua.id}))`,
+                sql`(${transaksi.tanggal} < ${terbaru.tanggal} OR (${transaksi.tanggal} = ${terbaru.tanggal} AND ${transaksi.id} <= ${terbaru.id}))`
+            )).orderBy(transaksi.tanggal, transaksi.id);
+            let berjalan = modalAwal + Number(sebelum?.total || 0);
+            for (const r of rentangPenuh) {
+                const k = String(r.kategoriTrx || '').toUpperCase();
+                berjalan += k === 'MASUK' ? Number(r.nominal) : k === 'KELUAR' ? -Number(r.nominal) : 0;
+                saldoSetelah.set(r.id, berjalan);
+            }
+        }
+
+        // Nama & level kategori ABC
+        const abcList = await db.select({ id: abcCategories.id, nama: abcCategories.namaKategori, level: abcCategories.abcLevel }).from(abcCategories);
+        const abcById = new Map(abcList.map((a) => [a.id, a]));
 
         // metodeBayar dari form entry berisi ID akun kas → ambil nama akunnya
         const idAkunKas = [...new Set(txList.map(t => String(t.metodeBayar || '')).filter(v => /^\d+$/.test(v)))];
@@ -87,14 +136,17 @@ export async function GET({ url, cookies, request }) {
             unitId: t.unitId,
             kategoriTrx: t.kategoriTrx,
             nominal: Number(t.nominal || 0),
-            tanggal: t.tanggal ? new Date(t.tanggal).getTime() : Date.now(),
+            tanggal: t.tanggal ? String(t.tanggal) : nowSqlWIB(),
             keterangan: t.keterangan || '',
             metodeBayar: t.metodeBayar || 'KAS',
             abcCategoryId: t.abcCategoryId || null,
             productId: t.productId || '',
             qty: Number(t.qty || 1),
             hppTotal: Number(t.hppTotal || 0),
-            metodeLabel: labelMetodeBayar(t.metodeBayar, namaAkunById)
+            metodeLabel: labelMetodeBayar(t.metodeBayar, namaAkunById),
+            abcNama: abcById.get(t.abcCategoryId)?.nama || null,
+            abcLevel: abcById.get(t.abcCategoryId)?.level || null,
+            saldoSetelah: saldoSetelah.has(t.id) ? saldoSetelah.get(t.id) : null
         }));
 
         // Map audit logs to mobile DTO
@@ -103,9 +155,32 @@ export async function GET({ url, cookies, request }) {
             unitId: l.unitId,
             pesan: l.pesan,
             tipe: (l.tipe || 'INFO').toUpperCase(),
-            waktu: l.waktu ? new Date(l.waktu).getTime() : Date.now(),
+            waktu: l.waktu ? String(l.waktu) : nowSqlWIB(),
             kategori: l.kategori || 'SYSTEM'
         }));
+
+        // Grafik arus kas periode ini: per jam bila satu hari (Hari Ini/Kemarin), selain itu per tanggal
+        const perJam = adaRentang && mulai === akhir;
+        const kunciWaktu = perJam ? sql`DATE_FORMAT(${transaksi.tanggal}, '%H:00')` : sql`DATE_FORMAT(${transaksi.tanggal}, '%Y-%m-%d')`;
+        const grafikRaw = await db.select({
+            label: sql`${kunciWaktu}`.as('label'),
+            masuk: sql`COALESCE(SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%' THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+            keluar: sql`COALESCE(SUM(CASE WHEN LOWER(${transaksi.kategoriTrx}) LIKE '%keluar%' THEN ${transaksi.nominal} ELSE 0 END), 0)`
+        }).from(transaksi).where(filterTrx).groupBy(sql`${kunciWaktu}`).orderBy(sql`${kunciWaktu} DESC`).limit(60);
+        const grafik = grafikRaw.reverse().map(g => ({ label: String(g.label), masuk: Number(g.masuk), keluar: Number(g.keluar) }));
+
+        // Produk terlaris (pendapatan per produk, 5 teratas)
+        const terlarisRaw = await db.select({
+            nama: products.nama,
+            total: sql`COALESCE(SUM(${transaksi.nominal}), 0)`,
+            qty: sql`COALESCE(SUM(${transaksi.qty}), 0)`
+        }).from(transaksi)
+            .innerJoin(products, eq(products.id, transaksi.productId))
+            .where(and(filterTrx, sql`LOWER(${transaksi.kategoriTrx}) LIKE '%masuk%'`))
+            .groupBy(products.id, products.nama)
+            .orderBy(sql`SUM(${transaksi.nominal}) DESC`)
+            .limit(5);
+        const produkTerlaris = terlarisRaw.map(p => ({ nama: p.nama, total: Number(p.total), qty: Number(p.qty) }));
 
         // Calculate BI metrics matching mobile logic
         const totalMasuk = Number(ringkas?.total_masuk || 0);
@@ -189,7 +264,12 @@ export async function GET({ url, cookies, request }) {
                 biMetrics,
                 summary,
                 alerts: { receivables: piutangLewat.length, payables: hutangLewat.length, lowStock: stokMenipis.length },
-                lowStockItems: stokMenipis.slice(0, 20).map(p => ({ nama: p.nama, stok: p.stok })),
+                lowStockItems: stokMenipis.slice(0, 20).map(p => ({ nama: p.nama, stok: p.stok, minStok: p.minStok ?? 5 })),
+                grafik,
+                produkTerlaris,
+                perJam,
+                adaLagi,
+                abcOptions: abcList.map((a) => ({ id: a.id, nama: a.nama, level: a.level || 'C' })),
                 bankBalances,
                 kpi: { target: targetBulananOtomatis(unit?.modalAwal), current: Number(totalUnit?.masukBulanIni || 0) }
             }
@@ -197,7 +277,7 @@ export async function GET({ url, cookies, request }) {
 
     } catch (err) {
         log.finance.error({ err }, 'API GET FINANCE ERROR');
-        return json({ success: false, message: "Gagal mengambil data keuangan: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal mengambil data keuangan: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -257,7 +337,7 @@ export async function POST({ request, cookies }) {
                 triggerEvent(`unit-${unitId}`, 'notification', {
                     id: Date.now(),
                     unitId: Number(unitId),
-                    pesan: `Transaksi ${kategoriTrx}: Rp ${String(nominal)}`,
+                    pesan: `Transaksi ${kategoriTrx}: Rp ${Number(nominal || 0).toLocaleString('id-ID')}`,
                     kategori: 'FINANCE',
                     tipe: 'success',
                     waktu: new Date().toISOString()
@@ -266,27 +346,16 @@ export async function POST({ request, cookies }) {
             ]);
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
-            try {
-                const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
-                if (keys.length > 0) await redis.del(...keys);
-                const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
-                if (historyKeys.length > 0) await redis.del(...historyKeys);
-                
-                // Hapus juga cache beranda dan layout
-                await redis.del(`home_dash_v2:${userId}`);
-                await redis.del(`layout_session_v2:${userId}`);
-            } catch (err) {
-                log.finance.warn({ err }, 'Gagal menghapus cache Redis (POST)');
-            }
+            await tandaiBerubah({ userId, slug });
         }
 
         return json({ success: true, message: "Transaksi berhasil disimpan", data: { id: hasil.trxId, journalId: hasil.journalId } });
     } catch (err) {
         if (err instanceof TransaksiError) {
-            return json({ success: false, message: err.message }, { status: err.status });
+            return json({ success: false, message: pesanAman(err) }, { status: err.status });
         }
         log.finance.error({ err }, 'API POST FINANCE ERROR');
-        return json({ success: false, message: "Gagal menyimpan transaksi: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal menyimpan transaksi: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -342,17 +411,7 @@ export async function DELETE({ url, cookies, request }) {
             ]);
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
-            try {
-                const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
-                if (keys.length > 0) await redis.del(...keys);
-                const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
-                if (historyKeys.length > 0) await redis.del(...historyKeys);
-                
-                await redis.del(`home_dash_v2:${userId}`);
-                await redis.del(`layout_session_v2:${userId}`);
-            } catch (err) {
-                log.finance.warn({ err }, 'Gagal menghapus cache Redis (DELETE)');
-            }
+            await tandaiBerubah({ userId, slug });
             try {
                 await inngest.send({ name: 'app/transaction.changed', data: { userId, slug } });
             } catch (err) {
@@ -362,6 +421,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: `"${namaTerhapus.toUpperCase()}" berhasil dihapus` });
     } catch (err) {
+        if (err instanceof TransaksiError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.finance.error({ err }, 'API DELETE FINANCE ERROR');
         return json({ success: false, message: "Gagal menghapus transaksi" }, { status: 500 });
     }

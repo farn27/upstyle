@@ -36,6 +36,8 @@ import com.upstyle.bizgrow.data.Product
 import com.upstyle.bizgrow.data.SplitPayment
 import kotlinx.coroutines.launch
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.todayDate
+import com.upstyle.bizgrow.ui.currentTime
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizMotion
@@ -55,9 +57,14 @@ fun PosScreen(viewModel: AppViewModel) {
     val productsState by viewModel.productsState.collectAsState(initial = viewModel.productsState.value)
     var showCheckout by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    val ditunda by viewModel.pesananDitunda.collectAsState()
+    var showDitunda by remember { mutableStateOf(false) }
+    var tundaLabel by remember { mutableStateOf<String?>(null) }
     var kategori by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
-    var sukses by remember { mutableStateOf<Double?>(null) }
+    var sukses by remember { mutableStateOf<Pair<Double, String>?>(null) }
+    var pilihPrinter by remember { mutableStateOf<String?>(null) } // teks struk yang menunggu printer dipilih
+    var pilihVarian by remember { mutableStateOf<Product?>(null) } // produk bervarian yang sedang dipilih variannya
     val serverUrl = remember { viewModel.session.getServerUrl() }
 
     LaunchedEffect(Unit) {
@@ -90,9 +97,13 @@ fun PosScreen(viewModel: AppViewModel) {
                         DropdownMenu(showMenu, { showMenu = false }, shape = RoundedCornerShape(16.dp)) {
                             DropdownMenuItem({ Text("Shift kasir") }, { showMenu = false; viewModel.navigate(Screen.PosShift) }, leadingIcon = { Icon(Icons.Rounded.Schedule, null) })
                             DropdownMenuItem({ Text("Retur penjualan") }, { showMenu = false; viewModel.navigate(Screen.PosReturn) }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Undo, null) })
+                            DropdownMenuItem({ Text("Antrean & dapur") }, { showMenu = false; viewModel.navigate(Screen.PosQueue) }, leadingIcon = { Icon(Icons.Rounded.SoupKitchen, null) })
+                            DropdownMenuItem({ Text("Laporan kasir") }, { showMenu = false; viewModel.navigate(Screen.PosReport) }, leadingIcon = { Icon(Icons.Rounded.BarChart, null) })
+                            DropdownMenuItem({ Text(if (ditunda.isEmpty()) "Pesanan ditunda" else "Pesanan ditunda (${ditunda.size})") }, { showMenu = false; showDitunda = true }, leadingIcon = { Icon(Icons.Rounded.PauseCircle, null) })
                             DropdownMenuItem({ Text("Voucher & promo") }, { showMenu = false; viewModel.navigate(Screen.PosVouchers) }, leadingIcon = { Icon(Icons.Rounded.LocalOffer, null) })
                             if (cart.isNotEmpty()) {
                                 HorizontalDivider()
+                                DropdownMenuItem({ Text("Tunda pesanan ini") }, { showMenu = false; tundaLabel = "" }, leadingIcon = { Icon(Icons.Rounded.Pause, null) })
                                 DropdownMenuItem({ Text("Kosongkan keranjang", color = BizgrowColors.Danger) }, { showMenu = false; viewModel.clearCart() }, leadingIcon = { Icon(Icons.Rounded.RemoveShoppingCart, null, tint = BizgrowColors.Danger) })
                             }
                         }
@@ -134,11 +145,16 @@ fun PosScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(tampil, key = { _, p -> p.id }) { i, p ->
+                        // Jumlah di keranjang dihitung untuk semua varian produk ini
+                        val qtyProduk = cart.entries.filter { it.key.id == p.id }.sumOf { it.value }
                         ProdukKasirCard(
-                            p, cart[p] ?: 0, serverUrl,
+                            p, qtyProduk, serverUrl,
                             modifier = Modifier.animateItem().enterAnimation(i),
-                            onAdd = { viewModel.addToCart(p) },
-                            onRemove = { viewModel.removeFromCart(p) }
+                            onAdd = { if (p.perluPilihVarian) pilihVarian = p else viewModel.addToCart(p) },
+                            onRemove = {
+                                if (p.perluPilihVarian) pilihVarian = p
+                                else viewModel.removeFromCart(p)
+                            }
                         )
                     }
                 }
@@ -147,45 +163,66 @@ fun PosScreen(viewModel: AppViewModel) {
     }
 
     val printer = com.upstyle.bizgrow.device.rememberPrinterManager()
+    fun cetakKe(mac: String, teks: String) = printer.connectAndPrint(
+        macAddress = mac, receiptText = teks,
+        onSuccess = { viewModel.showSuccess("Struk dicetak") },
+        onError = { viewModel.showError(it) }
+    )
+    fun cetakStruk(teks: String) {
+        printer.mintaIzin { ok ->
+            if (!ok) { viewModel.showError("Izin Bluetooth diperlukan untuk mencetak struk."); return@mintaIzin }
+            val mac = viewModel.session.getPrinterMac()
+            if (mac.isBlank()) pilihPrinter = teks else cetakKe(mac, teks)
+        }
+    }
+    pilihVarian?.let { induk ->
+        PilihVarianSheet(induk, cart, serverUrl, onDismiss = { pilihVarian = null },
+            onTambah = { v -> viewModel.addToCart(induk.denganVarian(v)) },
+            onKurang = { v -> cart.keys.firstOrNull { it.id == induk.id && it.varianId == v.id }?.let { viewModel.removeFromCart(it) } })
+    }
+    tundaLabel?.let { label ->
+        FormSheet("Tunda pesanan", subjudul = "Keranjang disimpan dan bisa dilanjutkan nanti (hilang bila aplikasi ditutup).", onDismiss = { tundaLabel = null }, labelSimpan = "Tunda",
+            onSimpan = { viewModel.tundaPesanan(label); tundaLabel = null }) {
+            BizTextField(label, { tundaLabel = it }, "Nama pesanan (opsional)", placeholder = "Misal: Meja 5 / Pak Budi")
+        }
+    }
+    if (showDitunda) {
+        ModalBottomSheet({ showDitunda = false }, containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text("Pesanan ditunda", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(10.dp))
+                if (ditunda.isEmpty()) Text("Tidak ada pesanan yang ditunda.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ditunda.forEach { p ->
+                    val total = p.isi.entries.sumOf { it.key.hargaJual * it.value }
+                    ListRow(p.label, subtitle = "${p.isi.values.sum()} item • ${total.rupiah()}", icon = Icons.Rounded.PauseCircle, tint = BizgrowColors.Warning,
+                        trailing = { IconButton(onClick = { viewModel.hapusPesananDitunda(p.id) }) { Icon(Icons.Rounded.DeleteOutline, "Hapus", tint = BizgrowColors.Danger) } },
+                        onClick = { if (cart.isEmpty()) { viewModel.lanjutkanPesanan(p.id); showDitunda = false } else viewModel.showError("Kosongkan atau tunda keranjang saat ini dulu") })
+                }
+            }
+        }
+    }
+
     if (showCheckout) {
-        ModalBottomSheet(
-            onDismissRequest = { showCheckout = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
+        com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = { showCheckout = false }, containerColor = MaterialTheme.colorScheme.surface) {
             CheckoutSheet(
                 viewModel = viewModel,
                 cart = cart,
                 subtotal = cartTotal,
                 customers = posData?.customers.orEmpty(),
                 serverUrl = serverUrl,
-                onPrint = {
-                    val struk = buildString {
-                        appendLine("===== STRUK PEMBAYARAN =====")
-                        appendLine(viewModel.activeUnit.value?.name ?: "Toko")
-                        appendLine("----------------------------")
-                        cart.forEach { (p, q) -> appendLine("${p.nama} x$q"); appendLine("  ${(p.hargaJual * q).rupiah()}") }
-                        appendLine("----------------------------")
-                        appendLine("Total: ${cartTotal.rupiah()}")
-                        appendLine("Terima kasih!")
-                        appendLine("\n\n")
-                    }
-                    printer.connectAndPrint(
-                        macAddress = "00:00:00:00:00:00",
-                        receiptText = struk,
-                        onSuccess = {},
-                        onError = { viewModel.showError("Printer belum dikonfigurasi. Atur printer di Pengaturan.") }
-                    )
-                },
-                onPaid = { total ->
+                onPrint = { teks -> cetakStruk(teks) },
+                onPaid = { total, struk ->
                     showCheckout = false
-                    sukses = total
+                    sukses = total to struk
                 }
             )
         }
     }
 
-    sukses?.let { total -> SuksesBayarDialog(total) { sukses = null } }
+    sukses?.let { (total, struk) -> SuksesBayarDialog(total, onCetak = { cetakStruk(struk) }) { sukses = null } }
+    pilihPrinter?.let { teks ->
+        PemilihPrinterSheet(printer, viewModel.session, { pilihPrinter = null }) { mac -> pilihPrinter = null; viewModel.session.getPrinterMac().takeIf { it == mac }?.let { cetakKe(it, teks) } }
+    }
 }
 
 @Composable
@@ -262,9 +299,12 @@ private fun ProdukKasirCard(p: Product, qty: Int, serverUrl: String, modifier: M
         }
         Column(Modifier.padding(12.dp)) {
             Text(p.nama, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+            // produk bervarian: beri tahu kasir bahwa ketukan akan membuka pilihan varian
+            val hargaVarian = if (p.perluPilihVarian) p.variants.map { it.hargaJual }.filter { it > 0 } else emptyList()
+            if (p.perluPilihVarian) Text("${p.variants.size} varian", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(p.hargaJual.rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
+                Text(if (hargaVarian.size > 1 && hargaVarian.min() != hargaVarian.max()) "mulai ${hargaVarian.min().rupiahRingkas()}" else (hargaVarian.firstOrNull() ?: p.hargaJual).rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
                 AnimatedContent(diKeranjang, transitionSpec = { (fadeIn() + scaleIn()) togetherWith (fadeOut() + scaleOut()) }, label = "aksi") { ada ->
                     if (ada) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,8 +351,8 @@ private fun CheckoutSheet(
     subtotal: Double,
     customers: List<PosCustomer>,
     serverUrl: String,
-    onPrint: () -> Unit,
-    onPaid: (Double) -> Unit
+    onPrint: (String) -> Unit,
+    onPaid: (Double, String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val diskonVm by viewModel.posDiskon.collectAsState(initial = viewModel.posDiskon.value)
@@ -331,6 +371,11 @@ private fun CheckoutSheet(
     var voucherPesan by remember { mutableStateOf<String?>(null) }
     var voucherCek by remember { mutableStateOf(false) }
     var bayarTerpisah by remember { mutableStateOf(false) }
+    val tarif by viewModel.taxRates.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadTaxRates() }
+    val tarifPpn = remember(tarif) { tarif.filter { it.tipe == "PPN" && it.isActive == 1 }.let { l -> l.firstOrNull { it.isDefault == 1 } ?: l.firstOrNull() } }
+    var kenaiPpn by remember { mutableStateOf(false) }
+    var ppnInklusif by remember { mutableStateOf(false) }
     var splitMetode by remember { mutableStateOf(listOf("CASH", "QRIS")) }
     var splitNominal by remember { mutableStateOf(listOf("", "")) }
     val scopeVoucher = rememberCoroutineScope()
@@ -338,10 +383,22 @@ private fun CheckoutSheet(
     val diskonManual = (diskonText.toDoubleOrNull() ?: 0.0).let { v -> if (modeDiskon == "PERSEN") subtotal * v.coerceIn(0.0, 100.0) / 100.0 else v }
     val diskon = (voucherPotongan ?: diskonManual).coerceIn(0.0, subtotal)
     LaunchedEffect(diskon) { viewModel.setDiskon(diskon) }
-    val total = subtotal - diskon
+    val dasarPpn = subtotal - diskon
+    val persenPpn = if (kenaiPpn) (tarifPpn?.persentase ?: 0.0) else 0.0
+    val ppn = if (persenPpn <= 0.0) 0.0 else if (ppnInklusif) Math.round(dasarPpn * persenPpn / (100 + persenPpn)).toDouble() else Math.round(dasarPpn * persenPpn / 100).toDouble()
+    val total = if (ppnInklusif) dasarPpn else dasarPpn + ppn
     val diterima = diterimaText.toDoubleOrNull() ?: 0.0
     val kembalian = diterima - total
     val pelanggan = customers.find { it.id == customerId }
+    val unitAktif by viewModel.activeUnit.collectAsState(initial = viewModel.activeUnit.value)
+    fun teksStruk(): String = susunStruk(
+        namaUsaha = unitAktif?.name ?: "Toko", alamat = unitAktif?.alamat,
+        tanggal = "${todayDate()} ${currentTime()}", items = cart.entries.map { it.key to it.value },
+        subtotal = subtotal, diskon = diskon, ppn = ppn, persenPpn = persenPpn, ppnInklusif = ppnInklusif, total = total,
+        metode = if (bayarTerpisah) "split" else metode, diterima = if (metode == "CASH" && !bayarTerpisah && diterima > 0) diterima else null,
+        kembalian = if (metode == "CASH" && !bayarTerpisah && diterima > 0 && kembalian > 0) kembalian else null,
+        catatan = catatan.takeIf { it.isNotBlank() }
+    )
 
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding()
@@ -395,6 +452,23 @@ private fun CheckoutSheet(
         BizTextField(catatan, { catatan = it }, "Catatan pesanan (opsional)", leadingIcon = Icons.Rounded.EditNote)
 
         Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Kenakan PPN", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    if (tarifPpn == null) "Belum ada tarif PPN — atur di Pengaturan Pajak" else "${tarifPpn.namaPajak} (${tarifPpn.persentase.toString().removeSuffix(".0")}%) dicatat sebagai PPN Keluaran",
+                    style = MaterialTheme.typography.labelSmall, color = if (tarifPpn == null) BizgrowColors.WarningDark else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(kenaiPpn, { kenaiPpn = it }, enabled = tarifPpn != null)
+        }
+        AnimatedVisibility(kenaiPpn) {
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill("Harga belum termasuk PPN", !ppnInklusif, { ppnInklusif = false })
+                FilterPill("Harga sudah termasuk PPN", ppnInklusif, { ppnInklusif = true })
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         Text("Diskon & voucher", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -402,7 +476,8 @@ private fun CheckoutSheet(
                 BizTextField(
                     diskonText, { diskonText = it.filter { c -> c.isDigit() }; voucherPotongan = null; voucherPesan = null },
                     if (modeDiskon == "PERSEN") "Diskon (%)" else "Diskon (Rp)", leadingIcon = Icons.Rounded.LocalOffer, keyboardType = KeyboardType.Number,
-                    enabled = voucherPotongan == null
+                    enabled = voucherPotongan == null,
+                    uang = modeDiskon == "RP"
                 )
             }
             FilterPill("Rp", modeDiskon == "RP", { modeDiskon = "RP" })
@@ -484,7 +559,7 @@ private fun CheckoutSheet(
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            BizTextField(splitNominal[i], { v -> splitNominal = splitNominal.toMutableList().also { it[i] = v.filter(Char::isDigit) } }, "Nominal", keyboardType = KeyboardType.Number)
+                            BizTextField(splitNominal[i], { v -> splitNominal = splitNominal.toMutableList().also { it[i] = v.filter(Char::isDigit) } }, "Nominal", keyboardType = KeyboardType.Number, uang = true)
                         }
                     }
                 }
@@ -498,7 +573,7 @@ private fun CheckoutSheet(
 
         AnimatedVisibility(metode == "CASH" && !bayarTerpisah, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.padding(top = 12.dp)) {
-                BizTextField(diterimaText, { diterimaText = it.filter(Char::isDigit) }, "Uang diterima", leadingIcon = Icons.Rounded.Payments, keyboardType = KeyboardType.Number)
+                BizTextField(diterimaText, { diterimaText = it.filter(Char::isDigit) }, "Uang diterima", leadingIcon = Icons.Rounded.Payments, keyboardType = KeyboardType.Number, uang = true)
                 Spacer(Modifier.height(8.dp))
                 // Nominal cepat: uang pas & pecahan umum di atas total
                 val saran = remember(total) {
@@ -523,6 +598,7 @@ private fun CheckoutSheet(
         BizSurface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, border = false) {
             BarisTotal("Subtotal", subtotal.rupiah())
             if (diskon > 0) BarisTotal("Diskon", "-${diskon.rupiah()}", BizgrowColors.Danger)
+            if (ppn > 0) BarisTotal("PPN ${persenPpn.toString().removeSuffix(".0")}%" + if (ppnInklusif) " (termasuk)" else "", ppn.rupiah())
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = LocalBizPalette.current.border)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Total", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
@@ -532,7 +608,7 @@ private fun CheckoutSheet(
 
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            BizOutlineButton("Struk", onPrint, icon = Icons.Rounded.Print, modifier = Modifier.height(54.dp))
+            BizOutlineButton("Struk", { onPrint(teksStruk()) }, icon = Icons.Rounded.Print, modifier = Modifier.height(54.dp))
             BizButton(
                 "Bayar ${total.rupiahRingkas()}",
                 onClick = {
@@ -542,9 +618,12 @@ private fun CheckoutSheet(
                         voucherKode = voucherKode.takeIf { voucherPotongan != null },
                         diterima = if (metode == "CASH" && !bayarTerpisah && diterima > 0) diterima else null,
                         kembalian = if (metode == "CASH" && !bayarTerpisah && diterima > 0) kembalian else null,
-                        split = split
+                        split = split,
+                        kenaiPpn = kenaiPpn && tarifPpn != null,
+                        ppnInklusif = ppnInklusif
                     )
-                    viewModel.checkout(metode, opsi) { ok -> if (ok) onPaid(total) }
+                    val struk = teksStruk()
+                    viewModel.checkout(metode, opsi) { ok -> if (ok) onPaid(total, struk) }
                 },
                 loading = uiState.isLoading,
                 enabled = cart.isNotEmpty() && (jenisPesanan != "DINE_IN" || meja.isNotBlank()) &&
@@ -567,13 +646,9 @@ private fun BarisTotal(label: String, nilai: String, warna: Color = MaterialThem
 }
 
 @Composable
-private fun SuksesBayarDialog(total: Double, onDismiss: () -> Unit) {
+private fun SuksesBayarDialog(total: Double, onCetak: () -> Unit, onDismiss: () -> Unit) {
     val skala = remember { Animatable(0.3f) }
-    LaunchedEffect(Unit) {
-        skala.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f))
-        delay(1800)
-        onDismiss()
-    }
+    LaunchedEffect(Unit) { skala.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f)) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier.clip(RoundedCornerShape(28.dp)).background(MaterialTheme.colorScheme.surface).padding(28.dp),
@@ -589,6 +664,84 @@ private fun SuksesBayarDialog(total: Double, onDismiss: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Text("Pembayaran berhasil", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(total.rupiah(), style = MaterialTheme.typography.headlineSmall, color = BizgrowColors.Success)
+            Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                BizOutlineButton("Cetak struk", onCetak, icon = Icons.Rounded.Print, height = 46.dp)
+                BizButton("Selesai", onDismiss, icon = Icons.Rounded.Check, height = 46.dp)
+            }
+        }
+    }
+}
+
+/** Pilih printer Bluetooth yang sudah dipasangkan di HP; pilihan disimpan untuk cetak berikutnya. */
+@Composable
+private fun PemilihPrinterSheet(printer: com.upstyle.bizgrow.device.PrinterManager, session: com.upstyle.bizgrow.data.SessionRepository, onDismiss: () -> Unit, onPilih: (String) -> Unit) {
+    val perangkat = remember { printer.perangkatTerpasang() }
+    @OptIn(ExperimentalMaterial3Api::class)
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Text("Pilih printer struk", style = MaterialTheme.typography.titleLarge)
+            Text("Pasangkan printer thermal 58 mm lewat pengaturan Bluetooth HP terlebih dahulu.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+            if (perangkat.isEmpty()) {
+                Text("Belum ada perangkat Bluetooth yang dipasangkan, atau izin Bluetooth belum diberikan.", style = MaterialTheme.typography.bodyMedium, color = BizgrowColors.Warning)
+            }
+            perangkat.forEach { (nama, mac) ->
+                ListRow(nama, subtitle = mac, icon = Icons.Rounded.Print, tint = BizgrowColors.Info, showChevron = true, onClick = { session.setPrinter(mac, nama); onPilih(mac) })
+            }
+            if (session.getPrinterMac().isNotBlank()) {
+                TextButton(onClick = { session.lupakanPrinter(); onDismiss() }) { Text("Lupakan printer (${session.getPrinterNama()})", color = BizgrowColors.Danger) }
+            }
+        }
+    }
+}
+
+/** Pemilih varian produk di kasir: setiap varian punya harga, stok, dan jumlah sendiri di keranjang. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PilihVarianSheet(
+    p: Product,
+    cart: Map<Product, Int>,
+    serverUrl: String,
+    onDismiss: () -> Unit,
+    onTambah: (com.upstyle.bizgrow.data.ProductVariant) -> Unit,
+    onKurang: (com.upstyle.bizgrow.data.ProductVariant) -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ProductThumb(p.nama, p.foto, Modifier.size(48.dp), RoundedCornerShape(12.dp), serverUrl)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(p.nama, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Pilih varian", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                p.variants.forEach { v ->
+                    val qty = cart.entries.firstOrNull { it.key.id == p.id && it.key.varianId == v.id }?.value ?: 0
+                    val harga = if (v.hargaJual > 0) v.hargaJual else p.hargaJual
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(v.namaVariasi, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "${harga.rupiah()} · " + if (v.stok <= 0) "Habis" else "Stok ${v.stok}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (v.stok <= 0) BizgrowColors.Danger else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (qty > 0) {
+                            Stepper(Icons.Rounded.Remove, { onKurang(v) })
+                            Text("$qty", Modifier.width(30.dp), style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                        Stepper(Icons.Rounded.Add, { onTambah(v) }, enabled = qty < v.stok)
+                    }
+                    HorizontalDivider(color = LocalBizPalette.current.border)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            BizButton("Selesai", onClick = onDismiss, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
         }
     }
 }

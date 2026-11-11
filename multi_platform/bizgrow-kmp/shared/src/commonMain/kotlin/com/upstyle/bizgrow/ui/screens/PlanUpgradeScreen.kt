@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -64,7 +66,7 @@ fun PlanUpgradeScreen(viewModel: AppViewModel) {
                             Spacer(Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(plan.name, fontWeight = FontWeight.Medium)
-                                Text("Rp ${plan.priceMonthly.toLong()} / bulan", style = MaterialTheme.typography.bodySmall)
+                                Text("${plan.priceMonthly.rupiah()} / bulan", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -102,7 +104,7 @@ fun PlanUpgradeScreen(viewModel: AppViewModel) {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row { Text("Paket:", modifier = Modifier.weight(1f)); Text(plan?.name ?: "", fontWeight = FontWeight.Medium) }
-                            Row { Text("Harga:", modifier = Modifier.weight(1f)); Text("Rp ${if (billingCycle == "monthly") plan?.priceMonthly?.toLong() else plan?.priceYearly?.toLong()} / ${if (billingCycle == "monthly") "bulan" else "tahun"}", fontWeight = FontWeight.Medium) }
+                            Row { Text("Harga:", modifier = Modifier.weight(1f)); Text("${((if (billingCycle == "monthly") plan?.priceMonthly else plan?.priceYearly) ?: 0.0).toDouble().rupiah()} / ${if (billingCycle == "monthly") "bulan" else "tahun"}", fontWeight = FontWeight.Medium) }
                             Row { Text("Pembayaran:", modifier = Modifier.weight(1f)); Text(selectedPaymentMethod, fontWeight = FontWeight.Medium) }
                         }
                     }

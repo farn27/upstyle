@@ -36,14 +36,10 @@ fun LandingPageScreen(viewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Landing Pages") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
+                title = { Text("Landing Page") },
                 actions = {
                     IconButton(onClick = { showTemplates = true }) {
-                        Icon(Icons.Default.ViewCarousel, "Templates", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.Default.ViewCarousel, "Pilih template")
                     }
                 }
             )
@@ -68,10 +64,10 @@ fun LandingPageScreen(viewModel: AppViewModel) {
                 ) {
                     if (state.pages.isEmpty()) {
                         item {
-                            Text(
-                                "Belum ada landing page. Klik + untuk membuat.",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            com.upstyle.bizgrow.ui.design.EmptyView(
+                                "Belum ada landing page",
+                                "Buat halaman promosi dari template, lalu bagikan tautannya ke pelanggan.",
+                                Icons.Default.ViewCarousel, "Pilih template", { showTemplates = true }
                             )
                         }
                     } else {
@@ -146,7 +142,7 @@ fun LandingPageCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "/${page.pageSlug}",
+                        text = "/w/lp/${page.pageSlug}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -205,6 +201,8 @@ fun LandingPageFormDialog(
     var content by remember { mutableStateOf(page?.contentJson ?: "{}") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text(if (page == null) "Buat Landing Page" else "Edit Landing Page") },
         text = {

@@ -11,15 +11,31 @@
         selectedTrx = null;
     }
 
+    // 'CASH' = data lama aplikasi HP, sama dengan 'TUNAI'
+    /** @param {string | null | undefined} m */
+    const metodeTunai = (m) => ['CASH', 'TUNAI', 'KAS'].includes(String(m || 'TUNAI').toUpperCase());
+    /** @param {string | null | undefined} m */
+    const labelMetode = (m) => (metodeTunai(m) ? 'TUNAI' : String(m));
+
+    /** @param {number | null | undefined} n */
+    const teksTren = (n) => (n == null ? 'Baru' : `${n > 0 ? '+' : ''}${n.toLocaleString('id-ID')}%`);
+    /** @param {number | null | undefined} n */
+    const warnaTren = (n) => (n == null ? 'text-slate-400' : n > 0 ? 'text-green-500' : n < 0 ? 'text-red-500' : 'text-slate-500');
+
     $: stats = [
-        { label: "Total Penjualan", value: `Rp ${data.stats.totalSales.toLocaleString('id-ID')}`, trend: "+12%", color: "text-green-500" },
-        { label: "Total Pesanan", value: data.stats.totalOrders.toString(), trend: "+5%", color: "text-blue-500" },
-        { label: "Rata-rata Per Order", value: `Rp ${Math.round(data.stats.averageTicket).toLocaleString('id-ID')}`, trend: "-2%", color: "text-slate-500 dark:text-slate-400 dark:text-slate-500" },
+        { label: "Total Penjualan", value: `Rp ${data.stats.totalSales.toLocaleString('id-ID')}`, trend: teksTren(data.tren?.penjualan), color: warnaTren(data.tren?.penjualan) },
+        { label: "Total Pesanan", value: data.stats.totalOrders.toString(), trend: teksTren(data.tren?.pesanan), color: warnaTren(data.tren?.pesanan) },
+        { label: "Rata-rata Per Order", value: `Rp ${Math.round(data.stats.averageTicket).toLocaleString('id-ID')}`, trend: teksTren(data.tren?.rataRata), color: warnaTren(data.tren?.rataRata) },
         { label: "Produk Terlaris", value: data.stats.topProduct, trend: "Hot", color: "text-orange-500" }
     ];
 
-    let recentTransactions = data.recentOrders || [];
-    let topProducts = data.topProducts || [];
+    $: recentTransactions = data.recentOrders || [];
+    $: topProducts = data.topProducts || [];
+    $: grafik = data.grafikMingguan || [];
+    $: puncak = Math.max(1, ...grafik.map((/** @type {any} */ g) => g.total));
+    $: ringkasanTren = data.tren?.penjualan == null
+        ? (data.tren?.penjualanMingguIni > 0 ? 'Belum ada penjualan minggu lalu untuk dibandingkan' : 'Belum ada penjualan 7 hari terakhir')
+        : `${data.tren.penjualan >= 0 ? 'Naik' : 'Turun'} ${Math.abs(data.tren.penjualan).toLocaleString('id-ID')}% dari 7 hari sebelumnya`;
     let isReturning = false;
 
     async function processRetur(trx) {
@@ -149,8 +165,8 @@
             <td class="py-4 text-right">
                 <div class="flex items-center justify-end gap-2">
                     <span class="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest 
-                        {trx.metode_bayar === 'CASH' || trx.payment_method === 'CASH' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
-                        {trx.metode_bayar || trx.payment_method || 'CASH'}
+                        {metodeTunai(trx.payment_method) ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
+                        {labelMetode(trx.payment_method)}
                     </span>
                     {#if trx.id}
                     <a href="/api/invoice/{trx.id}?type=pos" target="_blank"
@@ -172,24 +188,24 @@
 
             <div class="bg-slate-900 rounded-md p-6 text-white flex flex-col shadow-xl">
                 <div class="flex items-center justify-between mb-8">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Tren Mingguan</h3>
+                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Penjualan 7 Hari Terakhir</h3>
                     <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path></svg>
                 </div>
                 
                 <div class="flex-1 flex items-end justify-between gap-2 px-2">
-                    {#each [40, 70, 45, 90, 65, 80, 55] as height}
-                        <div class="flex flex-col items-center gap-2 w-full group">
-                            <div class="w-full bg-slate-800 rounded-t-md relative flex items-end justify-center hover:bg-blue-600 transition-all cursor-pointer" style="height: {height}%">
-                                <span class="absolute -top-6 text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">{height}%</span>
+                    {#each grafik as g}
+                        <div class="flex flex-col items-center gap-2 w-full h-full justify-end group" title="{g.tanggal}: Rp {g.total.toLocaleString('id-ID')} ({g.jumlah} order)">
+                            <div class="w-full bg-slate-800 rounded-t-md relative flex items-end justify-center hover:bg-blue-600 transition-all cursor-pointer" style="height: {Math.max(2, Math.round((g.total / puncak) * 100))}%">
+                                <span class="absolute -top-6 text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{g.total >= 1000 ? Math.round(g.total / 1000) + 'rb' : g.total}</span>
                             </div>
-                            <span class="text-[7px] font-black text-slate-600 dark:text-slate-300 uppercase">D{height % 7}</span>
+                            <span class="text-[7px] font-black text-slate-600 dark:text-slate-300 uppercase">{g.label}</span>
                         </div>
                     {/each}
                 </div>
                 
                 <div class="mt-8 p-4 bg-slate-800/50 rounded-md border border-white/5">
                     <p class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1 text-center">Rangkuman Performa</p>
-                    <p class="text-[10px] font-black text-blue-400 text-center uppercase tracking-tighter">Naik 15.4% dari minggu lalu</p>
+                    <p class="text-[10px] font-black text-blue-400 text-center uppercase tracking-tighter">{ringkasanTren}</p>
                 </div>
             </div>
         </div>

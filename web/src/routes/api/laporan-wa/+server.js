@@ -13,7 +13,8 @@ import { todayStrWIB, thisMonthWIB, formatMonthID } from '$lib/server/dateUtils'
 
 const schema = z.object({
 	unitId: z.coerce.number().int().positive(),
-	periode: z.enum(['hari_ini', 'kemarin', 'minggu_ini', 'bulan_ini']).default('hari_ini')
+	// terima juga label tampilan app ("Hari Ini", "Bulan Ini") → hari_ini, bulan_ini
+	periode: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase().replace(/\s+/g, '_') : v), z.enum(['hari_ini', 'kemarin', 'minggu_ini', 'bulan_ini'])).default('hari_ini')
 });
 
 const idr = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -31,7 +32,7 @@ export async function POST({ request, cookies }) {
 	try { body = await request.json(); } catch { return apiError('Invalid JSON', 400); }
 
 	const parsed = schema.safeParse(body);
-	if (!parsed.success) return apiError(parsed.error.errors[0]?.message, 422);
+	if (!parsed.success) return apiError(parsed.error.issues?.[0]?.message || 'Input tidak valid', 422);
 
 	const { unitId, periode } = parsed.data;
 
@@ -93,7 +94,7 @@ export async function POST({ request, cookies }) {
 			total_omzet: sql`SUM(${posOrders.total})`
 		})
 		.from(posOrders)
-		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace('tanggal', 'created_at'))));
+		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace(/\btanggal\b/g, 'pos_orders.created_at'))));
 
 	// Top 3 produk hari ini
 	const topProduk = await db.select({
@@ -104,9 +105,9 @@ export async function POST({ request, cookies }) {
 		.from(posOrderItems)
 		.innerJoin(posOrders, eq(posOrders.id, posOrderItems.orderId))
 		.innerJoin(products, eq(products.id, posOrderItems.productId))
-		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace('tanggal', 'pos_orders.created_at'))))
+		.where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql.raw(dateFilter.replace(/\btanggal\b/g, 'pos_orders.created_at'))))
 		.groupBy(posOrderItems.productId, products.nama)
-		.orderBy(desc(sql`revenue`))
+		.orderBy(desc(sql`SUM(${posOrderItems.total})`))
 		.limit(3);
 
 	const masuk = Number(summary[0]?.masuk || 0);
@@ -132,7 +133,7 @@ export async function POST({ request, cookies }) {
 	if (perubahan) teks += ` (${perubahan} vs sebelumnya)`;
 	teks += `\n`;
 	teks += `❌ Pengeluaran: *${idr(keluar)}*\n`;
-	teks += `${emojiStatus} Laba/Rugi: *${idr(laba)}*\n`;
+	teks += `${emojiStatus} Selisih masuk − keluar: *${idr(laba)}*\n`;
 	teks += `📝 Transaksi: ${totalTrx} entri\n\n`;
 
 	if (totalOrder > 0) {

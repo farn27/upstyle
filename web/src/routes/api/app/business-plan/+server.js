@@ -7,6 +7,7 @@
  * DELETE /api/app/business-plan?id=    → hapus plan
  */
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { businessPlans, businessPlanSeedLogs } from '$lib/server/businessPlanSchema.js';
@@ -47,7 +48,7 @@ export async function GET({ url, cookies, request }) {
 
     return apiSuccess(plans);
   } catch (err) {
-    return apiError('Gagal mengambil data: ' + err.message, 500);
+    return apiError('Gagal mengambil data: ' + pesanAman(err), 500);
   }
 }
 
@@ -95,7 +96,7 @@ export async function POST({ request, cookies }) {
       return apiSuccess({ id: result.insertId }, 'Plan berhasil dibuat');
     }
   } catch (err) {
-    return apiError('Gagal menyimpan plan: ' + err.message, 500);
+    return apiError('Gagal menyimpan plan: ' + pesanAman(err), 500);
   }
 }
 
@@ -108,10 +109,11 @@ export async function DELETE({ url, cookies, request }) {
   if (!id) return apiError('id wajib', 400);
 
   try {
-    await db.delete(businessPlans)
+    const [hasil] = await db.delete(businessPlans)
       .where(and(eq(businessPlans.id, Number(id)), eq(businessPlans.userId, userId)));
+    if (!hasil?.affectedRows) return apiError('Plan tidak ditemukan', 404);
     return apiSuccess(null, 'Plan berhasil dihapus');
   } catch (err) {
-    return apiError('Gagal hapus: ' + err.message, 500);
+    return apiError('Gagal menghapus plan', 500);
   }
 }

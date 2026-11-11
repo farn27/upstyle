@@ -2,6 +2,7 @@ package com.upstyle.bizgrow.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -56,7 +57,8 @@ fun kategoriDari(type: String?): KategoriUsaha {
     val t = (type ?: "").uppercase()
     KategoriUsahaList.firstOrNull { it.kode == t }?.let { return it }
     return when {
-        t.startsWith("FNB") || "RESTO" in t || "CAFE" in t || "KOPI" in t -> KategoriUsahaList[0]
+        "CAFE" in t || "KOPI" in t || "COFFEE" in t -> KategoriUsahaList[1]
+        t.startsWith("FNB") || "RESTO" in t -> KategoriUsahaList[0]
         t.startsWith("RETAIL") || "TOKO" in t -> KategoriUsahaList[3]
         "LAUNDRY" in t -> KategoriUsahaList[7]
         t.startsWith("JASA") || "SERVICE" in t -> KategoriUsahaList[9]
@@ -75,6 +77,40 @@ fun sapaanWaktu(): String {
     }
 }
 
+private val namaHariPanjang = listOf("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu")
+
+/** Jam & tanggal berjalan (widget jam di Beranda web). */
+@Composable
+private fun JamBeranda(modifier: Modifier = Modifier) {
+    var sekarang by remember { mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())) }
+    LaunchedEffect(Unit) { while (true) { sekarang = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()); kotlinx.coroutines.delay(1000) } }
+    fun d2(n: Int) = n.toString().padStart(2, '0')
+    Row(
+        modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Rounded.Schedule, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text("${d2(sekarang.hour)}:${d2(sekarang.minute)}:${d2(sekarang.second)}", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(
+                "${namaHariPanjang[sekarang.dayOfWeek.ordinal]}, ${sekarang.dayOfMonth} ${namaBulanPendek(sekarang.monthNumber)} ${sekarang.year}",
+                style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+private data class Divisi(val nama: String, val deskripsi: String, val icon: ImageVector, val warna: Color, val tujuan: Screen)
+
+private val daftarDivisi = listOf(
+    Divisi("Keuangan & POS", "Arus kas, kasir, stok, laporan laba rugi", Icons.Rounded.AccountBalanceWallet, BizgrowColors.Primary, Screen.Dashboard),
+    Divisi("Penjualan (CRM)", "Pipeline deal penjualan & CRM", Icons.Rounded.Handshake, BizgrowColors.Violet, Screen.Crm),
+    Divisi("Pemasaran (Ads)", "Analisis ads tracking & voucher campaign", Icons.Rounded.Campaign, Color(0xFFEC4899), Screen.Marketing),
+    Divisi("Layanan CS", "Komplain & resolusi SLA support", Icons.Rounded.SupportAgent, BizgrowColors.Info, Screen.Cs),
+    Divisi("E-Commerce Store", "Katalog online & pesanan", Icons.Rounded.ShoppingBag, BizgrowColors.Warning, Screen.Katalog),
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: AppViewModel) {
@@ -84,8 +120,19 @@ fun HomeScreen(viewModel: AppViewModel) {
     val user = viewModel.currentUser
     var showCreate by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    // Divisi yang menunggu pilihan unit (bila punya lebih dari satu unit)
+    var pilihUntuk by remember { mutableStateOf<Divisi?>(null) }
+    // Unit pusat yang punya cabang (ketuk → pilih pusat/cabang, seperti popup "Akses Cabang" di web)
+    var cabangDari by remember { mutableStateOf<BusinessUnit?>(null) }
+    fun bukaDivisi(d: Divisi) {
+        when {
+            units.isEmpty() -> showCreate = true
+            units.size == 1 -> { viewModel.selectUnit(units.first().id); viewModel.navigate(d.tujuan) }
+            else -> pilihUntuk = d
+        }
+    }
 
-    LaunchedEffect(Unit) { viewModel.loadUnits() }
+    LaunchedEffect(Unit) { viewModel.loadUnits(); viewModel.loadNotifications(); viewModel.loadBusinessPlans() }
 
     val tampil = remember(units, query) {
         val q = query.trim().lowercase()
@@ -148,9 +195,13 @@ fun HomeScreen(viewModel: AppViewModel) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.75f)
                         )
+                        Spacer(Modifier.height(14.dp))
+                        JamBeranda()
                     }
                 }
             }
+
+            item { KartuPlanningBeranda(viewModel, Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp).enterAnimation(0)) }
 
             if (units.size > 4) {
                 item {
@@ -171,39 +222,65 @@ fun HomeScreen(viewModel: AppViewModel) {
                 }
                 tampil.isEmpty() -> item { EmptyView("Tidak ditemukan", "Tidak ada unit dengan kata \"$query\".", Icons.Rounded.SearchOff) }
                 else -> {
-                    item { Spacer(Modifier.height(14.dp)) }
-                    // Business Planning Wizard (sama dengan kartu "Planning" di halaman Struktur Bisnis web)
+                    item { Spacer(Modifier.height(6.dp)) }
+                    val utama = tampil.filter { it.cabangDari == null }
                     item {
-                        BizSurface(
-                            Modifier.padding(horizontal = 20.dp, vertical = 6.dp).fillMaxWidth().enterAnimation(0),
-                            onClick = { viewModel.navigate(Screen.BusinessPlan) }, contentPadding = PaddingValues(14.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconBadge(Icons.Rounded.Map, BizgrowColors.Violet)
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text("Business Planning", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                    Text("Rancang rencana bisnis dengan bantuan AI, lalu terapkan jadi unit baru", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SectionTitle(
+                            "Struktur bisnis", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp),
+                            subtitle = "${utama.size} unit • ${units.count { it.cabangDari != null }} cabang",
+                            actionLabel = "Kelola", onAction = { viewModel.navigate(Screen.Units) }
+                        )
+                    }
+                    itemsIndexed(utama, key = { _, u -> u.id }) { i, unit ->
+                        val anak = units.count { it.cabangDari == unit.id }
+                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i), jumlahCabang = anak) {
+                            if (anak > 0) cabangDari = unit else { viewModel.selectUnit(unit.id); viewModel.navigate(Screen.Dashboard) }
+                        }
+                    }
+                    item { KartuAiBeranda(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 14.dp).enterAnimation(0)) }
+                    item {
+                        SectionTitle("Divisi bisnis", Modifier.padding(horizontal = 20.dp), subtitle = "Pusat komando unit usaha Anda")
+                        Spacer(Modifier.height(8.dp))
+                        daftarDivisi.forEachIndexed { i, d ->
+                            BizSurface(
+                                Modifier.padding(horizontal = 20.dp, vertical = 4.dp).fillMaxWidth().enterAnimation(i),
+                                onClick = { bukaDivisi(d) }, contentPadding = PaddingValues(14.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconBadge(d.icon, d.warna)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(d.nama, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        Text(d.deskripsi, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
                                 }
-                                Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
                             }
                         }
                     }
-                    val pusat = tampil.filter { it.isCabang != 1 }
-                    val cabang = tampil.filter { it.isCabang == 1 }
-                    if (pusat.isNotEmpty()) item { SectionTitle("Kantor Pusat", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${pusat.size} unit") }
-                    itemsIndexed(pusat, key = { _, u -> u.id }) { i, unit ->
-                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
-                            viewModel.selectUnit(unit.id)
-                            viewModel.navigate(Screen.Dashboard)
-                        }
-                    }
-                    if (cabang.isNotEmpty()) item { SectionTitle("Cabang", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp), subtitle = "${cabang.size} unit") }
-                    itemsIndexed(cabang, key = { _, u -> u.id }) { i, unit ->
-                        UnitCard(unit, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).enterAnimation(i)) {
-                            viewModel.selectUnit(unit.id)
-                            viewModel.navigate(Screen.Dashboard)
-                        }
+                }
+            }
+            item { KalenderDeadline(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+            item { KabarTerbaru(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
+            item { BizgrowAcademy(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
+            item { BantuanSistem(viewModel, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+        }
+    }
+
+    pilihUntuk?.let { d ->
+        ModalBottomSheet(
+            onDismissRequest = { pilihUntuk = null },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text(d.nama, style = MaterialTheme.typography.titleLarge)
+                Text("Pilih unit bisnis yang ingin dibuka", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                units.forEach { u ->
+                    UnitCard(u, Modifier.padding(vertical = 4.dp)) {
+                        pilihUntuk = null
+                        viewModel.selectUnit(u.id)
+                        viewModel.navigate(d.tujuan)
                     }
                 }
             }
@@ -211,21 +288,32 @@ fun HomeScreen(viewModel: AppViewModel) {
     }
 
     if (showCreate) {
-        ModalBottomSheet(
-            onDismissRequest = { if (!uiState.isLoading) showCreate = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            CreateUnitSheet(isLoading = uiState.isLoading) { nama, kode ->
-                viewModel.createUnit(nama, kode)
-                showCreate = false
+        BuatUnitSheet(units, { if (!uiState.isLoading) showCreate = false }) { req ->
+            viewModel.createUnit(req)
+            showCreate = false
+        }
+    }
+
+    cabangDari?.let { induk ->
+        val anak = units.filter { it.cabangDari == induk.id }
+        ModalBottomSheet(onDismissRequest = { cabangDari = null }, containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text("Akses cabang", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(induk.name, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(12.dp))
+                BizButton("Kantor pusat", onClick = { cabangDari = null; viewModel.selectUnit(induk.id); viewModel.navigate(Screen.Dashboard) }, icon = Icons.Rounded.Business, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(14.dp))
+                SectionTitle("Daftar cabang", subtitle = "${anak.size} cabang")
+                anak.forEach { c ->
+                    UnitCard(c, Modifier.padding(vertical = 4.dp)) { cabangDari = null; viewModel.selectUnit(c.id); viewModel.navigate(Screen.Dashboard) }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun UnitCard(unit: BusinessUnit, modifier: Modifier, onClick: () -> Unit) {
+private fun UnitCard(unit: BusinessUnit, modifier: Modifier, jumlahCabang: Int = 0, onClick: () -> Unit) {
     val kat = kategoriDari(unit.type)
     BizSurface(modifier = modifier.fillMaxWidth(), onClick = onClick, contentPadding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -237,11 +325,14 @@ private fun UnitCard(unit: BusinessUnit, modifier: Modifier, onClick: () -> Unit
                     if (unit.isCabang == 1) {
                         Spacer(Modifier.width(6.dp))
                         StatusChip("Cabang", BizgrowColors.Info)
+                    } else if (jumlahCabang > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        StatusChip("$jumlahCabang cabang", BizgrowColors.Violet)
                     }
                 }
                 Spacer(Modifier.height(2.dp))
-                Text(kat.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val alamat = unit.alamat ?: unit.settings?.alamat
+                Text(labelKategori(unit.type).takeIf { unit.type.isNotBlank() && DaftarKategoriWeb.any { it.kode == unit.type } } ?: kat.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val alamat = (unit.alamat ?: unit.settings?.alamat)?.takeIf { !it.startsWith("Alamat default") }
                 if (!alamat.isNullOrBlank()) {
                     Text(alamat, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -256,49 +347,61 @@ private fun UnitCard(unit: BusinessUnit, modifier: Modifier, onClick: () -> Unit
     }
 }
 
+
+/**
+ * Kartu Business Planning di lobi: panduan memulai bisnis (nama bisnis → target → modal → channel), lalu AI memeriksa
+ * dan membuatkan canvas + menyiapkan data. Menampilkan kelanjutan draf bila ada.
+ */
 @Composable
-private fun CreateUnitSheet(isLoading: Boolean, onCreate: (String, String) -> Unit) {
-    var nama by remember { mutableStateOf("") }
-    var kode by remember { mutableStateOf(KategoriUsahaList[3].kode) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding()) {
-        Text("Bisnis baru", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        Text("Kategori menentukan fitur kasir yang aktif otomatis", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(16.dp))
-        BizTextField(nama, { nama = it }, "Nama bisnis", leadingIcon = Icons.Rounded.Storefront, placeholder = "mis. Kopi Senja")
-        Spacer(Modifier.height(16.dp))
-        Text("Kategori", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(8.dp))
-        LazyVerticalGrid(
-            GridCells.Fixed(3),
-            modifier = Modifier.heightIn(max = 300.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(KategoriUsahaList) { k ->
-                val dipilih = k.kode == kode
-                Column(
-                    Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (dipilih) k.tint.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
-                        .border(if (dipilih) 1.5.dp else 1.dp, if (dipilih) k.tint else LocalBizPalette.current.border, RoundedCornerShape(16.dp))
-                        .pressClick { kode = k.kode }
-                        .padding(vertical = 12.dp, horizontal = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+private fun KartuPlanningBeranda(viewModel: AppViewModel, modifier: Modifier = Modifier) {
+    val rencana by viewModel.businessPlansState.collectAsState(initial = viewModel.businessPlansState.value)
+    val daftar = rencana.plans
+    val lanjut = daftar.firstOrNull { it.status == "DRAFT" } ?: daftar.firstOrNull { it.status == "COMPLETE" && !it.isSeeded }
+    val judul: String; val isi: String; val aksi: String
+    when {
+        lanjut != null && lanjut.status == "DRAFT" -> {
+            judul = "Lanjutkan rencana: ${lanjut.title.ifBlank { "bisnis baru" }}"
+            isi = "Langkah ${lanjut.currentStep.coerceIn(1, 7)} dari 7 — selesaikan, lalu AI memeriksa & menyiapkan bisnismu."
+            aksi = "Lanjutkan"
+        }
+        lanjut != null -> {
+            judul = "Rencana \"${lanjut.title.ifBlank { "bisnis baru" }}\" siap diterapkan"
+            isi = "AI sudah membuat Business Canvas. Terapkan untuk menyiapkan produk, akun, dan karyawan template otomatis."
+            aksi = "Lihat & terapkan"
+        }
+        else -> {
+            judul = "Mau mulai bisnis baru?"
+            isi = "Dipandu langkah demi langkah dari nama bisnis sampai proyeksi modal. AI membantu mengisi, memeriksa, lalu membuatkan Business Canvas."
+            aksi = "Mulai Business Planning"
+        }
+    }
+    GradientCard(colors = BizgrowColors.GradPrimary, modifier = modifier.fillMaxWidth(), onClick = { viewModel.bukaWizardPlan(lanjut?.id ?: 0) }) {
+      Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(judul, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text(isi, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White).padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(k.icon, null, tint = k.tint, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.height(6.dp))
-                    Text(k.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(aksi, style = MaterialTheme.typography.labelLarge, color = BizgrowColors.Violet, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Rounded.ArrowForward, null, tint = BizgrowColors.Violet, modifier = Modifier.size(16.dp))
                 }
             }
         }
-        Spacer(Modifier.height(20.dp))
-        BizButton(
-            "Buat Bisnis",
-            onClick = { onCreate(nama.trim(), kode) },
-            enabled = nama.trim().length >= 2,
-            loading = isLoading,
-            icon = Icons.Rounded.Check,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (daftar.size > 1 || (daftar.isNotEmpty() && lanjut == null)) {
+            Spacer(Modifier.height(8.dp))
+            Text("Lihat semua rencana (${daftar.size})", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.9f),
+                modifier = Modifier.clickable { viewModel.navigate(Screen.BusinessPlan) })
+        }
+      }
     }
 }

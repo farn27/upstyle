@@ -1,23 +1,13 @@
 import { redirect } from '@sveltejs/kit';
-import { getVerifiedStaffSession } from '$lib/server/portalAuth';
-import { getCurrentUserId } from '$lib/server/getUser';
-import { db } from '$lib/server/drizzle';
-import { unitBisnis } from '$lib/server/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { resolvePosUnitAccess } from '$lib/server/posAuth';
+import { peranManajer } from '$lib/server/unitSlugGuard';
 
-export async function load({ cookies, params }) {
-    const ownerUserId = await getCurrentUserId(cookies);
+export async function load({ cookies, params, locals }) {
     const { slug } = params;
-
-    // Verify access
-    const staffSession = await getVerifiedStaffSession(cookies, { unitSlug: slug });
-    
-    // Only owner or POS Manager can access Kelola POS
-    if (!ownerUserId && (!staffSession || staffSession.role !== 'owner')) {
-        // Here we could allow manager too, but let's assume owner/manager
-        if (!staffSession || !['owner', 'manager', 'admin'].includes(staffSession.role)) {
-            throw redirect(303, `/finance/${slug}/pos`);
-        }
+    // Hanya pemilik unit atau staf berperan manajer. Dulu user login mana pun lolos (cukup punya sesi).
+    const akses = await resolvePosUnitAccess(cookies, params, locals);
+    if (!akses.isOwner && !(akses.isStaff && peranManajer(akses.staffSession?.role))) {
+        throw redirect(303, `/finance/${slug}/pos`);
     }
 
     return { slug };

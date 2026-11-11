@@ -11,16 +11,17 @@ import { log } from '$lib/server/logger';
 /**
  * Log failed login attempt for audit purposes
  */
+/**
+ * Catat percobaan login gagal ke log server (audit keamanan).
+ * Dulu memakai db.execute(string, params) — bentuk yang tidak didukung Drizzle — dan menulis ke riwayat_aksi
+ * dengan user_id 0 yang melanggar foreign key, sehingga tidak pernah ada yang tersimpan.
+ * Email disamarkan supaya log tidak menyimpan alamat lengkap.
+ * @param {string} email @param {string} ip @param {string} reason
+ */
 async function logFailedLogin(email, ip, reason) {
-	try {
-		// Gunakan raw insert tanpa FK check untuk security audit log
-		await db.execute(
-			`INSERT INTO riwayat_aksi (user_id, unit_id, pesan, kategori, tipe) VALUES (0, 0, ?, 'SECURITY', 'error')`,
-			[`Gagal login: ${email} - ${reason} (IP: ${ip})`]
-		);
-	} catch (err) {
-		log.auth.warn({ err }, '[Audit Log] Failed to log login attempt');
-	}
+	const [nama, domain] = String(email || '').split('@');
+	const samaran = domain ? `${nama.slice(0, 2)}***@${domain}` : String(email || '').slice(0, 2) + '***';
+	log.auth.warn({ email: samaran, ip, reason, audit: 'LOGIN_GAGAL' }, '[Audit] Login gagal');
 }
 
 export async function POST({ request }) {

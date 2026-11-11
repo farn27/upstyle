@@ -1,4 +1,5 @@
 import { db } from '$lib/server/drizzle';
+import { versiCache } from '$lib/server/cacheVersi';
 import { users, employees, riwayatAksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { error, redirect } from '@sveltejs/kit';
@@ -32,7 +33,7 @@ export async function load({ cookies, depends, url, locals }) {
     if (!userId) return { user: null, riwayatGlobal: [] };
 
     // --- STRATEGI CACHE: Hyper-Fast Layout ---
-    const cacheKey = `layout_session_v2:${userId}`;
+    const cacheKey = `layout_session_v3:${userId}:${await versiCache(userId, null)}`;
 
     try {
         depends('app:notifications');

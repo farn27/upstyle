@@ -3,6 +3,7 @@
  * Generate slip gaji HTML untuk karyawan tertentu
  */
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { employees, unitBisnis, payrolls, salaryComponents } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
@@ -11,8 +12,9 @@ import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 
-export async function GET({ params, url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
+export async function GET({ params, url, cookies, request, locals }) {
+	// userIdOverride hanya diisi route /api/dokumen setelah memverifikasi link sementara bertanda tangan
+	const userId = locals?.userIdOverride || await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	const { employeeId } = params;
@@ -36,6 +38,7 @@ export async function GET({ params, url, cookies, request }) {
 		
 		const employee = {
 			...empRaw[0].employee,
+			full_name: empRaw[0].employee.fullName,
 			nama_unit: empRaw[0].unit.namaUnit,
 			alamat: empRaw[0].unit.alamat,
 			telepon: empRaw[0].unit.telepon,
@@ -59,7 +62,7 @@ export async function GET({ params, url, cookies, request }) {
 
 		const payroll = payrollRows[0] || null;
 		const basicSalary = payroll
-			? Number(payroll.basic_salary)
+			? Number(payroll.basicSalary)
 			: Number(employee.salary || 0);
 
 		const html = generateSlipGajiHTML({
@@ -82,6 +85,6 @@ export async function GET({ params, url, cookies, request }) {
 		});
 	} catch (err) {
 		log.api.error({ err }, '[SlipGaji] Error');
-		return apiError('Gagal generate slip gaji: ' + err.message, 500);
+		return apiError('Gagal generate slip gaji: ' + pesanAman(err), 500);
 	}
 }

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { bacaBase64, bacaBarisFile, validasiImpor, ImporEksporError } from '$lib/server/imporEkspor';
 
@@ -12,7 +13,7 @@ export async function POST({ request, cookies }) {
 		const hasil = validasiImpor(/** @type {any} */ (String(body?.dataType || '').toLowerCase()), rows);
 		return json({ success: true, message: hasil.isValid ? 'File siap diimpor' : 'File perlu diperbaiki', data: hasil });
 	} catch (err) {
-		if (err instanceof ImporEksporError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof ImporEksporError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		return json({ success: false, message: 'Gagal membaca file' }, { status: 500 });
 	}
 }

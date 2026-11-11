@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, salesTargets, crmDeals, users } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -55,6 +56,9 @@ export const actions = {
         const targetAmount = Number(data.get('target_amount') || 0);
         const komisiPersen = Number(data.get('komisi_persen') || 0);
         const { month, year } = thisMonthWIB();
+        if (!Number.isInteger(targetUserId) || targetUserId <= 0) return fail(400, { error: 'Pilih anggota tim sales' });
+        if (!Number.isFinite(targetAmount) || targetAmount <= 0) return fail(400, { error: 'Target harus lebih dari 0' });
+        if (!Number.isFinite(komisiPersen) || komisiPersen < 0 || komisiPersen > 100) return fail(400, { error: 'Komisi harus 0–100%' });
 
         try {
             const unit = await db.query.unitBisnis.findFirst({
@@ -81,7 +85,7 @@ export const actions = {
             }
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal set target: ' + err.message });
+            return fail(500, { error: 'Gagal set target: ' + pesanAman(err) });
         }
     }
 };

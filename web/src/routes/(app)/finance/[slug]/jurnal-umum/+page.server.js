@@ -1,4 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { buatJurnalManual } from '$lib/server/jurnalManual';
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts } from '$lib/server/schema';
 import { eq, desc, and, sql, inArray } from 'drizzle-orm';
@@ -108,9 +110,9 @@ export const actions = {
             if (accountId && (debitVal > 0 || kreditVal > 0)) {
                 lines.push({
                     coaId: Number(accountId),
-                    debit: String(debitVal),
-                    kredit: String(kreditVal),
-                    keterangan
+                    debit: debitVal,
+                    kredit: kreditVal,
+                    keterangan: keterangan ? String(keterangan) : null
                 });
                 totalDebit += debitVal;
                 totalKredit += kreditVal;
@@ -118,34 +120,12 @@ export const actions = {
             index++;
         }
 
-        if (lines.length < 2) {
-            return fail(400, { error: 'Jurnal minimal harus memiliki 2 baris (Debit & Kredit).' });
-        }
-
-        if (totalDebit !== totalKredit) {
-            return fail(400, { error: `Total Debit (Rp ${totalDebit}) dan Kredit (Rp ${totalKredit}) tidak seimbang (Balance).` });
-        }
-
         try {
-            await db.transaction(async (tx) => {
-                const [jurnalResult] = await tx.execute(
-                    `INSERT INTO journal_entries (unit_id, user_id, tanggal, nomor_jurnal, referensi, memo, source_type, total_debit, total_kredit, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-                    [unit.id, userId, tanggal, `JRN-MANUAL-${Date.now()}`, referensi || null, memo || null, 'MANUAL', String(totalDebit), String(totalKredit), 'POSTED']
-                );
-
-                const journalId = jurnalResult.insertId;
-
-                for (const line of lines) {
-                    await tx.execute(
-                        `INSERT INTO journal_entry_lines (journal_id, coa_id, keterangan, debit, kredit) VALUES (?, ?, ?, ?, ?)`,
-                        [journalId, line.coaId, line.keterangan, line.debit, line.kredit]
-                    );
-                }
-            });
-
-            return { success: true };
+            const jurnal = await buatJurnalManual(db, { unitId: unit.id, userId, tanggal: String(tanggal || ''), memo: memo ? String(memo) : null, referensi: referensi ? String(referensi) : null, lines });
+            return { success: true, nomorJurnal: jurnal.nomorJurnal };
         } catch (err) {
-            console.error('Manual Journal Error:', err);
+            if (err instanceof Error && err.name === 'TransaksiError') return fail(/** @type {any} */ (err).status || 400, { error: pesanAman(err) });
+            console.error('Manual Journal Error:', err instanceof Error ? err.message : err);
             return fail(500, { error: 'Gagal menyimpan jurnal manual' });
         }
     }

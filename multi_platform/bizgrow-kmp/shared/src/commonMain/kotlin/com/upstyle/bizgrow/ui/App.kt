@@ -33,6 +33,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
         "light" -> false
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
+    androidx.compose.runtime.CompositionLocalProvider(com.upstyle.bizgrow.ui.design.LocalServerUrl provides viewModel.session.getServerUrl()) {
     BizgrowTheme(darkTheme = gelap) {
         val screen by viewModel.screen.collectAsState(initial = viewModel.screen.value)
         val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
@@ -124,6 +125,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // CS - both Screen.Cs and Screen.CsInbox map to the same screen
                     is Screen.Cs           -> CsInboxScreen(viewModel)
                     is Screen.CsInbox      -> CsInboxScreen(viewModel)
+                    is Screen.KnowledgeBase -> KnowledgeBaseScreen(viewModel)
                     is Screen.TicketDetail -> TicketDetailScreen(viewModel, target.ticketId)
 
                     // Ecommerce
@@ -145,7 +147,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Advanced Finance
                     is Screen.Coa           -> CoaScreen(viewModel)
                     is Screen.FixedAssets   -> FixedAssetsScreen(viewModel)
-                    is Screen.Neraca        -> NeracaScreen(viewModel)
+                    is Screen.Neraca        -> LaporanScreen(viewModel, tabAwal = 2)
                     is Screen.Budget        -> BudgetScreen(viewModel)
                     is Screen.TaxRates      -> TaxRatesScreen(viewModel)
                     is Screen.ClosingPeriod -> ClosingPeriodScreen(viewModel)
@@ -153,6 +155,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Advanced Products
                     is Screen.StockOpname   -> StockOpnameScreen(viewModel)
                     is Screen.TrashProducts -> TrashProductsScreen(viewModel)
+                    is Screen.KategoriProduk -> KategoriProdukScreen(viewModel)
                     is Screen.Pricing       -> PricingScreen(viewModel)
 
                     // Advanced CRM / Sales
@@ -170,6 +173,11 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     // Advanced POS
                     is Screen.PosVouchers -> PosVouchersScreen(viewModel)
                     is Screen.PosQueue -> PosQueueScreen(viewModel)
+                    is Screen.PlanWizard -> PlanWizardScreen(viewModel)
+                    is Screen.AccountingContacts -> AccountingContactsScreen(viewModel)
+                    is Screen.PosReport -> PosReportScreen(viewModel)
+                    is Screen.PoDetail -> PoDetailScreen(viewModel)
+                    is Screen.EmployeeDetail -> EmployeeDetailScreen(viewModel)
 
                     // Marketing / Katalog
                     is Screen.Katalog  -> KatalogScreen(viewModel)
@@ -182,7 +190,6 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                     is Screen.HelpCenter              -> HelpCenterScreen(viewModel)
                     is Screen.AdvancedSettings        -> AdvancedSettingsScreen(viewModel)
                     is Screen.LandingPageScreen       -> LandingPageScreen(viewModel)
-                    is Screen.ShopeeIntegrationScreen -> ShopeeIntegrationScreen(viewModel)
 
                     // Subscription & Billing
                     is Screen.SubscriptionPlans -> SubscriptionPlansScreen(viewModel)
@@ -255,6 +262,7 @@ fun App(viewModel: AppViewModel, onGoogleSignIn: (() -> Unit)? = null) {
                 ToastPill(terakhir, terakhirError, onClose = { viewModel.clearMessages() })
             }
         }
+    }
     }
 }
 

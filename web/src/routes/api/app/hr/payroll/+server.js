@@ -1,12 +1,13 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { payrolls, employees, riwayatAksi, transaksi, salaryComponents } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { payrolls, employees, riwayatAksi, salaryComponents } from '$lib/server/schema';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { thisMonthWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { bayarPayroll } from '$lib/server/bayarGaji';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -82,28 +83,18 @@ export async function GET({ url, cookies, request }) {
         }
 
         if (type === 'history') {
-            const conditions = [eq(payrolls.employeeId, sql`employees.id`)];
+            // Hanya karyawan unit ini (dulu filter unit & bulan terbentuk tetapi tidak dipakai → gaji semua tenant ikut terkirim)
+            const karyawanUnit = await db.select({ id: employees.id, fullName: employees.fullName, position: employees.position })
+                .from(employees).where(eq(employees.companyId, Number(unitId)));
+            const petaKaryawan = new Map(karyawanUnit.map((e) => [e.id, e]));
+            const kondisi = [inArray(payrolls.employeeId, karyawanUnit.map((e) => e.id).concat([-1]))];
             if (monthYear) {
                 const { month, year } = parseMonthYear(monthYear);
-                conditions.push(
-                    eq(payrolls.periodMonth, month),
-                    eq(payrolls.periodYear, year)
-                );
+                kondisi.push(eq(payrolls.periodMonth, month), eq(payrolls.periodYear, year));
             }
 
-            const payrollHistory = await db.query.payrolls.findMany({
-                orderBy: [desc(payrolls.id)],
-                limit: 100,
-                with: {
-                    employee: {
-                        columns: {
-                            id: true,
-                            fullName: true,
-                            position: true
-                        }
-                    }
-                }
-            });
+            const baris = await db.select().from(payrolls).where(and(...kondisi)).orderBy(desc(payrolls.id)).limit(100);
+            const payrollHistory = baris.map((p) => ({ ...p, employee: petaKaryawan.get(p.employeeId) || null }));
 
             return json({ 
                 success: true, 
@@ -163,7 +154,9 @@ export async function POST({ request, cookies }) {
             let processedCount = 0;
             let totalPayroll = 0;
 
-            await db.transaction(async (tx) => {
+            /** @type {{ id: number, unitId: number }[]} */
+            const dibayar = [];
+            await db.transaction(async (/** @type {any} */ tx) => {
                 for (const employeeId of employeeIds) {
                     // Check if payroll already exists for this period
                     const existing = await tx.query.payrolls.findFirst({
@@ -197,7 +190,7 @@ export async function POST({ request, cookies }) {
                     const netSalary = basicSalary + totalAdditions - totalDeductions;
 
                     // Insert payroll record
-                    await tx.insert(payrolls).values({
+                    const [baru] = await tx.insert(payrolls).values({
                         employeeId,
                         periodMonth: month,
                         periodYear: year,
@@ -208,21 +201,16 @@ export async function POST({ request, cookies }) {
                         paymentStatus: 'unpaid'
                     });
 
-                    // Create expense transaction if enabled
-                    if (autoCreateTransaction && netSalary > 0) {
-                        await tx.insert(transaksi).values({
-                            userId,
-                            unitId: Number(unitId),
-                            keterangan: `Gaji ${employee.fullName} (${monthYear})`,
-                            nominal: String(netSalary),
-                            totalHarga: String(netSalary),
-                            kategoriTrx: 'KELUAR',
-                            metodeBayar: 'TRANSFER'
-                        });
-                    }
+                    // "Langsung catat pengeluaran": bayar sekaligus (status lunas + transaksi + jurnal).
+                    // Dulu transaksi dibuat sementara payroll tetap 'unpaid' → tercatat dua kali saat ditandai lunas.
+                    if (autoCreateTransaction && netSalary > 0) dibayar.push({ id: Number(baru.insertId), unitId: Number(employee.companyId) });
 
                     processedCount++;
                     totalPayroll += netSalary;
+                }
+
+                for (const u of [...new Set(dibayar.map((d) => d.unitId))]) {
+                    await bayarPayroll(tx, { unitId: u, userId, payrollIds: dibayar.filter((d) => d.unitId === u).map((d) => d.id) });
                 }
 
                 // Log action
@@ -250,7 +238,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST hr/payroll error');
-        return json({ success: false, message: 'Gagal menjalankan payroll: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal menjalankan payroll' }, { status: 500 });
     }
 }
 
@@ -278,54 +266,18 @@ export async function PUT({ request, cookies }) {
                 return json({ success: false, message: msg }, { status: 400 });
             }
 
-            const { payrollIds, unitId, paidDate, notes } = body;
+            const { payrollIds, unitId } = parsed.data;
+            if (!(await unitMilikUser(db, userId, unitId))) {
+                return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
+            }
+            const hasil = await db.transaction((/** @type {any} */ tx) => bayarPayroll(tx, { unitId, userId, payrollIds }));
 
-            let markedCount = 0;
-            let totalPaid = 0;
-
-            await db.transaction(async (tx) => {
-                for (const payrollId of payrollIds) {
-                    const payroll = await tx.query.payrolls.findFirst({
-                        where: eq(payrolls.id, payrollId),
-                        with: {
-                            employee: {
-                                columns: {
-                                    fullName: true
-                                }
-                            }
-                        }
-                    });
-
-                    if (!payroll || payroll.paymentStatus === 'paid') continue;
-                    if (!(await karyawanMilikUser(db, userId, payroll.employeeId))) continue;
-
-                    await tx.update(payrolls)
-                        .set({ 
-                            paymentStatus: 'paid',
-                            paidDate: paidDate || todayStrWIB()
-                        })
-                        .where(eq(payrolls.id, payrollId));
-
-                    markedCount++;
-                    totalPaid += Number(payroll.netSalary || 0);
-                }
-
-                // Log action
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId),
-                    pesan: `${markedCount} payroll ditandai sudah dibayar. Total: Rp ${totalPaid.toLocaleString('id-ID')}`,
-                    kategori: 'HR',
-                    tipe: 'success'
-                });
-            });
-
-            return json({ 
-                success: true, 
-                message: `${markedCount} payroll berhasil ditandai sudah dibayar`,
+            return json({
+                success: true,
+                message: `${hasil.jumlah} payroll berhasil ditandai sudah dibayar`,
                 data: {
-                    markedCount,
-                    totalPaid
+                    markedCount: hasil.jumlah,
+                    totalPaid: hasil.total
                 }
             });
         }
@@ -374,7 +326,7 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'PUT hr/payroll error');
-        return json({ success: false, message: 'Gagal update payroll: ' + err.message }, { status: 500 });
+        return json({ success: false, message: (err instanceof Error && /tutup buku|sudah dibayar/i.test(err.message)) ? err.message : 'Gagal update payroll' }, { status: 500 });
     }
 }
 

@@ -1,3 +1,5 @@
+import { versiCache } from '$lib/server/cacheVersi';
+import { pesanAman } from '$lib/server/pesanAman';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle'; 
 import { products, kategoriProduk, unitBisnis, stockLogs, productVariants } from '$lib/server/schema'; 
@@ -19,7 +21,7 @@ export async function load({ params, url, locals }) {
     const historyId = url.searchParams.get('history');
 
     // 2. STRATEGI CACHE KEY: Menggunakan struktur v4 yang bersih
-    const cacheKey = `cache:products_page_v4:${unitSlug}:${historyId || 'none'}:${user.id}`;
+    const cacheKey = `cache:products_page_v5:${unitSlug}:${historyId || 'none'}:${user.id}:${await versiCache(user.id, unitSlug)}`;
 
     try {
         // 3. PINTU UTAMA REDIS: Cek cache
@@ -189,7 +191,7 @@ export const actions = {
                             const [newCat] = await tx.insert(kategoriProduk).values({
                                 unitId: unit.id,
                                 namaKategori: kategoriInput
-                            }).$returningId();
+                            }).then(([r]) => [{ id: r.insertId }]);
                             finalKategoriId = newCat.id;
                         }
                     }
@@ -249,7 +251,7 @@ export const actions = {
 
         } catch (err) {
             log.api.error({ err: err.message }, 'Produk createProduct: DB error');
-            return fail(500, { message: "Gagal menyimpan data ke Database", error: err.message });
+            return fail(500, { message: "Gagal menyimpan data ke Database", error: pesanAman(err) });
         }
     }
 };

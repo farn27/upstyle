@@ -31,6 +31,7 @@ export const pool = mysql.createPool({
 
 export const db = drizzle(pool, { 
     schema: { ...schema, ...relations, businessPlans, businessPlanSeedLogs },
-    mode: "default",
+    // "planetscale" = relasi lewat subquery tanpa LATERAL JOIN (dipakai tes lokal di MariaDB); produksi tetap "default"
+    mode: env.DB_RELATIONAL_MODE === "planetscale" ? "planetscale" : "default",
     logger: env.NODE_ENV !== 'production' && env.DB_LOGGER === 'true'
 });

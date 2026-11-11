@@ -167,82 +167,8 @@ export const leaveTicketRoom = async (ticketId) => {
   }
 };
 
-/**
- * Send ticket message
- * @param {Object} data - Message data { ticketId, message, sender }
- */
-export const sendTicketMessage = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('ticket-message', data);
-  }
-};
+// Event bisnis dikirim oleh server web (POST /emit di socket-server), bukan oleh peramban.
 
-/**
- * Emit POS transaction event
- * @param {Object} data - Transaction data
- */
-export const emitPOSTransaction = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('pos-transaction', data);
-  }
-};
-
-/**
- * Emit stock update event
- * @param {Object} data - Stock update data
- */
-export const emitStockUpdate = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('stock-updated', data);
-  }
-};
-
-/**
- * Emit stock alert event
- * @param {Object} data - Alert data
- */
-export const emitStockAlert = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('stock-alert', data);
-  }
-};
-
-/**
- * Emit POS cash alert event
- * @param {Object} data - Cash alert data
- */
-export const emitPOSAlert = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('pos-cash-alert', data);
-  }
-};
-
-/**
- * Emit notification event
- * @param {Object} data - Notification data
- */
-export const emitNotification = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('notification', data);
-  }
-};
-
-/**
- * Emit order status change event
- * @param {Object} data - Order status data
- */
-export const emitOrderStatusChange = async (data) => {
-  const socket = await getSocketClient();
-  if (socket) {
-    socket.emit('order-status-changed', data);
-  }
-};
 
 /**
  * Subscribe to Socket.io events

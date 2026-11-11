@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { supportTicketMessages, supportTickets, riwayatAksi } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
@@ -29,12 +30,12 @@ export async function POST({ params, request, cookies }) {
             senderType: 'STAFF',
             senderId: userId,
             message: message.trim(),
-            createdAt: new Date().toISOString()
+            createdAt: nowSqlWIB()
         });
 
         // Update lastResponseAt
         await db.update(supportTickets)
-            .set({ lastResponseAt: new Date().toISOString(), status: 'IN_PROGRESS' })
+            .set({ lastResponseAt: nowSqlWIB(), status: 'IN_PROGRESS' })
             .where(eq(supportTickets.id, ticketId));
 
         await db.insert(riwayatAksi).values({

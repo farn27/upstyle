@@ -1,239 +1,169 @@
 package com.upstyle.bizgrow.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.PosShift
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Shift kasir: buka/tutup, kas masuk/keluar, riwayat dengan selisih kas. */
 @Composable
 fun PosShiftScreen(viewModel: AppViewModel) {
-    val posShifts by viewModel.posShifts.collectAsState(initial = viewModel.posShifts.value)
-    val activeShift by viewModel.activeShift.collectAsState(initial = viewModel.activeShift.value)
-    val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
-
-    var showOpenShiftDialog by remember { mutableStateOf(false) }
-    var showCloseShiftDialog by remember { mutableStateOf(false) }
-    var modalAwal by remember { mutableStateOf("") }
-    var kasAkhirAktual by remember { mutableStateOf("") }
-    var catatan by remember { mutableStateOf("") }
+    val shifts by viewModel.posShifts.collectAsState()
+    val aktif by viewModel.activeShift.collectAsState()
+    val kas by viewModel.kasShift.collectAsState()
+    var buka by remember { mutableStateOf(false) }
+    var tutup by remember { mutableStateOf(false) }
+    var kasForm by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadPosShifts() }
+    LaunchedEffect(aktif?.id) { aktif?.let { viewModel.loadKasShift(it.id) } }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Manajemen Shift Kasir") },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Kembali")
-                    }
-                }
-            )
-        },
+    val kasMasuk = kas.filter { it.type == "CASH_IN" }.sumOf { it.amount }
+    val kasKeluar = kas.filter { it.type == "CASH_OUT" }.sumOf { it.amount }
+
+    BizScreen("Shift Kasir", subtitle = if (aktif != null) "Shift sedang berjalan" else "Belum ada shift aktif", onBack = { viewModel.navigateBack() },
         floatingActionButton = {
-            if (activeShift == null) {
-                ExtendedFloatingActionButton(
-                    onClick = { showOpenShiftDialog = true },
-                    icon = { Icon(Icons.Default.PlayArrow, null) },
-                    text = { Text("Buka Shift") },
-                    containerColor = BizgrowColors.Success
-                )
-            } else {
-                ExtendedFloatingActionButton(
-                    onClick = { showCloseShiftDialog = true },
-                    icon = { Icon(Icons.Default.Check, null) },
-                    text = { Text("Tutup Shift") },
-                    containerColor = BizgrowColors.Danger
-                )
-            }
+            if (aktif == null) FabTambah("Buka shift") { buka = true }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
-
-            // Active Shift Banner
-            activeShift?.let { shift ->
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Shift Aktif", color = Color.White, fontSize = 12.sp)
-                        Text("Dibuka: ${shift.waktuBuka}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column {
-                                Text("Modal Awal", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                                Text(formatCurrency(shift.modalAwal), color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                            Surface(color = Color(0xFF4CAF50), shape = RoundedCornerShape(12.dp)) {
-                                Text(" OPEN ", color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                val s = aktif
+                if (s == null) {
+                    EmptyView("Belum ada shift aktif", "Buka shift dengan modal awal untuk mulai kasir dan mencatat kas.", Icons.Rounded.Schedule, "Buka shift", { buka = true })
+                } else {
+                    GradientCard(Modifier.fillMaxWidth(), colors = BizgrowColors.GradSuccess) {
+                        Column {
+                            Text("Shift aktif • dibuka ${s.waktuBuka.tanggalJam()}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.85f))
+                            Text((if (s.kasAkhir > 0) s.kasAkhir else s.modalAwal + kasMasuk - kasKeluar).rupiah(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Perkiraan uang di laci: modal + penjualan tunai + setor − tarik", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Mini("Modal awal", s.modalAwal.rupiahRingkas(), Modifier.weight(1f))
+                                // penjualan tunai = kas diharapkan server − modal − (setor − tarik)
+                                val tunai = if (s.kasAkhir > 0) (s.kasAkhir - s.modalAwal - kasMasuk + kasKeluar).coerceAtLeast(0.0) else 0.0
+                                Mini("Penjualan tunai", tunai.rupiahRingkas(), Modifier.weight(1f))
+                                Mini("Setor − tarik", (kasMasuk - kasKeluar).rupiahRingkas(), Modifier.weight(1f))
                             }
                         }
                     }
-                }
-            } ?: Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                    Text("Tidak ada shift aktif. Buka shift untuk mulai kasir.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-
-            Text("Riwayat Shift", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(posShifts) { shift ->
-                    ShiftItem(shift)
-                }
-            }
-        }
-
-        uiState.error?.let { msg ->
-            LaunchedEffect(msg) { viewModel.clearMessages() }
-        }
-        uiState.successMessage?.let {
-            LaunchedEffect(it) { viewModel.clearMessages() }
-        }
-    }
-
-    // Open Shift Dialog
-    if (showOpenShiftDialog) {
-        AlertDialog(
-            onDismissRequest = { showOpenShiftDialog = false },
-            title = { Text("Buka Shift Kasir") },
-            text = {
-                Column {
-                    Text("Masukkan modal awal kas:", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = modalAwal,
-                        onValueChange = { modalAwal = it },
-                        label = { Text("Modal Awal (Rp)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amount = modalAwal.toDoubleOrNull() ?: 0.0
-                        viewModel.openShift(amount)
-                        showOpenShiftDialog = false
-                        modalAwal = ""
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BizOutlineButton("Setor kas", { kasForm = "CASH_IN" }, Modifier.weight(1f), icon = Icons.Rounded.AddCircleOutline, tint = BizgrowColors.Success, height = 46.dp)
+                        BizOutlineButton("Tarik kas", { kasForm = "CASH_OUT" }, Modifier.weight(1f), icon = Icons.Rounded.RemoveCircleOutline, tint = BizgrowColors.Danger, height = 46.dp)
                     }
-                ) { Text("Buka Shift") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showOpenShiftDialog = false }) { Text("Batal") }
+                    Spacer(Modifier.height(8.dp))
+                    BizButton("Tutup shift", { tutup = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Lock, colors = listOf(BizgrowColors.Danger, BizgrowColors.DangerDark))
+                }
             }
-        )
+            if (aktif != null && kas.isNotEmpty()) {
+                item { SectionTitle("Kas masuk & keluar shift ini") }
+                itemsIndexed(kas, key = { _, k -> k.id }) { _, k ->
+                    val masuk = k.type == "CASH_IN"
+                    ListRow(k.description.ifBlank { if (masuk) "Setor kas" else "Tarik kas" }, subtitle = k.createdAt.tanggalJam(), icon = if (masuk) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
+                        tint = if (masuk) BizgrowColors.Success else BizgrowColors.Danger,
+                        trailing = { Text((if (masuk) "+" else "-") + k.amount.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = if (masuk) BizgrowColors.Success else BizgrowColors.Danger) })
+                }
+            }
+            val riwayat = shifts.filter { it.status != "OPEN" }
+            if (riwayat.isNotEmpty()) {
+                item { SectionTitle("Riwayat shift") }
+                itemsIndexed(riwayat, key = { _, s -> s.id }) { i, s -> RiwayatShift(s, Modifier.enterAnimation(i)) }
+            }
+        }
     }
 
-    // Close Shift Dialog
-    if (showCloseShiftDialog && activeShift != null) {
-        AlertDialog(
-            onDismissRequest = { showCloseShiftDialog = false },
-            title = { Text("Tutup Shift Kasir") },
-            text = {
-                Column {
-                    Text("Kas Akhir Sistem: ${formatCurrency(activeShift!!.kasAkhir)}", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = kasAkhirAktual,
-                        onValueChange = { kasAkhirAktual = it },
-                        label = { Text("Kas Akhir Aktual (Rp)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = catatan,
-                        onValueChange = { catatan = it },
-                        label = { Text("Catatan (opsional)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amount = kasAkhirAktual.toDoubleOrNull() ?: 0.0
-                        viewModel.closeShift(activeShift!!.id, amount, catatan)
-                        showCloseShiftDialog = false
-                        kasAkhirAktual = ""
-                        catatan = ""
+    if (buka) {
+        var modal by remember { mutableStateOf("") }
+        FormSheet("Buka shift kasir", subjudul = "Masukkan uang modal yang ada di laci kas.", onDismiss = { buka = false }, labelSimpan = "Buka shift",
+            simpanAktif = modal.toDoubleOrNull() != null, onSimpan = { viewModel.openShift(modal.toDouble()); buka = false }) {
+            AngkaField(modal, { modal = it }, "Modal awal (Rp)", desimal = false)
+        }
+    }
+    if (tutup) {
+        var hitung by remember { mutableStateOf("") }
+        var cat by remember { mutableStateOf("") }
+        FormSheet("Tutup shift", subjudul = "Hitung uang di laci lalu isi jumlah sebenarnya. Selisih dengan perkiraan sistem akan dicatat.", onDismiss = { tutup = false },
+            labelSimpan = "Tutup shift", simpanAktif = hitung.toDoubleOrNull() != null,
+            onSimpan = { aktif?.let { viewModel.closeShift(it.id, hitung.toDouble(), cat) }; tutup = false }) {
+            AngkaField(hitung, { hitung = it }, "Uang di laci (Rp)", desimal = false)
+            aktif?.takeIf { it.kasAkhir > 0 }?.let { a ->
+                val aktual = hitung.toDoubleOrNull()
+                val selisih = aktual?.let { it - a.kasAkhir }
+                Text(
+                    "Perkiraan sistem ${a.kasAkhir.rupiah()}" + when {
+                        selisih == null -> ""
+                        selisih == 0.0 -> " • pas, tidak ada selisih"
+                        selisih > 0 -> " • lebih ${selisih.rupiah()}"
+                        else -> " • kurang ${(-selisih).rupiah()}"
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = BizgrowColors.Danger)
-                ) { Text("Tutup Shift") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCloseShiftDialog = false }) { Text("Batal") }
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selisih != null && selisih < 0) BizgrowColors.Danger else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        )
+            BizTextField(cat, { cat = it }, "Catatan (opsional)", singleLine = false)
+        }
+    }
+    kasForm?.let { tipe ->
+        var nominal by remember(tipe) { mutableStateOf("") }
+        var ket by remember(tipe) { mutableStateOf("") }
+        FormSheet(if (tipe == "CASH_IN") "Setor kas" else "Tarik kas", onDismiss = { kasForm = null },
+            simpanAktif = (nominal.toDoubleOrNull() ?: 0.0) > 0,
+            onSimpan = { aktif?.let { viewModel.catatKasShift(it.id, tipe, nominal.toDouble(), ket) }; kasForm = null }) {
+            AngkaField(nominal, { nominal = it }, "Nominal (Rp)", desimal = false)
+            BizTextField(ket, { ket = it }, "Keterangan", placeholder = "Contoh: tambah receh")
+        }
     }
 }
 
 @Composable
-fun ShiftItem(shift: PosShift) {
-    val isOpen = shift.status == "OPEN"
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text(if (isOpen) "Shift Aktif" else "Shift #${shift.id}", fontWeight = FontWeight.Bold)
-                    Text(shift.waktuBuka, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Surface(
-                    color = if (isOpen) Color(0xFF4CAF50) else Color.Gray,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(shift.status, color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
+private fun Mini(label: String, nilai: String, modifier: Modifier) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.16f)).padding(10.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+        Text(nilai, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+    }
+}
+
+@Composable
+fun RiwayatShift(shift: PosShift, modifier: Modifier = Modifier) {
+    BizSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Rounded.Schedule, BizgrowColors.Info, size = 38.dp, iconSize = 19.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Shift #${shift.id}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("${shift.waktuBuka.tanggalJam()} → ${shift.waktuTutup?.tanggalJam() ?: "-"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (!isOpen) {
-                Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Kas Akhir: ${formatCurrency(shift.kasAkhirAktual)}", fontSize = 13.sp)
-                    val selisih = shift.selisih
-                    Text(
-                        if (selisih >= 0) "+${formatCurrency(selisih)}" else formatCurrency(selisih),
-                        fontSize = 13.sp,
-                        color = if (selisih >= 0) BizgrowColors.Success else BizgrowColors.Danger,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            StatusChip(if (shift.status == "OPEN") "Berjalan" else "Selesai", if (shift.status == "OPEN") BizgrowColors.Success else BizgrowColors.Info)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row {
+            Column(Modifier.weight(1f)) { Text("Modal", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(shift.modalAwal.rupiah(), style = MaterialTheme.typography.bodyMedium) }
+            Column(Modifier.weight(1f)) { Text(if (shift.status == "OPEN") "Kas laci (perkiraan)" else "Kas akhir (aktual)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text((if (shift.status == "OPEN") shift.kasAkhir else shift.kasAkhirAktual).rupiah(), style = MaterialTheme.typography.bodyMedium) }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("Selisih", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // shift yang masih berjalan belum punya selisih — jangan tampilkan "Rp 0" hijau seolah sudah cocok
+                if (shift.status == "OPEN") Text("-", style = MaterialTheme.typography.bodyMedium) else
+                Text((if (shift.selisih > 0) "+" else "") + shift.selisih.rupiah(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold,
+                    color = if (shift.selisih == 0.0) BizgrowColors.Success else if (shift.selisih > 0) BizgrowColors.Info else BizgrowColors.Danger)
             }
         }
+        if (!shift.catatan.isNullOrBlank()) Text(shift.catatan, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
     }
 }

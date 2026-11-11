@@ -1,23 +1,16 @@
 import { db } from '$lib/server/drizzle';
-import { unitBisnis, posOrders, posShifts } from '$lib/server/schema';
-import { eq, and, or, sql, gte } from 'drizzle-orm';
-import { getCurrentUserId } from '$lib/server/getUser';
+import { posOrders, posShifts } from '$lib/server/schema';
+import { eq, and, gte } from 'drizzle-orm';
+import { resolvePosUnitAccess } from '$lib/server/posAuth';
+import { todayStrWIB } from '$lib/server/dateUtils';
 
-export async function load({ cookies, params }) {
-    const userId = await getCurrentUserId(cookies);
-    const { slug } = params;
+export async function load({ cookies, params, locals }) {
+    // Unit harus milik user / staf unit ini (dulu dicari hanya dengan slug → statistik unit lain terbaca)
+    const { unit } = await resolvePosUnitAccess(cookies, params, locals);
+    const unitId = unit.id;
 
-    const units = await db.select({ id: unitBisnis.id })
-        .from(unitBisnis)
-        .where(or(eq(unitBisnis.slug, slug), eq(unitBisnis.loginSlug, slug)));
-    
-    if (!units.length) return { error: 'Unit tidak ditemukan' };
-    const unitId = units[0].id;
-
-    // Get today's start date
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().slice(0, 19).replace('T', ' ');
+    // Awal hari ini menurut WIB (kolom created_at disimpan dalam WIB)
+    const todayStr = `${todayStrWIB()} 00:00:00`;
 
     // Query Today's Orders
     const todaysOrders = await db.select()
@@ -25,7 +18,8 @@ export async function load({ cookies, params }) {
         .where(
             and(
                 eq(posOrders.unitId, unitId),
-                gte(posOrders.createdAt, todayStr)
+                gte(posOrders.createdAt, todayStr),
+                eq(posOrders.status, 'PAID')
             )
         );
 

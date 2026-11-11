@@ -1,10 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { groqChatCompletion } from '$lib/server/groq';
+import { groqChatCompletion, GroqError, pesanGalatAI } from '$lib/server/groq';
 import { eq, and, sql, desc, or, inArray, asc } from 'drizzle-orm';
 import { log } from '$lib/server/logger';
 import { cekKuotaAI } from '$lib/server/rateLimit';
+import { detectIntent, parseTransactionNL } from '$lib/server/chatIntent';
 import {
 	getAiMemories,
 	saveAiMemory,
@@ -18,6 +19,7 @@ import {
 	payables,
 	journalEntries,
 	employees,
+	employeeKpi,
 	attendance,
 	leaveRequests,
 	posOrders,
@@ -63,41 +65,6 @@ function fmtDate(v) {
 
 function fmtRp(v) {
 	return `Rp${Number(v || 0).toLocaleString('id-ID')}`;
-}
-
-// ─── Intent Detection ─────────────────────────────────────────────────────────
-
-const INTENTS = [
-	{ key: 'hr_advanced',     pattern: /kpi|penilaian|performa|kontrak|sp|peringatan/ },
-	{ key: 'hr',              pattern: /karyawan|gaji|absen|payroll|cuti|shift|pegawai|lembur|staf|staff|sdm/ },
-	{ key: 'crm',             pattern: /pelanggan|customer|klien|deal|pipeline|kontak|crm|prospek|pembeli/ },
-	{ key: 'inventory',       pattern: /stok|produk|barang|inventori|laku|laris|habis|dead.?stock|item/ },
-	{ key: 'finance_advanced',pattern: /tutup.?buku|closing.?period|akhir.?bulan/ },
-	{ key: 'finance',         pattern: /uang|laba|rugi|keuangan|kas|saldo|pemasukan|pengeluaran|omzet|hutang|piutang|bon|jurnal|buku.?besar|cash.?flow|profit|tagihan/ },
-	{ key: 'pos',             pattern: /pos|kasir|struk|order|bayar|jual|penjualan kasir/ },
-	{ key: 'sales',           pattern: /pipeline|deal|closing|penawaran|quotation|sales.?order|komisi|target.?sales/ },
-	{ key: 'marketing',       pattern: /kampanye|campaign|iklan|leads?|landing.?page|voucher|diskon|marketing|roas/ },
-	{ key: 'cs',              pattern: /tiket|ticket|keluhan|komplain|support|helpdesk|cs|customer.?service/ },
-	{ key: 'ecommerce',       pattern: /toko.?online|ecommerce|e-commerce|storefront|marketplace|shopee|tokopedia/ },
-	{ key: 'procurement',     pattern: /supplier|vendor|\bpo\b|purchase.?order|pembelian|restock|kulakan/ },
-	{ key: 'asset',           pattern: /aset|mobil|mesin|fixed.?asset|penyusutan|kendaraan/ },
-	{ key: 'tax',             pattern: /pajak|ppn|pph|tax/ },
-	{ key: 'budget',          pattern: /anggaran|budget|jatah/ },
-	{ key: 'approval',        pattern: /persetujuan|approval|reimburse/ },
-	{ key: 'gudang',          pattern: /gudang|warehouse|opname|selisih.?stok|batch/ },
-	{ key: 'penggajian',      pattern: /komponen.?gaji|tunjangan|potongan|slip|bpjs/ },
-	{ key: 'akuntansi',       pattern: /akun|coa|chart.?of.?account|rekening/ },
-	{ key: 'audit',           pattern: /log|riwayat|audit|hapus|aktivitas|jejak/ },
-	{ key: 'transaction_input', pattern: /\b(beli|bayar|bayarin|jual|jualan|belanja|keluar|masuk|dapat|terima|dapet|kirim|transfer|bayarkan|habis|abis|borong|restock|kulakan|traktir|sponsor|sponsoran|kiriman|cicil|cicilan|angsuran|dp|down.?payment|setor|setorin|tarik|fee|komisi|upah|gaji.?kasih|kasih|kasih uang|bayar.?uang|uang masuk|uang keluar|pemasukan|pengeluaran|bayar.?tagihan|tagihan masuk|tagihan keluar|profit|hasil|pendapatan|diterima|dibayar|lunas|bayar.?lunas|bayar.?dp|transaksi)\b/ },
-	{ key: 'help',            pattern: /bantuan|cara|bagaimana|fitur|menu|aplikasi|dimana|link|halaman|help|tolong|bingung/ },
-];
-
-function detectIntent(text) {
-	const lower = text.toLowerCase();
-	for (const { key, pattern } of INTENTS) {
-		if (pattern.test(lower)) return key;
-	}
-	return 'general';
 }
 
 // ─── Dynamic Context Loader ────────────────────────────────────────────────────
@@ -268,7 +235,14 @@ async function loadDynamicContext(intent, userId, targetUnitId) {
 			  .orderBy(desc(posOrders.createdAt))
 			  .limit(10);
 
+			const posHariIni = await db.select({
+				jumlah: sql`COUNT(*)`,
+				total: sql`COALESCE(SUM(${posOrders.total}), 0)`
+			}).from(posOrders)
+			  .where(and(eq(posOrders.unitId, targetUnitId), eq(posOrders.status, 'PAID'), sql`DATE(${posOrders.createdAt}) = CURDATE()`));
+
 			ctx += `\n[FOKUS KASIR / POS]\n`;
+			ctx += `- Penjualan kasir HARI INI (status PAID): ${Number(posHariIni[0]?.jumlah || 0)} order, total ${fmtRp(posHariIni[0]?.total)}\n`;
 			if (orders.length) ctx += `- Transaksi POS Terakhir: ${orders.map(o => `#${o.order_number} | ${fmtRp(o.total)} | ${o.payment_method} | ${o.status}`).join('; ')}\n`;
 			suggestions = ['Total omzet kasir hari ini?', 'Jam kasir paling ramai?', 'Metode pembayaran terpopuler?'];
 		}
@@ -574,73 +548,6 @@ async function loadDynamicContext(intent, userId, targetUnitId) {
 	return { ctx, suggestions };
 }
 
-// ─── Transaction NL Parser ────────────────────────────────────────────────────
-
-function parseTransactionNL(text) {
-	const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
-	const todayWIB = new Date(Date.now() + WIB_OFFSET_MS).toISOString().split('T')[0];
-	const lower = text.toLowerCase();
-
-	// ── 1. MUST have a nominal to be a transaction ──────────────────────────
-	// Accept: 10rb, 10 rb, 10ribu, 10k, 1jt, 1.5jt, 500000, 1.500.000, dll
-	const hasNominal = /(\d[\d.,]*)\s*(rb|ribu|k\b|jt|juta|ratus\.?ribu|ratus|jt\.?an)?/i.test(text)
-		&& /\d{3,}|\d+\s*(rb|ribu|jt|juta|k\b)/i.test(text); // min 3 digit or explicit unit
-	if (!hasNominal) return null;
-
-	// ── 2. Determine KATEGORI with wide vocabulary ──────────────────────────
-	// Keluar: pengeluaran, expense words
-	const isKeluar = /\b(beli|bayar|bayarin|belanja|keluar|abis|habis|borong|restock|kulakan|bayarkan|traktir|bayar.?tagihan|cicil|cicilan|angsuran|dp|down.?payment|setor|beli.?in|beli.?kan|bayar.?dp|bayar.?lunas|biaya|pengeluaran|expense|beban|modal|investasi|sewa|bayar.?sewa|bayar.?listrik|bayar.?air|bayar.?internet|langganan|iuran|denda|pajak|ongkir|kirim.?barang|ongkos|beli.?stok|ambil.?dari.?kas|keluar.?uang|uang.?keluar|pesan|order|gaji|gajian|honor|upah|bonus|thr|pesangon|kasbon)\b/i.test(lower);
-
-	// Masuk: pemasukan, income words
-	const isMasuk  = /\b(jual|jualan|dapat|terima|dapet|masuk|pendapatan|pemasukan|income|profit|hasil|laba|penjualan|diterima|kiriman|transfer.?masuk|bayaran|fee|komisi|sponsorship|sponsor|donasi|hibah|penerimaan|bayar.?customer|customer.?bayar|pelanggan.?bayar|bayar.?dari|uang.?masuk|setoran|tarik.?dari|untung|revenue)\b/i.test(lower);
-
-	// If neither detected, check context clues (standalone "masuk"/"keluar" as verb + amount)
-	const hasKonteks = isMasuk || isKeluar;
-	if (!hasKonteks) return null;
-
-	const kategori = isKeluar ? 'Keluar' : 'Masuk';
-
-	// ── 3. Extract nominal ──────────────────────────────────────────────────
-	const nomMatches = [...text.matchAll(/(\d+(?:[.,]\d+)?)\s*(rb|ribu|k\b|jt|juta|ratus\.?ribu|ratus)?/gi)];
-	if (!nomMatches.length) return null;
-	
-	// Jika terdeteksi lebih dari 1 angka, serahkan ke AI untuk multiple input
-	if (nomMatches.length > 1) return null;
-
-	let bestNominal = 0;
-	for (const m of nomMatches) {
-		let val = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
-		const unit = (m[2] || '').toLowerCase();
-		if (/jt|juta/.test(unit))          val *= 1_000_000;
-		else if (/rb|ribu/.test(unit))      val *= 1_000;
-		else if (/\bk\b/.test(unit))        val *= 1_000;
-		else if (/ratus.?ribu/.test(unit))  val *= 100_000;
-		else if (/ratus/.test(unit))        val *= 100;
-		// If no unit and less than 1000, might be thousands written without unit (e.g. "500" in casual speech often means 500rb)
-		// Only apply this if there's a unit keyword nearby in the original text
-		if (val > 0 && val <= 1_000_000_000 && val > bestNominal) bestNominal = val;
-	}
-	if (bestNominal <= 0) return null;
-
-	// ── 4. Build keterangan from remaining text ─────────────────────────────
-	// Strip numbers (with units), action words, stop words
-	const cleaned = text
-		.replace(/(\d+(?:[.,]\d+)?)\s*(rb|ribu|k\b|jt|juta|ratus\.?ribu|ratus)?/gi, ' ')
-		.replace(/\b(beli|bayar|bayarin|jual|dapat|terima|dapet|masuk|keluar|habis|abis|tadi|barusan|udah|udh|buat|untuk|dengan|dari|ke|di|yang|dan|atau|ini|itu|sih|deh|dong|ya|kak|nih|aja|tuh|banget|lagi|sudah|sudah|memang|mau|ada|hari|ini|kemarin|tadi|malam|pagi|siang|sore|sekarang|transfer|setor|tarik|kirim|kasih|kasih|ngasih|ngasih|kirimin|bayar|bayarin|beli|beliin)\b/gi, ' ')
-		.replace(/\s+/g, ' ').trim().toUpperCase();
-
-	const keterangan = cleaned || (isKeluar ? 'PENGELUARAN' : 'PEMASUKAN');
-
-	// Detect metode from text
-	const metode = /\b(transfer|tf|bank|bca|bri|bni|mandiri|gopay|ovo|dana|shopeepay|qris|debit|kartu)\b/i.test(lower)
-		? 'Transfer'
-		: /\b(qris|scan|barcode)\b/i.test(lower)
-		? 'QRIS'
-		: 'Tunai';
-
-	return [{ kategori, nominal: bestNominal, keterangan, tanggal: todayWIB, metode }];
-}
-
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
 export async function POST({ request, cookies }) {
@@ -690,6 +597,8 @@ export async function POST({ request, cookies }) {
 		const thisMonthStart = `${thisYear}-${pad(thisMonth)}-01`;
 		const lastMonthStart = `${lastMonthYear}-${pad(lastMonth)}-01`;
 		const lastMonthEnd   = `${thisYear}-${pad(thisMonth)}-01`; // exclusive (< thisMonthStart)
+		const hariIniStr = nowWIBDate.toISOString().slice(0, 10);
+		const kemarinStr = new Date(nowWIBDate.getTime() - 86_400_000).toISOString().slice(0, 10);
 		
 		// 5. Deteksi intent awal
 		const intent = detectIntent(message);
@@ -796,7 +705,7 @@ export async function POST({ request, cookies }) {
 		let prodSnippet = '';
 		let trenText = '';
 
-		const isFinance = intent === 'finance' || intent === 'general';
+		const isFinance = intent === 'finance' || intent === 'general' || intent === 'pos' || /omzet|omset|pemasukan|pengeluaran|transaksi|laba|untung/i.test(msgLower);
 		const isTren = /tren|grafik|chart|perkembangan|bulan/i.test(msgLower);
 		const isHistory = /transaksi|terakhir|riwayat|kemarin/i.test(msgLower);
 		const isInventory = intent === 'inventory' || /stok|produk|barang|jual|harga/i.test(msgLower);
@@ -812,7 +721,8 @@ export async function POST({ request, cookies }) {
 
 				const bulanIniRows = await db.select({
 					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`
+					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
+					jumlah: sql`COUNT(*)`
 				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${thisMonthStart}`));
 
 				const bulanLaluRows = await db.select({
@@ -820,6 +730,18 @@ export async function POST({ request, cookies }) {
 					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
 					jumlah: sql`COUNT(*)`
 				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${lastMonthStart}`, sql`DATE(${transaksi.tanggal}) < ${lastMonthEnd}`));
+
+				// Agregat HARI INI & KEMARIN dihitung di database (dulu model menebak dari 8 transaksi terakhir
+				// sehingga "omzet hari ini" berbeda dengan dasbor dan berubah antarpertanyaan — F-16)
+				const harianRows = await db.select({
+					hari: sql`DATE(${transaksi.tanggal})`,
+					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
+					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
+					jumlah: sql`COUNT(*)`
+				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${kemarinStr}`)).groupBy(sql`DATE(${transaksi.tanggal})`);
+				const hariRow = (/** @type {string} */ tgl) => harianRows.find(h => String(h.hari).slice(0, 10) === tgl) || { masuk: 0, keluar: 0, jumlah: 0 };
+				const hIni = hariRow(hariIniStr);
+				const hLalu = hariRow(kemarinStr);
 
 				const totalMasuk  = Number(allTimeRows[0]?.masuk  || 0);
 				const totalKeluar = Number(allTimeRows[0]?.keluar || 0);
@@ -832,8 +754,10 @@ export async function POST({ request, cookies }) {
 				const bulanLaluJumlah = Number(bulanLaluRows[0]?.jumlah || 0);
 
 				financeSummary = [
+					`• HARI INI (${hariIniStr}): Omzet/Masuk ${fmtRp(hIni.masuk)} | Keluar ${fmtRp(hIni.keluar)} | Selisih ${fmtRp(Number(hIni.masuk || 0) - Number(hIni.keluar || 0))} | ${Number(hIni.jumlah || 0)} transaksi`,
+					`• KEMARIN (${kemarinStr}): Omzet/Masuk ${fmtRp(hLalu.masuk)} | Keluar ${fmtRp(hLalu.keluar)} | ${Number(hLalu.jumlah || 0)} transaksi`,
 					`• ALL TIME  : Masuk ${fmtRp(totalMasuk)} | Keluar ${fmtRp(totalKeluar)} | Saldo ${fmtRp(saldoBersih)} | HPP ${fmtRp(totalHpp)} | Gross Profit ${fmtRp(totalMasuk - totalHpp)}`,
-					`• BULAN INI (${bulanNames[thisMonth]} ${thisYear}): Masuk ${fmtRp(bulanIniMasuk)} | Keluar ${fmtRp(bulanIniKeluar)} | Saldo ${fmtRp(bulanIniMasuk - bulanIniKeluar)}`,
+					`• BULAN INI (${bulanNames[thisMonth]} ${thisYear}): Masuk ${fmtRp(bulanIniMasuk)} | Keluar ${fmtRp(bulanIniKeluar)} | Saldo ${fmtRp(bulanIniMasuk - bulanIniKeluar)} | ${Number(bulanIniRows[0]?.jumlah || 0)} transaksi`,
 					`• BULAN LALU (${bulanNames[lastMonth]} ${lastMonthYear}): Masuk ${fmtRp(bulanLaluMasuk)} | Keluar ${fmtRp(bulanLaluKeluar)} | Saldo ${fmtRp(bulanLaluMasuk - bulanLaluKeluar)} | ${bulanLaluJumlah} transaksi`,
 				].join('\n');
 			}
@@ -928,12 +852,14 @@ PENTING: Jawab langsung to-the-point dan ringkas (maksimal 2-3 paragraf). Jangan
 
 ## ATURAN PENTING
 - Data di bawah SUDAH AKURAT dari database — jangan mengarang angka.
+- "Omzet"/"pemasukan" hari ini, kemarin, bulan ini, bulan lalu: pakai angka pada baris DATA KEUANGAN yang sesuai (jangan menjumlah ulang daftar transaksi terakhir).
+- Pertanyaan tentang data (diawali berapa/apa/kapan/siapa atau diakhiri tanda tanya) DIJAWAB, bukan dibuatkan blok transaction.
 - JANGAN mengarang route/URL selain yang valid.
 - JANGAN pernah mengarang info produk.
 - Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.
 
 ## 💡 INPUT TRANSAKSI NATURAL LANGUAGE
-Jika pesan user menceritakan transaksi keuangan, ekstrak datanya dalam blok code \`\`\`transaction\`\`\`. 
+Jika pesan user MEMERINTAHKAN mencatat transaksi keuangan baru (bukan bertanya), ekstrak datanya dalam blok code \`\`\`transaction\`\`\`. 
 \`\`\`transaction
 [
   {
@@ -1018,6 +944,10 @@ ${navInstructions}`;
 
 	} catch (err) {
 		log.ai.error({ err }, '[Chat API]');
+		if (err instanceof GroqError) {
+			// Layanan AI penuh/bermasalah: balas dengan pesan yang bisa ditampilkan aplikasi, bukan galat 500
+			return json({ reply: `${pesanGalatAI(err)} 🙏`, suggestions: [], aiError: true, retryAfter: err.retryAfter || 60 });
+		}
 		return json({ reply: 'Terjadi kesalahan server. Silakan coba lagi ya kak.' }, { status: 500 });
 	}
 }

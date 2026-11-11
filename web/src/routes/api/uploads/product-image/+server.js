@@ -56,6 +56,6 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         console.error('[Upload] Error:', err);
-        return json({ success: false, message: err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal mengunggah gambar' }, { status: 500 });
     }
 }

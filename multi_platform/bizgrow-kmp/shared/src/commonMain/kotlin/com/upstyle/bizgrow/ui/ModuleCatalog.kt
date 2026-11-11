@@ -43,6 +43,7 @@ val ModuleCatalog: List<ModuleGroup> = listOf(
             ModuleEntry("Neraca", Icons.Rounded.Balance, Amber, Screen.Neraca, "aset liabilitas ekuitas"),
             ModuleEntry("Anggaran", Icons.Rounded.Savings, Emerald, Screen.Budget, "budget"),
             ModuleEntry("Aset Tetap", Icons.Rounded.Domain, Slate, Screen.FixedAssets, "penyusutan"),
+            ModuleEntry("Kontak Akuntansi", Icons.Rounded.Contacts, Teal, Screen.AccountingContacts, "pelanggan supplier vendor piutang hutang"),
             ModuleEntry("Akun (COA)", Icons.Rounded.AccountTree, Violet, Screen.Coa, "chart of account bagan akun"),
             ModuleEntry("Pajak", Icons.Rounded.Percent, Rose, Screen.TaxRates, "ppn pph tarif"),
             ModuleEntry("Tutup Buku", Icons.Rounded.LockClock, Slate, Screen.ClosingPeriod, "periode closing"),
@@ -53,6 +54,7 @@ val ModuleCatalog: List<ModuleGroup> = listOf(
         "Penjualan & Kasir", Emerald, listOf(
             ModuleEntry("Kasir (POS)", Icons.Rounded.PointOfSale, Emerald, Screen.Pos, "jual checkout"),
             ModuleEntry("Antrean & Dapur", Icons.Rounded.SoupKitchen, Amber, Screen.PosQueue, "pesanan dapur meja kitchen"),
+            ModuleEntry("Laporan Kasir", Icons.Rounded.BarChart, Indigo, Screen.PosReport, "penjualan produk terlaris metode bayar"),
             ModuleEntry("Shift Kasir", Icons.Rounded.Schedule, Sky, Screen.PosShift, "buka tutup laci kas"),
             ModuleEntry("Retur Penjualan", Icons.AutoMirrored.Rounded.Undo, Rose, Screen.PosReturn, "refund kembali"),
             ModuleEntry("Voucher & Promo", Icons.Rounded.LocalOffer, Pink, Screen.PosVouchers, "diskon kupon"),
@@ -72,6 +74,7 @@ val ModuleCatalog: List<ModuleGroup> = listOf(
             ModuleEntry("Operasi Massal", Icons.Rounded.DynamicFeed, Violet, Screen.BulkOperations, "bulk update banyak"),
             ModuleEntry("Katalog", Icons.Rounded.Storefront, Pink, Screen.Katalog, "etalase"),
             ModuleEntry("Scan Barcode", Icons.Rounded.QrCodeScanner, Slate, Screen.BarcodeScanner, "qr kamera"),
+            ModuleEntry("Kategori Produk", Icons.Rounded.Category, Indigo, Screen.KategoriProduk, "kategori kelompok produk"),
             ModuleEntry("Sampah Produk", Icons.Rounded.DeleteOutline, Rose, Screen.TrashProducts, "arsip hapus pulihkan"),
         )
     ),

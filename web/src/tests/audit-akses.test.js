@@ -106,6 +106,43 @@ describe.skipIf(!TEST_DB)('Audit: harga, isolasi unit, piutang, retur', () => {
 		expect(await stok(id.pB)).toBe(10);
 	});
 
+	it('POS mobile: PPN penjualan (eksklusif & inklusif) masuk jurnal PPN Keluaran dan rekap pajak', async () => {
+		login.userId = id.userA;
+		const kirim = (/** @type {any} */ ekstra) => r.posApp.POST({
+			request: req('POST', { action: 'checkout', order: { unitId: id.unitA, subtotal: 1, total: 1, paymentMethod: 'CASH', items: [{ productId: id.pA, productName: 'Kopi A', qty: 3, price: 1 }], ...ekstra } }),
+			cookies
+		});
+		// belum ada tarif PPN → ditolak jelas, stok tidak berubah
+		const stokAwal = await stok(id.pA);
+		const tanpaTarif = await kirim({ kenaiPpn: true });
+		expect(tanpaTarif.status).toBe(422);
+		expect(await stok(id.pA)).toBe(stokAwal);
+
+		await db.insert(s.taxRates).values({ unitId: id.unitA, namaPajak: 'PPN 11%', persentase: '11', tipe: 'PPN', isDefault: 1, isActive: 1 });
+		const eks = await (await kirim({ kenaiPpn: true })).json();
+		expect(eks.data).toMatchObject({ ppn: 660, total: 6660 });
+		const ink = await (await kirim({ kenaiPpn: true, ppnInklusif: true })).json();
+		expect(ink.data).toMatchObject({ ppn: 595, total: 6000 });
+
+		// jurnal seimbang: Dr kas = Kr pendapatan + Kr PPN Keluaran
+		const [jr] = await db.select().from(s.journalEntries).where(o.and(o.eq(s.journalEntries.sourceId, String(eks.id)), o.eq(s.journalEntries.unitId, id.unitA)));
+		const baris = await db.select().from(s.journalEntryLines).where(o.eq(s.journalEntryLines.journalId, jr.id));
+		const debit = baris.reduce((a, b) => a + Number(b.debit), 0);
+		const kredit = baris.reduce((a, b) => a + Number(b.kredit), 0);
+		expect(debit).toBe(6660);
+		expect(kredit).toBe(6660);
+		expect(baris.some((b) => Number(b.kredit) === 660)).toBe(true);
+
+		const { ringkasPpn } = await import('../lib/server/pajak.js');
+		const hari = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+		const rk = await ringkasPpn(db, id.unitA, hari, hari);
+		expect(rk.keluaran).toBe(660 + 595);
+		expect(rk.kurangBayar).toBe(rk.keluaran - rk.masukan);
+
+		// kembalikan stok supaya tes lain tidak terpengaruh
+		await db.update(s.products).set({ stok: stokAwal }).where(o.eq(s.products.id, id.pA));
+	});
+
 	it('POS web: qty negatif / nol ditolak (dulu menambah stok)', async () => {
 		login.userId = id.userA;
 		for (const qty of [-5, 0, 1.5]) {

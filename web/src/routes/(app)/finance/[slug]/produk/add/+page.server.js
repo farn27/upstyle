@@ -1,4 +1,6 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, isRedirect, isHttpError } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle'; 
 import { products, unitBisnis, productVariants, kategoriProduk } from '$lib/server/schema'; 
 import { eq, and } from 'drizzle-orm';
@@ -20,7 +22,7 @@ export const load = async ({ params, locals, parent }) => {
     if (!user) throw redirect(302, '/auth/login');
 
     const { slug } = params;
-    const cacheKey = `unit-data-v4:${slug}:${user.id}`; 
+    const cacheKey = `unit-data-v5:${slug}:${user.id}:${await versiCache(user.id, slug)}`; 
 
     try {
         // A. CEK REDIS
@@ -52,6 +54,8 @@ export const load = async ({ params, locals, parent }) => {
         return resultData;
 
     } catch (err) {
+        // redirect / error(4xx) SvelteKit diteruskan apa adanya (dulu berubah jadi galat 500)
+        if (isRedirect(err) || isHttpError(err)) throw err;
         log.api.error({ err: err.message, slug }, 'Produk add: Redis/DB load error');
         const unit = await db.query.unitBisnis.findFirst({
             where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, user.id)),
@@ -172,7 +176,7 @@ export const actions = {
                             const [newCat] = await tx.insert(kategoriProduk).values({
                                 unitId: unit.id,
                                 namaKategori: kategoriInput
-                            }).$returningId();
+                            }).then(([r]) => [{ id: r.insertId }]);
                             finalKategoriId = newCat.id;
                         }
                     }
@@ -231,7 +235,7 @@ export const actions = {
 
         } catch (err) {
             log.api.error({ err: err.message }, 'Produk add: DB error');
-            return fail(500, { message: "Gagal menyimpan data ke Database", error: err.message });
+            return fail(500, { message: "Gagal menyimpan data ke Database", error: pesanAman(err) });
         }
     }
 };

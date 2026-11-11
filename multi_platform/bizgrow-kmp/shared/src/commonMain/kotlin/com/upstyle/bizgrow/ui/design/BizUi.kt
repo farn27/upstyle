@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.design
 
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -533,7 +534,9 @@ fun BizTextField(
     isError: Boolean = false,
     supportingText: String? = null,
     singleLine: Boolean = true,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    /** Kolom uang: tampil "Rp 1.500.000" saat diketik; nilai yang disimpan tetap digit murni ("1500000"). */
+    uang: Boolean = false
 ) {
     var visible by remember { mutableStateOf(false) }
     OutlinedTextField(
@@ -553,7 +556,11 @@ fun BizTextField(
                 }
             }
         } else null,
-        visualTransformation = if (isPassword && !visible) PasswordVisualTransformation() else VisualTransformation.None,
+        visualTransformation = when {
+            isPassword && !visible -> PasswordVisualTransformation()
+            uang -> RupiahVisualTransformation
+            else -> VisualTransformation.None
+        },
         keyboardOptions = KeyboardOptions(keyboardType = if (isPassword) KeyboardType.Password else keyboardType, imeAction = imeAction),
         keyboardActions = KeyboardActions(onAny = { onImeAction?.invoke() }),
         isError = isError,
@@ -722,4 +729,63 @@ fun AnimatedAmount(
 ) {
     val animated by animateFloatAsState(value.toFloat(), tween(700, easing = BizMotion.Emphasized), label = "amount")
     Text(format(animated.toDouble()), style = style, color = color, modifier = modifier, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/**
+ * Tampilan kolom uang: digit "1500000" tampil "Rp 1.500.000" (nilai asli tidak berubah, kursor tetap pas).
+ * Nilai yang bukan digit murni (mis. kosong) ditampilkan apa adanya.
+ */
+object RupiahVisualTransformation : VisualTransformation {
+    override fun filter(text: androidx.compose.ui.text.AnnotatedString): androidx.compose.ui.text.input.TransformedText {
+        val asli = text.text
+        if (asli.isEmpty() || !asli.all { it.isDigit() }) {
+            return androidx.compose.ui.text.input.TransformedText(text, androidx.compose.ui.text.input.OffsetMapping.Identity)
+        }
+        val awalan = "Rp "
+        val sb = StringBuilder(awalan)
+        val posisi = IntArray(asli.length + 1)
+        for (i in asli.indices) {
+            val sisa = asli.length - i
+            if (i > 0 && sisa % 3 == 0) sb.append('.')
+            posisi[i] = sb.length
+            sb.append(asli[i])
+        }
+        posisi[asli.length] = sb.length
+        val peta = object : androidx.compose.ui.text.input.OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = posisi[offset.coerceIn(0, asli.length)]
+            override fun transformedToOriginal(offset: Int): Int {
+                if (offset <= awalan.length) return 0
+                var hasil = 0
+                for (i in asli.indices) if (posisi[i] < offset) hasil = i + 1
+                return hasil.coerceIn(0, asli.length)
+            }
+        }
+        return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(sb.toString()), peta)
+    }
+}
+
+/**
+ * Merapikan angka rupiah mentah di teks bebas dari server ("Rp 4500000" → "Rp 4.500.000"),
+ * mis. pesan notifikasi lama yang tersimpan sebelum server memformatnya.
+ */
+fun String.rapikanRupiah(): String = Regex("""Rp\s?(\d{4,})(?:\.0+)?(?![\d.,])""").replace(this) { m ->
+    "Rp " + ribuan(m.groupValues[1].toLong())
+}
+
+private val BULAN_SINGKAT = listOf("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
+
+/** "2026-11-11 19:08:00" / "2026-11-11T19:08" → "11 Nov 2026, 19:08". Teks lain dikembalikan apa adanya. */
+fun String.tanggalJam(): String {
+    // stempel UTC/offset ("2026-11-11T12:27:43.870Z") → jam lokal perangkat dulu
+    val t = trim()
+    if (Regex("""T\d{2}:\d{2}.*(Z|[+-]\d{2}:?\d{2})$""").containsMatchIn(t)) {
+        runCatching {
+            val l = kotlinx.datetime.Instant.parse(t).toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+            return "${l.dayOfMonth} ${BULAN_SINGKAT[l.monthNumber - 1]} ${l.year}, ${l.hour.toString().padStart(2, '0')}:${l.minute.toString().padStart(2, '0')}"
+        }
+    }
+    val m = Regex("""^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?""").find(t) ?: return this
+    val (th, bl, tg, jm, mn) = m.destructured
+    val bulan = BULAN_SINGKAT.getOrNull(bl.toInt() - 1) ?: return this
+    return "${tg.toInt()} $bulan $th" + if (jm.isNotEmpty()) ", $jm:$mn" else ""
 }

@@ -14,6 +14,8 @@
  * 9. Budget awal (opsional)
  */
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
@@ -154,10 +156,11 @@ export async function POST({ request, cookies }) {
       let empCount = 0;
 
       for (const emp of empTemplates) {
-        const pinHash = await hashEmployeePassword(emp.pin || '1234');
-        const encryptedPin = encryptField(emp.pin || '1234', true);
-        const slug = emp.fullName.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
-          + '-' + Math.floor(1000 + Math.random() * 9000);
+        // Karyawan contoh: password portal ACAK (dulu = PIN "1234"/"1111" → bisa ditebak begitu email diisi)
+        // dan TANPA PIN; pemilik mengaturnya sendiri saat karyawan sungguhan dimasukkan.
+        const pinHash = await hashEmployeePassword(crypto.randomUUID() + crypto.randomUUID());
+        const encryptedPin = null;
+        const slug = await slugKaryawanUnik(tx, emp.fullName);
         try {
           await tx.insert(employees).values({
             companyId: unitId, userId,
@@ -252,7 +255,7 @@ export async function POST({ request, cookies }) {
 
   } catch (err) {
     log.planning.error({ err }, '[BusinessPlan Apply]');
-    return apiError('Gagal apply plan: ' + err.message, 500);
+    return apiError('Gagal apply plan: ' + pesanAman(err), 500);
   }
 }
 

@@ -20,8 +20,11 @@ class SessionRepository(private val settings: Settings) {
         private const val KEY_UNIT_SLUG = "active_unit_slug"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_THEME = "theme_mode"
-        // Production Server URL (Vercel)
-        private const val DEFAULT_SERVER = "https://bizgrows-ten.vercel.app"
+        /**
+         * Alamat server bawaan sebelum pengguna mengubahnya di Pengaturan. Diisi aplikasi saat start dari konfigurasi build
+         * (Android: properti Gradle `bizgrow.serverUrl` / env `BIZGROW_SERVER_URL`), bukan angka tetap di kode logika.
+         */
+        var serverBawaan: String = "https://bizgrows-ten.vercel.app"
     }
 
     fun saveSession(token: String, role: String, email: String, username: String = "", userId: Int = 0) {
@@ -61,13 +64,19 @@ class SessionRepository(private val settings: Settings) {
     fun getActiveUnitSlug(): String = settings.getString(KEY_UNIT_SLUG, "")
 
     fun setServerUrl(url: String) = settings.putString(KEY_SERVER_URL, url.trimEnd('/'))
-    fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, DEFAULT_SERVER)
+    fun getServerUrl(): String = settings.getString(KEY_SERVER_URL, serverBawaan)
 
     /** Riwayat sesi chat AI per pengguna (JSON). Tetap ada setelah aplikasi ditutup. */
     fun getAiSessions(userId: Int): String? = settings.getStringOrNull("ai_sessions_$userId")
     fun setAiSessions(userId: Int, json: String) = settings.putString("ai_sessions_$userId", json)
     fun isAiInstant(): Boolean = settings.getBoolean("ai_instant", false)
     fun setAiInstant(v: Boolean) = settings.putBoolean("ai_instant", v)
+
+    /** Printer struk Bluetooth yang dipilih (alamat MAC + nama), tetap tersimpan walau logout. */
+    fun getPrinterMac(): String = settings.getString("printer_mac", "")
+    fun getPrinterNama(): String = settings.getString("printer_nama", "")
+    fun setPrinter(mac: String, nama: String) { settings.putString("printer_mac", mac); settings.putString("printer_nama", nama) }
+    fun lupakanPrinter() { settings.remove("printer_mac"); settings.remove("printer_nama") }
 
     /** Tema tampilan: "system" (ikut HP), "light", atau "dark". Tetap tersimpan walau logout. */
     fun getThemeMode(): String = settings.getString(KEY_THEME, "system")

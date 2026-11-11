@@ -44,6 +44,8 @@
   let breakEven = $derived(proyeksiRevenue > 0 ? Math.ceil((Number(form.modalAwal)||0) / proyeksiRevenue) : 0);
   let roiEstimasi = $derived(Number(form.modalAwal) > 0 ? (((proyeksiRevenue-(Number(form.biayaOperasionalPerBulan)||0))*12)/Number(form.modalAwal)*100).toFixed(1) : 0);
 
+  $effect(() => { if (currentStep === TOTAL_STEPS && !form.canvasJson && !reviewHasil && !reviewLoading && !reviewError && form.namaBisnis) reviewRencana(); });
+
   const stepTitles = ['','💡 Identitas Bisnis','👥 Target Pasar','⭐ Proposisi Nilai','💰 Model Pendapatan','📊 Modal & Proyeksi','📣 Channel Penjualan','🗺️ Business Canvas'];
   const stepDesc = ['','Siapa kamu dan apa yang kamu tawarkan?','Siapa yang akan membeli dari kamu?','Apa yang membuat bisnismu berbeda?','Bagaimana cara kamu menghasilkan uang?','Berapa modal yang dibutuhkan?','Bagaimana cara kamu menjangkau pelanggan?','Ringkasan rencana bisnismu'];
 
@@ -89,11 +91,29 @@
     if (currentStep === 5 && !form.modalAwal) { alert('Modal awal wajib diisi'); return; }
     await save();
     if (currentStep < TOTAL_STEPS) { currentStep++; aiSuggestions = []; aiHintField = ''; }
-    if (currentStep === TOTAL_STEPS) generateCanvas();
+    // Langkah akhir: AI mengonfirmasi kelayakan rencana dulu; canvas baru dibuat setelah pengguna lanjut
+    if (currentStep === TOTAL_STEPS && !form.canvasJson) reviewRencana();
   }
 
   async function prevStep() {
     if (currentStep > 1) { currentStep--; aiSuggestions = []; aiHintField = ''; }
+  }
+
+  let reviewLoading = $state(false);
+  let reviewHasil = $state(null);
+  let reviewError = $state('');
+
+  /** Konfirmasi akhir oleh AI sebelum canvas di-generate: verdict, skor, kekuatan, hal yang perlu diperbaiki. */
+  async function reviewRencana() {
+    reviewLoading = true; reviewHasil = null; reviewError = '';
+    try {
+      const res = await fetch('/api/app/business-plan/ai-assist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 7, field: 'review', kategori: form.kategori, context: form, mode: 'review' }) });
+      const json = await res.json();
+      const m = json?.data?.result?.match(/\{[\s\S]*\}/);
+      if (json.success && m) reviewHasil = JSON.parse(m[0]);
+      else reviewError = json?.message || 'AI belum bisa menilai rencana ini. Kamu tetap bisa lanjut generate.';
+    } catch { reviewError = 'AI belum bisa menilai rencana ini. Kamu tetap bisa lanjut generate.'; }
+    reviewLoading = false;
   }
 
   async function generateCanvas() {
@@ -358,10 +378,33 @@
                 {/if}
               </div>
             {:else}
-              <div class="text-center py-8">
-                <button onclick={generateCanvas} class="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition flex items-center gap-2 mx-auto">
-                  <Sparkles class="w-4 h-4"/> Generate Business Canvas
-                </button>
+              <div class="space-y-4">
+                <div class="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-4">
+                  <div class="text-sm font-semibold text-indigo-800 mb-2 flex items-center gap-2"><CheckCircle class="w-4 h-4"/> Konfirmasi AI atas rencana bisnismu</div>
+                  {#if reviewLoading}
+                    <div class="flex items-center gap-3 text-sm text-indigo-700"><div class="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> AI sedang memeriksa kelengkapan & kewajaran angka…</div>
+                  {:else if reviewHasil}
+                    <div class="flex items-center gap-3 mb-3">
+                      <div class="text-3xl font-black {reviewHasil.siap ? 'text-emerald-600' : 'text-amber-600'}">{reviewHasil.skor ?? '-'}<span class="text-sm font-semibold">/100</span></div>
+                      <div class="text-sm font-bold {reviewHasil.siap ? 'text-emerald-700' : 'text-amber-700'}">{reviewHasil.siap ? 'Rencana siap di-generate' : 'Sebaiknya diperbaiki dulu'}</div>
+                    </div>
+                    {#if reviewHasil.kekuatan?.length}
+                      <ul class="text-sm text-emerald-800 space-y-1 mb-2">{#each reviewHasil.kekuatan as k}<li class="flex gap-2"><CheckCircle class="w-4 h-4 shrink-0 mt-0.5"/> {k}</li>{/each}</ul>
+                    {/if}
+                    {#if reviewHasil.perbaikan?.length}
+                      <ul class="text-sm text-amber-800 space-y-1">{#each reviewHasil.perbaikan as k}<li class="flex gap-2"><Lightbulb class="w-4 h-4 shrink-0 mt-0.5"/> {k}</li>{/each}</ul>
+                    {/if}
+                  {:else}
+                    <p class="text-sm text-indigo-700">{reviewError || 'Minta AI memeriksa rencana sebelum dibuatkan Business Canvas.'}</p>
+                    <button onclick={reviewRencana} class="mt-2 text-xs font-bold text-indigo-700 underline">Minta AI memeriksa</button>
+                  {/if}
+                </div>
+                <div class="flex gap-3">
+                  <button onclick={() => { currentStep = 1; }} class="px-4 py-3 border border-gray-300 rounded-xl text-gray-600 font-semibold hover:bg-gray-100 transition">Perbaiki rencana</button>
+                  <button onclick={generateCanvas} disabled={reviewLoading} class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">
+                    <Sparkles class="w-4 h-4"/> Konfirmasi & Generate Business Canvas
+                  </button>
+                </div>
               </div>
             {/if}
           {/if}

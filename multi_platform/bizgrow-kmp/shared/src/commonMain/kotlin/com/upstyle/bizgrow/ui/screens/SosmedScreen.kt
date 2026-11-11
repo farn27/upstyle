@@ -56,7 +56,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -64,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.upstyle.bizgrow.data.SocialPost
+import com.upstyle.bizgrow.ui.design.FilterPill
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.components.BizCard
@@ -82,6 +85,19 @@ fun SosmedScreen(viewModel: AppViewModel) {
     var editingPost by remember { mutableStateOf<SocialPost?>(null) }
     var postCaption by remember { mutableStateOf("") }
     var postImageUrl by remember { mutableStateOf("") }
+    val scopeFoto = rememberCoroutineScope()
+    val bacaGambar = rememberPembacaGambar()
+    var mengunggahFoto by remember { mutableStateOf(false) }
+    val pilihFoto = rememberImagePickerLauncher { uri ->
+        if (uri != null) {
+            mengunggahFoto = true
+            scopeFoto.launch {
+                val url = bacaGambar(uri)?.let { viewModel.unggahFotoProduk(it) }
+                if (url != null) postImageUrl = url
+                mengunggahFoto = false
+            }
+        }
+    }
     var postPlatform by remember { mutableStateOf("Instagram") }
     var postScheduled by remember { mutableStateOf("") }
     var postStatus by remember { mutableStateOf("DRAFT") }
@@ -201,6 +217,8 @@ fun SosmedScreen(viewModel: AppViewModel) {
 
     if (showCreate) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = {
                 showCreate = false
                 editingPost = null
@@ -227,13 +245,14 @@ fun SosmedScreen(viewModel: AppViewModel) {
                         OutlinedTextField(
                             value = postImageUrl,
                             onValueChange = { postImageUrl = it },
-                            label = { Text("URL Gambar") },
+                            label = { Text("Gambar (pilih foto atau tempel URL)") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(16.dp),
                             singleLine = true
                         )
-                        IconButton(onClick = { /* handled by link input */ }) {
-                            Icon(Icons.Default.Image, contentDescription = null, tint = BizgrowColors.Gray500)
+                        IconButton(onClick = { pilihFoto() }, enabled = !mengunggahFoto) {
+                            if (mengunggahFoto) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.Default.Image, contentDescription = "Pilih foto dari galeri", tint = BizgrowColors.Primary)
                         }
                     }
                     OutlinedTextField(
@@ -252,8 +271,8 @@ fun SosmedScreen(viewModel: AppViewModel) {
                     ) {
                         Text("Status", style = MaterialTheme.typography.bodySmall, color = BizgrowColors.Gray700)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StatusChip("DRAFT", postStatus == "DRAFT", BizgrowColors.Warning) { postStatus = "DRAFT" }
-                            StatusChip("SCHEDULED", postStatus == "SCHEDULED", BizgrowColors.Primary) { postStatus = "SCHEDULED" }
+                            FilterPill("DRAFT", postStatus == "DRAFT", { postStatus = "DRAFT" })
+                            FilterPill("SCHEDULED", postStatus == "SCHEDULED", { postStatus = "SCHEDULED" })
                         }
                     }
                     OutlinedButton(

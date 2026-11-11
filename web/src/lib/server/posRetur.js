@@ -135,6 +135,11 @@ export async function prosesReturPos(db, ctx, input) {
 			}
 		}
 
+		// Refund tunai keluar dari laci: kurangi kas shift yang sedang terbuka
+		if (totalRefund > 0 && /^(TUNAI|CASH|KAS)$/i.test(String(order.paymentMethod || 'TUNAI'))) {
+			await tx.execute(sql`UPDATE pos_shifts SET kas_akhir = GREATEST(kas_akhir - ${totalRefund}, 0) WHERE unit_id = ${ctx.unitId} AND status = 'OPEN' ORDER BY id DESC LIMIT 1`);
+		}
+
 		// Order dianggap REFUNDED kalau semua barangnya sudah diretur penuh
 		const semuaKembali = barisOrder.every((b) => {
 			const total = (sudahDiretur.get(b.id) || 0) + rencana.filter((r) => r.baris.id === b.id).reduce((s, r) => s + r.qty, 0);

@@ -1,84 +1,16 @@
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/drizzle';
-import { products, abcCategories, unitBisnis, transaksi } from '$lib/server/schema';
-import { eq, and, sql } from 'drizzle-orm';
-import { groqChatCompletion } from '$lib/server/groq';
-import { normalizeKategoriTrx, isKategoriMasuk } from '$lib/server/kategoriTrx';
+import crypto from 'crypto';
+import { unitBisnis } from '$lib/server/schema';
+import { eq, and } from 'drizzle-orm';
+import { uraikanTransaksi } from '$lib/server/aiTransaksi';
+import { catatTransaksi, pastikanCoaStandar } from '$lib/server/catatTransaksi';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
+import { triggerEvent } from '$lib/server/pusher';
 import { apiError, apiSuccess, apiRateLimit } from '$lib/server/apiResponse';
 import { checkRateLimit, getClientIP, WA_WEBHOOK_LIMIT } from '$lib/server/rateLimit';
 import { waWebhookSchema } from '$lib/server/validation';
 import { log } from '$lib/server/logger';
-
-/**
- * @param {string} teksInput
- * @param {number} unitId
- */
-async function prosesTeksLewatAI(teksInput, unitId) {
-	const productsRows = await db.select({ id: products.id, nama: products.nama, harga_jual: products.hargaJual })
-		.from(products)
-		.where(eq(products.unitId, unitId));
-	const abcRows = await db.select({ id: abcCategories.id, nama_kategori: abcCategories.namaKategori, jenis: abcCategories.jenis })
-		.from(abcCategories)
-		.orderBy(abcCategories.id);
-
-	const listProduk = productsRows.map((p) => `- ID=${p.id} | NAMA="${p.nama}"`).join('\n');
-	const contextABC = abcRows
-		.map((c) => `- ID=${c.id} | KAT="${c.nama_kategori}" | JENIS="${c.jenis}"`)
-		.join('\n');
-
-	const systemPrompt = `Anda adalah Mesin Pencocokan Data ERP.
-            DAFTAR PRODUK:\n${listProduk}\n
-            DAFTAR KATEGORI ABC:\n${contextABC}\n
-            TUGAS: Analisis teks "${teksInput}". 
-            LOGIKA: 
-            1. Jika teks mengacu pada penjualan/pemasukan, set kategori="Masuk" dan cari abc_id dengan JENIS="masuk".
-            2. Jika teks mengacu pada biaya/pembelian, set kategori="Keluar" dan cari abc_id dengan JENIS="keluar".
-            OUTPUT JSON: { "product_id": string|null, "qty": number, "kategori": "Masuk"|"Keluar", "abc_id": number|null, "nominal_manual": number }`;
-
-	const resJson = await groqChatCompletion({
-		model: 'llama-3.1-8b-instant',
-		messages: [
-			{ role: 'system', content: systemPrompt },
-			{ role: 'user', content: String(teksInput) }
-		],
-		temperature: 0.1,
-		response_format: { type: 'json_object' }
-	});
-
-	const hasilAI = JSON.parse(resJson.choices[0].message.content);
-	let finalNominal = hasilAI.nominal_manual || 0;
-	let catatanOtomatis = String(teksInput).toUpperCase();
-	let finalAbcId = hasilAI.abc_id || null;
-	let productId = hasilAI.product_id ? String(hasilAI.product_id) : null;
-
-	if (productId) {
-		const p = productsRows.find((prod) => String(prod.id) === productId);
-		if (p) {
-			finalNominal = (hasilAI.qty || 1) * Number(p.harga_jual);
-			catatanOtomatis = `PENJUALAN ${p.nama.toUpperCase()} (${hasilAI.qty || 1}x)`;
-			hasilAI.kategori = 'Masuk';
-
-			const autoCat = abcRows.find(
-				(c) => c.jenis === 'masuk' && String(c.nama_kategori).toLowerCase().includes('retail')
-			);
-			if (autoCat) finalAbcId = autoCat.id;
-		}
-	}
-
-	const kategoriTrx = normalizeKategoriTrx(hasilAI.kategori);
-
-	return {
-		success: true,
-		hasil: {
-			nominal: finalNominal,
-			catatan: catatanOtomatis,
-			product_id: productId,
-			qty: hasilAI.qty || 1,
-			kategori: kategoriTrx,
-			abc_id: finalAbcId
-		}
-	};
-}
 
 export const POST = async ({ request }) => {
 	// ─── 1. Autentikasi Webhook (WAJIB) ──────────────────────────────────────
@@ -93,7 +25,9 @@ export const POST = async ({ request }) => {
 	}
 
 	const providedSecret = request.headers.get('x-webhook-secret');
-	if (!providedSecret || providedSecret !== webhookSecret) {
+	const a = Buffer.from(String(providedSecret || ''));
+	const b = Buffer.from(webhookSecret);
+	if (!providedSecret || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
 		return apiError('Webhook secret tidak valid', 401, 'INVALID_WEBHOOK_SECRET');
 	}
 
@@ -118,7 +52,7 @@ export const POST = async ({ request }) => {
 
 	const parsed = waWebhookSchema.safeParse(body);
 	if (!parsed.success) {
-		const firstError = parsed.error.errors[0]?.message || 'Input tidak valid';
+		const firstError = parsed.error.issues[0]?.message || 'Input tidak valid';
 		return apiError(firstError, 422, 'VALIDATION_ERROR');
 	}
 
@@ -138,49 +72,40 @@ export const POST = async ({ request }) => {
 		return apiError('Terjadi kesalahan server', 500, 'SERVER_ERROR');
 	}
 
-	// ─── 5. Proses AI & Simpan Transaksi ──────────────────────────────────────
+	// ─── 5. Urai pesan & catat (sama dengan form entri web & aplikasi mobile) ──
+	// Dulu: kategori ABC lama, tanpa jurnal, stok dikurangi di luar transaksi DB, tanggal NOW() (UTC).
 	try {
-		const aiResponse = await prosesTeksLewatAI(message, unitId);
-
-		if (!aiResponse.success) {
-			return apiError('AI gagal memproses pesan', 422, 'AI_PROCESSING_FAILED');
+		// Unit yang belum punya COA diberi COA standar dulu supaya akun hasil uraian tidak kosong
+		await db.transaction((/** @type {any} */ tx) => pastikanCoaStandar(tx, unitId));
+		const h = await uraikanTransaksi(db, unitId, message);
+		if (!(h.nominal > 0)) {
+			return apiError('Nominal transaksi tidak ditemukan di pesan', 422, 'AI_PROCESSING_FAILED');
 		}
-
-		const { nominal, catatan, product_id, qty, kategori, abc_id } = aiResponse.hasil;
-		const nominalStr = String(nominal);
-		const kategoriNormalized = normalizeKategoriTrx(kategori);
-
-		// Kurangi stok jika penjualan produk
-		if (product_id && isKategoriMasuk(kategoriNormalized)) {
-			const productRows = await db.select({ id: products.id, stok: products.stok, harga_beli: products.hargaBeli })
-				.from(products)
-				.where(and(eq(products.id, product_id), eq(products.unitId, unitId)));
-			if (productRows.length > 0) {
-				const produk = productRows[0];
-				const qtyNum = Number(qty) || 1;
-				if (produk.stok >= qtyNum) {
-					await db.update(products)
-						.set({ stok: sql`${products.stok} - ${qtyNum}` })
-						.where(eq(products.id, product_id));
-				}
-			}
-		}
-
-		await db.insert(transaksi).values({
-			userId,
-			unitId,
-			keterangan: catatan,
-			nominal: nominalStr,
-			totalHarga: nominalStr,
-			kategoriTrx: kategoriNormalized,
-			productId: product_id,
-			qty,
-			abcCategoryId: abc_id,
-			tanggal: sql`NOW()`
+		const hasil = await db.transaction(async (/** @type {any} */ tx) => {
+			return catatTransaksi(tx, {
+				unitId,
+				userId,
+				kategori: h.kategori,
+				nominal: h.nominal,
+				keterangan: h.catatan,
+				coaId: h.coa_id,
+				kasCoaId: h.kas_coa_id,
+				productId: h.product_id,
+				qty: h.qty
+			});
 		});
+		const slugRow = await db.select({ slug: unitBisnis.slug }).from(unitBisnis).where(eq(unitBisnis.id, unitId)).limit(1);
+		await tandaiBerubah({ userId, slug: slugRow[0]?.slug ?? null });
+		await Promise.allSettled([
+			triggerEvent(`unit-${unitId}`, 'stats-updated', { unitId, triggerRefresh: true }),
+			h.product_id ? triggerEvent(`unit-${unitId}`, 'stock-updated', { unitId }) : Promise.resolve()
+		]);
 
-		return apiSuccess({ catatan, nominal, kategori: kategoriNormalized }, 'Tercatat Otomatis!');
+		return apiSuccess({ catatan: h.catatan, nominal: h.nominal, kategori: hasil.kategori, trxId: hasil.trxId }, 'Tercatat Otomatis!');
 	} catch (err) {
+		if (err instanceof Error && err.name === 'TransaksiError') {
+			return apiError(err.message, /** @type {any} */ (err).status || 422, 'TRANSAKSI_DITOLAK');
+		}
 		log.api.error({ err }, '[WA Webhook] Processing error');
 		return apiError('Terjadi kesalahan saat memproses pesan', 500, 'SERVER_ERROR');
 	}

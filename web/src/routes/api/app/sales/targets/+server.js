@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { salesTargets, salesCommissions, salesOrders, riwayatAksi, users } from '$lib/server/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
@@ -26,7 +27,7 @@ export async function GET({ url, cookies, request }) {
                     user: {
                         columns: {
                             id: true,
-                            namaLengkap: true,
+                            username: true,
                             email: true
                         }
                     }
@@ -39,7 +40,7 @@ export async function GET({ url, cookies, request }) {
                     id: t.id,
                     unitId: t.unitId,
                     userId: t.userId,
-                    userName: t.user?.namaLengkap || 'User',
+                    userName: t.user?.username || 'User',
                     targetAmount: Number(t.targetAmount || 0),
                     periodMonth: t.periodMonth,
                     periodYear: t.periodYear,
@@ -57,17 +58,16 @@ export async function GET({ url, cookies, request }) {
                     user: {
                         columns: {
                             id: true,
-                            namaLengkap: true
-                        }
-                    },
-                    salesOrder: {
-                        columns: {
-                            orderNumber: true,
-                            totalAmount: true
+                            username: true
                         }
                     }
                 }
             });
+
+            // salesCommissions tidak punya relasi ke sales order: ambil nomor pesanan terpisah.
+            const soIds = [...new Set(commissions.map((c) => c.salesOrderId).filter(Boolean))];
+            const soList = soIds.length ? await db.select({ id: salesOrders.id, orderNumber: salesOrders.orderNumber }).from(salesOrders).where(inArray(salesOrders.id, soIds)) : [];
+            const soMap = new Map(soList.map((o) => [o.id, o.orderNumber]));
 
             return json({ 
                 success: true, 
@@ -75,9 +75,9 @@ export async function GET({ url, cookies, request }) {
                     id: c.id,
                     unitId: c.unitId,
                     salesOrderId: c.salesOrderId,
-                    orderNumber: c.salesOrder?.orderNumber || '',
+                    orderNumber: soMap.get(c.salesOrderId) || '',
                     userId: c.userId,
-                    userName: c.user?.namaLengkap || 'User',
+                    userName: c.user?.username || 'User',
                     amount: Number(c.amount || 0),
                     status: c.status || 'UNPAID',
                     createdAt: c.createdAt || ''
@@ -94,7 +94,7 @@ export async function GET({ url, cookies, request }) {
                 user: {
                     columns: {
                         id: true,
-                        namaLengkap: true
+                        username: true
                     }
                 }
             }
@@ -108,7 +108,7 @@ export async function GET({ url, cookies, request }) {
                 user: {
                     columns: {
                         id: true,
-                        namaLengkap: true
+                        username: true
                     }
                 }
             }
@@ -120,7 +120,7 @@ export async function GET({ url, cookies, request }) {
                 targets: targets.map(t => ({
                     id: t.id,
                     userId: t.userId,
-                    userName: t.user?.namaLengkap || 'User',
+                    userName: t.user?.username || 'User',
                     targetAmount: Number(t.targetAmount || 0),
                     periodMonth: t.periodMonth,
                     periodYear: t.periodYear,
@@ -129,7 +129,7 @@ export async function GET({ url, cookies, request }) {
                 commissions: commissions.map(c => ({
                     id: c.id,
                     userId: c.userId,
-                    userName: c.user?.namaLengkap || 'User',
+                    userName: c.user?.username || 'User',
                     amount: Number(c.amount || 0),
                     status: c.status
                 }))
@@ -157,7 +157,7 @@ export async function POST({ request, cookies }) {
                 action: z.literal('create-target'),
                 target: z.object({
                     unitId: z.coerce.number().int().positive(),
-                    targetUserId: z.coerce.number().int().positive(),
+                    targetUserId: z.coerce.number().int().positive().optional(),
                     targetAmount: z.coerce.number().min(0),
                     periodMonth: z.coerce.number().int().min(1).max(12),
                     periodYear: z.coerce.number().int().min(2020),
@@ -191,7 +191,9 @@ export async function POST({ request, cookies }) {
         // ──────────────────────────────────────────────────────────────────────
 
         if (action === 'create-target') {
-            const { unitId, targetUserId, targetAmount, periodMonth, periodYear, komisiPersen } = body.target;
+            const { unitId, targetAmount, periodMonth, periodYear, komisiPersen } = body.target;
+            // App mobile tidak memilih user: target dicatat atas nama pemilik yang login.
+            const targetUserId = body.target.targetUserId ?? userId;
 
             // Check if target already exists for this user and period
             const existing = await db.query.salesTargets.findFirst({
@@ -248,7 +250,7 @@ export async function POST({ request, cookies }) {
             await db.insert(riwayatAksi).values({
                 userId,
                 unitId: Number(unitId),
-                pesan: `Komisi sales ditambahkan: Rp ${String(amount)}`,
+                pesan: `Komisi sales ditambahkan: Rp ${Number(amount || 0).toLocaleString('id-ID')}`,
                 kategori: 'SALES',
                 tipe: 'success'
             });
@@ -264,7 +266,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST sales/targets error');
-        return json({ success: false, message: 'Gagal memproses target sales: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses target sales: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

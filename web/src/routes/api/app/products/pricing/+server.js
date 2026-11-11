@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { products, productVariants } from '$lib/server/schema';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -172,10 +173,10 @@ export async function PUT({ request, cookies }) {
         }
     } catch (err) {
         if (err instanceof AksesDitolak) {
-            return json({ success: false, message: `Produk ${err.message} tidak ditemukan` }, { status: 404 });
+            return json({ success: false, message: `Produk ${pesanAman(err)} tidak ditemukan` }, { status: 404 });
         }
         log.product.error({ err }, 'API PUT PRODUCT PRICING ERROR');
-        return json({ success: false, message: err.message || "Gagal memperbarui harga produk" }, { status: 500 });
+        return json({ success: false, message: pesanAman(err) || "Gagal memperbarui harga produk" }, { status: 500 });
     }
 }
 

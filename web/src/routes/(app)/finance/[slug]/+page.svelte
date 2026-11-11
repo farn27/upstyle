@@ -208,19 +208,11 @@
 
   // --- 7. REALTIME ENGINE ---
 
-  // Listen for finance updates via Socket.io
-  $: if ($financeUpdate) {
-    if ($financeUpdate.action === 'stats-updated' || $financeUpdate.action === 'pos-transaction') {
-      if ($financeUpdate.newTransaction) {
-        transactions = [$financeUpdate.newTransaction, ...transactions];
-        const nominal = Number($financeUpdate.newTransaction.nominal);
-        const kat = ($financeUpdate.newTransaction.kategori || $financeUpdate.newTransaction.kategori_trx || "").toLowerCase();
-
-        if (kat.includes('masuk')) summary.total_masuk = Number(summary.total_masuk) + nominal;
-        else summary.total_keluar = Number(summary.total_keluar) + nominal;
-        invalidate('app:finance');
-      }
-    }
+  // Realtime: realtimeStore sudah memanggil invalidate('app:finance') saat ada perubahan, sehingga angka
+  // dimuat ulang dari server. Dulu transaksi dari event/polling ditambahkan manual ke ringkasan di sini
+  // (dan kategori yang tak terbaca dianggap pengeluaran) → kartu pengeluaran berkedip & grafik berlipat.
+  $: if ($financeUpdate && ($financeUpdate.action === 'stats-updated' || $financeUpdate.action === 'pos-transaction')) {
+    invalidate('app:finance');
   }
 
   onDestroy(() => { if (myChart) myChart.destroy(); });

@@ -22,6 +22,9 @@ import com.upstyle.bizgrow.ui.theme.BizgrowColors
  * Gambar produk. Tanpa foto → kotak berwarna dengan inisial (tanpa request jaringan).
  * Foto berupa path relatif ("/uploads/..") diawali alamat server.
  */
+/** Alamat server aktif — dipakai melengkapi path foto relatif ("/uploads/..") di seluruh layar. */
+val LocalServerUrl = androidx.compose.runtime.staticCompositionLocalOf { "" }
+
 @Composable
 fun ProductThumb(
     nama: String,
@@ -31,10 +34,11 @@ fun ProductThumb(
     serverUrl: String? = null,
     fontSize: TextUnit = 22.sp
 ) {
+    val basis = serverUrl ?: LocalServerUrl.current
     val url = when {
         foto.isNullOrBlank() -> null
         foto.startsWith("http") -> foto
-        serverUrl != null -> serverUrl.trimEnd('/') + "/" + foto.trimStart('/')
+        basis.isNotBlank() -> basis.trimEnd('/') + "/" + foto.trimStart('/')
         else -> null
     }
     val warna = BizgrowColors.ModuleColors[(nama.hashCode() and 0x7fffffff) % BizgrowColors.ModuleColors.size]

@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { ecommerceOrders, ecommerceOrderItems, unitBisnis } from '$lib/server/schema';
+import { ecommerceOrders, ecommerceOrderItems, unitBisnis, products } from '$lib/server/schema';
+import { nowSqlWIB } from '$lib/server/dateUtils';
+import { bentukPesanan } from '$lib/server/pesananOnline';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { log } from '$lib/server/logger';
 
@@ -36,14 +38,22 @@ export async function GET({ url, cookies, request }) {
             whereClause = inArray(ecommerceOrders.unitId, unitIds);
         }
 
-        const orders = await db.select()
+        const status = (url.searchParams.get('status') || '').toUpperCase();
+        const baris = await db.select()
             .from(ecommerceOrders)
             .where(whereClause)
-            .orderBy(desc(ecommerceOrders.createdAt))
+            .orderBy(desc(ecommerceOrders.id))
             .limit(limit)
             .offset(offset);
+        const idPesanan = baris.map((o) => o.id);
+        const item = idPesanan.length ? await db.select().from(ecommerceOrderItems).where(inArray(ecommerceOrderItems.ecommerceOrderId, idPesanan)) : [];
+        const idProduk = [...new Set(item.map((i) => i.productId).filter(Boolean))];
+        const prod = idProduk.length ? await db.select({ id: products.id, nama: products.nama }).from(products).where(inArray(products.id, /** @type {string[]} */ (idProduk))) : [];
+        const petaProduk = new Map(prod.map((p) => [p.id, p.nama]));
+        let data = baris.map((o) => bentukPesanan(o, item.filter((i) => i.ecommerceOrderId === o.id), petaProduk));
+        if (status) data = data.filter((o) => o.status === status);
 
-        return json({ success: true, data: orders, page, limit });
+        return json({ success: true, data, page, limit });
     } catch (err) {
         log.api.error({ err }, 'GET orders');
         return json({ success: false, message: 'Gagal memuat pesanan' }, { status: 500 });
@@ -81,6 +91,18 @@ export async function POST({ request, cookies }) {
 
         if (!unit) return json({ success: false, message: 'Access denied' }, { status: 403 });
 
+        // Item divalidasi: produk harus milik unit ini, qty/harga masuk akal; total dihitung server (bukan dari klien)
+        const ids = [...new Set(items.map((i) => i?.productId).filter(Boolean).map(String))];
+        if (ids.length) {
+            const ada = await db.select({ id: products.id }).from(products).where(and(eq(products.unitId, unit.id), inArray(products.id, ids)));
+            if (ada.length !== ids.length) return json({ success: false, message: 'Ada produk yang bukan milik unit ini' }, { status: 400 });
+        }
+        for (const i of items) {
+            if (!(Number(i?.qty ?? 1) > 0) || !(Number(i?.price ?? 0) >= 0)) return json({ success: false, message: 'Jumlah / harga item tidak valid' }, { status: 400 });
+        }
+        const subtotalHitung = items.reduce((a, i) => a + Number(i.qty || 1) * Number(i.price || 0), 0);
+        const diskonHitung = Math.min(Math.max(Number(discountAmount) || 0, 0), subtotalHitung);
+
         const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
         const [orderResult] = await db.insert(ecommerceOrders).values({
@@ -90,12 +112,12 @@ export async function POST({ request, cookies }) {
             customerEmail,
             customerPhone,
             shippingAddress,
-            subtotal,
-            discountAmount,
-            totalAmount,
+            subtotal: String(subtotalHitung),
+            discountAmount: String(diskonHitung),
+            totalAmount: String(subtotalHitung - diskonHitung),
             paymentStatus: 'PENDING',
             shippingStatus: 'PENDING',
-            createdAt: new Date()
+            createdAt: nowSqlWIB()
         });
 
         const orderId = orderResult.insertId;

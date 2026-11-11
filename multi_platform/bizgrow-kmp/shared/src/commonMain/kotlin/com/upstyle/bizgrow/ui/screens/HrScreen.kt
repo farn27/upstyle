@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import com.upstyle.bizgrow.data.*
+import kotlinx.datetime.toLocalDateTime
 import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
@@ -42,6 +43,7 @@ fun HrScreen(viewModel: AppViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
     var showPayrollSheet by remember { mutableStateOf(false) }
     var expandedEmployeeId by remember { mutableStateOf<Int?>(null) }
+    var hapusKaryawanId by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadHrData() }
 
@@ -50,7 +52,7 @@ fun HrScreen(viewModel: AppViewModel) {
             TopAppBar(
                 title = { Column {
                     Text("HR & SDM", fontWeight = FontWeight.Bold)
-                    Text("${hrData?.employees?.size ?: 0} karyawan aktif", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${hrData?.ringkasan?.karyawanAktif ?: 0} karyawan aktif", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }},
                 navigationIcon = { IconButton(onClick = { viewModel.navigateBack() }) { Icon(Icons.Default.ArrowBack, null) } },
                 actions = {
@@ -73,14 +75,39 @@ fun HrScreen(viewModel: AppViewModel) {
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
 
-            // Summary Row
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Karyawan", "${hrData?.employees?.size ?: 0}", icon = Icons.Default.People,
-                    gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
-                StatCard("Hadir Hari Ini", "${hrData?.attendance?.count { it.status == "HADIR" } ?: 0}",
-                    icon = Icons.Default.CheckCircle, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
-                StatCard("Cuti Pending", "${hrData?.leaveRequests?.count { it.status == "pending" } ?: 0}",
-                    icon = Icons.Default.HourglassEmpty, gradient = BizgrowColors.GradWarning, modifier = Modifier.weight(1f))
+            // Ringkasan eksekutif (dihitung server untuk seluruh karyawan unit)
+            val r = hrData?.ringkasan ?: RingkasanHr()
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatCard("Karyawan Aktif", "${r.karyawanAktif}", icon = Icons.Default.People, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
+                    StatCard("Hadir Hari Ini", "${r.hadirHariIni}/${r.karyawanAktif}", icon = Icons.Default.CheckCircle, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
+                    StatCard("Cuti Menunggu", "${r.cutiMenunggu}", icon = Icons.Default.HourglassEmpty, gradient = BizgrowColors.GradWarning, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    com.upstyle.bizgrow.ui.design.StatTile("Beban gaji / bln", r.bebanGaji.rupiahRingkas(), Icons.Default.Payments, BizgrowColors.Primary, Modifier.weight(1f))
+                    com.upstyle.bizgrow.ui.design.StatTile(
+                        "Payroll bulan ini", "${r.payrollBulanIni.dibayar}/${r.payrollBulanIni.dibayar + r.payrollBulanIni.belumDibayar}",
+                        Icons.Default.Receipt, if (r.payrollBulanIni.belumDibayar > 0) BizgrowColors.Warning else BizgrowColors.Success, Modifier.weight(1f),
+                        caption = if (r.payrollBulanIni.belumDibayar > 0) "${r.payrollBulanIni.nominalBelum.rupiahRingkas()} belum dibayar" else "lunas"
+                    )
+                }
+                if (r.kontrakSegeraHabis > 0 || r.kontrakLewat > 0) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(BizgrowColors.Warning.copy(alpha = 0.12f)).padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.EventBusy, null, tint = BizgrowColors.WarningDark, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            listOfNotNull(
+                                r.kontrakSegeraHabis.takeIf { it > 0 }?.let { "$it kontrak berakhir ≤30 hari" },
+                                r.kontrakLewat.takeIf { it > 0 }?.let { "$it kontrak sudah lewat" }
+                            ).joinToString(" • "),
+                            style = MaterialTheme.typography.bodySmall, color = BizgrowColors.WarningDark, fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                r.kpiRataRata?.let { Text("KPI rata-rata tim: ${(it * 10).toLong() / 10.0}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
 
             ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 16.dp) {
@@ -90,19 +117,25 @@ fun HrScreen(viewModel: AppViewModel) {
             when (selectedTab) {
                 0 -> EmployeeTab(hrData?.employees ?: emptyList(), expandedEmployeeId,
                     onToggle = { expandedEmployeeId = if (expandedEmployeeId == it) null else it },
-                    onDelete = { viewModel.deleteEmployee(it) },
+                    onDelete = { hapusKaryawanId = it },
                     onCheckIn = { id ->
                         viewModel.checkIn(id, todayDate(), currentTime())
                     },
                     onCheckOut = { id ->
                         viewModel.checkOut(id, todayDate(), currentTime())
-                    }
+                    },
+                    onDetail = { viewModel.bukaKaryawan(it) }
                 )
-                1 -> AttendanceTab(hrData?.attendance ?: emptyList())
-                2 -> PayrollHistoryTab(hrData?.payroll ?: emptyList())
-                3 -> LeaveTab(hrData?.leaveRequests ?: emptyList())
+                1 -> AttendanceTab(hrData?.attendance ?: emptyList(), hrData?.employees ?: emptyList())
+                2 -> PayrollHistoryTab(hrData?.payroll ?: emptyList(), hrData?.employees ?: emptyList())
+                3 -> LeaveTab(hrData?.leaveRequests ?: emptyList(), hrData?.employees ?: emptyList(), onBuka = { viewModel.navigate(Screen.LeaveRequests) })
             }
         }
+    }
+
+    hapusKaryawanId?.let { id ->
+        val nama = hrData?.employees?.firstOrNull { it.id == id }?.fullName ?: "karyawan ini"
+        KonfirmasiHapus("Hapus $nama?", "Seluruh data karyawan termasuk absensi, payroll, dan KPI-nya akan ikut terhapus dan tidak bisa dikembalikan.", { viewModel.deleteEmployee(id); hapusKaryawanId = null }, { hapusKaryawanId = null })
     }
 
     if (showAddSheet) AddEmployeeBottomSheet(onDismiss = { showAddSheet = false }) { body ->
@@ -112,6 +145,7 @@ fun HrScreen(viewModel: AppViewModel) {
 
     if (showPayrollSheet) ProcessPayrollBottomSheet(
         employees = hrData?.employees ?: emptyList(),
+        komponen = hrData?.salaryComponents ?: emptyList(),
         onDismiss = { showPayrollSheet = false },
         onSave = { empId, monthYear, salary, allowance, deduction, netSalary ->
             viewModel.processPayroll(empId, monthYear, salary, allowance, deduction, netSalary)
@@ -127,7 +161,8 @@ fun EmployeeTab(
     onToggle: (Int) -> Unit,
     onDelete: (Int) -> Unit,
     onCheckIn: (Int) -> Unit,
-    onCheckOut: (Int) -> Unit
+    onCheckOut: (Int) -> Unit,
+    onDetail: (Int) -> Unit = {}
 ) {
     if (employees.isEmpty()) { EmptyState(Icons.Default.People, "Belum ada karyawan", "Tambah karyawan pertama Anda"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -139,12 +174,12 @@ fun EmployeeTab(
                             .background(Brush.linearGradient(BizgrowColors.GradPrimary)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(emp.fullName.first().toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(emp.fullName.trim().firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(emp.fullName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${emp.position} · ${emp.placementLocation ?: emp.role}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(listOf(emp.position, emp.placementLocation ?: emp.role).filter { !it.isNullOrBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(emp.salary.toRupiah(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                     StatusBadge(emp.employmentStatus ?: "-")
@@ -158,6 +193,8 @@ fun EmployeeTab(
                     InfoRow("Status Kerja", emp.employmentStatus ?: "-", Icons.Default.Work)
                     InfoRow("Tanggal Bergabung", emp.joinDate ?: "-", Icons.Default.CalendarToday)
                     Spacer(modifier = Modifier.height(12.dp))
+                    BizButton("Lihat profil lengkap", { onDetail(emp.id) }, Modifier.fillMaxWidth(), icon = Icons.Default.Person, height = 44.dp)
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onCheckIn(emp.id) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) {
                             Icon(Icons.Default.Login, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Check In")
@@ -176,7 +213,7 @@ fun EmployeeTab(
 }
 
 @Composable
-fun AttendanceTab(records: List<AttendanceRecord>) {
+fun AttendanceTab(records: List<AttendanceRecord>, employees: List<Employee> = emptyList()) {
     if (records.isEmpty()) { EmptyState(Icons.Default.AccessTime, "Belum ada data absensi", "Data absensi akan muncul di sini"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(records, key = { it.id }) { rec ->
@@ -193,7 +230,7 @@ fun AttendanceTab(records: List<AttendanceRecord>) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
+                        Text(employees.firstOrNull { it.id == rec.employeeId }?.fullName ?: "Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
                         Text("${rec.date}  ·  Masuk: ${rec.checkIn}${rec.checkOut?.let { "  Keluar: $it" } ?: ""}", style = MaterialTheme.typography.bodySmall)
                     }
                     StatusBadge(rec.status)
@@ -204,14 +241,14 @@ fun AttendanceTab(records: List<AttendanceRecord>) {
 }
 
 @Composable
-fun PayrollHistoryTab(records: List<PayrollRecord>) {
+fun PayrollHistoryTab(records: List<PayrollRecord>, employees: List<Employee> = emptyList()) {
     if (records.isEmpty()) { EmptyState(Icons.Default.Payments, "Belum ada riwayat payroll"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(records, key = { it.id }) { rec ->
             BizCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
+                        Text(employees.firstOrNull { it.id == rec.employeeId }?.fullName ?: "Karyawan #${rec.employeeId}", fontWeight = FontWeight.SemiBold)
                         Text(rec.monthYear, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -233,15 +270,16 @@ fun PayrollHistoryTab(records: List<PayrollRecord>) {
 }
 
 @Composable
-fun LeaveTab(requests: List<LeaveRequest>) {
+fun LeaveTab(requests: List<LeaveRequest>, employees: List<Employee> = emptyList(), onBuka: () -> Unit = {}) {
     if (requests.isEmpty()) { EmptyState(Icons.Default.BeachAccess, "Belum ada pengajuan cuti"); return }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Button(onClick = onBuka, modifier = Modifier.fillMaxWidth()) { Text("Setujui / tolak pengajuan (${requests.count { it.status.equals("pending", true) }} menunggu)") } }
         items(requests, key = { it.id }) { req ->
             BizCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Karyawan #${req.employeeId}", fontWeight = FontWeight.SemiBold)
-                        Text("${req.type} · ${req.startDate} s/d ${req.endDate}", style = MaterialTheme.typography.bodySmall)
+                        Text(req.employeeName.ifBlank { employees.firstOrNull { it.id == req.employeeId }?.fullName ?: "Karyawan #${req.employeeId}" }, fontWeight = FontWeight.SemiBold)
+                        Text("${if (req.type.equals("overtime", true)) "Lembur" else "Cuti"} · ${req.startDate.tanggalJam()} – ${req.endDate.tanggalJam()}", style = MaterialTheme.typography.bodySmall)
                         req.reason?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                     StatusBadge(req.status)
@@ -342,58 +380,52 @@ fun AddEmployeeBottomSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProcessPayrollBottomSheet(
     employees: List<Employee>,
+    komponen: List<SalaryComponent> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (Int, String, Double, Double, Double, Double) -> Unit
 ) {
-    var selectedEmpId by remember { mutableStateOf<Int?>(null) }
-    var monthYear by remember { mutableStateOf("") }
+    val hari = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.of("Asia/Jakarta")).date }
+    var selectedEmpId by remember { mutableStateOf<String?>(null) }
+    var bulan by remember { mutableStateOf(hari.monthNumber.toString()) }
+    var tahun by remember { mutableStateOf(hari.year.toString()) }
     var salary by remember { mutableStateOf("") }
     var allowance by remember { mutableStateOf("0") }
     var deduction by remember { mutableStateOf("0") }
-    var expanded by remember { mutableStateOf(false) }
-
-    val selectedEmp = employees.find { it.id == selectedEmpId }
     val net = (salary.toDoubleOrNull() ?: 0.0) + (allowance.toDoubleOrNull() ?: 0.0) - (deduction.toDoubleOrNull() ?: 0.0)
+    val namaBulan = listOf("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
+    val punyaKomponen = selectedEmpId?.toIntOrNull()?.let { id -> komponen.filter { it.employeeId == id } }.orEmpty()
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Proses Payroll", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-                OutlinedTextField(
-                    value = selectedEmp?.fullName ?: "Pilih Karyawan",
-                    onValueChange = {}, readOnly = true,
-                    label = { Text("Karyawan") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), shape = RoundedCornerShape(20.dp)
-                )
-                ExposedDropdownMenu(expanded, { expanded = false }) {
-                    employees.forEach { emp ->
-                        DropdownMenuItem(text = { Text(emp.fullName) }, onClick = { selectedEmpId = emp.id; salary = emp.salary.toString(); expanded = false })
-                    }
-                }
-            }
-            OutlinedTextField(monthYear, { monthYear = it }, label = { Text("Bulan/Tahun (mis. 08/2025)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(salary, { salary = it }, label = { Text("Gaji Pokok") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(allowance, { allowance = it }, label = { Text("Tunjangan") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            }
-            OutlinedTextField(deduction, { deduction = it }, label = { Text("Potongan") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            BizCard { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                Text("Gaji Bersih", fontWeight = FontWeight.SemiBold)
-                Text(net.toRupiah(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
-            }}
-            Button(
-                onClick = {
-                    if (selectedEmpId != null && monthYear.isNotBlank())
-                        onSave(selectedEmpId!!, monthYear, salary.toDoubleOrNull() ?: 0.0, allowance.toDoubleOrNull() ?: 0.0, deduction.toDoubleOrNull() ?: 0.0, net)
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp)
-            ) { Text("Proses Payroll", fontWeight = FontWeight.Bold) }
+    FormSheet(
+        "Proses payroll", subjudul = "Tunjangan & potongan terisi dari komponen gaji karyawan",
+        onDismiss = onDismiss, labelSimpan = "Proses payroll",
+        simpanAktif = selectedEmpId != null && salary.toDoubleOrNull() != null && net >= 0 && (tahun.toIntOrNull() ?: 0) in 2020..2100,
+        onSimpan = {
+            val b = bulan.toInt()
+            onSave(selectedEmpId!!.toInt(), "${b.toString().padStart(2, '0')}/$tahun", salary.toDouble(), allowance.toDoubleOrNull() ?: 0.0, deduction.toDoubleOrNull() ?: 0.0, net)
         }
+    ) {
+        PilihanField("Karyawan", employees.map { it.id.toString() to it.fullName }, selectedEmpId, { id ->
+            selectedEmpId = id
+            val emp = employees.firstOrNull { it.id.toString() == id }
+            salary = emp?.salary?.toLong()?.toString() ?: ""
+            val k = komponen.filter { it.employeeId == emp?.id }
+            allowance = k.filter { it.type == "addition" }.sumOf { it.amount }.toLong().toString()
+            deduction = k.filter { it.type == "deduction" }.sumOf { it.amount }.toLong().toString()
+        }, placeholder = "Pilih karyawan…")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.weight(1.3f)) { PilihanField("Bulan", namaBulan.mapIndexed { i, n -> (i + 1).toString() to n }, bulan, { bulan = it }) }
+            Box(Modifier.weight(1f)) { AngkaField(tahun, { tahun = it }, "Tahun", desimal = false) }
+        }
+        AngkaField(salary, { salary = it }, "Gaji pokok (Rp)", desimal = false)
+        AngkaField(allowance, { allowance = it }, "Tunjangan (Rp)", desimal = false)
+        AngkaField(deduction, { deduction = it }, "Potongan (Rp)", desimal = false)
+        if (punyaKomponen.isNotEmpty()) Text(punyaKomponen.joinToString(" • ") { (if (it.type == "addition") "+" else "−") + it.name }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        BizCard { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+            Text("Gaji bersih", fontWeight = FontWeight.SemiBold)
+            Text(net.toRupiah(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+        }}
     }
 }

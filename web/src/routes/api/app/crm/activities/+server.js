@@ -57,7 +57,8 @@ export async function GET({ url, cookies, request }) {
 const aktivitasSchema = z.object({
 	unitId: z.coerce.number().int().positive(),
 	kontakId: z.coerce.number().int().positive('Pilih kontak'),
-	tipe: z.enum(['Call', 'WA', 'Meeting', 'Email', 'Task'], { message: 'Tipe harus Call, WA, Meeting, Email, atau Task' }),
+	tipe: z.preprocess((v) => { const m = { call: 'Call', wa: 'WA', whatsapp: 'WA', meeting: 'Meeting', email: 'Email', task: 'Task' }; return typeof v === 'string' ? (m[v.trim().toLowerCase()] ?? v) : v; },
+		z.enum(['Call', 'WA', 'Meeting', 'Email', 'Task'], { message: 'Tipe harus Call, WA, Meeting, Email, atau Task' })),
 	catatan: z.string().max(5000).optional().default('')
 });
 

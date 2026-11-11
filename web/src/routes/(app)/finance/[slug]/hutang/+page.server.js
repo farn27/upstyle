@@ -1,4 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
+import { buatHutangManual, HutangError } from '$lib/server/hutangManual';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { payables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
@@ -57,27 +59,18 @@ export const actions = {
         if (!unit) return fail(404, { error: 'Unit not found' });
 
         const data = await request.formData();
-        const contactId = data.get('contactId');
-        const tanggal = data.get('tanggal');
-        const jatuhTempo = data.get('jatuhTempo');
-        const nominal = data.get('nominal');
-        const keterangan = data.get('keterangan');
-        const nomorFaktur = data.get('nomorFaktur') || `INV-SUP-${Date.now()}`;
-
         try {
-            await db.insert(payables).values({
-                unitId: unit.id,
-                contactId: Number(contactId),
-                nomorFaktur,
-                tanggal,
-                jatuhTempo,
-                nominal: String(nominal),
-                sudahDibayar: '0',
-                status: 'BELUM_BAYAR',
-                keterangan: keterangan || null
+            await buatHutangManual(db, unit.id, {
+                contactId: data.get('contactId'),
+                tanggal: data.get('tanggal'),
+                jatuhTempo: data.get('jatuhTempo'),
+                nominal: data.get('nominal'),
+                keterangan: data.get('keterangan'),
+                nomorFaktur: data.get('nomorFaktur') || `INV-SUP-${Date.now()}`
             });
             return { success: true };
         } catch (err) {
+            if (err instanceof HutangError) return fail(err.status, { error: err.message });
             console.error('Add Payable Error:', err);
             return fail(500, { error: 'Gagal membuat tagihan hutang' });
         }
@@ -120,7 +113,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            if (err instanceof PengadaanError) return fail(err.status, { error: err.message });
+            if (err instanceof PengadaanError) return fail(err.status, { error: pesanAman(err) });
             console.error('Pay Payable Error:', err);
             return fail(500, { error: 'Gagal mencatat pembayaran' });
         }

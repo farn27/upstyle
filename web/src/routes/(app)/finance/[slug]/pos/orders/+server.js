@@ -15,7 +15,7 @@ export async function GET({ cookies, params, url }) {
         if (!units.length) return json({ error: 'Unit tidak ditemukan' }, { status: 404 });
         
         const search = url.searchParams.get('q') || '';
-        const limit = parseInt(url.searchParams.get('limit') || '50');
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50') || 50, 1), 200);
 
         let query = db.select()
             .from(posOrders)
@@ -41,6 +41,6 @@ export async function GET({ cookies, params, url }) {
 
         return json(results);
     } catch (e) {
-        return json({ error: e.message }, { status: 500 });
+        return json({ error: 'Gagal memuat pesanan' }, { status: 500 });
     }
 }

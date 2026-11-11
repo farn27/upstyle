@@ -1,10 +1,14 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { fixedAssets, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { ubahAset, hapusAset, MasterDataError } from '$lib/server/masterData';
+import { hitungPenyusutan } from '$lib/server/penyusutan';
+import { chartOfAccounts } from '$lib/server/schema';
+import { and } from 'drizzle-orm';
 import { z } from 'zod';
 
 // GET /api/app/finance/fixed-assets?unitId=X
@@ -21,20 +25,20 @@ export async function GET({ url, cookies, request }) {
         });
 
         const data = assets.map(a => {
-            // Calculate current book value and depreciation
+            // Penyusutan dihitung otomatis per bulan sejak tanggal perolehan (estimasi), tidak perlu dijurnal manual
             const nilaiPerolehan = Number(a.nilaiPerolehan || 0);
             const nilaiSisa = Number(a.nilaiSisa || 0);
             const umurEkonomis = a.umurEkonomis || 1;
-            const penyusutanTahunan = (nilaiPerolehan - nilaiSisa) / umurEkonomis;
-            const akumulasi = Number(a.akumulasiPenyusutan || 0);
-            const nilaiBuku = nilaiPerolehan - akumulasi;
+            const hit = hitungPenyusutan({ nilaiPerolehan, nilaiSisa, umurEkonomis, metodePenyusutan: a.metodePenyusutan, tanggalPerolehan: a.tanggalPerolehan });
+            const akumulasi = a.status === 'AKTIF' ? Math.max(hit.akumulasi, Number(a.akumulasiPenyusutan || 0)) : Number(a.akumulasiPenyusutan || hit.akumulasi);
 
             return {
                 id: a.id, unitId: a.unitId, namaAset: a.namaAset, kategori: a.kategori,
                 nilaiPerolehan, tanggalPerolehan: a.tanggalPerolehan || '',
                 umurEkonomis, metodePenyusutan: a.metodePenyusutan,
                 nilaiSisa, akumulasiPenyusutan: akumulasi,
-                nilaiBuku, penyusutanTahunan, status: a.status, keterangan: a.keterangan || ''
+                nilaiBuku: nilaiPerolehan - akumulasi, penyusutanBulanan: hit.perBulan, penyusutanTahunan: hit.perBulan * 12,
+                bulanBerjalan: hit.bulanBerjalan, coaId: a.coaId ?? null, status: a.status, keterangan: a.keterangan || ''
             };
         });
 
@@ -59,22 +63,28 @@ export async function POST({ request, cookies }) {
         metodePenyusutan: z.enum(['GARIS_LURUS','SALDO_MENURUN']).default('GARIS_LURUS'),
         nilaiSisa: z.coerce.number().optional().default(0),
         keterangan: z.string().optional(),
+        coaId: z.coerce.number().int().positive().nullable().optional(),
         unitId: z.coerce.number().int().positive()
     });
 
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body.asset || body);
-        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        if (!parsed.success) return json({ success: false, message: parsed.error.issues[0].message }, { status: 422 });
 
-        const { namaAset, kategori, nilaiPerolehan, tanggalPerolehan, umurEkonomis, metodePenyusutan, nilaiSisa, keterangan, unitId } = parsed.data;
-        const nilaiBuku = nilaiPerolehan - (nilaiSisa || 0);
+        const { namaAset, kategori, nilaiPerolehan, tanggalPerolehan, umurEkonomis, metodePenyusutan, nilaiSisa, keterangan, unitId, coaId } = parsed.data;
+        const nilaiBuku = nilaiPerolehan; // nilai buku saat perolehan = harga perolehan
+        if ((nilaiSisa || 0) > nilaiPerolehan) return json({ success: false, message: 'Nilai sisa tidak boleh melebihi nilai perolehan' }, { status: 422 });
+        if (coaId) {
+            const akun = await db.query.chartOfAccounts.findFirst({ where: and(eq(chartOfAccounts.id, coaId), eq(chartOfAccounts.unitId, Number(unitId))) });
+            if (!akun) return json({ success: false, message: 'Akun COA tidak ditemukan di unit ini' }, { status: 422 });
+        }
 
         const [result] = await db.insert(fixedAssets).values({
             unitId: Number(unitId), namaAset, kategori, nilaiPerolehan: String(nilaiPerolehan),
             tanggalPerolehan, umurEkonomis, metodePenyusutan,
             nilaiSisa: String(nilaiSisa || 0), akumulasiPenyusutan: '0',
-            nilaiBuku: String(nilaiBuku), status: 'AKTIF', keterangan: keterangan || null
+            nilaiBuku: String(nilaiBuku), status: 'AKTIF', keterangan: keterangan || null, coaId: coaId ?? null
         });
 
         // Record purchase as expense
@@ -111,7 +121,7 @@ export async function PUT({ request, cookies }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Aset tetap diperbarui', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Aset tetap berhasil diperbarui' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'PUT fixed-assets/+server.js');
         return json({ success: false, message: 'Gagal memperbarui aset tetap' }, { status: 500 });
     }
@@ -129,7 +139,7 @@ export async function DELETE({ url, cookies, request }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Aset tetap dihapus', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Aset tetap berhasil dihapus' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'DELETE fixed-assets/+server.js');
         return json({ success: false, message: 'Gagal menghapus aset tetap' }, { status: 500 });
     }

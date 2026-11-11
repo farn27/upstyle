@@ -1,10 +1,13 @@
 package com.upstyle.bizgrow.ui
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.upstyle.bizgrow.api.UpstyleApi
 import com.upstyle.bizgrow.api.createHttpClient
 import com.upstyle.bizgrow.data.*
+import kotlinx.serialization.json.put
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -116,6 +119,7 @@ class AppViewModel(
     private fun setError(msg: String) { _uiState.update { it.copy(isLoading = false, error = msg) } }
     /** Tampilkan pesan error dari UI (mis. printer belum dikonfigurasi). */
     fun showError(msg: String) = setError(msg)
+    fun showSuccess(msg: String) = setSuccess(msg)
     private fun setSuccess(msg: String) { _uiState.update { it.copy(isLoading = false, successMessage = msg, error = null) } }
     fun clearMessages() { _uiState.update { it.copy(error = null, successMessage = null) } }
 
@@ -323,16 +327,16 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.updateLeadStatus(leadId, status, unitId)
-            if (res.success) loadMarketingData()
-        } catch (e: Exception) { Napier.e("updateLeadStatus error", e) }
+            if (res.success) { loadMarketingData(); setSuccess("Lead dijadikan kontak CRM") }
+            else setError(res.message ?: "Gagal memproses lead")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     
     private val _notifications = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>>(emptyList())
     val notifications: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.RiwayatAksi>> = _notifications.asStateFlow()
     fun markAllRead() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
         try {
-            api.markAllNotificationsRead(unitId)
+            api.markAllNotificationsRead()
             loadNotifications()
         } catch (e: Exception) { Napier.e("markAllRead error", e) }
     }
@@ -350,6 +354,15 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("markNotifRead error", e) }
     }
     
+    fun ubahStatusPesanan(orderId: Int, paymentStatus: String? = null, shippingStatus: String? = null) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusPesanan(orderId, paymentStatus, shippingStatus)
+            if (res.success) { loadOrders(); loadOrderDetail(orderId); setSuccess("Status pesanan diperbarui") }
+            else setError(res.message ?: "Gagal memperbarui pesanan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun updateOrderStatus(orderId: Int, status: String) = viewModelScope.launch {
         setLoading(true)
         try {
@@ -373,6 +386,20 @@ class AppViewModel(
     }
     private val _leaveRequests = kotlinx.coroutines.flow.MutableStateFlow<List<com.upstyle.bizgrow.data.LeaveRequest>>(emptyList())
     val leaveRequests: kotlinx.coroutines.flow.StateFlow<List<com.upstyle.bizgrow.data.LeaveRequest>> = _leaveRequests.asStateFlow()
+    fun ajukanCuti(employeeId: Int, tipe: String, mulai: String, selesai: String, alasan: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ajukanCuti(_activeUnitId.value, employeeId, tipe, mulai, selesai, alasan)
+            if (res.success) { loadLeaveRequests(); setSuccess("Pengajuan dicatat") } else setError(res.message ?: "Gagal mengajukan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun putusCuti(leaveId: Int, setuju: Boolean) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.putusCuti(leaveId, if (setuju) "approved" else "rejected")
+            if (res.success) { loadLeaveRequests(); setSuccess(res.message ?: "Tersimpan") } else setError(res.message ?: "Gagal memproses")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     fun loadLeaveRequests() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -526,12 +553,15 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     
-    fun createUnit(nama: String, type: String) = viewModelScope.launch {
+    fun createUnit(nama: String, type: String) = createUnit(com.upstyle.bizgrow.data.CreateUnitRequest(name = nama, type = type))
+
+    /** Buat pusat atau cabang dengan data lengkap (alamat, kontak, modal, induk). */
+    fun createUnit(req: com.upstyle.bizgrow.data.CreateUnitRequest) = viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true, error = null) }
         try {
-            val res = api.createUnit(com.upstyle.bizgrow.data.CreateUnitRequest(name = nama, type = type))
+            val res = api.createUnit(req)
             if (res.success) {
-                setSuccess("Bisnis berhasil ditambahkan")
+                setSuccess(if (req.is_cabang) "Cabang berhasil ditambahkan" else "Bisnis berhasil ditambahkan")
                 loadUnits()
             } else {
                 setError(res.message ?: "Gagal menambah bisnis")
@@ -564,6 +594,18 @@ class AppViewModel(
             else setError(res.message ?: "Gagal simpan pengaturan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    /** Buat / buat ulang link login staff; hasilnya (loginSlug) dikirim ke [onSelesai]. */
+    fun updatePortal(unitId: Int, buatBaru: Boolean, onSelesai: (String) -> Unit = {}) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updatePortal(unitId, buatBaru)
+            if (res.success) {
+                loadUnits()
+                setSuccess(if (buatBaru) "Link login staff diperbarui" else "Link login staff dibuat")
+                onSelesai(res.data?.loginSlug ?: "")
+            } else setError(res.message ?: "Gagal memperbarui link login staff")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
     fun deleteEmployee(employeeId: Int) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
@@ -573,17 +615,19 @@ class AppViewModel(
             else setError(res.message ?: "Gagal hapus karyawan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
-    fun checkIn(employeeId: Int, date: String, time: String) = viewModelScope.launch {
+    fun checkIn(employeeId: Int, date: String, time: String, pin: String? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         try {
-            api.checkIn(CheckInRequest(employeeId = employeeId, unitId = unitId, date = date, time = time))
+            val res = api.checkIn(CheckInRequest(employeeId = employeeId, unitId = unitId, date = date, time = time, pin = pin))
+            if (!res.success) { setError(res.message ?: "Check-in gagal"); return@launch }
             loadHrData()
             setSuccess("Check-in berhasil!")
         } catch (e: Exception) { setError("Check-in gagal: ${e.message}") }
     }
-    fun checkOut(employeeId: Int, date: String, time: String) = viewModelScope.launch {
+    fun checkOut(employeeId: Int, date: String, time: String, pin: String? = null) = viewModelScope.launch {
         try {
-            api.checkOut(CheckOutRequest(employeeId = employeeId, date = date, time = time))
+            val res = api.checkOut(CheckOutRequest(employeeId = employeeId, date = date, time = time, pin = pin))
+            if (!res.success) { setError(res.message ?: "Check-out gagal"); return@launch }
             loadHrData()
             setSuccess("Check-out berhasil!")
         } catch (e: Exception) { setError("Check-out gagal: ${e.message}") }
@@ -616,6 +660,67 @@ class AppViewModel(
             else setError(res.message ?: "Gagal tambah departemen")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    fun updateDepartmentName(id: Int, name: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.updateDepartmentName(id, unitId, name)
+            if (res.success) { loadDepartments(); setSuccess("Departemen diperbarui") } else setError(res.message ?: "Gagal ubah departemen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun tandaiPayrollLunas(ids: List<Int>) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (ids.isEmpty()) return@launch
+        setLoading(true)
+        try {
+            val res = api.markPayrollPaid(unitId, ids)
+            if (res.success) { loadHrData(); setSuccess("${ids.size} payroll ditandai lunas") } else setError(res.message ?: "Gagal menandai lunas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    // ─── Detail karyawan ───
+    private val _hrDetail = MutableStateFlow<HrDetailData?>(null)
+    val hrDetail: StateFlow<HrDetailData?> = _hrDetail.asStateFlow()
+    private var karyawanDipilih = 0
+    /** Pesan bila profil karyawan gagal dimuat — tanpa ini layar detail menampilkan kerangka loading selamanya. */
+    private val _hrDetailGalat = MutableStateFlow<String?>(null)
+    val hrDetailGalat: StateFlow<String?> = _hrDetailGalat.asStateFlow()
+    fun bukaKaryawan(id: Int) { karyawanDipilih = id; _hrDetail.value = null; _hrDetailGalat.value = null; navigate(Screen.EmployeeDetail) }
+    fun loadHrDetail() = viewModelScope.launch {
+        if (karyawanDipilih == 0) { _hrDetailGalat.value = "Pilih karyawan dari daftar HR terlebih dahulu."; return@launch }
+        _hrDetailGalat.value = null
+        try {
+            val res = api.getHrDetail(karyawanDipilih)
+            if (res.success && res.data != null) _hrDetail.value = res.data
+            else _hrDetailGalat.value = res.message ?: "Gagal memuat karyawan"
+        } catch (e: Exception) { _hrDetailGalat.value = "Koneksi gagal. Periksa internet lalu coba lagi." }
+    }
+    /** Tambah komponen gaji (tunjangan/potongan); mengembalikan pesan galat (null = berhasil). */
+    suspend fun tambahKomponenGaji(nama: String, nominal: Double, potongan: Boolean): String? = try {
+        val res = api.komponenGaji(karyawanDipilih, kotlinx.serialization.json.buildJsonObject {
+            put("action", "add-component")
+            put("component", kotlinx.serialization.json.buildJsonObject {
+                put("name", nama); put("amount", nominal); put("type", if (potongan) "deduction" else "addition")
+            })
+        })
+        if (res.success) { loadHrDetail(); null } else (res.message ?: "Gagal menambah komponen")
+    } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+
+    fun hapusKomponenGaji(id: Int) = viewModelScope.launch {
+        try {
+            val res = api.komponenGaji(karyawanDipilih, kotlinx.serialization.json.buildJsonObject { put("action", "delete-component"); put("componentId", id) })
+            if (res.success) loadHrDetail() else setError(res.message ?: "Gagal menghapus komponen")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun simpanKaryawan(data: kotlinx.serialization.json.JsonObject) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.updateHrKaryawan(karyawanDipilih, data)
+            if (res.success) { loadHrDetail(); loadHrData(); setSuccess("Data karyawan diperbarui") } else setError(res.message ?: "Gagal menyimpan")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     private val _unreadCount = kotlinx.coroutines.flow.MutableStateFlow(0)
     val unreadCount: kotlinx.coroutines.flow.StateFlow<Int> = _unreadCount.asStateFlow()
     
@@ -633,16 +738,41 @@ class AppViewModel(
 
 
     
+    private val _crmMemuat = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val crmMemuat: kotlinx.coroutines.flow.StateFlow<Boolean> = _crmMemuat.asStateFlow()
+
+    /** Muat semua deal & kontak (halaman 100 baris, maksimal 10 halaman) — dulu hanya 20 baris pertama. */
     fun loadCrmData() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        _crmMemuat.value = true
         try {
-            val dealsRes = api.getCrmDeals(unitId)
-            if (dealsRes.success) _crmDeals.value = dealsRes.data
-            val contactsRes = api.getCrmContacts(unitId)
-            if (contactsRes.success) _crmContacts.value = contactsRes.data
+            val deals = mutableListOf<com.upstyle.bizgrow.data.CrmDeal>()
+            var hal = 1
+            while (hal <= 10) {
+                val r = api.getCrmDeals(unitId, hal)
+                if (!r.success) break
+                deals += r.data
+                if (!r.adaHalamanBerikut) break
+                hal++
+            }
+            _crmDeals.value = deals
+            val kontak = mutableListOf<com.upstyle.bizgrow.data.CrmContact>()
+            hal = 1
+            while (hal <= 10) {
+                val r = api.getCrmContacts(unitId, hal)
+                if (!r.success) break
+                kontak += r.data
+                if (!r.adaHalamanBerikut) break
+                hal++
+            }
+            _crmContacts.value = kontak
         } catch (e: Exception) { Napier.e("loadCrmData error", e) }
+        _crmMemuat.value = false
     }
+    /** Muat ulang semua data CRM (deal, kontak, aktivitas, tugas) — pull-to-refresh / setelah ubah. */
+    fun muatSemuaCrm() { loadCrmData(); loadCrmActivities(); loadCrmTasks() }
+
     fun loadCrmActivities() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -654,9 +784,17 @@ class AppViewModel(
     fun updateDealStage(dealId: Int, stage: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         try {
-            api.updateDealStage(UpdateDealStageRequest(dealId, stage, unitId))
-            loadCrmData()
-        } catch (e: Exception) { Napier.e("updateDealStage error", e) }
+            val res = api.updateDealStage(UpdateDealStageRequest(dealId, stage, unitId))
+            if (res.success) { loadCrmData(); setSuccess("Deal dipindah ke ${stage.lowercase().replaceFirstChar { it.uppercase() }}") }
+            else setError(res.message ?: "Gagal memindah deal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahDeal(dealId: Int, nama: String, nilai: Double) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahDeal(dealId, nama, nilai)
+            if (res.success) { loadCrmData(); setSuccess("Deal diperbarui") } else setError(res.message ?: "Gagal memperbarui deal")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun deleteDeal(dealId: Int) = viewModelScope.launch {
         setLoading(true)
@@ -667,11 +805,11 @@ class AppViewModel(
             else setError(res.message ?: "Gagal hapus deal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
-    fun createDeal(contactName: String, companyName: String, dealValue: Double, stage: String, phone: String) = viewModelScope.launch {
+    fun createDeal(contactName: String, companyName: String, dealValue: Double, stage: String, phone: String, namaDeal: String? = null, kontakId: Int? = null) = viewModelScope.launch {
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val res = api.createDeal(CreateDealRequest(CreateDealBody(contactName, companyName, dealValue, stage, phone, unitId)))
+            val res = api.createDeal(CreateDealRequest(CreateDealBody(contactName, companyName, dealValue, stage, phone, unitId, kontakId, namaDeal?.takeIf { it.isNotBlank() })))
             if (res.success) { loadCrmData(); setSuccess("Deal berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah deal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -683,6 +821,47 @@ class AppViewModel(
             val res = api.createContact(CreateContactRequest(contact = CreateContactBody(nama, telepon, email, perusahaan, stage, unitId = unitId)))
             if (res.success) { loadCrmData(); setSuccess("Kontak berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahKontak(id: Int, nama: String, telepon: String, email: String, perusahaan: String, stage: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahKontak(id, nama, telepon, email, perusahaan, stage)
+            if (res.success) { loadCrmData(); setSuccess("Kontak diperbarui") } else setError(res.message ?: "Gagal memperbarui kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun hapusKontak(id: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.hapusKontak(id)
+            if (res.success) { muatSemuaCrm(); setSuccess("Kontak dihapus") } else setError(res.message ?: "Gagal menghapus kontak")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun catatAktivitas(kontakId: Int, tipe: String, catatan: String) = viewModelScope.launch {
+        setLoading(true)
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.createActivity(CreateActivityRequest(activity = CreateActivityBody(kontakId, tipe, catatan, unitId)))
+            if (res.success) { loadCrmActivities(); setSuccess("Aktivitas dicatat") } else setError(res.message ?: "Gagal mencatat aktivitas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun buatTugasCrm(deskripsi: String, kontakId: Int?, dealId: Int?, deadline: String?) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.buatTugasCrm(_activeUnitId.value, deskripsi, kontakId, dealId, deadline)
+            if (res.success) { loadCrmTasks(); setSuccess("Tugas dibuat") } else setError(res.message ?: "Gagal membuat tugas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahTugasCrm(id: Int, status: String? = null, deskripsi: String? = null, deadline: String? = null) = viewModelScope.launch {
+        try {
+            val res = api.ubahTugasCrm(id, status, deskripsi, deadline)
+            if (res.success) { loadCrmTasks(); if (status == null) setSuccess("Tugas diperbarui") } else setError(res.message ?: "Gagal memperbarui tugas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun hapusTugasCrm(id: Int) = viewModelScope.launch {
+        try {
+            val res = api.hapusTugasCrm(id)
+            if (res.success) { loadCrmTasks(); setSuccess("Tugas dihapus") } else setError(res.message ?: "Gagal menghapus tugas")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     fun loadCrmTasks() = viewModelScope.launch {
@@ -704,6 +883,47 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    private val _bantuan = MutableStateFlow<BantuanKonten?>(null)
+    val bantuan: StateFlow<BantuanKonten?> = _bantuan.asStateFlow()
+    private val _bantuanGalat = MutableStateFlow<String?>(null)
+    val bantuanGalat: StateFlow<String?> = _bantuanGalat.asStateFlow()
+
+    /** Muat konten Pusat Bantuan (panduan, FAQ, troubleshoot) dari server — sumber sama dengan web. */
+    fun muatBantuan() = viewModelScope.launch {
+        _bantuanGalat.value = null
+        try {
+            val res = api.getBantuan()
+            if (res.success && res.data != null) {
+                _bantuan.value = res.data
+                session.saveToCache("bantuan_konten", kotlinx.serialization.json.Json.encodeToString(BantuanKonten.serializer(), res.data))
+            } else _bantuanGalat.value = res.message ?: "Gagal memuat bantuan"
+        } catch (e: Exception) {
+            // offline → pakai salinan terakhir bila ada
+            val simpan = session.loadFromCache("bantuan_konten")
+            val cache = simpan?.let { runCatching { kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString(BantuanKonten.serializer(), it) }.getOrNull() }
+            if (cache != null) _bantuan.value = cache else _bantuanGalat.value = "Tidak ada koneksi dan belum ada salinan bantuan tersimpan"
+        }
+    }
+
+    /** Ulasan tersimpan di perangkat ("bintang|komentar") supaya tidak diminta ulang. */
+    fun ulasanTersimpan(): Pair<Int, String>? = session.loadFromCache("ulasan_app")?.let { v ->
+        v.substringBefore('|').toIntOrNull()?.let { it to v.substringAfter('|', "") }
+    }
+    fun kirimUlasan(rating: Int, komentar: String) = viewModelScope.launch {
+        try {
+            val res = api.kirimUlasan(rating, komentar)
+            if (res.success) { session.saveToCache("ulasan_app", "$rating|$komentar"); setSuccess("Terima kasih! Ulasanmu terkirim") }
+            else setError(res.message ?: "Ulasan belum terkirim")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun kirimTiketTim(judul: String, isi: String, prioritas: String, onSukses: () -> Unit) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        try {
+            val res = api.kirimTiketTim(judul, isi, prioritas, unitId)
+            if (res.success) { setSuccess("Tiket terkirim ke tim Bizgrow"); onSukses() } else setError(res.message ?: "Tiket belum terkirim")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun markFaqViewed(id: String) = viewModelScope.launch {
         try { api.sendHelpFeedback(id, true) } catch (_: Exception) {}
     }
@@ -716,16 +936,40 @@ class AppViewModel(
     /** Data untuk layar Riwayat Transaksi — selalu sepanjang waktu, terpisah dari filter periode dashboard. */
     val riwayat: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _riwayat.asStateFlow()
 
-    fun loadFinanceData() = viewModelScope.launch {
+    private var riwayatFilter = com.upstyle.bizgrow.data.RiwayatFilter()
+    private val _riwayatMemuat = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val riwayatMemuat: kotlinx.coroutines.flow.StateFlow<Boolean> = _riwayatMemuat.asStateFlow()
+
+    /** Muat halaman pertama riwayat (tanpa filter, atau dengan [filter]). */
+    fun loadFinanceData(filter: com.upstyle.bizgrow.data.RiwayatFilter = com.upstyle.bizgrow.data.RiwayatFilter()) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
+        riwayatFilter = filter
+        _riwayatMemuat.value = true
         try {
-            val res = api.getFinanceData(unitId)
+            val res = api.getRiwayatTransaksi(unitId, filter, offset = 0)
             if (res.success) _riwayat.value = res.data
         } catch (e: Exception) { Napier.e("loadFinanceData error", e) }
+        _riwayatMemuat.value = false
+    }
+
+    /** Halaman berikutnya dengan filter yang sedang aktif. */
+    fun muatRiwayatLagi() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        val sekarang = _riwayat.value ?: return@launch
+        if (unitId == 0 || !sekarang.adaLagi || _riwayatMemuat.value) return@launch
+        _riwayatMemuat.value = true
+        try {
+            val res = api.getRiwayatTransaksi(unitId, riwayatFilter, offset = sekarang.transactions.size)
+            val baru = res.data
+            if (res.success && baru != null) {
+                _riwayat.value = sekarang.copy(transactions = (sekarang.transactions + baru.transactions).distinctBy { it.id }, adaLagi = baru.adaLagi)
+            }
+        } catch (e: Exception) { Napier.e("muatRiwayatLagi error", e) }
+        _riwayatMemuat.value = false
     }
     // ─── Sinkron offline (opsi B: antrean dikirim ulang ke API biasa) ─────────
-    private val jsonAntrean = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    private val jsonAntrean = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val antreanOffline = com.upstyle.bizgrow.cache.SyncQueue(session)
     private val _antreanOfflineCount = kotlinx.coroutines.flow.MutableStateFlow(antreanOffline.size())
     /** Jumlah data yang menunggu dikirim (tampilkan sebagai badge "menunggu sinkron") */
@@ -823,7 +1067,7 @@ class AppViewModel(
             val res = api.createTransaction(req)
             if (res.success) {
                 loadDashboard()
-                loadFinanceData()
+                loadFinanceData(riwayatFilter)
                 setSuccess("Transaksi berhasil disimpan!")
                 navigateBack()
                 sinkronkanOffline()
@@ -840,6 +1084,7 @@ class AppViewModel(
             val res = api.deleteTransaction(transactionId, unitId)
             if (res.success) {
                 loadDashboard()
+                loadFinanceData(riwayatFilter)
                 setSuccess("Transaksi berhasil dihapus")
             } else setError(res.message ?: "Gagal hapus transaksi")
         } catch (e: Exception) {
@@ -880,8 +1125,61 @@ class AppViewModel(
 
     fun createBudgetItem(item: BudgetItem) =
         jalankanMasterData("Anggaran disimpan", { loadBudgetItems(item.tahun) }) { api.createBudgetItem(item.copy(unitId = it)) }
+    fun updateBudgetItem(id: Int, tahun: Int, nominal: Double, keterangan: String?) =
+        jalankanMasterData("Anggaran diperbarui", { loadBudgetItems(tahun) }) { api.updateBudgetItem(id, it, nominal, keterangan) }
     fun deleteBudgetItem(id: Int, tahun: Int) =
         jalankanMasterData("Anggaran dihapus", { loadBudgetItems(tahun) }) { api.deleteBudgetItem(id, it) }
+
+    // ─── Kas masuk/keluar shift & laporan POS ───
+    private val _kasShift = MutableStateFlow<List<PosCashTransaction>>(emptyList())
+    val kasShift: StateFlow<List<PosCashTransaction>> = _kasShift.asStateFlow()
+    fun loadKasShift(shiftId: Int) = viewModelScope.launch {
+        try { val res = api.getPosCashTransactions(shiftId); if (res.success) _kasShift.value = res.data.orEmpty() }
+        catch (e: Exception) { Napier.e("loadKasShift error", e) }
+    }
+    fun catatKasShift(shiftId: Int, type: String, amount: Double, ket: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        setLoading(true)
+        try {
+            val res = api.createPosCash(unitId, shiftId, type, amount, ket)
+            if (res.success) { loadKasShift(shiftId); loadPosShifts(); setSuccess(if (type == "CASH_IN") "Kas masuk dicatat" else "Kas keluar dicatat") } else setError(res.message ?: "Gagal mencatat kas")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    private val _posReport = MutableStateFlow<PosReport?>(null)
+    val posReport: StateFlow<PosReport?> = _posReport.asStateFlow()
+    fun loadPosReport() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try { val res = api.getPosReport(unitId); if (res.success) _posReport.value = res.data } catch (e: Exception) { Napier.e("loadPosReport error", e) }
+    }
+
+    // ─── Pesanan ditunda (hold) — disimpan di memori selama aplikasi terbuka ───
+    data class PesananDitunda(val id: Long, val label: String, val isi: Map<Product, Int>, val customerId: Int?, val waktu: Long)
+    private val _ditunda = MutableStateFlow<List<PesananDitunda>>(emptyList())
+    val pesananDitunda: StateFlow<List<PesananDitunda>> = _ditunda.asStateFlow()
+    fun tundaPesanan(label: String) {
+        val isi = _cart.value
+        if (isi.isEmpty()) return
+        _ditunda.update { it + PesananDitunda(currentTimeMillis(), label.ifBlank { "Pesanan ${it.size + 1}" }, isi, _selectedCustomerId.value, currentTimeMillis()) }
+        clearCart()
+        setSuccess("Pesanan ditunda")
+    }
+    fun lanjutkanPesanan(id: Long) {
+        val p = _ditunda.value.firstOrNull { it.id == id } ?: return
+        _cart.value = p.isi
+        _selectedCustomerId.value = p.customerId
+        _ditunda.update { list -> list.filter { it.id != id } }
+    }
+    fun hapusPesananDitunda(id: Long) { _ditunda.update { list -> list.filter { it.id != id } } }
+
+    private val _rekapPajak = MutableStateFlow<RekapPajak?>(null)
+    val rekapPajak: StateFlow<RekapPajak?> = _rekapPajak.asStateFlow()
+    fun loadRekapPajak(tahun: Int) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try { val res = api.getRekapPajak(unitId, tahun); if (res.success) _rekapPajak.value = res.data else setError(res.message ?: "Gagal memuat rekap pajak") }
+        catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
 
     private val _posQueue = MutableStateFlow<List<PosQueueItem>>(emptyList())
     val posQueue: StateFlow<List<PosQueueItem>> = _posQueue.asStateFlow()
@@ -900,6 +1198,34 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    // ─── Detail PO (terima barang, tagihan, retur, bayar) ───
+    private val _poDetail = MutableStateFlow<PoDetail?>(null)
+    val poDetail: StateFlow<PoDetail?> = _poDetail.asStateFlow()
+    private var poDipilih = 0
+    /** Pesan bila detail PO gagal dimuat — tanpa ini layar menampilkan kerangka loading selamanya. */
+    private val _poDetailGalat = MutableStateFlow<String?>(null)
+    val poDetailGalat: StateFlow<String?> = _poDetailGalat.asStateFlow()
+    fun bukaPo(poId: String) { poDipilih = poId.toIntOrNull() ?: 0; _poDetail.value = null; _poDetailGalat.value = null; navigate(Screen.PoDetail) }
+    fun loadPoDetail() = viewModelScope.launch {
+        if (poDipilih == 0) { _poDetailGalat.value = "Pilih purchase order dari daftar Pengadaan terlebih dahulu."; return@launch }
+        _poDetailGalat.value = null
+        try {
+            val res = api.getPoDetail(poDipilih)
+            if (res.success && res.data != null) _poDetail.value = res.data
+            else if (_poDetail.value == null) _poDetailGalat.value = res.message ?: "Gagal memuat PO"
+            else setError(res.message ?: "Gagal memuat PO")
+        } catch (e: Exception) {
+            if (_poDetail.value == null) _poDetailGalat.value = "Koneksi gagal. Periksa internet lalu coba lagi." else setError("Koneksi gagal: ${e.message}")
+        }
+    }
+    fun aksiPo(aksi: String, pesan: String, tambahan: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.aksiPo(poDipilih, aksi, tambahan)
+            if (res.success) { loadPoDetail(); loadScmData(); setSuccess(pesan) } else setError(res.message ?: "Gagal memproses")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun createPosVoucher(v: PosVoucher) =
         jalankanMasterData("Voucher dibuat", { loadPosVouchers() }) { api.createPosVoucher(v.copy(unitId = it)) }
     fun updatePosVoucher(v: PosVoucher) =
@@ -907,13 +1233,65 @@ class AppViewModel(
     fun deletePosVoucher(id: Int) =
         jalankanMasterData("Voucher dinonaktifkan", { loadPosVouchers() }) { api.deletePosVoucher(id) }
 
+    fun simpanKontakAkuntansi(c: AccountingContact) =
+        jalankanMasterData(if (c.id == 0) "Kontak ditambahkan" else "Kontak diperbarui", { loadAccountingContacts() }) { api.simpanKontakAkuntansi(it, c) }
+    fun hapusKontakAkuntansi(id: Int) =
+        jalankanMasterData("Kontak dihapus", { loadAccountingContacts() }) { api.hapusKontakAkuntansi(it, id) }
+
+    // ─── Wizard business plan ───
+    var planWizardId: Int = 0
+        private set
+    fun bukaWizardPlan(id: Int) { planWizardId = id; navigate(Screen.PlanWizard) }
+    suspend fun muatPlanLengkap(): kotlinx.serialization.json.JsonObject? =
+        if (planWizardId == 0) null else try { api.getPlanLengkap(planWizardId) } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); null }
+    suspend fun simpanPlanLengkap(body: kotlinx.serialization.json.JsonObject): Int? = try {
+        val (id, err) = api.simpanPlanLengkap(body)
+        if (id != null) { planWizardId = id; loadBusinessPlans() } else if (err != null) setError(err)
+        id
+    } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); null }
+    suspend fun bantuanAiPlan(step: Int, field: String, kategori: String, konteks: kotlinx.serialization.json.JsonObject, mode: String): String? =
+        try { api.aiPlanAssist(step, field, kategori, konteks, mode) } catch (e: Exception) { setError("AI tidak tersedia: ${e.message}"); null }
+
     fun createClosingPeriod(mulai: String, akhir: String, keterangan: String?) =
         jalankanMasterData("Periode berhasil dikunci", { loadClosingPeriods() }) { api.createClosingPeriod(it, mulai, akhir, keterangan) }
 
+    fun bukaKembaliPeriode(id: Int) =
+        jalankanMasterData("Periode dibuka kembali", { loadClosingPeriods() }) { api.bukaKembaliPeriode(it, id) }
+
+    /** Simpan akun COA baru; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun simpanCoaBaru(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?, parentId: Int? = null): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.createCoa(unitId, kode, nama, tipe, normalBalance, deskripsi, parentId)
+            if (res.success) { loadChartOfAccounts(); setSuccess("Akun COA dibuat"); null } else (res.message ?: "Gagal membuat akun")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    /** Buat COA otomatis dengan AI; null = berhasil. */
+    suspend fun buatCoaAi(deskripsi: String, tambahkan: Boolean): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.generateCoaAi(unitId, deskripsi, tambahkan)
+            if (res.success) { loadChartOfAccounts(); setSuccess(res.message ?: "COA dibuat oleh AI"); null } else (res.message ?: "AI gagal membuat COA")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    /** Template standar; null = berhasil. */
+    suspend fun buatCoaTemplate(jenis: String): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.seedDefaultCoa(unitId, jenis)
+            if (res.success) { loadChartOfAccounts(); setSuccess("COA standar dibuat"); null } else (res.message ?: "Gagal membuat COA")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
     fun createCoa(kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?) =
         jalankanMasterData("Akun COA dibuat", { loadChartOfAccounts() }) { api.createCoa(it, kode, nama, tipe, normalBalance, deskripsi) }
-    fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean) =
-        jalankanMasterData("Akun COA diperbarui", { loadChartOfAccounts() }) { api.updateCoa(id, nama, deskripsi, aktif) }
+    fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean, parentId: Int = 0) =
+        jalankanMasterData("Akun COA diperbarui", { loadChartOfAccounts() }) { api.updateCoa(id, nama, deskripsi, aktif, parentId) }
     fun deleteCoa(id: Int) =
         jalankanMasterData("Akun COA dinonaktifkan", { loadChartOfAccounts() }) { api.deleteCoa(id) }
 
@@ -955,6 +1333,15 @@ class AppViewModel(
             else setError(res.message ?: "Gagal simpan jurnal")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+    /** Simpan jurnal manual; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun simpanJurnalManual(tanggal: String, memo: String?, referensi: String?, lines: List<CreateJournalLineBody>): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.createJournalEntry(unitId, CreateJournalRequest(tanggal, referensi, memo, lines))
+            if (res.success) { loadJournalEntries(); setSuccess("Jurnal berhasil disimpan"); null } else (res.message ?: "Gagal menyimpan jurnal")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
     private val _arusKasData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.ArusKasData?>(null)
     val arusKasData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.ArusKasData?> = _arusKasData.asStateFlow()
     fun loadArusKas(startDate: String, endDate: String) = viewModelScope.launch {
@@ -972,7 +1359,7 @@ class AppViewModel(
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val res = api.getLaporanWa(LaporanWaRequest(unitId, periode))
+            val res = api.getLaporanWa(LaporanWaRequest(unitId, periode.trim().lowercase().replace(' ', '_')))
             if (res.success) { _laporanWa.value = res.data; _uiState.update { it.copy(isLoading = false) } }
             else setError(res.message ?: "Gagal load laporan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -991,7 +1378,7 @@ class AppViewModel(
         setLoading(true)
         val unitId = _activeUnitId.value
         try {
-            val lead = MarketingLead(nama = nama, email = email, telepon = telepon, source = source, unitId = unitId)
+            val lead = MarketingLead(nama = nama, email = email, telepon = telepon, source = source, unitId = unitId, notes = "Sumber: $source")
             val res = api.createMarketingLead(lead)
             if (res.success) { loadMarketingData(); setSuccess("Lead berhasil ditambahkan!") }
             else setError(res.message ?: "Gagal tambah lead")
@@ -1055,6 +1442,8 @@ class AppViewModel(
     }
 
     fun addToCart(product: com.upstyle.bizgrow.data.Product, quantity: Int = 1) {
+        // Produk bervarian tanpa varian terpilih tidak boleh masuk keranjang (layar kasir menampilkan pemilih varian)
+        if (product.perluPilihVarian) { setError("Pilih varian ${product.nama} dulu"); return }
         val current = _cart.value.toMutableMap()
         current[product] = (current[product] ?: 0) + quantity
         _cart.value = current
@@ -1080,7 +1469,9 @@ class AppViewModel(
         val voucherKode: String? = null,
         val diterima: Double? = null,
         val kembalian: Double? = null,
-        val split: List<SplitPayment>? = null
+        val split: List<SplitPayment>? = null,
+        val kenaiPpn: Boolean = false,
+        val ppnInklusif: Boolean = false
     )
 
     /** Validasi voucher ke server: (pesan, potongan) — potongan null bila tidak valid. */
@@ -1100,7 +1491,8 @@ class AppViewModel(
         val diskon = _posDiskon.value
         val total = subtotal - diskon
         val items = cartItems.entries.map { (p, qty) ->
-            PosOrderItem(productId = p.id, productName = p.nama, qty = qty, price = p.hargaJual)
+            // variantId dikirim supaya server mengurangi stok varian & memakai harganya (dulu varian tidak pernah dikirim)
+            PosOrderItem(productId = p.id, productName = p.nama, variantId = p.varianId, variantName = p.varianNama, qty = qty, price = p.hargaJual)
         }
 
         try {
@@ -1114,6 +1506,8 @@ class AppViewModel(
                 paymentMethod = if (!opsi.split.isNullOrEmpty()) "SPLIT" else metode,
                 items = items,
                 voucherCode = opsi.voucherKode?.takeIf { it.isNotBlank() },
+                kenaiPpn = opsi.kenaiPpn,
+                ppnInklusif = opsi.ppnInklusif,
                 orderType = opsi.orderType,
                 tableNumber = opsi.meja?.takeIf { it.isNotBlank() },
                 queueNumber = opsi.antrean?.takeIf { it.isNotBlank() },
@@ -1127,7 +1521,7 @@ class AppViewModel(
                 clearCart()
                 loadProducts()
                 loadDashboard()
-                setSuccess("Transaksi berhasil! Total: Rp ${"%,.0f".format(total)}")
+                setSuccess("Transaksi berhasil! Total: ${(total).toDouble().rupiah()}")
                 onSuccess(true)
             } else {
                 setError(res.message ?: "Checkout gagal")
@@ -1150,6 +1544,39 @@ class AppViewModel(
     
     val currentUser: com.upstyle.bizgrow.data.UserInfo? get() = if (session.isLoggedIn()) com.upstyle.bizgrow.data.UserInfo(session.getUserId(), session.getUsername(), session.getEmail(), session.getRole()) else null
 
+
+    /** Tambah kategori produk; mengembalikan pesan galat (null = berhasil). */
+    suspend fun tambahKategoriProduk(nama: String): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.buatKategoriProduk(unitId, nama)
+            if (res.success) { loadKategoriProduk(); null } else (res.message ?: "Gagal menambah kategori")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    /** Hapus kategori (ditolak server bila masih dipakai produk); null = berhasil. */
+    suspend fun hapusKategoriProduk(id: Int): String? = try {
+        val res = api.hapusKategoriProduk(id)
+        if (res.success) { loadKategoriProduk(); null } else (res.message ?: "Gagal menghapus kategori")
+    } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+
+    /** Unggah foto produk; null bila gagal. */
+    suspend fun unggahFotoProduk(bytes: ByteArray): String? = try { api.uploadFotoProduk(bytes) } catch (e: Exception) { Napier.e("unggahFoto", e); null }
+
+    /** Simpan produk dari form lengkap; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun simpanProdukForm(form: com.upstyle.bizgrow.data.ProdukForm, id: String?): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.simpanProdukForm(unitId, form, id)
+            if (res.success) {
+                loadProducts(); loadKategoriProduk()
+                if (id != null) loadProductVariants(id)
+                setSuccess(if (id == null) "Produk berhasil ditambahkan" else "Produk berhasil diperbarui"); null
+            } else (res.message ?: "Gagal menyimpan produk")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
 
     fun addProduct(nama: String, hargaBeli: Double, hargaJual: Double, stok: Int, minStok: Int, sku: String, barcode: String?, kategoriId: Int?, fotoUri: String?, onResult: (Boolean) -> Unit) = viewModelScope.launch {
         setLoading(true)
@@ -1250,6 +1677,39 @@ class AppViewModel(
             else { setError(res.message ?: "Gagal membuat PO"); onDone(false) }
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onDone(false) }
     }
+    private val _laporanPembelian = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.LaporanPembelian?>(null)
+    val laporanPembelian: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.LaporanPembelian?> = _laporanPembelian.asStateFlow()
+    fun loadLaporanPembelian(dari: String, sampai: String) = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        try {
+            val res = api.getLaporanPembelian(unitId, dari, sampai)
+            if (res.success) _laporanPembelian.value = res.data
+        } catch (e: Exception) { Napier.e("loadLaporanPembelian error", e) }
+    }
+
+    /** Buat PO lengkap; mengembalikan pesan galat (null = berhasil) supaya form tetap terbuka bila gagal. */
+    suspend fun buatPoLengkap(supplierId: String, items: List<Triple<String, Int, Double>>, diskon: Double, ongkir: Double, ppnPersen: Double, expectedDate: String?, catatan: String?): String? {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return "Pilih unit bisnis terlebih dahulu"
+        return try {
+            val res = api.buatPoLengkap(unitId, supplierId, items, diskon, ongkir, ppnPersen, expectedDate, catatan)
+            if (res.success) { loadScmData(); setSuccess(res.message ?: "Purchase order dibuat"); null } else (res.message ?: "Gagal membuat PO")
+        } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+    }
+
+    suspend fun ubahSupplier(s: Supplier, nama: String, kontak: String, telp: String, email: String, alamat: String, termin: Int): String? = try {
+        val res = api.ubahSupplier(s.id, nama, kontak, telp, email, alamat, s.category, s.npwp, termin)
+        if (res.success) { loadScmData(); setSuccess("Supplier diperbarui"); null } else (res.message ?: "Gagal memperbarui supplier")
+    } catch (e: Exception) { "Koneksi gagal: ${e.message}" }
+
+    fun aturSupplierAktif(s: Supplier, aktif: Boolean) = viewModelScope.launch {
+        try {
+            val res = api.aturSupplierAktif(s.id, aktif)
+            if (res.success) { loadScmData(); setSuccess(if (aktif) "Supplier diaktifkan" else "Supplier dinonaktifkan") } else setError(res.message ?: "Gagal mengubah status supplier")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun deleteSupplier(supplierId: String) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         setLoading(true)
@@ -1346,8 +1806,6 @@ class AppViewModel(
     private val _landingPageState = MutableStateFlow(LandingPageState())
     val landingPageState: StateFlow<LandingPageState> = _landingPageState.asStateFlow()
 
-    private val _shopeeState = MutableStateFlow(ShopeeState())
-    val shopeeState: StateFlow<ShopeeState> = _shopeeState.asStateFlow()
 
     private val _advancedSettingsState = MutableStateFlow(AdvancedSettingsState())
     private val _themeMode = MutableStateFlow(session.getThemeMode())
@@ -1369,7 +1827,7 @@ class AppViewModel(
             units = { _units.value },
             activeUnit = { activeUnit.value },
             onError = { setError(it) },
-            onTransaksiTersimpan = { loadDashboard(); loadFinanceData(); setSuccess("Transaksi tersimpan") }
+            onTransaksiTersimpan = { loadDashboard(); loadFinanceData(riwayatFilter); setSuccess("Transaksi tersimpan") }
         )
     }
 
@@ -1488,6 +1946,26 @@ class AppViewModel(
         }
     }
 
+    /** Minta link sementara dokumen (slip gaji / invoice) lalu serahkan ke [bukaUrl] (membuka browser). */
+    fun bukaDokumen(jenis: String, id: String, month: Int? = null, year: Int? = null, type: String? = null, bukaUrl: (String) -> Unit) = viewModelScope.launch {
+        try {
+            val res = api.linkDokumen(jenis, id, month, year, type)
+            val url = res.data?.url
+            if (res.success && !url.isNullOrBlank()) bukaUrl(url) else setError(res.message ?: "Dokumen tidak bisa dibuka")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    /** Ambil alamat + token realtime dari backend lalu sambungkan Socket.io (tanpa alamat bawaan di app). */
+    fun sambungkanRealtime(unitId: Int) = viewModelScope.launch {
+        if (unitId <= 0 || !session.isLoggedIn()) return@launch
+        try {
+            val cfg = api.getRealtimeConfig(unitId).data ?: return@launch
+            if (cfg.socketUrl.isBlank() || cfg.token.isBlank()) return@launch // server belum mengaktifkan realtime
+            SocketManager.disconnect()
+            SocketManager.connect(cfg.socketUrl, unitId, session.getUserId(), cfg.token)
+        } catch (e: Exception) { Napier.w("Realtime tidak tersambung: ${e.message}", tag = "AppViewModel") }
+    }
+
     private fun setupSocket() = viewModelScope.launch {
         try {
             SocketManager.events.collect { event ->
@@ -1498,12 +1976,20 @@ class AppViewModel(
                     is RealtimeEvent.Notification -> loadNotifications()
                     is RealtimeEvent.OrderStatusChanged -> loadOrders()
                     is RealtimeEvent.PosCashAlert -> refreshAll()
-                    is RealtimeEvent.TicketMessage -> loadTicketMessages(event.data.toIntOrNull() ?: 0)
+                    is RealtimeEvent.TicketMessage -> {
+                        val id = Regex("\"ticketId\"\\s*:\\s*(\\d+)").find(event.data)?.groupValues?.get(1)?.toIntOrNull() ?: event.data.toIntOrNull() ?: 0
+                        if (id > 0) loadTicketMessages(id)
+                        loadTickets()
+                    }
                     is RealtimeEvent.Connected -> {
                         val active = _activeUnitId.value
                         if (active > 0) SocketManager.joinUnit(active)
                     }
-                    RealtimeEvent.Disconnected -> {}
+                    RealtimeEvent.Disconnected -> {
+                        // token berlaku 1 jam → minta token baru lalu sambung lagi bila masih login
+                        kotlinx.coroutines.delay(5000)
+                        if (session.isLoggedIn() && !SocketManager.isConnected()) sambungkanRealtime(_activeUnitId.value)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -1540,6 +2026,7 @@ class AppViewModel(
             val unit = _units.value.find { it.id == unitId }
             session.setActiveUnit(unitId, unit?.name ?: "", unit?.slug ?: "")
             if (unitId > 0) {
+                sambungkanRealtime(unitId)
                 SocketManager.joinUnit(unitId)
                 // Reset all module data so they reload fresh for the new unit
                 _financeData.value = null; _riwayat.value = null
@@ -1716,11 +2203,19 @@ class AppViewModel(
         _orders.value = emptyList()
     }
 
+    /** Pesan bila detail pesanan gagal dimuat — tanpa ini layar menampilkan kerangka loading selamanya. */
+    private val _orderDetailGalat = MutableStateFlow<String?>(null)
+    val orderDetailGalat: StateFlow<String?> = _orderDetailGalat.asStateFlow()
     fun loadOrderDetail(orderId: Int) = viewModelScope.launch {
+        _orderDetailGalat.value = null
         try {
             val res = api.getOrderDetail(orderId)
-            if (res.success) _selectedOrder.value = res.data
-        } catch (e: Exception) { Napier.e("loadOrderDetail error", e) }
+            if (res.success && res.data != null) _selectedOrder.value = res.data
+            else _orderDetailGalat.value = res.message ?: "Pesanan tidak ditemukan"
+        } catch (e: Exception) {
+            Napier.e("loadOrderDetail error", e)
+            _orderDetailGalat.value = "Koneksi gagal. Periksa internet lalu coba lagi."
+        }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Finance AR/AP ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
@@ -1769,19 +2264,19 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadAccountingContacts error", e) }
     }
 
-    fun payReceivable(invoiceId: Int, nominalBayar: Double) = viewModelScope.launch {
+    fun payReceivable(invoiceId: Int, nominalBayar: Double, kasCoaId: Int? = null) = viewModelScope.launch {
         setLoading(true)
         try {
-            val res = api.payReceivable(PayInvoiceRequest(invoiceId, nominalBayar))
+            val res = api.payReceivable(PayInvoiceRequest(invoiceId, nominalBayar, kasCoaId))
             if (res.success) { loadReceivables(); setSuccess("Pembayaran piutang berhasil!") }
             else setError(res.message ?: "Gagal bayar piutang")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
-    fun payPayable(invoiceId: Int, nominalBayar: Double) = viewModelScope.launch {
+    fun payPayable(invoiceId: Int, nominalBayar: Double, kasCoaId: Int? = null) = viewModelScope.launch {
         setLoading(true)
         try {
-            val res = api.payPayable(PayInvoiceRequest(invoiceId, nominalBayar))
+            val res = api.payPayable(PayInvoiceRequest(invoiceId, nominalBayar, kasCoaId))
             if (res.success) { loadPayables(); setSuccess("Pembayaran hutang berhasil!") }
             else setError(res.message ?: "Gagal bayar hutang")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
@@ -1850,7 +2345,10 @@ class AppViewModel(
         }
     }
 
+    private var _ticketMessagesFor = 0
     fun loadTicketMessages(ticketId: Int) = viewModelScope.launch {
+        // Tiket lain → kosongkan dulu supaya pesan tiket sebelumnya tidak sempat tampil
+        if (_ticketMessagesFor != ticketId) { _ticketMessages.value = emptyList(); _ticketMessagesFor = ticketId }
         try {
             val res = api.getTicketMessages(ticketId)
             if (res.success) _ticketMessages.value = res.data ?: emptyList()
@@ -1859,9 +2357,17 @@ class AppViewModel(
 
     fun replyTicket(ticketId: Int, message: String) = viewModelScope.launch {
         try {
-            api.replyTicket(ticketId, message)
-            loadTicketMessages(ticketId)
-        } catch (e: Exception) { setError("Gagal kirim balasan") }
+            val res = api.replyTicket(ticketId, message)
+            if (res.success) { loadTicketMessages(ticketId); loadTickets() }
+            else setError(res.message ?: "Gagal kirim balasan")
+        } catch (e: Exception) { setError("Gagal kirim balasan: ${e.message}") }
+    }
+
+    fun updateTicketPriority(ticketId: Int, priority: String) = viewModelScope.launch {
+        try {
+            val res = api.updateTicketPriority(ticketId, priority)
+            if (res.success) { loadTickets(); setSuccess("Prioritas tiket diperbarui") } else setError(res.message ?: "Gagal mengubah prioritas")
+        } catch (e: Exception) { setError("Gagal: ${e.message}") }
     }
 
     fun updateTicketStatus(ticketId: Int, status: String) = viewModelScope.launch {
@@ -2103,40 +2609,11 @@ class AppViewModel(
         val unitId = _activeUnitId.value
         try {
             val res = api.toggleLandingPage(pageId, unitId, isActive)
-            if (res.success) loadLandingPages()
-        } catch (e: Exception) { Napier.e("toggleLandingPageActive error", e) }
-    }
-
-    // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Shopee Integration ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-    fun loadShopeeStatus() = viewModelScope.launch {
-        _shopeeState.update { it.copy(isLoading = true, error = null) }
-        val unitId = _activeUnitId.value
-        if (unitId == 0) { _shopeeState.update { it.copy(isLoading = false, error = "Pilih unit bisnis") }; return@launch }
-        try {
-            val res = api.getShopeeStatus(unitId)
-            if (res.success) _shopeeState.update { it.copy(isLoading = false, integration = res.data) }
-            else _shopeeState.update { it.copy(isLoading = false, error = res.error) }
-        } catch (e: Exception) { _shopeeState.update { it.copy(isLoading = false, error = "Koneksi gagal: ${e.message}") } }
-    }
-
-    fun connectShopee(shopId: String, shopName: String, token: String) = viewModelScope.launch {
-        _shopeeState.update { it.copy(isLoading = true) }
-        val unitId = _activeUnitId.value
-        try {
-            val res = api.connectShopee(ShopeeIntegration(unitId = unitId, shopId = shopId, shopName = shopName, accessToken = token, isActive = true))
-            if (res.success) { _shopeeState.update { it.copy(isLoading = false, integration = res.data) }; setSuccess("Shopee berhasil terhubung!") }
-            else { _shopeeState.update { it.copy(isLoading = false, error = res.error) }; setError(res.message ?: "Gagal") }
-        } catch (e: Exception) { _shopeeState.update { it.copy(isLoading = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
-    }
-
-    fun disconnectShopee() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        try {
-            val res = api.disconnectShopee(unitId)
-            if (res.success) { loadShopeeStatus(); setSuccess("Shopee berhasil diputus!") }
-            else setError(res.message ?: "Gagal putus koneksi")
+            if (res.success) { loadLandingPages(); setSuccess(if (isActive) "Landing page diaktifkan" else "Landing page dinonaktifkan") }
+            else setError(res.message ?: "Gagal mengubah status landing page")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
+
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Advanced Settings ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     fun loadProfileSettings() = viewModelScope.launch {
@@ -2154,8 +2631,9 @@ class AppViewModel(
                     isLoading = false,
                     username = res.data["username"] ?: session.getUsername(),
                     email = res.data["email"] ?: session.getEmail(),
-                    phone = res.data["phone"] ?: ""
+                    avatarUrl = res.data["avatarUrl"] ?: ""
                 ) }
+                _profilVersi.value++
             } else {
                 _advancedSettingsState.update { it.copy(isLoading = false) }
             }
@@ -2165,12 +2643,22 @@ class AppViewModel(
         }
     }
 
-    fun saveProfile(name: String, email: String, phone: String) = viewModelScope.launch {
+    private val _profilVersi = MutableStateFlow(0)
+    /** Naik setiap profil berubah (nama/email/foto) agar layar yang membaca sesi ikut menyegarkan diri. */
+    val profilVersi: StateFlow<Int> = _profilVersi.asStateFlow()
+    val avatarUrl: String get() = _advancedSettingsState.value.avatarUrl
+
+    fun saveProfile(name: String, email: String, avatarUrl: String) = viewModelScope.launch {
         _advancedSettingsState.update { it.copy(isSaving = true, error = null) }
         val unitId = _activeUnitId.value
         try {
-            val res = api.updateProfile(unitId, mapOf("name" to name, "email" to email, "phone" to phone))
-            if (res.success) { _advancedSettingsState.update { it.copy(isSaving = false, successMessage = "Profil berhasil disimpan!") }; setSuccess("Profil berhasil disimpan!") }
+            val res = api.updateProfile(unitId, mapOf("name" to name, "email" to email, "avatarUrl" to avatarUrl))
+            if (res.success) {
+                session.getToken()?.let { session.saveSession(it, session.getRole(), email, name, session.getUserId()) }
+                _advancedSettingsState.update { it.copy(isSaving = false, username = name, email = email, avatarUrl = avatarUrl, successMessage = "Profil berhasil disimpan!") }
+                _profilVersi.value++
+                setSuccess("Profil berhasil disimpan!")
+            }
             else { _advancedSettingsState.update { it.copy(isSaving = false, error = res.error) }; setError(res.message ?: "Gagal") }
         } catch (e: Exception) { _advancedSettingsState.update { it.copy(isSaving = false, error = e.message) }; setError("Koneksi gagal: ${e.message}") }
     }
@@ -2290,6 +2778,30 @@ class AppViewModel(
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
 
+    fun ubahTargetSales(targetId: Int, amount: Double) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahTargetSales(targetId, _activeUnitId.value, amount)
+            if (res.success) { loadSalesTargets(); setSuccess("Target diperbarui") } else setError(res.message ?: "Gagal memperbarui target")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun ubahStatusKampanye(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusKampanye(id, _activeUnitId.value, status)
+            if (res.success) { loadMarketingCampaigns(); setSuccess("Status kampanye: $status") } else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    fun hapusKampanye(id: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.hapusKampanye(id, _activeUnitId.value)
+            if (res.success) { loadMarketingCampaigns(); setSuccess("Kampanye dihapus") } else setError(res.message ?: "Gagal menghapus kampanye")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun deleteSalesTarget(targetId: Int) = viewModelScope.launch {
         try {
             val res = api.deleteSalesTarget(targetId, _activeUnitId.value)
@@ -2309,6 +2821,24 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Stock Opname Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+    /** Simpan hasil hitung fisik; [onSelesai] dipanggil bila berhasil (form ditutup). */
+    fun simpanStokOpname(catatan: String?, items: List<Pair<String, Int>>, onGagal: () -> Unit = {}, onSelesai: () -> Unit) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.simpanStokOpname(_activeUnitId.value, catatan, items)
+            if (res.success) { loadStockOpnameList(); loadProducts(); loadLowStock(); setSuccess(res.message ?: "Stok opname selesai"); onSelesai() }
+            else { setError(res.message ?: "Gagal menyimpan stok opname"); onGagal() }
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}"); onGagal() }
+    }
+
+    fun ubahHargaProduk(productId: String, hargaBeli: Double, hargaJual: Double, minStok: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahHarga(productId, hargaBeli, hargaJual, minStok)
+            if (res.success) { loadProducts(); setSuccess("Harga diperbarui") } else setError(res.message ?: "Gagal memperbarui harga")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun loadStockOpnameList() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -2347,6 +2877,42 @@ class AppViewModel(
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Sales Orders Methods ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+    fun buatPenawaran(customerId: Int?, validUntil: String?, notes: String?, items: List<ItemJual>) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.buatPenawaran(_activeUnitId.value, customerId, validUntil, notes, items)
+            if (res.success) { loadQuotations(); setSuccess("Penawaran dibuat") } else setError(res.message ?: "Gagal membuat penawaran")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahStatusPenawaran(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusPenawaran(_activeUnitId.value, id, status)
+            if (res.success) { loadQuotations(); setSuccess("Status penawaran: $status") } else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun jadikanSalesOrder(quotationId: Int) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.jadikanSalesOrder(_activeUnitId.value, quotationId)
+            if (res.success) { loadQuotations(); loadSalesOrders(); setSuccess("Sales order dibuat dari penawaran") } else setError(res.message ?: "Gagal membuat sales order")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun buatSalesOrder(customerId: Int?, notes: String?, items: List<ItemJual>) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.buatSalesOrder(_activeUnitId.value, customerId, notes, items)
+            if (res.success) { loadSalesOrders(); setSuccess("Sales order dibuat") } else setError(res.message ?: "Gagal membuat sales order")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+    fun ubahStatusSalesOrder(id: Int, status: String) = viewModelScope.launch {
+        setLoading(true)
+        try {
+            val res = api.ubahStatusSalesOrder(id, status)
+            if (res.success) { loadSalesOrders(); setSuccess("Status sales order: $status") } else setError(res.message ?: "Gagal mengubah status")
+        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
     fun loadSalesOrders() = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
@@ -2366,18 +2932,36 @@ class AppViewModel(
         } catch (e: Exception) { Napier.e("loadLowStock error", e) }
     }
 
+    private val _notifAdaLagi = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val notifAdaLagi: kotlinx.coroutines.flow.StateFlow<Boolean> = _notifAdaLagi.asStateFlow()
+
+    /** Muat notifikasi terbaru semua unit (halaman pertama). */
     fun loadNotifications() = viewModelScope.launch {
-        val unitId = _activeUnitId.value
-        if (unitId == 0) return@launch
         try {
-            val res = api.getNotifications(unitId)
+            val res = api.getNotifications(limit = 30)
             if (res.success) {
-                _notifications.value = res.data ?: emptyList()
-                _unreadCount.value = res.data?.count { it.isRead == 0 } ?: 0
+                val data = res.data ?: emptyList()
+                _notifications.value = data
+                _notifAdaLagi.value = data.size >= 30
+                _unreadCount.value = data.count { it.isRead == 0 }
             }
         } catch (e: Exception) { Napier.e("loadNotifications error", e) }
     }
+
+    /** Halaman berikutnya (id lebih kecil dari yang sudah dimuat). */
+    fun loadMoreNotifications() = viewModelScope.launch {
+        val terakhir = _notifications.value.minOfOrNull { it.id } ?: return@launch
+        try {
+            val res = api.getNotifications(limit = 30, before = terakhir)
+            if (res.success) {
+                val tambahan = res.data ?: emptyList()
+                _notifications.value = (_notifications.value + tambahan).distinctBy { it.id }
+                _notifAdaLagi.value = tambahan.size >= 30
+            }
+        } catch (e: Exception) { Napier.e("loadMoreNotifications error", e) }
+    }
     fun logout() = viewModelScope.launch {
+        SocketManager.disconnect()
         session.clearSession()
         navigationManager.navigateToRoot(Screen.Login)
     }
@@ -2415,6 +2999,18 @@ class AppViewModel(
             if (res.success) { loadSosmedPosts(); setSuccess("Postingan berhasil dihapus!") }
             else setError(res.message ?: "Gagal hapus postingan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+    }
+
+    /** Terapkan plan jadi data bisnis (unit baru bila [unitId] null). [onSelesai] menerima (berhasil, pesan, jumlah data, unitId). */
+    fun terapkanPlan(planId: Int, unitId: Int?, onSelesai: (Boolean, String, Int, Int) -> Unit) = viewModelScope.launch {
+        try {
+            val res = api.terapkanPlan(planId, unitId)
+            val d = res.data
+            if (res.success) {
+                loadBusinessPlans(); loadUnits()
+                onSelesai(true, res.message ?: "Rencana diterapkan", (d?.get("totalRecords") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0, (d?.get("unitId") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0)
+            } else onSelesai(false, res.message ?: "Gagal menerapkan rencana", 0, 0)
+        } catch (e: Exception) { onSelesai(false, "Koneksi gagal: ${e.message}", 0, 0) }
     }
 
     fun applyBusinessPlan(id: Int) = viewModelScope.launch {
@@ -2471,11 +3067,11 @@ class AppViewModel(
 
     private val _bukuBesarData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.BukuBesarData?>(null)
     val bukuBesarData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.BukuBesarData?> = _bukuBesarData.asStateFlow()
-    fun loadBukuBesar(coaId: Int, tahun: Int? = null) = viewModelScope.launch {
+    fun loadBukuBesar(coaId: Int, tahun: Int? = null, bulan: Int? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         if (unitId == 0) return@launch
         try {
-            val res = api.getBukuBesar(unitId, coaId, tahun)
+            val res = api.getBukuBesar(unitId, coaId, tahun, bulan)
             if (res.success) _bukuBesarData.value = res.data
         } catch (e: Exception) { Napier.e("loadBukuBesar error", e) }
     }
@@ -2848,7 +3444,7 @@ class AppViewModel(
         _exportImportState.update { it.copy(isLoading = true, error = null, validationResult = null) }
         try {
             val result = api.validateImportFile(unitId, dataType, fileBase64, fileName)
-            _exportImportState.update { it.copy(isLoading = false, validationResult = result.data) }
+            _exportImportState.update { it.copy(isLoading = false, validationResult = result.data, error = if (result.data == null) (result.error ?: "File tidak bisa divalidasi") else null) }
         } catch (e: Exception) {
             _exportImportState.update { it.copy(isLoading = false, error = e.message) }
         }
@@ -2868,7 +3464,7 @@ class AppViewModel(
                     successMessage = "Import berhasil: ${result.data?.importedCount} data diimport"
                 ) }
             } else {
-                _exportImportState.update { it.copy(isLoading = false, error = result.error) }
+                _exportImportState.update { it.copy(isLoading = false, lastImportResult = result.data, error = result.error ?: "Import gagal") }
             }
         } catch (e: Exception) {
             _exportImportState.update { it.copy(isLoading = false, error = e.message) }

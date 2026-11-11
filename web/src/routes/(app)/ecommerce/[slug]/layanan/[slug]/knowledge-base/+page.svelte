@@ -3,8 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data; export let form;
-    const { unit } = data;
-    let articles = data.articles || [];
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit } = data);
     let showModal = false;
     let expandedId = null;
     $: if (form?.success) { showModal = false; }

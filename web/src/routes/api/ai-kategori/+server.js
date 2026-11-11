@@ -28,7 +28,7 @@ export async function POST({ request, cookies }) {
 	try { body = await request.json(); } catch { return apiError('Invalid JSON', 400); }
 
 	const parsed = schema.safeParse(body);
-	if (!parsed.success) return apiError(parsed.error.errors[0]?.message, 422);
+	if (!parsed.success) return apiError(parsed.error.issues[0]?.message, 422);
 
 	const { teks, unitId } = parsed.data;
 

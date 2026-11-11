@@ -1,9 +1,10 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { fixedAssets, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { ubahAset, hapusAset, MasterDataError } from '$lib/server/masterData';
+import { ubahAset, hapusAset, buatAset, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
@@ -44,32 +45,12 @@ export const actions = {
         });
         if (!unit) return fail(404, { error: 'Unit not found' });
 
-        const data = await request.formData();
-        const namaAset = data.get('namaAset');
-        const kategori = data.get('kategori');
-        const nilaiPerolehan = data.get('nilaiPerolehan');
-        const tanggalPerolehan = data.get('tanggalPerolehan');
-        const umurEkonomis = data.get('umurEkonomis');
-        const metodePenyusutan = data.get('metodePenyusutan');
-        const nilaiSisa = data.get('nilaiSisa') || 0;
-        const coaId = data.get('coaId');
-
+        const data = Object.fromEntries(await request.formData());
         try {
-            await db.insert(fixedAssets).values({
-                unitId: unit.id,
-                namaAset,
-                kategori,
-                nilaiPerolehan: String(nilaiPerolehan),
-                tanggalPerolehan,
-                umurEkonomis: Number(umurEkonomis),
-                metodePenyusutan,
-                nilaiSisa: String(nilaiSisa),
-                nilaiBuku: String(nilaiPerolehan),
-                status: 'AKTIF',
-                coaId: coaId ? Number(coaId) : null
-            });
+            await buatAset(db, unit.id, data);
             return { success: true };
         } catch (err) {
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Add Asset Error');
             return fail(500, { error: 'Gagal menambah aset' });
         }
@@ -84,11 +65,12 @@ export const actions = {
         const data = Object.fromEntries(await request.formData());
         try {
             const { id, ...isi } = data;
+            if (!(Number(id) > 0)) return fail(400, { error: 'Aset tidak valid' });
             // sama dengan form lama: COA kosong = dilepas, nilai sisa kosong = 0, status default AKTIF
             await ubahAset(db, unit.id, Number(id), { ...isi, coaId: isi.coaId || null, nilaiSisa: isi.nilaiSisa || 0, status: isi.status || 'AKTIF' });
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Edit Asset Error');
             return fail(500, { error: 'Gagal mengubah aset' });
         }
@@ -105,7 +87,7 @@ export const actions = {
             await hapusAset(db, unit.id, Number(data.get('id')));
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Delete Asset Error');
             return fail(500, { error: 'Gagal menghapus aset' });
         }

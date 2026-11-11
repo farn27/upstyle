@@ -4,18 +4,60 @@
  */
 import { db } from '$lib/server/drizzle';
 import { transaksi, unitBisnis } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, gte, lte } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 import { exportTransaksiExcel } from '$lib/server/excelExport.js';
 import { generateLaporanPDF } from '$lib/server/pdfGenerator.js';
-import { checkRateLimit, getClientIP, EXPORT_LIMIT } from '$lib/server/rateLimit';
+import { checkRateLimit, EXPORT_LIMIT } from '$lib/server/rateLimit';
+
+/** @param {string} n */
+const namaBerkas = (n) => String(n || 'unit').replace(/[^\w.-]+/g, '_').slice(0, 60);
+
+/**
+ * @param {string} periode
+ * @param {string | null} start
+ * @param {string | null} end
+ * @returns {{ mulai: string | null, akhir: string | null, label: string } | null}
+ */
+export function _rentangPeriode(periode, start, end) {
+  return rentangPeriode(periode, start, end);
+}
+
+/** @param {string} periode @param {string | null} start @param {string | null} end */
+function rentangPeriode(periode, start, end) {
+  const tgl = /^\d{4}-\d{2}-\d{2}$/;
+  if (start || end) {
+    if (!start || !end || !tgl.test(start) || !tgl.test(end) || start > end) return null;
+    return { mulai: start, akhir: end, label: `${start} s/d ${end}` };
+  }
+  const now = new Date(Date.now() + 7 * 3600_000); // WIB
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth() + 1;
+  const pad = (/** @type {number} */ n) => String(n).padStart(2, '0');
+  const akhirBulan = (/** @type {number} */ yy, /** @type {number} */ mm) => `${yy}-${pad(mm)}-${pad(new Date(Date.UTC(yy, mm, 0)).getUTCDate())}`;
+  const p = String(periode || 'bulan_ini').toLowerCase();
+  if (p === 'semua') return { mulai: null, akhir: null, label: 'Semua periode' };
+  if (p === 'bulan_ini') return { mulai: `${y}-${pad(m)}-01`, akhir: akhirBulan(y, m), label: `Bulan ini (${pad(m)}/${y})` };
+  if (p === 'bulan_lalu') {
+    const yy = m === 1 ? y - 1 : y;
+    const mm = m === 1 ? 12 : m - 1;
+    return { mulai: `${yy}-${pad(mm)}-01`, akhir: akhirBulan(yy, mm), label: `Bulan lalu (${pad(mm)}/${yy})` };
+  }
+  if (p === 'tahun_ini') return { mulai: `${y}-01-01`, akhir: `${y}-12-31`, label: `Tahun ${y}` };
+  const bulan = /^(\d{4})-(\d{2})$/.exec(p);
+  if (bulan && Number(bulan[2]) >= 1 && Number(bulan[2]) <= 12) {
+    const yy = Number(bulan[1]);
+    const mm = Number(bulan[2]);
+    return { mulai: `${yy}-${pad(mm)}-01`, akhir: akhirBulan(yy, mm), label: `${pad(mm)}/${yy}` };
+  }
+  return null;
+}
 
 export async function GET({ url, cookies, request }) {
   const userId = await getCurrentUserId(cookies, request);
   if (!userId) return apiUnauthorized();
 
-  const ip = getClientIP({ headers: new Headers() });
   const rl = await checkRateLimit({ key: `user:${userId}`, prefix: 'rl:export', ...EXPORT_LIMIT });
   if (!rl.allowed) return new Response('Rate limit exceeded', { status: 429 });
 
@@ -32,12 +74,18 @@ export async function GET({ url, cookies, request }) {
     .limit(1);
   if (!unit) return apiError('Unit tidak ditemukan', 404);
 
-  // Ambil transaksi
+  // Periode benar-benar menyaring data (dulu hanya label di judul laporan; isinya selalu 1000 transaksi terakhir)
+  const rentang = rentangPeriode(periode, url.searchParams.get('start'), url.searchParams.get('end'));
+  if (!rentang) return apiError('Periode tidak valid (bulan_ini, bulan_lalu, tahun_ini, semua, YYYY-MM, atau start & end YYYY-MM-DD)', 400);
+  const syarat = [eq(transaksi.unitId, unitId)];
+  if (rentang.mulai) syarat.push(gte(transaksi.tanggal, `${rentang.mulai} 00:00:00`));
+  if (rentang.akhir) syarat.push(lte(transaksi.tanggal, `${rentang.akhir} 23:59:59`));
+
   const txList = await db.select()
     .from(transaksi)
-    .where(eq(transaksi.unitId, unitId))
+    .where(and(...syarat))
     .orderBy(desc(transaksi.tanggal))
-    .limit(1000);
+    .limit(5000);
 
   const transactions = txList.map(t => ({
     ...t,
@@ -51,7 +99,7 @@ export async function GET({ url, cookies, request }) {
   if (format === 'pdf') {
     const pdfBytes = await generateLaporanPDF({
       unitName: unit.namaUnit,
-      periode,
+      periode: rentang.label,
       masuk: totalMasuk,
       keluar: totalKeluar,
       laba: totalMasuk - totalKeluar,
@@ -61,7 +109,7 @@ export async function GET({ url, cookies, request }) {
     return new Response(pdfBytes, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="laporan-${unit.namaUnit}-${Date.now()}.pdf"`,
+        'Content-Disposition': `attachment; filename="laporan-${namaBerkas(unit.namaUnit)}-${Date.now()}.pdf"`,
       },
     });
   }
@@ -70,13 +118,13 @@ export async function GET({ url, cookies, request }) {
   const buffer = await exportTransaksiExcel({
     unitName: unit.namaUnit,
     transactions,
-    periode,
+    periode: rentang.label,
   });
 
   return new Response(buffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="transaksi-${unit.namaUnit}-${Date.now()}.xlsx"`,
+      'Content-Disposition': `attachment; filename="transaksi-${namaBerkas(unit.namaUnit)}-${Date.now()}.xlsx"`,
     },
   });
 }

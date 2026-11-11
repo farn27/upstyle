@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, landingPages, products } from '$lib/server/schema';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -47,14 +48,24 @@ export const actions = {
             });
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
 
-            const content = JSON.parse(contentRaw);
-            await db.update(landingPages)
-                .set({ contentJson: content, title: title || undefined })
-                .where(and(eq(landingPages.id, Number(pageId)), eq(landingPages.unitId, unit.id)));
+            const id = Number(pageId);
+            if (!Number.isInteger(id) || id <= 0) return fail(404, { error: 'Halaman tidak ditemukan' });
+            /** @type {any} */
+            let content;
+            try {
+                content = JSON.parse(contentRaw);
+            } catch {
+                return fail(400, { error: 'Isi halaman tidak valid' });
+            }
+            if (!content || typeof content !== 'object' || contentRaw.length > 2_000_000) return fail(400, { error: 'Isi halaman tidak valid atau terlalu besar' });
+            const [hasil] = await db.update(landingPages)
+                .set({ contentJson: content, ...(title ? { title: title.slice(0, 200) } : {}) })
+                .where(and(eq(landingPages.id, id), eq(landingPages.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { error: 'Halaman tidak ditemukan' });
 
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal menyimpan: ' + err.message });
+            return fail(500, { error: 'Gagal menyimpan: ' + pesanAman(err) });
         }
     },
 
@@ -70,9 +81,12 @@ export const actions = {
                 where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
             });
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
-            await db.update(landingPages)
+            const id = Number(pageId);
+            if (!Number.isInteger(id) || id <= 0) return fail(404, { error: 'Halaman tidak ditemukan' });
+            const [hasil] = await db.update(landingPages)
                 .set({ isActive })
-                .where(and(eq(landingPages.id, Number(pageId)), eq(landingPages.unitId, unit.id)));
+                .where(and(eq(landingPages.id, id), eq(landingPages.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { error: 'Halaman tidak ditemukan' });
             return { success: true, isActive };
         } catch { return fail(500, { error: 'Gagal mengubah status' }); }
     }

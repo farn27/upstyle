@@ -140,5 +140,7 @@ export async function getLowStockProducts(unitId, limit = 10) {
 		)
 		.orderBy(asc(products.stok))
 		.limit(Number(limit));
-	return rows;
+	// minStok (camelCase) untuk aplikasi mobile: model Kotlin LowStockProduct mewajibkan field ini; dulu hanya
+	// min_stok yang dikirim sehingga parsing gagal dan daftar "stok menipis" di HP selalu kosong (F-10)
+	return rows.map((/** @type {any} */ r) => ({ ...r, minStok: Number(r.min_stok ?? 0) }));
 }

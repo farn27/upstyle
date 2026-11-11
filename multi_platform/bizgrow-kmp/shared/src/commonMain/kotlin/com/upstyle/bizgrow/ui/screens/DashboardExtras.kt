@@ -77,10 +77,10 @@ fun PeriodeDashboard(viewModel: AppViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RingkasanKinerja(m: MetrikKinerja, sembunyi: Boolean, modifier: Modifier = Modifier) {
+fun RingkasanKinerja(m: MetrikKinerja, sembunyi: Boolean, modifier: Modifier = Modifier, onTambah: (() -> Unit)? = null) {
     fun f(v: Double) = if (sembunyi) "Rp ••••" else v.rupiahRingkas()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionTitle("Ringkasan kinerja", subtitle = "Periode yang dipilih")
+        SectionTitle("Ringkasan kinerja", subtitle = "Periode yang dipilih", actionLabel = if (onTambah != null) "+ Tambah transaksi" else null, onAction = onTambah)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Saldo kas", f(m.saldoKas), Icons.Rounded.Paid, BizgrowColors.Primary, Modifier.weight(1f), caption = "sepanjang waktu")
             StatTile("Pemasukan", f(m.masuk), Icons.Rounded.SouthWest, BizgrowColors.Success, Modifier.weight(1f))
@@ -183,22 +183,24 @@ fun RiskAssessment(m: MetrikKinerja, sembunyi: Boolean, modifier: Modifier = Mod
 
 @Composable
 fun StokMenipisCard(daftar: List<LowStockProduct>, onBuka: () -> Unit, modifier: Modifier = Modifier) {
-    if (daftar.isEmpty()) return
+    var ditutup by remember(daftar.size) { mutableStateOf(false) }
+    if (daftar.isEmpty() || ditutup) return
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(BizgrowColors.Warning.copy(alpha = 0.12f))
-            .pressClick(pressedScale = 0.99f, onClick = onBuka).padding(14.dp)
+        modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(BizgrowColors.Warning.copy(alpha = 0.12f)).padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.ErrorOutline, null, tint = BizgrowColors.WarningDark, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Stok menipis (${daftar.size})", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = BizgrowColors.WarningDark, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.ChevronRight, null, tint = BizgrowColors.WarningDark)
+            Text("${daftar.size} produk stok menipis", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = BizgrowColors.WarningDark, modifier = Modifier.weight(1f))
+            Text("Kelola stok", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = BizgrowColors.WarningDark,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).pressClick(onClick = onBuka).padding(horizontal = 6.dp, vertical = 4.dp))
+            Icon(Icons.Rounded.Close, "Tutup", tint = BizgrowColors.WarningDark, modifier = Modifier.size(28.dp).clip(CircleShape).pressClick { ditutup = true }.padding(5.dp))
         }
         Spacer(Modifier.height(6.dp))
         daftar.take(5).forEach { p ->
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(p.nama, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
-                Text("Sisa ${p.stok}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = BizgrowColors.WarningDark,
+                Text("Sisa ${p.stok}/${p.minStok}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = BizgrowColors.WarningDark,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(BizgrowColors.Warning.copy(alpha = 0.25f)).padding(horizontal = 8.dp, vertical = 2.dp))
             }
         }

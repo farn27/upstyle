@@ -7,6 +7,7 @@ import { checkRateLimit, getClientIP, API_LOGIN_LIMIT } from '$lib/server/rateLi
 import { googleTokenSchema } from '$lib/server/validation';
 import { createSession } from '$lib/server/session';
 import { log } from '$lib/server/logger';
+import { dev } from '$app/environment';
 
 /**
  * POST /api/auth/google
@@ -39,18 +40,19 @@ export async function POST({ request }) {
 
 	const { googleToken } = parsed.data;
 
-	// Log token length for debugging
-	log.auth.info({ tokenLength: googleToken.length, tokenSample: googleToken.slice(0, 20) }, 'Received Google token');
 	if (googleToken.length < 10) {
 		return apiError('Google token terlalu pendek', 400, 'TOKEN_TOO_SHORT');
 	}
 
 	try {
         let profile;
-        if (googleToken.startsWith('mock-token-')) {
+        // Token tiruan HANYA untuk pengembangan lokal. Dulu berlaku juga di produksi, sehingga
+        // siapa pun bisa login sebagai akun mana pun cukup dengan mengirim "mock-token-<email>".
+        if (dev && googleToken.startsWith('mock-token-')) {
             const email = googleToken.replace('mock-token-', '');
             profile = {
                 email: email,
+                email_verified: 'true',
                 sub: 'mock-google-id-' + email.split('@')[0],
                 name: email.split('@')[0].toUpperCase(),
                 picture: '',
@@ -72,6 +74,10 @@ export async function POST({ request }) {
             const expectedAud = env.GOOGLE_CLIENT_ID.replace(/^"|"$/g, '');
             if (profile.aud !== expectedAud) {
                 return apiError('Token bukan untuk aplikasi ini', 401, 'WRONG_AUDIENCE');
+            }
+            // Email yang belum diverifikasi Google tidak boleh dipakai mengambil alih akun ber-email sama
+            if (String(profile.email_verified) !== 'true') {
+                return apiError('Email Google belum terverifikasi', 401, 'EMAIL_NOT_VERIFIED');
             }
         }
 

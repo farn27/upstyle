@@ -201,11 +201,6 @@ data class LandingPageState(
 )
 
 // â”€â”€â”€ Shopee Integration State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-data class ShopeeState(
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val integration: ShopeeIntegration? = null
-)
 
 // â”€â”€â”€ Advanced Settings State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data class AdvancedSettingsState(
@@ -215,7 +210,7 @@ data class AdvancedSettingsState(
     val successMessage: String? = null,
     val username: String = "",
     val email: String = "",
-    val phone: String = "",
+    val avatarUrl: String = "",
     val darkMode: Boolean = false,
     val notifEnabled: Boolean = true
 )

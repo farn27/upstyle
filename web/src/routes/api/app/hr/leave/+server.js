@@ -34,7 +34,7 @@ export async function GET({ url, cookies, request }) {
         const data = requests.map(r => ({
             id: r.id, employeeId: r.employeeId,
             employeeName: empMap[r.employeeId] || `Karyawan #${r.employeeId}`,
-            type: r.type, startDate: r.startDate || '', endDate: r.endDate || '',
+            type: r.type, startDate: String(r.startDate || '').slice(0, 10), endDate: String(r.endDate || '').slice(0, 10),
             reason: r.reason || '', status: r.status
         }));
 
@@ -62,8 +62,12 @@ export async function POST({ request, cookies }) {
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body.leaveRequest || body);
-        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        if (!parsed.success) return json({ success: false, message: parsed.error.issues?.[0]?.message || 'Input tidak valid' }, { status: 422 });
         const { employeeId, type, startDate, endDate, reason, unitId } = parsed.data;
+        const tgl = (/** @type {string} */ v) => (/^\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(new Date(v.slice(0, 10)).getTime()) ? v.slice(0, 10) : null);
+        const mulai = tgl(startDate), selesai = tgl(endDate);
+        if (!mulai || !selesai) return json({ success: false, message: 'Format tanggal harus YYYY-MM-DD' }, { status: 422 });
+        if (selesai < mulai) return json({ success: false, message: 'Tanggal selesai tidak boleh sebelum tanggal mulai' }, { status: 422 });
         const karyawan = await karyawanMilikUser(db, userId, employeeId);
         if (!karyawan || Number(karyawan.companyId) !== Number(unitId)) {
             return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
@@ -71,8 +75,8 @@ export async function POST({ request, cookies }) {
 
         const [result] = await db.insert(leaveRequests).values({
             employeeId, type,
-            startDate: new Date(startDate).toISOString(),
-            endDate: new Date(endDate).toISOString(),
+            startDate: `${mulai} 00:00:00`,
+            endDate: `${selesai} 00:00:00`,
             reason, status: 'pending'
         });
 
@@ -97,8 +101,10 @@ export async function PUT({ request, cookies }) {
 
     try {
         const body = await request.json();
-        const { leaveId, status } = body;
+        const { leaveId } = body;
+        const status = String(body?.status || '').trim().toLowerCase();
         if (!leaveId || !status) return json({ success: false, message: 'leaveId dan status wajib' }, { status: 400 });
+        if (!['pending', 'approved', 'rejected'].includes(status)) return json({ success: false, message: 'Status harus pending, approved, atau rejected' }, { status: 400 });
         const izin = await db.query.leaveRequests.findFirst({ where: eq(leaveRequests.id, Number(leaveId)) });
         if (!izin || !(await karyawanMilikUser(db, userId, izin.employeeId))) {
             return json({ success: false, message: 'Pengajuan tidak ditemukan' }, { status: 404 });
@@ -108,7 +114,7 @@ export async function PUT({ request, cookies }) {
             .set({ status, approvedBy: status !== 'pending' ? userId : null })
             .where(eq(leaveRequests.id, Number(leaveId)));
 
-        return json({ success: true, message: `Izin ${status === 'approved' ? 'disetujui' : 'ditolak'}` });
+        return json({ success: true, message: status === 'approved' ? 'Pengajuan disetujui' : status === 'rejected' ? 'Pengajuan ditolak' : 'Pengajuan dikembalikan ke menunggu' });
     } catch (err) {
         log.api.error({ err }, 'PUT hr/leave');
         return json({ success: false, message: 'Gagal update izin' }, { status: 500 });

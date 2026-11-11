@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 import com.upstyle.bizgrow.ui.design.*
@@ -30,7 +31,10 @@ fun ProfileScreen(viewModel: AppViewModel) {
     val units by viewModel.units.collectAsState(initial = viewModel.units.value)
     val themeMode by viewModel.themeMode.collectAsState(initial = viewModel.themeMode.value)
     val unread by viewModel.unreadCount.collectAsState(initial = viewModel.unreadCount.value)
-    val user = viewModel.currentUser
+    val profilVersi by viewModel.profilVersi.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadProfileSettings() }
+    val user = remember(profilVersi) { viewModel.currentUser }
+    val fotoProfil = remember(profilVersi) { viewModel.avatarUrl }
     var konfirmasiKeluar by remember { mutableStateOf(false) }
     val paket = labelPaket(user?.role)
 
@@ -58,12 +62,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                         }
                         Spacer(Modifier.height(18.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.size(64.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text((user?.username?.firstOrNull() ?: 'B').uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                            }
+ProductThumb(user?.username ?: "Bizgrow", fotoProfil.takeIf { it.isNotBlank() }, Modifier.size(64.dp), shape = CircleShape, fontSize = 24.sp)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(user?.username ?: "Pengguna", style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -4,6 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 
 actual class PrinterManager {
+    actual fun perangkatTerpasang(): List<Pair<String, String>> = emptyList()
+    actual fun izinSiap(): Boolean = false
+    actual fun mintaIzin(selesai: (Boolean) -> Unit) = selesai(false)
+
     actual fun connectAndPrint(
         macAddress: String,
         receiptText: String,

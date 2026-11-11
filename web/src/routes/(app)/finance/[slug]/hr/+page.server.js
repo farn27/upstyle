@@ -4,6 +4,7 @@ import { eq, and, desc, sql, asc, inArray } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { thisMonthWIB } from '$lib/server/dateUtils';
+import { bayarPayroll } from '$lib/server/bayarGaji';
 
 function toSnakeCase(obj) {
     if (!obj) return obj;
@@ -224,13 +225,14 @@ export async function actions({ request, params, cookies }) {
             ));
         
         const payrollIds = payrollsToUpdate.map(p => p.id);
-        if (payrollIds.length > 0) {
-            await db.update(schema.payrolls)
-                .set({ paymentStatus: 'paid' })
-                .where(inArray(schema.payrolls.id, payrollIds));
+        if (!payrollIds.length) return { success: false, message: 'Belum ada payroll bulan ini.' };
+        try {
+            const hasil = await db.transaction((/** @type {any} */ tx) => bayarPayroll(tx, { unitId, userId: Number(userId), payrollIds }));
+            if (!hasil.jumlah) return { success: false, message: 'Semua payroll bulan ini sudah dibayar.' };
+            return { success: true, message: `${hasil.jumlah} payroll dibayar (Rp ${hasil.total.toLocaleString('id-ID')}) dan dicatat sebagai beban gaji.` };
+        } catch (e) {
+            return { success: false, message: e instanceof Error && /tutup buku|sudah dibayar/i.test(e.message) ? e.message : 'Gagal membayar payroll' };
         }
-
-        return { success: true, message: 'Status payroll bulan ini diubah menjadi paid.' };
     }
 
     return { success: false, message: 'Aksi tidak dikenali.' };

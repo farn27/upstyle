@@ -1,12 +1,23 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { quotations, quotationItems, crmContacts, products, riwayatAksi, posOrders, posOrderItems } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { quotations, quotationItems, crmContacts, products, riwayatAksi, salesOrders, salesOrderItems } from '$lib/server/schema';
+import { eq, and, desc, inArray, like } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
-import crypto from 'crypto';
-import { tanggalWIBPlusHari } from '$lib/server/dateUtils';
+import { siapkanItem, pelangganValid } from '$lib/server/penjualanItem';
+import { tanggalWIBPlusHari, nowSqlWIB } from '$lib/server/dateUtils';
+
+/** Baris item (penawaran / sales order) beserta nama produknya — tanpa LATERAL JOIN. */
+async function itemDenganProduk(rows) {
+    const ids = [...new Set(rows.map((i) => i.productId).filter(Boolean))];
+    const prod = ids.length ? await db.select({ id: products.id, nama: products.nama }).from(products).where(inArray(products.id, ids)) : [];
+    const peta = new Map(prod.map((p) => [p.id, p.nama]));
+    return rows.map((i) => ({
+        id: i.id, productId: i.productId, productName: peta.get(i.productId) || '',
+        qty: i.qty, price: Number(i.price), total: Number(i.total)
+    }));
+}
 
 export async function GET({ url, cookies, request }) {
     const userId = await getCurrentUserId(cookies, request);
@@ -14,20 +25,21 @@ export async function GET({ url, cookies, request }) {
     const unitId = url.searchParams.get('unitId');
     if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
     try {
-        const quos = await db.query.quotations.findMany({
-            where: eq(quotations.unitId, Number(unitId)),
-            orderBy: [desc(quotations.id)],
-            with: { customer: true, items: { with: { product: true } } }
-        });
-        const data = quos.map(q => ({
+        const quos = await db.select().from(quotations).where(eq(quotations.unitId, Number(unitId))).orderBy(desc(quotations.id)).limit(200);
+        const idK = [...new Set(quos.map((q) => q.customerId).filter((x) => x != null))];
+        const kontak = idK.length ? await db.select().from(crmContacts).where(inArray(crmContacts.id, /** @type {number[]} */ (idK))) : [];
+        const petaK = new Map(kontak.map((c) => [c.id, c.nama]));
+        const idQ = quos.map((q) => q.id);
+        const semuaItem = idQ.length ? await db.select().from(quotationItems).where(inArray(quotationItems.quotationId, idQ)) : [];
+        const itemUI = await itemDenganProduk(semuaItem);
+        const perQ = new Map();
+        semuaItem.forEach((r, i) => { const a = perQ.get(r.quotationId) || []; a.push(itemUI[i]); perQ.set(r.quotationId, a); });
+        const data = quos.map((q) => ({
             id: q.id, unitId: q.unitId, quotationNumber: q.quotationNumber,
-            customerId: q.customerId, customerName: q.customer?.nama || 'Customer',
+            customerId: q.customerId, customerName: (q.customerId != null && petaK.get(q.customerId)) || '',
             totalAmount: Number(q.totalAmount || 0), status: q.status,
             validUntil: q.validUntil, notes: q.notes || '', createdAt: q.createdAt || '',
-            items: (q.items || []).map(i => ({
-                id: i.id, productId: i.productId, productName: i.product?.nama || '',
-                qty: i.qty, price: Number(i.price), total: Number(i.total)
-            }))
+            items: perQ.get(q.id) || []
         }));
         return json({ success: true, data });
     } catch (err) {
@@ -41,27 +53,29 @@ export async function POST({ request, cookies }) {
     if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
     try {
         const body = await request.json();
-        const { unitId, customerId, totalAmount, validUntil, notes, items } = body;
-        if (!unitId || !totalAmount) return json({ success: false, message: 'unitId dan totalAmount wajib' }, { status: 400 });
+        const { customerId, validUntil, notes, items } = body;
+        const unitId = Number(body.unitId);
+        if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
+        if (!(await pelangganValid(unitId, customerId))) return json({ success: false, message: 'Pelanggan tidak ditemukan di unit ini' }, { status: 404 });
+        const siap = await siapkanItem(unitId, items);
+        if (siap.error) return json({ success: false, message: siap.error }, { status: 400 });
+        if (validUntil && !/^\d{4}-\d{2}-\d{2}/.test(String(validUntil))) return json({ success: false, message: 'Format tanggal berlaku harus YYYY-MM-DD' }, { status: 400 });
 
-        const quotationNumber = `QUO-${Date.now()}`;
-        const [result] = await db.insert(quotations).values({
-            quotationNumber, unitId: Number(unitId), customerId: customerId || null,
-            totalAmount: String(totalAmount), status: 'DRAFT',
-            validUntil: validUntil || tanggalWIBPlusHari(7),
-            notes: notes || null, createdAt: new Date().toISOString()
-        });
-        const quoId = result.insertId;
-
-        if (Array.isArray(items)) {
-            for (const item of items) {
-                await db.insert(quotationItems).values({
-                    quotationId: quoId, productId: item.productId || null,
-                    qty: Number(item.qty), price: String(item.price), total: String(Number(item.qty) * Number(item.price))
-                });
+        const quotationNumber = `QUO-${unitId}-${Date.now()}`;
+        let quoId = 0;
+        await db.transaction(async (tx) => {
+            const [result] = await tx.insert(quotations).values({
+                quotationNumber, unitId, customerId: customerId ? Number(customerId) : null,
+                totalAmount: String(siap.total), status: 'DRAFT',
+                validUntil: validUntil ? String(validUntil).slice(0, 10) : tanggalWIBPlusHari(7),
+                notes: notes || null, createdAt: nowSqlWIB()
+            });
+            quoId = result.insertId;
+            for (const r of siap.rows || []) {
+                await tx.insert(quotationItems).values({ quotationId: quoId, productId: r.productId, qty: r.qty, price: String(r.price), total: String(r.total) });
             }
-        }
-        await db.insert(riwayatAksi).values({ userId, unitId: Number(unitId), pesan: `Penawaran baru: ${quotationNumber}`, kategori: 'CRM', tipe: 'success' });
+            await tx.insert(riwayatAksi).values({ userId, unitId, pesan: `Penawaran baru: ${quotationNumber}`, kategori: 'CRM', tipe: 'success' });
+        });
         return json({ success: true, message: 'Penawaran berhasil dibuat', data: { id: quoId, quotationNumber } });
     } catch (err) {
         log.api.error({ err }, 'POST crm/quotations');
@@ -78,98 +92,46 @@ export async function PUT({ request, cookies }) {
         const { action, quotationId, unitId } = body;
 
         if (action === 'convert-to-order') {
-            // Validation schema
             const schema = z.object({
                 action: z.literal('convert-to-order'),
                 quotationId: z.coerce.number().int().positive(),
-                unitId: z.coerce.number().int().positive(),
-                orderType: z.enum(['DINE_IN', 'TAKEAWAY', 'DELIVERY']).default('TAKEAWAY'),
-                paymentMethod: z.string().default('CASH')
+                unitId: z.coerce.number().int().positive()
             });
-
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
-                const msg = parsed.error?.issues?.[0]?.message || 'Input tidak valid';
-                return json({ success: false, message: msg }, { status: 400 });
+                return json({ success: false, message: parsed.error?.issues?.[0]?.message || 'Input tidak valid' }, { status: 400 });
             }
 
-            const { orderType, paymentMethod } = body;
-
-            // Get quotation with items
             const quotation = await db.query.quotations.findFirst({
-                where: and(eq(quotations.id, Number(quotationId)), eq(quotations.unitId, Number(unitId))),
-                with: {
-                    items: {
-                        with: { product: true }
-                    },
-                    customer: true
-                }
+                where: and(eq(quotations.id, Number(quotationId)), eq(quotations.unitId, Number(unitId)))
             });
-
-            if (!quotation) {
-                return json({ success: false, message: 'Quotation tidak ditemukan' }, { status: 404 });
+            if (!quotation) return json({ success: false, message: 'Quotation tidak ditemukan' }, { status: 404 });
+            // Sama dengan web: hanya penawaran yang sudah DITERIMA pelanggan yang bisa jadi sales order.
+            if (quotation.status !== 'ACCEPTED') {
+                return json({ success: false, message: 'Hanya penawaran berstatus ACCEPTED yang bisa dijadikan sales order' }, { status: 400 });
             }
+            const penanda = `Dari Quotation #${quotation.quotationNumber}`;
+            const sudah = await db.query.salesOrders.findFirst({ where: and(eq(salesOrders.unitId, Number(unitId)), like(salesOrders.notes, `${penanda}%`)), columns: { id: true, orderNumber: true } });
+            if (sudah) return json({ success: false, message: `Penawaran ini sudah dijadikan sales order ${sudah.orderNumber}` }, { status: 400 });
 
-            if (quotation.status === 'CONVERTED') {
-                return json({ success: false, message: 'Quotation sudah dikonversi' }, { status: 400 });
-            }
-
-            let newOrderId = null;
+            const items = await db.select().from(quotationItems).where(eq(quotationItems.quotationId, quotation.id));
+            let soId = 0;
+            const orderNumber = `SO-${Number(unitId)}-${Date.now()}`;
             await db.transaction(async (tx) => {
-                // Create POS order
-                const orderNumber = `ORD-${Date.now()}`;
-                const [orderResult] = await tx.insert(posOrders).values({
-                    orderNumber,
-                    unitId: Number(unitId),
-                    customerId: quotation.customerId,
-                    createdBy: userId,
-                    subtotal: quotation.totalAmount,
-                    discount: '0',
-                    total: quotation.totalAmount,
-                    paymentMethod: paymentMethod || 'CASH',
-                    status: 'PENDING',
-                    orderType: orderType || 'TAKEAWAY',
-                    fulfillmentStatus: 'PENDING',
-                    notes: `Converted from quotation: ${quotation.quotationNumber}`
+                const [res] = await tx.insert(salesOrders).values({
+                    orderNumber, unitId: Number(unitId), customerId: quotation.customerId,
+                    totalAmount: quotation.totalAmount, status: 'PENDING', notes: penanda, createdAt: nowSqlWIB()
                 });
-
-                newOrderId = orderResult.insertId;
-
-                // Create order items
-                for (const item of quotation.items) {
-                    await tx.insert(posOrderItems).values({
-                        orderId: newOrderId,
-                        productId: item.productId,
-                        productName: item.product?.nama || 'Product',
-                        qty: item.qty,
-                        price: item.price,
-                        total: item.total,
-                        costTotal: String(Number(item.product?.hargaBeli || 0) * item.qty)
-                    });
+                soId = res.insertId;
+                for (const it of items) {
+                    await tx.insert(salesOrderItems).values({ salesOrderId: soId, productId: it.productId, qty: it.qty, price: it.price, total: it.total });
                 }
-
-                // Update quotation status
-                await tx.update(quotations)
-                    .set({ 
-                        status: 'CONVERTED'
-                    })
-                    .where(and(eq(quotations.id, Number(quotationId)), eq(quotations.unitId, Number(unitId))));
-
-                // Log action
                 await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId),
-                    pesan: `Quotation ${quotation.quotationNumber} dikonversi menjadi order ${orderNumber}`,
-                    kategori: 'CRM',
-                    tipe: 'success'
+                    userId, unitId: Number(unitId),
+                    pesan: `Quotation ${quotation.quotationNumber} dijadikan sales order ${orderNumber}`, kategori: 'CRM', tipe: 'success'
                 });
             });
-
-            return json({ 
-                success: true, 
-                message: 'Quotation berhasil dikonversi menjadi order',
-                data: { orderId: newOrderId }
-            });
+            return json({ success: true, message: 'Sales order berhasil dibuat dari penawaran', data: { orderId: soId, orderNumber } });
         }
 
         if (action === 'update-status') {

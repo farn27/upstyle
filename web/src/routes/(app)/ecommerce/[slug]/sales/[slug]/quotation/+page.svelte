@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data; export let form;
-    const { unit, quotationList, contactList, productList } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, quotationList, contactList, productList } = data);
     let showModal = false;
     let items = [{ product_id: '', product_name: '', qty: 1, price: 0, total: 0 }];
     $: grandTotal = items.reduce((s, i) => s + (Number(i.qty) * Number(i.price)), 0);

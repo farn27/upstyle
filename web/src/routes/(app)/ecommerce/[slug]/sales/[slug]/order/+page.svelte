@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data;
-    const { unit, orders, statusFilter } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, orders, statusFilter } = data);
     const fmt = v => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(Number(v)||0);
     const TABS = ['all','DRAFT','PENDING','PROCESSING','SHIPPED','CLOSED','CANCELLED'];
     const TAB_LABEL = { all:'Semua', DRAFT:'Draft', PENDING:'Pending', PROCESSING:'Proses', SHIPPED:'Dikirim', CLOSED:'Selesai', CANCELLED:'Dibatalkan' };

@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/drizzle';
 import { users } from '$lib/server/schema';
@@ -10,6 +10,8 @@ import { guardUnitApiApp } from '$lib/server/apiUnitGuard';
 import { bacaKunciIdempoten, mulaiIdempoten, selesaiIdempoten } from '$lib/server/idempotency';
 import { log } from '$lib/server/logger';
 import { peranDiizinkan } from '$lib/server/rbac';
+import { slugUnitDariPath, pemilikUnitDariSlug, putuskanAksesUnit } from '$lib/server/unitSlugGuard';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 
 const PROTECTED_PATHS = [
 	'/finance',
@@ -123,7 +125,8 @@ export async function handle({ event, resolve }) {
 			if (userId) {
 				// Cek Redis dulu — hindari DB query setiap request
 				const userCacheKey = `hooks_user:${userId}`;
-				let userFound = await redis.get(userCacheKey);
+				// Redis opsional: bila tidak tersedia/galat, langsung ke DB (dulu melempar → user tidak termuat)
+				let userFound = redis ? await redis.get(userCacheKey).catch(() => null) : null;
 
 				if (!userFound) {
 					const [row] = await db
@@ -132,7 +135,7 @@ export async function handle({ event, resolve }) {
 						.where(eq(users.id, userId))
 						.limit(1);
 					userFound = row || null;
-					if (userFound) await redis.set(userCacheKey, userFound, { ex: 300 }); // 5 menit
+					if (userFound && redis) await redis.set(userCacheKey, userFound, { ex: 300 }).catch(() => {}); // 5 menit
 				}
 
 				if (userFound) {
@@ -177,6 +180,52 @@ export async function handle({ event, resolve }) {
 				log.auth.error({ pathname, userRole, redirectPath, isAllowed }, '[RBAC] Blocked access');
 				return new Response('Forbidden: Insufficient Privileges', { status: 403 });
 			}
+		}
+	}
+
+	// Guard: halaman ber-slug unit (/finance/<slug>/…, /ecommerce/<slug>/…) hanya untuk pemilik unit itu,
+	// atau staf portal unit tersebut (khusus halaman kasir). Lihat lib/server/unitSlugGuard.js.
+	const segUnit = slugUnitDariPath(pathname);
+	if (segUnit && (event.locals.user || staffSession)) {
+		let pemilikUnitId = null;
+		if (event.locals.user) {
+			const kunci = `unit_pemilik:${segUnit.slug}`;
+			let pemilik = null;
+			try {
+				pemilik = redis ? await redis.get(kunci) : null;
+			} catch {
+				pemilik = null;
+			}
+			if (!pemilik || typeof pemilik !== 'object') {
+				pemilik = await pemilikUnitDariSlug(db, segUnit.slug);
+				if (pemilik && redis) await redis.set(kunci, pemilik, { ex: 120 }).catch(() => {});
+			}
+			pemilikUnitId = pemilik?.userId ?? null;
+		}
+		const keputusan = putuskanAksesUnit({
+			pathname,
+			userId: event.locals.user?.id ?? null,
+			pemilikUnitId,
+			sesiStaf: staffSession
+		});
+		if (keputusan === 'bukan_milik') {
+			log.auth.warn({ pathname, userId: event.locals.user?.id }, '[Guard] Akses unit bukan milik user ditolak');
+			if (event.request.method !== 'GET') {
+				return new Response(
+					JSON.stringify({ success: false, message: 'Unit bisnis tidak ditemukan', code: 'UNIT_NOT_FOUND' }),
+					{ status: 404, headers: { 'Content-Type': 'application/json', ...SECURITY_HEADERS } }
+				);
+			}
+			throw error(404, 'Unit bisnis tidak ditemukan');
+		}
+		if (keputusan === 'staf_dibatasi') {
+			if (event.request.method !== 'GET') {
+				return new Response(
+					JSON.stringify({ success: false, message: 'Hanya pemilik atau manajer yang boleh mengakses halaman ini', code: 'FORBIDDEN' }),
+					{ status: 403, headers: { 'Content-Type': 'application/json', ...SECURITY_HEADERS } }
+				);
+			}
+			throw redirect(303, `/finance/${segUnit.slug}/pos`);
 		}
 	}
 
@@ -242,6 +291,12 @@ export async function handle({ event, resolve }) {
 	const response = await resolve(event);
 
 	if (idemKey && event.locals.user) await selesaiIdempoten(redis, event.locals.user.id, idemKey, response);
+
+	// Permintaan yang mengubah data → naikkan versi cache pemilik/unit supaya dasbor, riwayat, dan daftar
+	// produk tidak menyajikan data basi (lihat lib/server/cacheVersi.js)
+	if (!['GET', 'HEAD', 'OPTIONS'].includes(event.request.method) && response.status < 400 && (event.locals.user || staffSession || segUnit)) {
+		await tandaiBerubah({ userId: event.locals.user?.id ?? staffSession?.owner_id ?? null, slug: segUnit?.slug ?? null });
+	}
 
 	// Terapkan security headers ke semua response
 	Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {

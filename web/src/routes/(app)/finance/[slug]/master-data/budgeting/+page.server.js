@@ -1,3 +1,5 @@
+import { buatBudget, MasterDataError } from '$lib/server/masterData';
+import { pesanAman } from '$lib/server/pesanAman';
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { budgetItems, chartOfAccounts, journalEntries, journalEntryLines } from '$lib/server/schema';
@@ -112,24 +114,12 @@ export const actions = {
         });
         if (!unit) return fail(404, { error: 'Unit not found' });
 
-        const data = await request.formData();
-        const coaId = data.get('coaId');
-        const tahun = data.get('tahun');
-        const bulan = data.get('bulan');
-        const nominal = data.get('nominal');
-        const keterangan = data.get('keterangan');
-
+        const data = Object.fromEntries(await request.formData());
         try {
-            await db.insert(budgetItems).values({
-                unitId: unit.id,
-                coaId: Number(coaId),
-                tahun: Number(tahun),
-                bulan: Number(bulan),
-                nominal: String(nominal),
-                keterangan: keterangan || null
-            });
+            await buatBudget(db, unit.id, data);
             return { success: true };
         } catch (err) {
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             console.error('Add Budget Error:', err);
             return fail(500, { error: 'Gagal menambah anggaran' });
         }

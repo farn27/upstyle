@@ -4,6 +4,7 @@
  * Query param: ?type=pos (default) | ?type=manual (dari transaksi biasa)
  */
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { unitBisnis, posOrders, posCustomers, posOrderItems, transaksi } from '$lib/server/schema';
 import { eq, and, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
@@ -11,8 +12,9 @@ import { generateInvoiceHTML, generateInvoiceNumber } from '$lib/server/invoiceG
 import { log } from '$lib/server/logger';
 import { apiUnauthorized, apiError } from '$lib/server/apiResponse';
 
-export async function GET({ params, url, cookies, request }) {
-	const userId = await getCurrentUserId(cookies, request);
+export async function GET({ params, url, cookies, request, locals }) {
+	// userIdOverride hanya diisi route /api/dokumen setelah memverifikasi link sementara bertanda tangan
+	const userId = locals?.userIdOverride || await getCurrentUserId(cookies, request);
 	if (!userId) return apiUnauthorized();
 
 	const { orderId } = params;
@@ -26,7 +28,7 @@ export async function GET({ params, url, cookies, request }) {
 		}
 	} catch (err) {
 		log.api.error({ err }, '[Invoice] Error');
-		return apiError('Gagal generate invoice: ' + err.message, 500);
+		return apiError('Gagal generate invoice: ' + pesanAman(err), 500);
 	}
 }
 

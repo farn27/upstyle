@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, vouchers } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -20,7 +21,7 @@ export const load = async ({ params, cookies, depends }) => {
         where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
-    const cacheKey = `marketing_voucher:${unit.id}`;
+    const cacheKey = `marketing_voucher:${unit.id}:${await versiCache(userId, slug)}`;
     const cached = await redis.get(cacheKey);
     if (cached) return { unit, voucherList: cached };
     const voucherList = await db.query.vouchers.findMany({

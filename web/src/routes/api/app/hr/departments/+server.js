@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { departments, employees, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -112,7 +113,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST hr/departments error');
-        return json({ success: false, message: 'Gagal membuat departemen: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal membuat departemen: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

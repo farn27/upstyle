@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { products, unitBisnis, productVariants, kategoriProduk } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
@@ -125,7 +126,7 @@ export const actions = {
                             const [newCat] = await tx.insert(kategoriProduk).values({
                                 unitId: existingProduct.unitId,
                                 namaKategori: kategoriId.trim()
-                            }).$returningId();
+                            }).then(([r]) => [{ id: r.insertId }]);
                             finalKategoriId = newCat.id;
                         }
                     }
@@ -204,7 +205,7 @@ export const actions = {
             return { success: true };
         } catch (err) {
             log.api.error({ err: err.message }, 'Produk update: DB error');
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     }
 };

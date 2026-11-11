@@ -1,3 +1,6 @@
+import { versiCache, tandaiBerubah } from '$lib/server/cacheVersi';
+import { pesanAman } from '$lib/server/pesanAman';
+import { TransaksiError } from '$lib/server/catatTransaksi';
 import { error, fail } from '@sveltejs/kit';
 import { hapusTransaksi } from '$lib/server/hapusTransaksi';
 import { db } from '$lib/server/drizzle'; 
@@ -21,7 +24,7 @@ export const load = async ({ params, url, cookies }) => {
     const end = url.searchParams.get('end') || 'all';
 
     // 👇 BARU: versi cache key dinaikkan ke v3 karena bentuk payload berubah (nambah openingBalance)
-    const cacheKey = `history_v3:${userId}:${slug}:${start}:${end}`;
+    const cacheKey = `history_v4:${userId}:${slug}:${start}:${end}:${await versiCache(userId, slug)}`;
 
     try {
         const cachedHistory = redis ? await redis.get(cacheKey) : null;
@@ -91,21 +94,25 @@ export const actions = {
         const { slug } = params;
         const formData = await request.formData();
         const id = formData.get('id');
+        if (!userId) return fail(401, { message: 'Silakan login ulang' });
+        const numericId = Number(id);
+        if (!Number.isInteger(numericId) || numericId <= 0) return fail(400, { message: 'ID transaksi tidak valid' });
 
         try {
-            const numericId = Number(id);
             let namaTerhapus = ""; // Penampung nama transaksi
+            let ditemukan = false;
 
             await db.transaction(async (tx) => {
                 const unit = await tx.query.unitBisnis.findFirst({
                     where: and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))
                 });
-                if (!unit) throw new Error('Unit tidak ditemukan');
+                if (!unit) throw new TransaksiError('Unit bisnis tidak ditemukan', 404);
 
                 // Hapus transaksi + kembalikan stok penjualan + hapus jurnalnya
                 const hasil = await hapusTransaksi(tx, { unitId: unit.id, trxId: numericId });
                 const trxData = hasil?.trx;
                 if (!trxData) return; // sudah terhapus / bukan milik unit ini
+                ditemukan = true;
 
                 namaTerhapus = trxData.keterangan || "TRANSAKSI TANPA NAMA";
 
@@ -119,18 +126,12 @@ export const actions = {
                 });
             });
 
+            // Dulu tetap dibalas "BERHASIL DIHAPUS" walau id bukan milik unit ini (K-2)
+            if (!ditemukan) return fail(404, { message: 'Transaksi tidak ditemukan di unit ini' });
+
             // Bersihkan cache SETELAH data aman terhapus. Best-effort: kalau Redis / Inngest
             // sedang tidak bisa dihubungi, penghapusan TIDAK ikut dibatalkan.
-            if (redis) {
-                try {
-                    for (const pola of [`finance_dash_v4:${userId}:${slug}:*`, `history_v3:${userId}:${slug}:*`]) {
-                        const keys = await redis.keys(pola);
-                        if (keys.length > 0) await redis.del(...keys);
-                    }
-                } catch (redisErr) {
-                    log.finance.warn({ err: redisErr instanceof Error ? redisErr.message : String(redisErr) }, '[Redis] Gagal hapus cache setelah delete');
-                }
-            }
+            await tandaiBerubah({ userId, slug });
             try {
                 await inngest.send({ name: "app/transaction.changed", data: { userId, slug } });
             } catch (inngestErr) {
@@ -143,7 +144,8 @@ export const actions = {
                 message: `"${namaTerhapus.toUpperCase()}" BERHASIL DIHAPUS!` 
             };
         } catch (e) {
-            log.finance.error({ err: e.message }, 'Delete Error');
+            if (e?.name === 'TransaksiError') return fail(e.status || 400, { message: pesanAman(e) });
+            log.finance.error({ err: e instanceof Error ? e.message : String(e) }, 'Delete Error');
             return fail(500, { message: "Gagal memproses sinkronisasi data" });
         }
     }

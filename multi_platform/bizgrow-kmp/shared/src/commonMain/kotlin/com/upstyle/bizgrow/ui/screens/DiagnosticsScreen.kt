@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.screens
 
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -89,7 +90,7 @@ fun DiagnosticsScreen(viewModel: AppViewModel) {
                             )
                             if (diag.timestamp.isNotEmpty()) {
                                 Text(
-                                    text = "Terakhir diperiksa: ${diag.timestamp}",
+                                    text = "Terakhir diperiksa: ${waktuDiagnostik(diag.timestamp)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = bannerTextColor
                                 )
@@ -128,12 +129,12 @@ fun DiagnosticsScreen(viewModel: AppViewModel) {
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        check.name,
+                                        labelCekDiagnostik(check.name),
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        text = check.status.uppercase(),
+                                        text = when (check.status.lowercase()) { "ok" -> "Normal"; "warning" -> "Perhatian"; "error", "fail", "failed" -> "Gagal"; else -> check.status },
                                         color = checkColor,
                                         style = MaterialTheme.typography.labelSmall
                                     )
@@ -194,3 +195,22 @@ fun DiagnosticsScreen(viewModel: AppViewModel) {
         }
     }
 }
+
+
+/** Nama pemeriksaan dari server ("akun_coa") → teks yang dipahami pemilik usaha. */
+private fun labelCekDiagnostik(k: String): String = when (k.lowercase()) {
+    "server" -> "Server"
+    "sesi", "session" -> "Sesi login"
+    "database", "db" -> "Database"
+    "cache", "redis" -> "Cache (Redis)"
+    "unit" -> "Unit bisnis"
+    "akun_coa", "coa" -> "Akun (COA)"
+    else -> k.replace('_', ' ').replaceFirstChar { it.uppercase() }
+}
+
+/** Stempel waktu ISO UTC ("2026-11-11T12:27:43.870Z") → jam lokal perangkat yang mudah dibaca. */
+private fun waktuDiagnostik(iso: String): String = try {
+    val lokal = kotlinx.datetime.Instant.parse(iso).toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+    "${lokal.dayOfMonth} ${listOf("Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des")[lokal.monthNumber - 1]} ${lokal.year}, " +
+        "${lokal.hour.toString().padStart(2, '0')}:${lokal.minute.toString().padStart(2, '0')}"
+} catch (_: Exception) { iso }

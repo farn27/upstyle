@@ -5,6 +5,7 @@
  * Server key Midtrans TIDAK disimpan maupun dikirim balik (sama seperti web: hanya tanda '***').
  * Checkout toko saat ini memakai key Midtrans platform (env MIDTRANS_SERVER_KEY).
  */
+import { domainSlugUnik } from '$lib/server/unitBaru';
 import { z } from 'zod';
 import { and, eq, ne } from 'drizzle-orm';
 import { ecommerceSettings, unitBisnis } from '$lib/server/schema';
@@ -44,7 +45,7 @@ export async function ambilPengaturanToko(/** @type {any} */ db, /** @type {numb
 	if (!s) {
 		const unit = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, unitId) });
 		if (!unit) throw new TokoError('Unit tidak ditemukan', 404);
-		await db.insert(ecommerceSettings).values({ unitId, storefrontName: `${unit.namaUnit} Store`, domainSlug: unit.slug, isActive: false });
+		await db.insert(ecommerceSettings).values({ unitId, storefrontName: `${unit.namaUnit} Store`, domainSlug: await domainSlugUnik(db, unit.slug || unit.namaUnit, 'toko'), isActive: false });
 		s = await db.query.ecommerceSettings.findFirst({ where: eq(ecommerceSettings.unitId, unitId) });
 	}
 	return {

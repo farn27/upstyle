@@ -1,9 +1,10 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { taxRates, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { ubahPajak, hapusPajak, MasterDataError } from '$lib/server/masterData';
+import { ubahPajak, hapusPajak, buatPajak, MasterDataError } from '$lib/server/masterData';
 import { log } from '$lib/server/logger';
 
 export const load = async ({ params, cookies }) => {
@@ -44,25 +45,12 @@ export const actions = {
         });
         if (!unit) return fail(404, { error: 'Unit not found' });
 
-        const data = await request.formData();
-        const namaPajak = data.get('namaPajak');
-        const persentase = data.get('persentase');
-        const tipe = data.get('tipe');
-        const isDefault = data.get('isDefault') === 'on' ? 1 : 0;
-        const coaId = data.get('coaId');
-
+        const data = Object.fromEntries(await request.formData());
         try {
-            await db.insert(taxRates).values({
-                unitId: unit.id,
-                namaPajak,
-                persentase: String(persentase),
-                tipe,
-                isDefault,
-                isActive: 1,
-                coaId: coaId ? Number(coaId) : null
-            });
+            await buatPajak(db, unit.id, data);
             return { success: true };
         } catch (err) {
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Add Tax Error');
             return fail(500, { error: 'Gagal menambah pajak' });
         }
@@ -87,7 +75,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Edit Tax Error');
             return fail(500, { error: 'Gagal merubah pajak' });
         }
@@ -104,7 +92,7 @@ export const actions = {
             await hapusPajak(db, unit.id, Number(data.get('id')));
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Delete Tax Error');
             return fail(500, { error: 'Gagal menghapus pajak' });
         }

@@ -52,6 +52,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
     val metrik = remember(financeData, periode) { MetrikKinerja(financeData, periode == "Bulan Ini") }
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
+    // Pengganti realtime web: perbarui angka dashboard tiap menit selama layar terbuka
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); viewModel.loadDashboard(); viewModel.loadNotifications() } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -73,7 +75,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     )
                 }
                 item {
-                    HeroSaldo(financeData, sembunyi, { sembunyi = !sembunyi }, Modifier.padding(horizontal = 20.dp).enterAnimation(0)) {
+                    HeroSaldo(financeData, periode, sembunyi, { sembunyi = !sembunyi }, Modifier.padding(horizontal = 20.dp).enterAnimation(0)) {
                         viewModel.navigate(Screen.Laporan)
                     }
                 }
@@ -87,10 +89,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     PerluPerhatian(financeData, lowStock, viewModel, Modifier.enterAnimation(2))
                 }
                 item { PeriodeDashboard(viewModel, Modifier.padding(top = 16.dp, bottom = 12.dp)) }
-                item { RingkasanKinerja(metrik, sembunyi, Modifier.padding(horizontal = 20.dp)) }
+                item { RingkasanKinerja(metrik, sembunyi, Modifier.padding(horizontal = 20.dp), onTambah = { viewModel.navigate(Screen.TransactionEntry) }) }
                 item { BannerAnalisis(metrik, periode, Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
                 item {
-                    ArusKasCard(financeData, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp).enterAnimation(3))
+                    GrafikAnalisis(financeData, periode, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp).enterAnimation(3))
                 }
                 item { TargetBulanIni(financeData, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
                 item { RiskAssessment(metrik, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
@@ -126,7 +128,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         onAction = { viewModel.navigate(Screen.Finance) }
                     )
                 }
-                val trx = financeData?.transactions.orEmpty().take(6)
+                val trx = financeData?.transactions.orEmpty().take(8)
                 when {
                     dashState.isLoading && financeData == null -> item { SkeletonList(rows = 4) }
                     trx.isEmpty() -> item {
@@ -173,7 +175,7 @@ private fun DashboardHeader(unitName: String, kategori: String, unread: Int, onS
 }
 
 @Composable
-private fun HeroSaldo(fd: FinanceData?, sembunyi: Boolean, onToggle: () -> Unit, modifier: Modifier, onClick: () -> Unit) {
+private fun HeroSaldo(fd: FinanceData?, periode: String, sembunyi: Boolean, onToggle: () -> Unit, modifier: Modifier, onClick: () -> Unit) {
     val masuk = fd?.summary?.totalMasuk ?: 0.0
     val keluar = fd?.summary?.totalKeluar ?: 0.0
     val bersih = masuk - keluar
@@ -181,7 +183,16 @@ private fun HeroSaldo(fd: FinanceData?, sembunyi: Boolean, onToggle: () -> Unit,
     GradientCard(modifier.fillMaxWidth(), colors = BizgrowColors.GradPrimary, onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Laba bersih", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                // Angka ini pemasukan − pengeluaran (arus kas), bukan laba: HPP/penyusutan tidak dihitung.
+                // Dulu berlabel "Laba bersih" dengan periode bawaan "Semua" sehingga terbaca sebagai laba (F-14).
+                Text(
+                    "Arus kas bersih",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
                 Spacer(Modifier.width(6.dp))
                 Icon(
                     if (sembunyi) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
@@ -206,7 +217,15 @@ private fun HeroSaldo(fd: FinanceData?, sembunyi: Boolean, onToggle: () -> Unit,
                 if (hide) Text("Rp ••••••••", style = MaterialTheme.typography.displayMedium, color = Color.White)
                 else AnimatedAmount(bersih, MaterialTheme.typography.displayMedium, Color.White)
             }
-            Spacer(Modifier.height(18.dp))
+            // Penjelasan & periode di baris sendiri supaya label utama tidak terpotong "Selisih masuk…"
+            Text(
+                "Pemasukan − pengeluaran · ${if (periode == "Semua") "semua waktu" else periode.lowercase()}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.75f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ArusMini("Pemasukan", masuk, Icons.Rounded.SouthWest, sembunyi, Modifier.weight(1f))
                 ArusMini("Pengeluaran", keluar, Icons.Rounded.NorthEast, sembunyi, Modifier.weight(1f))
@@ -300,101 +319,6 @@ internal fun tanggalTransaksi(raw: String): LocalDate? {
     if (s.length >= 10 && s[4] == '-' && s[7] == '-') return runCatching { LocalDate.parse(s.substring(0, 10)) }.getOrNull()
     val ms = s.toLongOrNull() ?: return null
     return Instant.fromEpochMilliseconds(ms).toLocalDateTime(TimeZone.currentSystemDefault()).date
-}
-
-@Composable
-private fun ArusKasCard(fd: FinanceData?, sembunyi: Boolean, modifier: Modifier) {
-    val hariIni = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
-    val hari = remember(hariIni) { (6 downTo 0).map { hariIni.minus(it, DateTimeUnit.DAY) } }
-    val data = remember(fd) {
-        val per = fd?.transactions.orEmpty().groupBy { tanggalTransaksi(it.tanggal) }
-        hari.map { d ->
-            val list = per[d].orEmpty()
-            val masuk = list.filter { it.kategoriTrx.uppercase() in setOf("MASUK", "PEMASUKAN") }.sumOf { it.nominal }
-            val keluar = list.filter { it.kategoriTrx.uppercase() in setOf("KELUAR", "PENGELUARAN") }.sumOf { it.nominal }
-            masuk to keluar
-        }
-    }
-    val maks = (data.maxOfOrNull { maxOf(it.first, it.second) } ?: 0.0).takeIf { it > 0 } ?: 1.0
-    val tumbuh = remember { Animatable(0f) }
-    LaunchedEffect(fd) { tumbuh.snapTo(0f); tumbuh.animateTo(1f, tween(800, easing = BizMotion.Emphasized)) }
-    val warnaMasuk = BizgrowColors.Success
-    val warnaKeluar = BizgrowColors.Danger.copy(alpha = 0.85f)
-    val grid = MaterialTheme.colorScheme.outlineVariant
-
-    BizSurface(modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Arus kas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                Text("7 hari terakhir", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Legenda("Masuk", warnaMasuk)
-            Spacer(Modifier.width(10.dp))
-            Legenda("Keluar", warnaKeluar)
-        }
-        Spacer(Modifier.height(16.dp))
-        Canvas(Modifier.fillMaxWidth().height(130.dp)) {
-            val n = data.size
-            val slot = size.width / n
-            val batang = (slot * 0.26f).coerceAtMost(14.dp.toPx())
-            for (g in 1..3) {
-                val y = size.height * g / 4f
-                drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
-            }
-            data.forEachIndexed { i, (m, k) ->
-                val cx = slot * i + slot / 2
-                val hm = (m / maks).toFloat() * size.height * 0.95f * tumbuh.value
-                val hk = (k / maks).toFloat() * size.height * 0.95f * tumbuh.value
-                val r = CornerRadius(batang / 2, batang / 2)
-                drawRoundRect(warnaMasuk, Offset(cx - batang - 2f, size.height - hm), Size(batang, hm), r)
-                drawRoundRect(warnaKeluar, Offset(cx + 2f, size.height - hk), Size(batang, hk), r)
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth()) {
-            hari.forEach { d ->
-                Text(
-                    namaHariPendek(d.dayOfWeek),
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (d == hariIni) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        }
-        val totalMasuk = data.sumOf { it.first }
-        val totalKeluar = data.sumOf { it.second }
-        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        Row {
-            Column(Modifier.weight(1f)) {
-                Text("Total masuk", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (sembunyi) "••••" else totalMasuk.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = BizgrowColors.Success)
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Total keluar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (sembunyi) "••••" else totalKeluar.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = BizgrowColors.Danger)
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Selisih", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (sembunyi) "••••" else (totalMasuk - totalKeluar).rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-    }
-}
-
-private fun namaHariPendek(d: DayOfWeek) = when (d) {
-    DayOfWeek.MONDAY -> "Sen"; DayOfWeek.TUESDAY -> "Sel"; DayOfWeek.WEDNESDAY -> "Rab"
-    DayOfWeek.THURSDAY -> "Kam"; DayOfWeek.FRIDAY -> "Jum"; DayOfWeek.SATURDAY -> "Sab"
-    else -> "Min"
-}
-
-@Composable
-private fun Legenda(label: String, warna: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(warna))
-        Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
 }
 
 @Composable

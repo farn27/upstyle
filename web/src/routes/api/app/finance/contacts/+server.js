@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { accountingContacts, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -39,12 +40,14 @@ export async function POST({ request, cookies }) {
 
     const schema = z.object({
         namaKontak: z.string().min(1).max(150),
-        tipeKontak: z.enum(['CUSTOMER','SUPPLIER','BOTH']).default('CUSTOMER'),
+        tipeKontak: z.preprocess((v) => (typeof v === 'string' ? v.toUpperCase() : v), z.enum(['CUSTOMER','SUPPLIER','BOTH'])).default('CUSTOMER'),
         unitId: z.coerce.number().int().positive(),
-        email: z.string().email().optional().or(z.literal('')),
-        telepon: z.string().optional(),
-        alamat: z.string().optional(),
-        termPembayaran: z.coerce.number().optional().default(30)
+        email: z.string().email().nullish().or(z.literal('')),
+        telepon: z.string().nullish(),
+        alamat: z.string().nullish(),
+        termPembayaran: z.coerce.number().optional().default(30),
+        npwp: z.string().max(30).nullish(),
+        limitKredit: z.coerce.number().min(0).optional().default(0)
     });
 
     try {
@@ -54,12 +57,12 @@ export async function POST({ request, cookies }) {
             const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Input kontak akuntansi tidak valid';
             return json({ success: false, message: msg }, { status: 422 });
         }
-        const { namaKontak, tipeKontak, unitId, email, telepon, alamat, termPembayaran } = parsed.data;
+        const { namaKontak, tipeKontak, unitId, email, telepon, alamat, termPembayaran, npwp, limitKredit } = parsed.data;
 
         const [result] = await db.insert(accountingContacts).values({
             unitId: Number(unitId), namaKontak, tipeKontak,
             email: email || null, telepon: telepon || null, alamat: alamat || null,
-            termPembayaran: termPembayaran || 30, isActive: 1
+            termPembayaran: termPembayaran || 30, npwp: npwp || null, limitKredit: String(limitKredit || 0), isActive: 1
         });
 
         await db.insert(riwayatAksi).values({
@@ -128,7 +131,7 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'PUT finance/contacts');
-        return json({ success: false, message: 'Gagal memperbarui kontak: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memperbarui kontak: ' + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -171,6 +174,6 @@ export async function DELETE({ url, cookies, request }) {
 
     } catch (err) {
         log.api.error({ err }, 'DELETE finance/contacts');
-        return json({ success: false, message: 'Gagal menghapus kontak: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal menghapus kontak: ' + pesanAman(err) }, { status: 500 });
     }
 }

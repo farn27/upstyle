@@ -1,7 +1,7 @@
 <script>
     import { page } from '$app/stores';
     import { enhance } from '$app/forms';
-    import { fade } from 'svelte/transition';
+    import { fade, scale } from 'svelte/transition';
     import SubNav from '$lib/components/SubNav.svelte';
 
     export let data;

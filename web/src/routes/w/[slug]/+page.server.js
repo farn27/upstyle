@@ -11,6 +11,11 @@ export const load = async ({ params }) => {
         where: eq(websiteSettings.domainSlug, slug)
     });
 
+    // Website yang dimatikan pemilik (isPublished = false) tidak boleh tetap bisa dibuka publik
+    if (settings && settings.isPublished === false) {
+        throw error(404, 'Website sedang tidak dipublikasikan');
+    }
+
     let unit = null;
     if (settings) {
         // Cari unit bisnis terkait
@@ -55,7 +60,8 @@ export const load = async ({ params }) => {
     const categories = Array.from(new Set(activeProducts.map(p => p.kategoriProduk?.namaKategori || 'UMUM')));
 
     return {
-        unit,
+        // Halaman publik: jangan kirim baris unit lengkap (dulu termasuk user_id, modal awal, login_slug portal karyawan)
+        unit: { namaUnit: unit.namaUnit, kategori: unit.kategori },
         settings,
         products: activeProducts.map(p => ({
             id: p.id,

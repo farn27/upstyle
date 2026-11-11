@@ -259,7 +259,15 @@
         : (discountType === "persen"
             ? Math.round(subtotal * (discount / 100))
             : Math.min(discount, subtotal));
-    $: total = Math.max(0, subtotal - discountAmount);
+    // PPN: dihitung ulang & disahkan server (tarif dari pengaturan pajak unit)
+    let kenaiPpn = false;
+    let ppnInklusif = false;
+    $: tarifPpn = Number(data.tarifPpn || 0);
+    $: dasarPpn = Math.max(0, subtotal - discountAmount);
+    $: ppnAmount = kenaiPpn && tarifPpn > 0
+        ? (ppnInklusif ? Math.round(dasarPpn * tarifPpn / (100 + tarifPpn)) : Math.round(dasarPpn * tarifPpn / 100))
+        : 0;
+    $: total = dasarPpn + (kenaiPpn && !ppnInklusif ? ppnAmount : 0);
     $: totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
 
     // --- Quantity Management ---
@@ -425,24 +433,31 @@
                     discount_value: discountAmount,
                     order_type: orderType,
                     table_number: tableNumber,
-                    queue_number: queueNumber
+                    queue_number: queueNumber,
+                    kenai_ppn: kenaiPpn && tarifPpn > 0,
+                    ppn_inklusif: ppnInklusif
                 }),
             });
 
             if (res.ok) {
                 const resData = await res.json().catch(() => ({}));
+                // Nilai resmi dihitung server (harga dari database, voucher divalidasi ulang)
+                const totalResmi = typeof resData.total === 'number' ? resData.total : total;
+                const diskonResmi = typeof resData.discount === 'number' ? resData.discount : discountAmount;
                 receipt = {
-                    id: 'TRX-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+                    id: resData.orderNumber || ('TRX-' + Math.random().toString(36).substr(2, 9).toUpperCase()),
                     orderId: resData.orderId || null,
                     date: new Date().toLocaleString('id-ID'),
                     items: [...cart],
-                    subtotal,
-                    discount: { type: discountType, percentage: discountType === "persen" ? discount : 0, amount: discountAmount },
-                    // Total resmi dihitung server (harga dari database)
-                    total: typeof resData.total === 'number' ? resData.total : total,
+                    subtotal: typeof resData.subtotal === 'number' ? resData.subtotal : subtotal,
+                    // Label diskon mengikuti sumbernya: voucher (kode + persen) atau diskon manual
+                    discount: appliedVoucher
+                        ? { type: 'voucher', code: appliedVoucher.code, percentage: appliedVoucher.discountType === 'PERCENTAGE' ? Number(appliedVoucher.discountValue) : 0, amount: diskonResmi }
+                        : { type: discountType, percentage: discountType === "persen" ? discount : 0, amount: diskonResmi },
+                    total: totalResmi,
                     payments: [...payments],
                     amountPaid,
-                    change,
+                    change: typeof resData.change === 'number' ? resData.change : change,
                     customer: customerName.toUpperCase(),
                     orderType,
                     tableNumber,
@@ -889,6 +904,21 @@
                             {/if}
                         </div>
 
+                        {#if tarifPpn > 0}
+                        <div class="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900 rounded-xl p-2">
+                            <label class="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase cursor-pointer">
+                                <input type="checkbox" bind:checked={kenaiPpn} class="rounded" />
+                                PPN {tarifPpn}%
+                            </label>
+                            {#if kenaiPpn}
+                                <label class="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase cursor-pointer">
+                                    <input type="checkbox" bind:checked={ppnInklusif} class="rounded" /> Harga sudah termasuk
+                                </label>
+                                <span class="text-[10px] font-bold text-slate-700 dark:text-slate-200">{ppnInklusif ? '(termasuk) ' : '+'}{formatRupiah(ppnAmount)}</span>
+                            {/if}
+                        </div>
+                        {/if}
+
                         <!-- Total -->
                         <div class="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
                             <span class="text-[10px] lg:text-xs font-black text-slate-800 dark:text-slate-100 uppercase">Total</span>
@@ -1134,14 +1164,14 @@
                     <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Bayar</span>
                     <span class="text-sm lg:text-base font-black text-slate-800 dark:text-white font-mono">{formatRupiah(amountPaid)}</span>
                 </div>
-                {#if autoCalcChange && change >= 0}
+                {#if amountPaid < total}
+                    <div class="p-3 bg-red-50 rounded-xl border border-red-100">
+                        <p class="text-[9px] font-bold text-red-500 text-center uppercase">Uang belum cukup! Kurang {formatRupiah(total - amountPaid)}</p>
+                    </div>
+                {:else}
                     <div class="flex justify-between items-center p-3 lg:p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
                         <span class="text-[9px] lg:text-[10px] font-black text-green-600 uppercase">Kembalian</span>
                         <span class="text-lg lg:text-xl font-black text-green-700 font-mono italic">{formatRupiah(change)}</span>
-                    </div>
-                {:else if change >= 0}
-                    <div class="p-3 bg-red-50 rounded-xl border border-red-100">
-                        <p class="text-[9px] font-bold text-red-500 text-center uppercase">Uang belum cukup! Kurang {formatRupiah(Math.abs(change))}</p>
                     </div>
                 {/if}
             </div>
@@ -1215,7 +1245,7 @@
 
                 {#if receipt.discount.amount > 0}
                     <div class="flex justify-between text-[10px] font-bold text-red-500 pt-2 border-t border-slate-50 dark:border-slate-800">
-                        <span>Diskon {receipt.discount.type === 'persen' ? `(${receipt.discount.percentage}%)` : ''}</span>
+                        <span>{receipt.discount.type === 'voucher' ? `Voucher ${receipt.discount.code}` : 'Diskon'} {receipt.discount.percentage > 0 ? `(${receipt.discount.percentage}%)` : ''}</span>
                         <span class="font-mono">-{formatRupiah(receipt.discount.amount)}</span>
                     </div>
                 {/if}

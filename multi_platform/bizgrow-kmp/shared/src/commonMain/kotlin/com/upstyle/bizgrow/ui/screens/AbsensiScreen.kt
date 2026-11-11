@@ -189,6 +189,8 @@ fun AbsensiScreen(viewModel: AppViewModel) {
     // PIN Dialog
     if (showPinDialog) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = { showPinDialog = false },
             title = { Text(if (isCheckIn) "Konfirmasi Check In" else "Konfirmasi Check Out", fontWeight = FontWeight.Bold) },
             text = {
@@ -213,8 +215,9 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                         val empId = selectedEmployeeId ?: return@Button
                         val date = todayDate()
                         val time = currentTime()
-                        if (isCheckIn) viewModel.checkIn(empId, date, time)
-                        else viewModel.checkOut(empId, date, time)
+                        // PIN dikirim ke server untuk diverifikasi (dulu hanya dicek panjangnya)
+                        if (isCheckIn) viewModel.checkIn(empId, date, time, pinInput)
+                        else viewModel.checkOut(empId, date, time, pinInput)
                         showPinDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = if (isCheckIn) BizgrowColors.Success else BizgrowColors.Danger)

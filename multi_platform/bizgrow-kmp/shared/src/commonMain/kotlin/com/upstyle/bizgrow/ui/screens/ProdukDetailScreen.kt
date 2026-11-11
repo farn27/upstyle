@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.design.ProductThumb
+import com.upstyle.bizgrow.ui.design.SkeletonList
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 
@@ -36,12 +38,13 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
     val stockLogs by viewModel.stockLogs.collectAsState(initial = viewModel.stockLogs.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val product = products.find { it.id == productId }
+    val memuatProduk = viewModel.productsState.collectAsState().value.isLoading
 
     var showAdjustSheet by remember { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
 
-    LaunchedEffect(productId) { viewModel.loadStockLogs(productId) }
+    LaunchedEffect(productId) { viewModel.loadStockLogs(productId); if (products.none { it.id == productId }) viewModel.loadProducts() }
 
     Scaffold(
         topBar = {
@@ -65,6 +68,11 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
             )
         }
     ) { padding ->
+        if (product == null && products.isEmpty() && memuatProduk) {
+            // daftar produk masih dimuat — jangan langsung bilang "tidak ditemukan"
+            SkeletonList(rows = 4, modifier = Modifier.padding(padding).padding(16.dp))
+            return@Scaffold
+        }
         if (product == null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -79,13 +87,7 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Product header image
             Box(modifier = Modifier.fillMaxWidth().height(200.dp)) {
-                AsyncImage(
-                    model = product.foto?.takeIf { it.isNotBlank() }
-                        ?: "https://ui-avatars.com/api/?name=${product.nama.take(2)}&background=EEF2FF&color=5B50F0&size=400&bold=true",
-                    contentDescription = product.nama,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                ProductThumb(product.nama, product.foto, Modifier.fillMaxSize(), androidx.compose.ui.graphics.RectangleShape, viewModel.session.getServerUrl(), fontSize = androidx.compose.ui.unit.TextUnit(48f, androidx.compose.ui.unit.TextUnitType.Sp))
                 // Stock badge overlay
                 val isLowStock = product.stok in 1..product.minStok
                 val isHabis = product.stok == 0
@@ -120,7 +122,7 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
         StockAdjustSheet(product, viewModel, onDismiss = { showAdjustSheet = false })
     }
     if (showEditSheet && product != null) {
-        EditProductSheet(product, viewModel, onDismiss = { showEditSheet = false })
+        ProdukFormSheet(viewModel, product, viewModel.kategoriProduk.collectAsState().value, onDismiss = { showEditSheet = false })
     }
 }
 
@@ -225,7 +227,7 @@ fun StockAdjustSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
     var selectedReason by remember { mutableStateOf("PEMBELIAN") }
     val reasons = listOf("PEMBELIAN", "PENJUALAN", "RETUR", "KERUSAKAN", "KOREKSI", "LAINNYA")
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Sesuaikan Stok", fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -265,66 +267,6 @@ fun StockAdjustSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
                 modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp), enabled = stockDelta != 0) {
                 Text("Simpan Penyesuaian", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditProductSheet(product: Product, viewModel: AppViewModel, onDismiss: () -> Unit) {
-    var nama by remember { mutableStateOf(product.nama) }
-    var hargaBeli by remember { mutableStateOf(product.hargaBeli.toInt().toString()) }
-    var hargaJual by remember { mutableStateOf(product.hargaJual.toInt().toString()) }
-    var minStok by remember { mutableStateOf(product.minStok.toString()) }
-    var fotoUrl by remember { mutableStateOf(product.foto) }
-
-    val imagePickerLauncher = rememberImagePickerLauncher { uri -> fotoUrl = uri }
-
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Edit Produk", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onDismiss) { Text("Batal") }
-            }
-
-            // Photo picker
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(72.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                    if (!fotoUrl.isNullOrBlank()) {
-                        AsyncImage(model = fotoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    } else {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.CameraAlt, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    OutlinedButton(onClick = { imagePickerLauncher() }, shape = RoundedCornerShape(10.dp)) { Text("Ganti Foto") }
-                    if (!fotoUrl.isNullOrBlank()) {
-                        TextButton(onClick = { fotoUrl = null }, contentPadding = PaddingValues(0.dp)) { Text("Hapus", color = Color(0xFFEF4444), fontSize = 12.sp) }
-                    }
-                }
-            }
-
-            OutlinedTextField(value = nama, onValueChange = { nama = it }, label = { Text("Nama Produk") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = hargaBeli, onValueChange = { hargaBeli = it }, label = { Text("Harga Beli") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true, prefix = { Text("Rp ") })
-                OutlinedTextField(value = hargaJual, onValueChange = { hargaJual = it }, label = { Text("Harga Jual") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), shape = RoundedCornerShape(20.dp), singleLine = true, prefix = { Text("Rp ") })
-            }
-            OutlinedTextField(value = minStok, onValueChange = { minStok = it }, label = { Text("Min Stok Alert") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), singleLine = true)
-
-            Button(
-                onClick = {
-                    val updated = product.copy(nama = nama, hargaBeli = hargaBeli.toDoubleOrNull() ?: product.hargaBeli, hargaJual = hargaJual.toDoubleOrNull() ?: product.hargaJual, minStok = minStok.toIntOrNull() ?: product.minStok, foto = fotoUrl)
-                    viewModel.updateProduct(updated)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(20.dp), enabled = nama.isNotBlank()
-            ) { Text("Simpan Perubahan", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, landingPages, products } from '$lib/server/schema';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -146,7 +147,8 @@ export const actions = {
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
 
             // Check if it's from the new template marketplace
-            const { ADVANCED_TEMPLATES } = await import('./templates/+page.server.js');
+            // Dulu diimpor dari ./templates/+page.server.js yang TIDAK mengekspornya → TypeError saat membuat halaman
+            const { ADVANCED_TEMPLATES } = await import('$lib/server/landingTemplates');
             const template = ADVANCED_TEMPLATES[templateKey] || TEMPLATES[templateKey] || TEMPLATES.leadgen;
             
             const contentJson = template.content || {
@@ -165,7 +167,7 @@ export const actions = {
             return { success: true, message: 'Landing page berhasil dibuat! Sekarang kamu bisa edit kontennya.' };
         } catch (err) {
             if (err.code === 'ER_DUP_ENTRY') return fail(400, { error: 'Slug URL sudah digunakan, coba yang lain' });
-            return fail(500, { error: 'Gagal membuat halaman: ' + err.message });
+            return fail(500, { error: 'Gagal membuat halaman: ' + pesanAman(err) });
         }
     },
 

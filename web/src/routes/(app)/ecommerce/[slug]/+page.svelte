@@ -6,7 +6,8 @@
 
     export let data;
     export let form;
-    const { unit, storeSettings, stats, recentOrders } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, storeSettings, stats, recentOrders } = data);
 
     function formatRupiah(val) {
         return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(Number(val) || 0);

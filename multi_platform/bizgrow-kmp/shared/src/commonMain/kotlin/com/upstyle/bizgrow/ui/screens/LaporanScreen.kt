@@ -36,13 +36,13 @@ private val tabLaporan = listOf("Dashboard Analisis", "Laba Rugi", "Neraca")
 /** Pusat Laporan & Analisis — padanan halaman Laporan web (dashboard analisis, laba rugi formal, neraca). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LaporanScreen(viewModel: AppViewModel) {
+fun LaporanScreen(viewModel: AppViewModel, tabAwal: Int = 0) {
     val laporan by viewModel.laporanLengkap.collectAsState()
     val memuat by viewModel.laporanMemuat.collectAsState()
     val hariIni = remember { Clock.System.now().toLocalDateTime(TimeZone.of("Asia/Jakarta")).date }
     var tahun by remember { mutableIntStateOf(hariIni.year) }
     var bulan by remember { mutableStateOf("all") }
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(tabAwal) }
     var menuBulan by remember { mutableStateOf(false) }
     var menuTahun by remember { mutableStateOf(false) }
 

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { vouchers, riwayatAksi, marketingCampaigns } from '$lib/server/schema';
 import { eq, and, desc, or, sql } from 'drizzle-orm';
@@ -30,7 +31,7 @@ export async function GET({ url, cookies, request }) {
             maxUsage: v.maxUsage || 0, currentUsage: v.currentUsage || 0,
             minPurchase: Number(v.minPurchase || 0),
             validFrom: v.validFrom, validUntil: v.validUntil,
-            isActive: v.isActive ? 1 : 0,
+            isActive: Boolean(v.isActive),
             source: 'POS'
         }));
 
@@ -51,7 +52,7 @@ export async function GET({ url, cookies, request }) {
                 maxUsage: v.maxUsage || 0, currentUsage: v.currentUsage || 0,
                 minPurchase: Number(v.minPurchase || 0),
                 validFrom: v.validFrom, validUntil: v.validUntil,
-                isActive: v.isActive ? 1 : 0,
+                isActive: Boolean(v.isActive),
                 source: 'MARKETING'
             }));
 
@@ -93,7 +94,7 @@ export async function POST({ request, cookies }) {
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body.voucher || body);
-        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        if (!parsed.success) return json({ success: false, message: parsed.error.issues[0].message }, { status: 422 });
         const { code, discountType, discountValue, maxUsage, minPurchase, validFrom, validUntil, unitId } = parsed.data;
 
         // Check unique code
@@ -187,7 +188,8 @@ export async function PUT({ request, cookies }) {
         }
 
         if (action === 'validate-voucher') {
-            const { voucherCode, unitId, purchaseAmount } = body;
+            const { unitId, purchaseAmount } = body;
+            const voucherCode = body.voucherCode ?? body.code; // app mobile mengirim `code`
 
             if (!voucherCode || !unitId || purchaseAmount === undefined) {
                 return json({ success: false, message: 'voucherCode, unitId, dan purchaseAmount wajib diisi' }, { status: 400 });
@@ -310,7 +312,7 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'PUT pos/vouchers');
-        return json({ success: false, message: 'Gagal memproses voucher: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses voucher: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

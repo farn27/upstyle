@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { receivables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
@@ -67,7 +68,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            if (err instanceof PiutangError) return fail(err.status, { error: err.message });
+            if (err instanceof PiutangError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Add Receivable Error');
             return fail(500, { error: 'Gagal membuat invoice piutang' });
         }
@@ -91,7 +92,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            if (err instanceof PiutangError) return fail(err.status, { error: err.message });
+            if (err instanceof PiutangError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Pay Receivable Error');
             return fail(500, { error: 'Gagal mencatat pembayaran' });
         }

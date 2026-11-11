@@ -20,17 +20,15 @@ export async function GET({ params, cookies, request }) {
             return json({ success: false, message: 'Tiket tidak ditemukan' }, { status: 404 });
         }
 
-        const messages = await db.query.supportTicketMessages.findMany({
-            where: eq(supportTicketMessages.ticketId, ticketId),
-            orderBy: [asc(supportTicketMessages.id)]
-        });
+        const messages = await db.select().from(supportTicketMessages)
+            .where(eq(supportTicketMessages.ticketId, ticketId)).orderBy(asc(supportTicketMessages.id));
 
         const data = messages.map(m => ({
             id: m.id,
             ticketId: m.ticketId,
             senderId: m.senderId,
             senderType: m.senderType === 'STAFF' ? 'agent' : 'customer',
-            senderName: m.senderName,
+            senderName: m.senderType === 'STAFF' ? 'Agen' : 'Pelanggan',
             message: m.message,
             createdAt: m.createdAt || ''
         }));

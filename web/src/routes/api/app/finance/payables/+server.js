@@ -1,4 +1,6 @@
 import { json } from '@sveltejs/kit';
+import { buatHutangManual, HutangError } from '$lib/server/hutangManual';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { payables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -6,6 +8,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
 import { triggerEvent } from '$lib/server/pusher';
+import { bayarTagihan, PengadaanError } from '$lib/server/pengadaan';
 
 export async function GET({ url, cookies, request }) {
 	const userId = await getCurrentUserId(cookies, request);
@@ -43,7 +46,7 @@ export async function GET({ url, cookies, request }) {
 	}
 }
 
-export async function POST({ request, cookies }) {
+export async function POST({ request, cookies, url }) {
 	const userId = await getCurrentUserId(cookies, request);
 	if (!userId) {
 		return json({ success: false, message: 'Unauthorized' }, { status: 401 });
@@ -51,23 +54,18 @@ export async function POST({ request, cookies }) {
 
 	try {
 		const body = await request.json();
-		const { unitId, contactId, nomorFaktur, tanggal, jatuhTempo, nominal, keterangan } = body;
-
-		if (!unitId || !contactId || !nomorFaktur || !tanggal || !jatuhTempo || nominal == null) {
-			return json({ success: false, message: 'Data tidak lengkap' }, { status: 400 });
+		const unitId = body.unitId ?? url.searchParams.get('unitId');
+		if (!unitId) return json({ success: false, message: 'unitId wajib diisi' }, { status: 400 });
+		/** @type {{ id: number, nomorFaktur: string }} */
+		let hasil;
+		try {
+			hasil = await buatHutangManual(db, Number(unitId), body);
+		} catch (e) {
+			if (e instanceof HutangError) return json({ success: false, message: e.message }, { status: e.status });
+			throw e;
 		}
-
-		const [inserted] = await db.insert(payables).values({
-			unitId: Number(unitId),
-			contactId: Number(contactId),
-			nomorFaktur,
-			tanggal,
-			jatuhTempo,
-			nominal: String(nominal),
-			sudahDibayar: '0',
-			status: 'BELUM_BAYAR',
-			keterangan: keterangan || null
-		});
+		const inserted = { insertId: hasil.id };
+		const nomorFaktur = hasil.nomorFaktur;
 
 		try {
 			await triggerEvent(`unit-${unitId}`, 'payable-created', {
@@ -97,7 +95,7 @@ export async function PUT({ request, cookies }) {
 
 	try {
 		const body = await request.json();
-		const { invoiceId, nominalBayar } = body;
+		const { invoiceId, nominalBayar, kasCoaId } = body;
 
 		if (!invoiceId || nominalBayar == null) {
 			return json({ success: false, message: 'invoiceId dan nominalBayar wajib diisi' }, { status: 400 });
@@ -114,6 +112,21 @@ export async function PUT({ request, cookies }) {
 		const bayar = Number(nominalBayar);
 		if (isNaN(bayar) || bayar <= 0) {
 			return json({ success: false, message: 'Nominal bayar harus lebih dari 0' }, { status: 400 });
+		}
+
+		// Tagihan dari modul Pengadaan sudah punya jurnal hutang → pembayaran harus ikut dijurnal (kas keluar)
+		if (payable.journalId) {
+			try {
+				await bayarTagihan(db, { unitId: payable.unitId, userId }, payable.id, { nominal: bayar, kasCoaId });
+			} catch (e) {
+				if (e instanceof PengadaanError) return json({ success: false, message: pesanAman(e) }, { status: e.status });
+				throw e;
+			}
+			return json({ success: true, message: 'Pembayaran hutang berhasil dicatat' });
+		}
+
+		if (Number(payable.sudahDibayar || 0) + bayar > Number(payable.nominal) + 0.5) {
+			return json({ success: false, message: 'Nominal melebihi sisa tagihan' }, { status: 409 });
 		}
 
 		const currentSudahDibayar = Number(payable.sudahDibayar || 0);

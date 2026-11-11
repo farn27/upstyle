@@ -34,7 +34,7 @@ export const actions = {
 		const parsed = emailSchema.safeParse({ email: data.get('email') });
 
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.errors[0]?.message });
+			return fail(400, { message: parsed.error.issues[0]?.message });
 		}
 
 		const { email } = parsed.data;

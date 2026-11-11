@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
  *
  * Call this function after login to get a client with the latest token.
  */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 fun createHttpClient(
     session: SessionRepository,
     onUnauthorized: (() -> Unit)? = null
@@ -30,6 +31,10 @@ fun createHttpClient(
                 ignoreUnknownKeys = true
                 isLenient = true
                 coerceInputValues = true
+                // Properti bernilai default (mis. `action = "checkout"`) HARUS ikut terkirim; kalau tidak server menjawab
+                // "aksi tidak dikenali". Nilai null tetap tidak dikirim.
+                encodeDefaults = true
+                explicitNulls = false
             })
         }
 

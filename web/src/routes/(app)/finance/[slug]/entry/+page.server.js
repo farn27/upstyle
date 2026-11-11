@@ -1,13 +1,15 @@
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { transaksi, unitBisnis, products, chartOfAccounts, journalEntries, journalEntryLines, riwayatAksi } from '$lib/server/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, isNull } from 'drizzle-orm';
 import { pusherServer } from '$lib/server/pusher';
 import { inngest } from '$lib/server/inngest';
 import { log } from '$lib/server/logger';
 import { redis } from '$lib/server/redis';
 import { error, fail } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { groqChatCompletion } from '$lib/server/groq';
+import { uraikanTransaksi } from '$lib/server/aiTransaksi';
 import { normalizeKategoriTrx, isKategoriMasuk } from '$lib/server/kategoriTrx';
 import { nowWIB } from '$lib/server/dateUtils';
 import { sql } from 'drizzle-orm';
@@ -45,7 +47,7 @@ export const load = async ({ params, cookies }) => {
 	const kasAccounts = coaList.filter(c => c.tipeAkun === 'ASET_LANCAR' && 
 		(c.namaAkun.toLowerCase().includes('kas') || c.namaAkun.toLowerCase().includes('bank') || c.namaAkun.toLowerCase().includes('transfer')));
 	
-	const productsData = await db.select().from(products).where(eq(products.unitId, unit.id));
+	const productsData = await db.select().from(products).where(and(eq(products.unitId, unit.id), isNull(products.deletedAt)));
 
 	return { unit, hasCoa: true, coaAccounts: coaList, kasAccounts, products: productsData };
 };
@@ -126,75 +128,11 @@ export const actions = {
 			});
 			if (!unit) return { success: false, error: 'Unit tidak ditemukan' };
 
-			const productsData = await db.select().from(products).where(eq(products.unitId, unit.id));
-			const coaData = await db.select().from(chartOfAccounts)
-				.where(and(eq(chartOfAccounts.unitId, unit.id), eq(chartOfAccounts.isActive, 1)))
-				.orderBy(chartOfAccounts.kodeAkun);
-			
-			const listProduk = productsData.map(p => `- ID=${p.id} | NAMA="${p.nama}"`).join('\n');
-			const contextCOA = coaData
-				.map(c => `- ID=${c.id} | KODE="${c.kodeAkun}" | NAMA="${c.namaAkun}" | TIPE="${c.tipeAkun}"`)
-				.join('\n');
-
-			const systemPrompt = `Anda adalah Mesin Pencocokan Data Akuntansi ERP.
-DAFTAR PRODUK:\n${listProduk}\n
-DAFTAR AKUN COA:\n${contextCOA}\n
-TUGAS: Analisis teks "${teksInput}". 
-LOGIKA: 
-1. Jika teks mengacu pada penjualan/pendapatan, set kategori="Masuk" dan pilih coa_id dari akun PENDAPATAN (tipe PENDAPATAN atau PENDAPATAN_LAINNYA).
-2. Jika teks mengacu pada biaya/pengeluaran, set kategori="Keluar" dan pilih coa_id dari akun BEBAN (tipe BEBAN_OPERASIONAL, BEBAN_LAINNYA, atau HPP).
-3. Pilih juga kas_coa_id dari akun ASET_LANCAR yang paling sesuai (biasanya "Kas Tunai").
-OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk"|"Keluar", "coa_id": number|null, "kas_coa_id": number|null, "nominal_manual": number }`;
-
-			const resJson = await groqChatCompletion({
-				model: 'llama-3.1-8b-instant',
-				messages: [
-					{ role: 'system', content: systemPrompt },
-					{ role: 'user', content: String(teksInput) }
-				],
-				temperature: 0.1,
-				response_format: { type: 'json_object' }
-			});
-
-			let hasilAI = JSON.parse(resJson.choices[0].message.content);
-			let finalNominal = hasilAI.nominal_manual || 0;
-			let catatanOtomatis = String(teksInput).toUpperCase();
-			let finalCoaId = hasilAI.coa_id;
-			let finalKasCoaId = hasilAI.kas_coa_id;
-
-			if (hasilAI.product_id) {
-				const p = productsData.find(prod => String(prod.id) === String(hasilAI.product_id));
-				if (p) {
-					finalNominal = (hasilAI.qty || 1) * Number(p.hargaJual);
-					catatanOtomatis = `PENJUALAN ${p.nama.toUpperCase()} (${hasilAI.qty || 1}x)`;
-					hasilAI.kategori = 'Masuk';
-
-					// Pilih akun pendapatan penjualan
-					const autoRevenue = coaData.find(c => c.tipeAkun === 'PENDAPATAN' && c.namaAkun.toLowerCase().includes('penjualan'));
-					if (autoRevenue) finalCoaId = autoRevenue.id;
-				}
-			}
-
-			// Fallback kas_coa_id jika AI tidak pilih
-			if (!finalKasCoaId) {
-				const kas = coaData.find(c => c.tipeAkun === 'ASET_LANCAR' && c.namaAkun.toLowerCase().includes('kas'));
-				if (kas) finalKasCoaId = kas.id;
-			}
-
-			return {
-				success: true,
-				hasil: {
-					nominal: finalNominal,
-					catatan: catatanOtomatis,
-					product_id: hasilAI.product_id ? String(hasilAI.product_id) : null,
-					qty: hasilAI.qty || 1,
-					kategori: hasilAI.kategori,
-					coa_id: finalCoaId,
-					kas_coa_id: finalKasCoaId
-				}
-			};
+			const hasil = await uraikanTransaksi(db, unit.id, String(teksInput));
+			return { success: true, hasil };
 		} catch (err) {
-			return { success: false, error: err.message };
+			log.ai.error({ err: err instanceof Error ? err.message : String(err) }, '[Entry] prosesAI');
+			return { success: false, error: 'Gagal memproses teks. Isi formulir secara manual atau coba lagi.' };
 		}
 	},
 
@@ -207,7 +145,13 @@ OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk
 		const qty = parseInt(formData.get('qty')) || 1;
 		const nominal = Number(formData.get('nominal')) || 0;
 		const keterangan = formData.get('keterangan')?.toString().toUpperCase() || '';
-		const kategori = normalizeKategoriTrx(formData.get('kategori_trx'));
+		/** @type {'MASUK' | 'KELUAR'} */
+		let kategori;
+		try {
+			kategori = normalizeKategoriTrx(formData.get('kategori_trx'));
+		} catch {
+			return fail(400, { error: 'Pilih jenis transaksi: Masuk atau Keluar' });
+		}
 		const coaId = formData.get('coa_id') ? parseInt(formData.get('coa_id')) : null;
 		const kasCoaId = formData.get('kas_coa_id') ? parseInt(formData.get('kas_coa_id')) : null;
 
@@ -240,20 +184,7 @@ OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk
 			savedTrxId = hasil.trxId;
 
 			// 5. Invalidate cache (Bungkus di try-catch agar transaksi tidak gagal jika Redis down)
-			try {
-				if (redis) {
-					const dashboardKeys = await redis.keys(`finance_dash_v4:*:${slug}:*`);
-					if (dashboardKeys.length > 0) await redis.del(...dashboardKeys);
-
-					const historyKeys = await redis.keys(`history_v3:*:${slug}:*`);
-					if (historyKeys.length > 0) await redis.del(...historyKeys);
-
-					const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
-					if (productKeys.length > 0) await redis.del(...productKeys);
-				}
-			} catch (err) {
-				console.error('[Redis] Gagal invalidate cache:', err.message);
-			}
+			await tandaiBerubah({ userId, slug });
 
 			// 6. Trigger realtime & background job
 			try {
@@ -293,7 +224,7 @@ OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk
 			};
 		} catch (err) {
 			console.error(err);
-			return fail(400, { message: err.message });
+			return fail(400, { message: pesanAman(err) });
 		}
 	}
 };

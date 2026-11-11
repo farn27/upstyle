@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { accountingContacts, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
@@ -62,7 +63,7 @@ export const actions = {
 
             return { success: true, message: `Kontak "${namaKontak}" berhasil didaftarkan!` };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 
@@ -97,7 +98,7 @@ export const actions = {
 
             return { success: true, message: `Kontak "${namaKontak}" berhasil diperbarui!` };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 
@@ -108,6 +109,7 @@ export const actions = {
         const { slug } = params;
         const formData = await request.formData();
         const id = parseInt(formData.get('id'));
+        if (!Number.isInteger(id) || id <= 0) return fail(400, { message: 'Kontak tidak valid' });
 
         try {
             const unit = await db.query.unitBisnis.findFirst({
@@ -115,12 +117,14 @@ export const actions = {
             });
             if (!unit) return fail(404, { message: 'Unit tidak ditemukan' });
 
-            await db.delete(accountingContacts)
+            const [hasil] = await db.delete(accountingContacts)
                 .where(and(eq(accountingContacts.id, id), eq(accountingContacts.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { message: 'Kontak tidak ditemukan di unit ini' });
 
             return { success: true, message: 'Kontak berhasil dihapus!' };
         } catch (err) {
-            return fail(500, { message: err.message });
+            console.error('[Kontak] hapus', err instanceof Error ? err.message : err);
+            return fail(500, { message: 'Gagal menghapus kontak (mungkin masih dipakai piutang/hutang)' });
         }
     }
 };

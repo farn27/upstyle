@@ -4,6 +4,9 @@ import com.upstyle.bizgrow.data.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.submitFormWithBinaryData
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.putJsonArray
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.*
 import kotlinx.datetime.Clock
@@ -13,6 +16,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
@@ -62,6 +66,33 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(req)
         }.body()
 
+    /** Link login staff: simpan (buat bila belum ada) atau buat ulang loginSlug. */
+    suspend fun updatePortal(unitId: Int, buatBaru: Boolean): ApiResponse<PortalResult> =
+        client.put("api/app/business") {
+            setBody(UpdatePortalRequest(unitId, buatBaru, "updatePortal"))
+        }.body()
+
+    suspend fun getBantuan(): ApiResponse<BantuanKonten> = client.get("api/app/help").body()
+
+    /** Ulasan aplikasi (1–5 bintang + komentar) → diteruskan server ke tim. */
+    suspend fun kirimUlasan(rating: Int, komentar: String): ApiResponse<JsonObject> =
+        client.post("api/app/help") { setBody(buildJsonObject { put("action", "review"); put("rating", rating); put("comment", komentar) }) }.body()
+
+    suspend fun kirimTiketTim(judul: String, isi: String, prioritas: String, unitId: Int): ApiResponse<Unit> = kirimTiketBantuan(judul, isi, prioritas, unitId, "Pusat Bantuan")
+
+    /** Link sementara (10 menit) untuk membuka slip gaji / invoice HTML di browser HP. jenis = "slip" | "invoice". */
+    suspend fun linkDokumen(jenis: String, id: String, month: Int? = null, year: Int? = null, type: String? = null): ApiResponse<DokumenLink> =
+        client.post("api/app/dokumen") {
+            setBody(buildJsonObject {
+                put("jenis", jenis); put("id", id)
+                month?.let { put("month", it) }; year?.let { put("year", it) }; type?.let { put("type", it) }
+            })
+        }.body()
+
+    /** Konfigurasi realtime (alamat Socket.io + token) dari backend; socketUrl kosong = realtime tidak aktif. */
+    suspend fun getRealtimeConfig(unitId: Int): ApiResponse<RealtimeConfig> =
+        client.get("api/app/realtime") { parameter("unitId", unitId) }.body()
+
     // ─── Finance ──────────────────────────────────────────────────────────────
 
     suspend fun getFinanceData(unitId: Int, startDate: String? = null, endDate: String? = null): ApiResponse<FinanceData> =
@@ -69,6 +100,20 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
             startDate?.let { parameter("start", it) }
             endDate?.let { parameter("end", it) }
+        }.body()
+
+    /** Riwayat transaksi dengan filter server + paginasi (offset = jumlah baris yang sudah dimuat). */
+    suspend fun getRiwayatTransaksi(unitId: Int, f: RiwayatFilter, offset: Int = 0, limit: Int = 50): ApiResponse<FinanceData> =
+        client.get("api/app/finance") {
+            parameter("unitId", unitId)
+            f.start?.let { parameter("start", it) }
+            f.end?.let { parameter("end", it) }
+            if (f.jenis.isNotBlank()) parameter("jenis", f.jenis)
+            if (f.q.isNotBlank()) parameter("q", f.q)
+            if (f.abcId > 0) parameter("abcId", f.abcId)
+            parameter("urut", f.urut)
+            parameter("limit", limit)
+            parameter("offset", offset)
         }.body()
 
     suspend fun createTransaction(req: CreateTransactionRequest): ApiResponse<TransaksiTersimpan> =
@@ -89,6 +134,51 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("limit", 50)
         }.body()
 
+    /** Unggah foto produk (multipart) → URL publik, atau null bila gagal. */
+    suspend fun uploadFotoProduk(bytes: ByteArray, namaFile: String = "produk.jpg"): String? {
+        val res: JsonObject = client.submitFormWithBinaryData(
+            url = "api/uploads/product-image",
+            formData = io.ktor.client.request.forms.formData {
+                append("image", bytes, io.ktor.http.Headers.build {
+                    append(io.ktor.http.HttpHeaders.ContentType, "image/jpeg")
+                    append(io.ktor.http.HttpHeaders.ContentDisposition, "filename=\"$namaFile\"")
+                })
+            }
+        ).body()
+        return res["data"]?.jsonObject?.get("url")?.jsonPrimitive?.contentOrNull
+    }
+
+    /** Simpan produk dari form lengkap: tambah (varian ikut) atau ubah. kategoriId null saat ubah = lepas kategori. */
+    suspend fun simpanProdukForm(unitId: Int, f: ProdukForm, id: String?): ApiResponse<JsonObject> =
+        client.request("api/app/products") {
+            method = if (id == null) io.ktor.http.HttpMethod.Post else io.ktor.http.HttpMethod.Put
+            setBody(buildJsonObject {
+                put("id", id ?: "0")
+                put("unitId", unitId)
+                put("nama", f.nama)
+                put("jenis", f.jenis)
+                put("sku", f.sku)
+                put("hargaBeli", f.hargaBeli)
+                put("hargaJual", f.hargaJual)
+                put("stok", f.stok)
+                put("minStok", f.minStok)
+                put("barcode", f.barcode.ifBlank { null })
+                if (f.kategoriBaru.isNotBlank()) put("kategori", f.kategoriBaru.trim())
+                else if (id != null || f.kategoriId != null) put("kategoriId", f.kategoriId)
+                if (f.foto != null || id != null) put("foto", f.foto)
+                if (id == null && f.varian.isNotEmpty()) {
+                    putJsonArray("variants") {
+                        f.varian.forEach { v ->
+                            add(buildJsonObject {
+                                put("namaVariasi", v.namaVariasi); put("sku", v.sku)
+                                put("hargaBeli", v.hargaBeli); put("hargaJual", v.hargaJual); put("stok", v.stok)
+                            })
+                        }
+                    }
+                }
+            })
+        }.body()
+
     suspend fun createProduct(product: Product): ApiResponse<Unit> =
         client.post("api/app/products") { setBody(product) }.body()
 
@@ -102,6 +192,14 @@ class UpstyleApi(private val client: HttpClient) {
         client.get("api/app/products/categories") {
             parameter("unitId", unitId)
         }.body()
+
+    suspend fun buatKategoriProduk(unitId: Int, nama: String): ApiResponse<JsonObject> =
+        client.post("api/app/products/categories") {
+            setBody(buildJsonObject { put("unitId", unitId); put("namaKategori", nama) })
+        }.body()
+
+    suspend fun hapusKategoriProduk(id: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/products/categories") { parameter("categoryId", id) }.body()
 
     suspend fun getStockLogs(unitId: Int, productId: String? = null): ApiResponse<List<StockLog>> =
         client.get("api/app/products") {
@@ -176,17 +274,55 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── CRM ──────────────────────────────────────────────────────────────────
 
-    suspend fun getCrmContacts(unitId: Int): PaginatedResponse<CrmContact> =
+    suspend fun getCrmContacts(unitId: Int, page: Int = 1): PaginatedResponse<CrmContact> =
         client.get("api/app/crm") {
             parameter("unitId", unitId)
             parameter("type", "contacts")
+            parameter("limit", 100); parameter("page", page)
         }.body()
 
     suspend fun createContact(req: CreateContactRequest): ApiResponse<Unit> =
         client.post("api/app/crm") { setBody(req) }.body()
 
-    suspend fun getCrmDeals(unitId: Int): PaginatedResponse<CrmDeal> =
-        client.get("api/app/crm") { parameter("unitId", unitId) }.body()
+    suspend fun getCrmDeals(unitId: Int, page: Int = 1): PaginatedResponse<CrmDeal> =
+        client.get("api/app/crm") { parameter("unitId", unitId); parameter("limit", 100); parameter("page", page) }.body()
+
+    /** Ubah nama / nilai deal (tahap tetap lewat [updateDealStage]). */
+    suspend fun ubahDeal(dealId: Int, namaDeal: String, nilai: Double): ApiResponse<JsonObject> =
+        client.put("api/app/crm") {
+            setBody(buildJsonObject { put("dealId", dealId); put("namaDeal", namaDeal); put("nilai", nilai) })
+        }.body()
+
+    suspend fun ubahKontak(contactId: Int, nama: String, telepon: String, email: String, perusahaan: String, stage: String): ApiResponse<JsonObject> =
+        client.put("api/app/crm/contacts/$contactId") {
+            setBody(buildJsonObject { put("nama", nama); put("telepon", telepon); put("email", email); put("perusahaan", perusahaan); put("stage", stage) })
+        }.body()
+
+    suspend fun hapusKontak(contactId: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/crm/contacts/$contactId").body()
+
+    suspend fun buatTugasCrm(unitId: Int, deskripsi: String, kontakId: Int?, dealId: Int?, deadline: String?): ApiResponse<JsonObject> =
+        client.post("api/app/crm/tasks") {
+            setBody(buildJsonObject {
+                put("unitId", unitId); put("deskripsi", deskripsi)
+                if (kontakId != null) put("kontakId", kontakId)
+                if (dealId != null) put("dealId", dealId)
+                if (!deadline.isNullOrBlank()) put("deadline", deadline)
+            })
+        }.body()
+
+    suspend fun ubahTugasCrm(taskId: Int, status: String? = null, deskripsi: String? = null, deadline: String? = null): ApiResponse<JsonObject> =
+        client.put("api/app/crm/tasks") {
+            setBody(buildJsonObject {
+                put("taskId", taskId)
+                if (status != null) put("status", status)
+                if (deskripsi != null) put("deskripsi", deskripsi)
+                if (deadline != null) put("deadline", deadline)
+            })
+        }.body()
+
+    suspend fun hapusTugasCrm(taskId: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/crm/tasks") { parameter("taskId", taskId) }.body()
 
     suspend fun createDeal(req: CreateDealRequest): ApiResponse<Unit> =
         client.post("api/app/crm") { setBody(req) }.body()
@@ -215,8 +351,53 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getScmData(unitId: Int): ApiResponse<ScmData> =
         client.get("api/app/scm") { parameter("unitId", unitId) }.body()
 
+    suspend fun getLaporanPembelian(unitId: Int, dari: String, sampai: String): ApiResponse<LaporanPembelian> =
+        client.get("api/app/scm/laporan") {
+            parameter("unitId", unitId); parameter("dari", dari); parameter("sampai", sampai)
+        }.body()
+
+    /** PO lengkap (banyak barang, diskon, ongkir, PPN, perkiraan tiba, catatan). */
+    suspend fun buatPoLengkap(unitId: Int, supplierId: String, items: List<Triple<String, Int, Double>>, diskon: Double, ongkir: Double, ppnPersen: Double, expectedDate: String?, catatan: String?): ApiResponse<JsonObject> =
+        client.post("api/app/scm") {
+            setBody(buildJsonObject {
+                put("action", "create-po-lengkap")
+                putJsonObject("po") {
+                    put("unitId", unitId); put("supplierId", supplierId)
+                    put("diskon", diskon); put("ongkir", ongkir); put("ppnPersen", ppnPersen)
+                    if (!expectedDate.isNullOrBlank()) put("expectedDate", expectedDate)
+                    if (!catatan.isNullOrBlank()) put("notes", catatan)
+                    putJsonArray("items") { items.forEach { (p, q, h) -> add(buildJsonObject { put("productId", p); put("qty", q); put("unitPrice", h) }) } }
+                }
+            })
+        }.body()
+
+    suspend fun ubahSupplier(supplierId: String, nama: String, kontak: String, telp: String, email: String, alamat: String, kategori: String, npwp: String, termin: Int): ApiResponse<JsonObject> =
+        client.put("api/app/scm") {
+            setBody(buildJsonObject {
+                put("action", "update-supplier"); put("supplierId", supplierId)
+                putJsonObject("supplier") {
+                    put("namaSupplier", nama); put("contactName", kontak); put("phone", telp); put("email", email)
+                    put("address", alamat); put("category", kategori); put("npwp", npwp); put("termPembayaran", termin)
+                }
+            })
+        }.body()
+
+    suspend fun aturSupplierAktif(supplierId: String, aktif: Boolean): ApiResponse<JsonObject> =
+        client.put("api/app/scm") {
+            setBody(buildJsonObject { put("action", "set-supplier-aktif"); put("supplierId", supplierId); put("aktif", aktif) })
+        }.body()
+
     suspend fun createSupplier(req: CreateSupplierRequest): ApiResponse<Unit> =
         client.post("api/app/scm") { setBody(req) }.body()
+
+    suspend fun getPoDetail(poId: Int): ApiResponse<PoDetail> =
+        client.get("api/app/scm/po") { parameter("poId", poId) }.body()
+
+    /** Aksi PO: kirim | batal | tutup | terima | tagih | bayar | retur. [tambahan] diisi sesuai aksi. */
+    suspend fun aksiPo(poId: Int, aksi: String, tambahan: JsonObject = JsonObject(emptyMap())): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/scm/po") {
+            setBody(JsonObject(tambahan + mapOf("poId" to kotlinx.serialization.json.JsonPrimitive(poId), "action" to kotlinx.serialization.json.JsonPrimitive(aksi))))
+        }.body())
 
     suspend fun createPurchaseOrder(req: CreatePoRequest): ApiResponse<Unit> =
         client.post("api/app/scm") { setBody(req) }.body()
@@ -244,8 +425,8 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
 
     suspend fun payReceivable(req: PayInvoiceRequest): ApiResponse<Unit> =
-        client.post("api/app/finance/receivables") {
-            setBody(mapOf("action" to "pay", "invoiceId" to req.invoiceId, "nominalBayar" to req.nominalBayar))
+        client.put("api/app/finance/receivables") {
+            setBody(buildJsonObject { put("action", "pay"); put("invoiceId", req.invoiceId); put("nominalBayar", req.nominalBayar); req.kasCoaId?.let { put("kasCoaId", it) } })
         }.body()
 
     // ─── Finance AP (Hutang) ──────────────────────────────────────────────────
@@ -262,8 +443,8 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
 
     suspend fun payPayable(req: PayInvoiceRequest): ApiResponse<Unit> =
-        client.post("api/app/finance/payables") {
-            setBody(mapOf("action" to "pay", "invoiceId" to req.invoiceId, "nominalBayar" to req.nominalBayar))
+        client.put("api/app/finance/payables") {
+            setBody(buildJsonObject { put("action", "pay"); put("invoiceId", req.invoiceId); put("nominalBayar", req.nominalBayar); req.kasCoaId?.let { put("kasCoaId", it) } })
         }.body()
 
     // ─── Accounting Contacts ──────────────────────────────────────────────────
@@ -278,6 +459,26 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("unitId", unitId)
             setBody(contact)
         }.body()
+
+    suspend fun simpanKontakAkuntansi(unitId: Int, c: AccountingContact): ApiResponse<Unit> {
+        val isi = buildJsonObject {
+            if (c.id != 0) put("contactId", c.id)
+            put("unitId", unitId)
+            put("namaKontak", c.namaKontak)
+            put("tipeKontak", c.tipeKontak.uppercase())
+            put("email", c.email ?: "")
+            put("telepon", c.telepon ?: "")
+            put("alamat", c.alamat ?: "")
+            put("npwp", c.npwp ?: "")
+            put("limitKredit", c.limitKredit)
+            put("termPembayaran", c.termPembayaran)
+        }
+        return tanpaData(if (c.id == 0) client.post("api/app/finance/contacts") { setBody(isi) }.body()
+        else client.put("api/app/finance/contacts") { setBody(isi) }.body())
+    }
+
+    suspend fun hapusKontakAkuntansi(unitId: Int, id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/contacts") { parameter("contactId", id); parameter("unitId", unitId) }.body())
 
     // ─── Journal / Jurnal Umum ────────────────────────────────────────────────
 
@@ -303,11 +504,12 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Buku Besar ───────────────────────────────────────────────────────────
 
-    suspend fun getBukuBesar(unitId: Int, coaId: Int, tahun: Int? = null): ApiResponse<BukuBesarData> =
+    suspend fun getBukuBesar(unitId: Int, coaId: Int, tahun: Int? = null, bulan: Int? = null): ApiResponse<BukuBesarData> =
         client.get("api/app/finance/buku-besar") {
             parameter("unitId", unitId)
             parameter("coaId", coaId)
             tahun?.let { parameter("tahun", it) }
+            bulan?.let { parameter("bulan", it) }
         }.body()
 
     // ─── Laporan ──────────────────────────────────────────────────────────────
@@ -354,6 +556,15 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("status" to status))
         }.body()
 
+    /** Ubah status bayar dan/atau kirim pesanan toko online (nilai enum web). */
+    suspend fun ubahStatusPesanan(orderId: Int, paymentStatus: String? = null, shippingStatus: String? = null): ApiResponse<Unit> =
+        client.put("api/app/orders/$orderId") {
+            setBody(buildJsonObject {
+                if (paymentStatus != null) put("paymentStatus", paymentStatus)
+                if (shippingStatus != null) put("shippingStatus", shippingStatus)
+            })
+        }.body()
+
     // ─── CS / Support Tickets ─────────────────────────────────────────────────
 
     suspend fun getTickets(unitId: Int): ApiResponse<List<SupportTicket>> =
@@ -377,21 +588,25 @@ class UpstyleApi(private val client: HttpClient) {
             setBody(mapOf("status" to status))
         }.body()
 
+    suspend fun updateTicketPriority(ticketId: Int, priority: String): ApiResponse<Unit> =
+        client.put("api/app/cs/$ticketId") {
+            setBody(mapOf("priority" to priority))
+        }.body()
+
     // ─── Notifications ────────────────────────────────────────────────────────
 
-    suspend fun getNotifications(unitId: Int, limit: Int = 30): ApiResponse<List<RiwayatAksi>> =
+    /** Notifikasi semua unit milik user (seperti lonceng web); [before] = id terkecil yang sudah dimuat. */
+    suspend fun getNotifications(limit: Int = 30, before: Int? = null): ApiResponse<List<RiwayatAksi>> =
         client.get("api/app/notifications") {
-            parameter("unitId", unitId)
             parameter("limit", limit)
+            before?.let { parameter("before", it) }
         }.body()
 
     suspend fun markNotificationRead(notifId: Int): ApiResponse<Unit> =
         client.put("api/app/notifications/$notifId/read").body()
 
-    suspend fun markAllNotificationsRead(unitId: Int): ApiResponse<Unit> =
-        client.put("api/app/notifications/read-all") {
-            parameter("unitId", unitId)
-        }.body()
+    suspend fun markAllNotificationsRead(): ApiResponse<Unit> =
+        client.put("api/app/notifications/read-all").body()
 
     // ─── AI Chat ──────────────────────────────────────────────────────────────
 
@@ -570,8 +785,8 @@ class UpstyleApi(private val client: HttpClient) {
     }
 
     suspend fun submitTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
-        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
-        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
+        kirimTiketBantuan(req.title, req.description, req.priority, unitId)
+
 
     suspend fun runDiagnostics(unitId: Int): ApiResponse<DiagnosticResult> =
         client.post("api/app/help/diagnostics") {
@@ -636,8 +851,7 @@ class UpstyleApi(private val client: HttpClient) {
 
     /** Submits a support ticket using the lightweight [SubmitTicketRequest] form. */
     suspend fun submitSupportTicket(unitId: Int, req: SubmitTicketRequest): ApiResponse<Unit> =
-        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
-        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
+        kirimTiketBantuan(req.title, req.description, req.priority, unitId)
 
     // ─── Alias / overload helpers for AppViewModel call-site compatibility ────
 
@@ -674,10 +888,34 @@ class UpstyleApi(private val client: HttpClient) {
 
     /** Overload accepting [SubmitSupportTicketRequest] directly — AppViewModel calls `submitSupportTicket(req)`. */
     suspend fun submitSupportTicket(req: SubmitSupportTicketRequest): ApiResponse<Unit> =
-        // Tiket ke tim Bizgrow belum ada di web/server. Tiket pelanggan unit ada di api/app/cs.
-        ApiResponse(false, "Kirim tiket ke tim Bizgrow belum tersedia — hubungi admin Bizgrow langsung", null, "FEATURE_UNAVAILABLE")
+        kirimTiketBantuan(req.title, req.description, req.priority, req.unitId, req.screenContext)
+
+    /** Tiket ke tim Bizgrow (email dukungan lewat server). */
+    private suspend fun kirimTiketBantuan(judul: String, isi: String, prioritas: String, unitId: Int, layar: String? = null): ApiResponse<Unit> {
+        val res: ApiResponse<JsonElement> = client.post("api/app/help") {
+            setBody(buildJsonObject {
+                put("action", "ticket"); put("title", judul); put("description", isi); put("priority", prioritas); put("unitId", unitId)
+                layar?.let { put("screenContext", it) }
+            })
+        }.body()
+        return ApiResponse(res.success, res.message, null, res.code)
+    }
+
 
     // ─── Fitur yang dulu salah alamat — disesuaikan dengan server (api/app/*) ──
+
+    suspend fun getPosReport(unitId: Int): ApiResponse<PosReport> =
+        client.get("api/app/pos/reports") { parameter("unitId", unitId) }.body()
+
+    suspend fun createPosCash(unitId: Int, shiftId: Int, type: String, amount: Double, description: String): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/pos/cash") {
+            setBody(buildJsonObject {
+                put("unitId", unitId); put("shiftId", shiftId); put("type", type); put("amount", amount); put("description", description)
+            })
+        }.body())
+
+    suspend fun getRekapPajak(unitId: Int, tahun: Int): ApiResponse<RekapPajak> =
+        client.get("api/app/finance/pajak") { parameter("unitId", unitId); parameter("tahun", tahun) }.body()
 
     suspend fun getPosQueue(unitId: Int): ApiResponse<PosQueueData> =
         client.get("api/app/pos") {
@@ -744,6 +982,17 @@ class UpstyleApi(private val client: HttpClient) {
         }.body()
     }
 
+    suspend fun ajukanCuti(unitId: Int, employeeId: Int, tipe: String, mulai: String, selesai: String, alasan: String): ApiResponse<JsonObject> =
+        client.post("api/app/hr/leave") {
+            setBody(buildJsonObject {
+                put("unitId", unitId); put("employeeId", employeeId); put("type", tipe)
+                put("startDate", mulai); put("endDate", selesai); put("reason", alasan)
+            })
+        }.body()
+
+    suspend fun putusCuti(leaveId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/hr/leave") { setBody(buildJsonObject { put("leaveId", leaveId); put("status", status) }) }.body()
+
     suspend fun getLeaveRequests(unitId: Int): ApiResponse<List<LeaveRequest>> =
         client.get("api/app/hr/leave") { parameter("unitId", unitId) }.body()
 
@@ -777,7 +1026,7 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body()
 
-    suspend fun createUnit(req: CreateUnitRequest): ApiResponse<BusinessUnit> =
+    suspend fun createUnit(req: CreateUnitRequest): ApiResponse<JsonObject> =
         client.post("api/app/business") { setBody(req) }.body()
 
     // Departemen → api/app/hr/departments (hapus pakai query departmentId & unitId)
@@ -797,6 +1046,29 @@ class UpstyleApi(private val client: HttpClient) {
                 put("name", dept.name)
             })
         }.body()
+
+    suspend fun komponenGaji(employeeId: Int, body: JsonObject): ApiResponse<JsonObject> =
+        client.post("api/app/hr/$employeeId") { setBody(body) }.body()
+
+    suspend fun getHrDetail(employeeId: Int): ApiResponse<HrDetailData> =
+        client.get("api/app/hr/$employeeId").body()
+
+    suspend fun updateHrKaryawan(employeeId: Int, data: JsonObject): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/hr/$employeeId") { setBody(data) }.body())
+
+    suspend fun updateDepartmentName(departmentId: Int, unitId: Int, name: String): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/hr/departments") {
+            setBody(buildJsonObject { put("departmentId", departmentId); put("unitId", unitId); put("name", name) })
+        }.body())
+
+    suspend fun markPayrollPaid(unitId: Int, ids: List<Int>): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/hr/payroll") {
+            setBody(buildJsonObject {
+                put("action", "mark-paid")
+                put("unitId", unitId)
+                put("payrollIds", kotlinx.serialization.json.JsonArray(ids.map { kotlinx.serialization.json.JsonPrimitive(it) }))
+            })
+        }.body())
 
     suspend fun getCrmTasks(unitId: Int): ApiResponse<List<CrmTask>> =
         client.get("api/app/crm/tasks") { parameter("unitId", unitId) }.body()
@@ -830,6 +1102,7 @@ class UpstyleApi(private val client: HttpClient) {
                 put("action", "create-lead")
                 putJsonObject("lead") {
                     landingPageId?.let { put("landingPageId", it) }
+                    put("unitId", lead.unitId)
                     put("firstName", namaDepan)
                     if (namaBelakang.isNotBlank()) put("lastName", namaBelakang)
                     if (lead.email.isNotBlank()) put("email", lead.email)
@@ -924,10 +1197,36 @@ class UpstyleApi(private val client: HttpClient) {
         return ApiResponse(res.success, res.message, null, res.code)
     }
 
+    /** Plan lengkap untuk wizard (semua kolom). */
+    suspend fun getPlanLengkap(id: Int): JsonObject? {
+        val res: ApiResponse<JsonObject> = client.get("api/app/business-plan") { parameter("id", id) }.body()
+        return if (res.success) res.data else null
+    }
+
+    /** Simpan semua field wizard (buat baru bila id kosong). Mengembalikan id plan. */
+    suspend fun simpanPlanLengkap(body: JsonObject): Pair<Int?, String?> {
+        val res: ApiResponse<JsonObject> = client.post("api/app/business-plan") { setBody(body) }.body()
+        return if (res.success) (res.data?.get("id")?.jsonPrimitive?.intOrNull) to null else null to (res.message ?: "Gagal menyimpan plan")
+    }
+
+    /** Bantuan AI untuk wizard: mode hint | validate | canvas. */
+    suspend fun aiPlanAssist(step: Int, field: String, kategori: String, konteks: JsonObject, mode: String): String? {
+        val res: ApiResponse<JsonObject> = client.post("api/app/business-plan/ai-assist") {
+            setBody(buildJsonObject { put("step", step); put("field", field); put("kategori", kategori); put("context", konteks); put("mode", mode) })
+        }.body()
+        return if (res.success) res.data?.get("result")?.jsonPrimitive?.contentOrNull else null
+    }
+
     suspend fun deleteBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> {
         val res: ApiResponse<JsonElement> = client.delete("api/app/business-plan") { parameter("id", id) }.body()
         return ApiResponse(res.success, res.message, null, res.code)
     }
+
+    /** Terapkan plan: unitId null = buat unit baru dari plan. Balasan: unitId + totalRecords. */
+    suspend fun terapkanPlan(planId: Int, unitId: Int?): ApiResponse<JsonObject> =
+        client.post("api/app/business-plan/apply") {
+            setBody(buildJsonObject { put("planId", planId); if (unitId != null && unitId > 0) put("unitId", unitId) })
+        }.body()
 
     suspend fun applyBusinessPlan(id: Int, unitId: Int): ApiResponse<Unit> {
         val res: ApiResponse<JsonElement> = client.post("api/app/business-plan/apply") {
@@ -1030,19 +1329,14 @@ class UpstyleApi(private val client: HttpClient) {
         return ApiResponse(res.success, res.message, null, res.code)
     }
 
-    // Integrasi Shopee tidak dilanjutkan — tidak ada endpoint di server.
-    suspend fun getShopeeStatus(unitId: Int): ApiResponse<ShopeeIntegration> = fiturDihentikan("Integrasi Shopee")
-    suspend fun connectShopee(integration: ShopeeIntegration): ApiResponse<ShopeeIntegration> = fiturDihentikan("Integrasi Shopee")
-    suspend fun disconnectShopee(unitId: Int): ApiResponse<Unit> = fiturDihentikan("Integrasi Shopee")
-
     // Profil & akun → api/app/settings (mode=profile | password | preferences)
     suspend fun getProfileSettings(): ApiResponse<Map<String, String>> {
         val res: ApiResponse<ProfilDto> = client.get("api/app/settings") { parameter("mode", "profile") }.body()
-        return res.mapData { mapOf("username" to it.username, "email" to it.email, "name" to it.name, "phone" to it.phone) }
+        return res.mapData { mapOf("username" to it.username, "email" to it.email, "name" to it.name, "avatarUrl" to it.avatarUrl) }
     }
 
     suspend fun updateProfile(unitId: Int, data: Map<String, String>): ApiResponse<Unit> =
-        ubahSettings("profile", data.filterValues { it.isNotBlank() }.mapValues { JsonPrimitive(it.value) })
+        ubahSettings("profile", data.filter { it.key == "avatarUrl" || it.value.isNotBlank() }.mapValues { JsonPrimitive(it.value) })
 
     suspend fun changePassword(data: Map<String, String>): ApiResponse<Unit> =
         ubahSettings("password", data.mapValues { JsonPrimitive(it.value) })
@@ -1094,6 +1388,19 @@ class UpstyleApi(private val client: HttpClient) {
         return ApiResponse(res.success, res.message, null, res.code)
     }
 
+    suspend fun ubahTargetSales(targetId: Int, unitId: Int, targetAmount: Double): ApiResponse<JsonObject> =
+        client.put("api/app/sales/targets") {
+            setBody(buildJsonObject { put("action", "update-target"); put("targetId", targetId); put("unitId", unitId); put("targetAmount", targetAmount) })
+        }.body()
+
+    suspend fun ubahStatusKampanye(campaignId: Int, unitId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/marketing") {
+            setBody(buildJsonObject { put("action", "update-campaign-status"); put("campaignId", campaignId); put("unitId", unitId); put("status", status) })
+        }.body()
+
+    suspend fun hapusKampanye(campaignId: Int, unitId: Int): ApiResponse<JsonObject> =
+        client.delete("api/app/marketing") { parameter("type", "campaign"); parameter("id", campaignId); parameter("unitId", unitId) }.body()
+
     suspend fun deleteSalesTarget(targetId: Int, unitId: Int): ApiResponse<Unit> =
         client.delete("api/app/sales/targets") {
             parameter("type", "target")
@@ -1142,6 +1449,16 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body())
 
+    suspend fun updateBudgetItem(id: Int, unitId: Int, nominal: Double, keterangan: String?): ApiResponse<Unit> =
+        tanpaData(client.put("api/app/finance/budget") {
+            setBody(buildJsonObject {
+                put("id", id)
+                put("unitId", unitId)
+                put("nominal", nominal)
+                put("keterangan", keterangan)
+            })
+        }.body())
+
     suspend fun deleteBudgetItem(id: Int, unitId: Int): ApiResponse<Unit> =
         tanpaData(client.delete("api/app/finance/budget") {
             parameter("id", id)
@@ -1157,6 +1474,22 @@ class UpstyleApi(private val client: HttpClient) {
                 put("type", type)
             })
         }.body())
+
+    /** Ubah harga beli / jual (dan stok minimum) satu produk. */
+    suspend fun ubahHarga(productId: String, hargaBeli: Double, hargaJual: Double, minStok: Int): ApiResponse<JsonObject> =
+        client.put("api/app/products/pricing") {
+            setBody(buildJsonObject { put("id", productId); put("hargaBeli", hargaBeli); put("hargaJual", hargaJual); put("minStok", minStok) })
+        }.body()
+
+    /** Simpan stok opname: item = (productId, stok fisik). Stok sistem diambil server saat itu juga. */
+    suspend fun simpanStokOpname(unitId: Int, catatan: String?, items: List<Pair<String, Int>>): ApiResponse<JsonObject> =
+        client.post("api/app/products/stock-opname") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                if (!catatan.isNullOrBlank()) put("notes", catatan)
+                putJsonArray("items") { items.forEach { (id, fisik) -> add(buildJsonObject { put("productId", id); put("actualStock", fisik) }) } }
+            })
+        }.body()
 
     suspend fun getStockOpnameList(unitId: Int): ApiResponse<List<StockOpnameSession>> =
         client.get("api/app/products/stock-opname") { parameter("unitId", unitId) }.body()
@@ -1175,6 +1508,48 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getSalesOrders(unitId: Int): ApiResponse<List<SalesOrder>> =
         client.get("api/app/crm/sales-orders") { parameter("unitId", unitId) }.body()
 
+    private fun kotlinx.serialization.json.JsonObjectBuilder.itemJual(items: List<ItemJual>) {
+        putJsonArray("items") {
+            items.forEach { add(buildJsonObject { if (it.productId != null) put("productId", it.productId); put("qty", it.qty); put("price", it.price) }) }
+        }
+    }
+
+    suspend fun buatPenawaran(unitId: Int, customerId: Int?, validUntil: String?, notes: String?, items: List<ItemJual>): ApiResponse<JsonObject> =
+        client.post("api/app/crm/quotations") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                if (customerId != null) put("customerId", customerId)
+                if (!validUntil.isNullOrBlank()) put("validUntil", validUntil)
+                if (!notes.isNullOrBlank()) put("notes", notes)
+                itemJual(items)
+            })
+        }.body()
+
+    suspend fun ubahStatusPenawaran(unitId: Int, quotationId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/crm/quotations") {
+            setBody(buildJsonObject { put("action", "update-status"); put("unitId", unitId); put("quotationId", quotationId); put("status", status) })
+        }.body()
+
+    suspend fun jadikanSalesOrder(unitId: Int, quotationId: Int): ApiResponse<JsonObject> =
+        client.put("api/app/crm/quotations") {
+            setBody(buildJsonObject { put("action", "convert-to-order"); put("unitId", unitId); put("quotationId", quotationId) })
+        }.body()
+
+    suspend fun buatSalesOrder(unitId: Int, customerId: Int?, notes: String?, items: List<ItemJual>): ApiResponse<JsonObject> =
+        client.post("api/app/crm/sales-orders") {
+            setBody(buildJsonObject {
+                put("unitId", unitId)
+                if (customerId != null) put("customerId", customerId)
+                if (!notes.isNullOrBlank()) put("notes", notes)
+                itemJual(items)
+            })
+        }.body()
+
+    suspend fun ubahStatusSalesOrder(orderId: Int, status: String): ApiResponse<JsonObject> =
+        client.put("api/app/crm/sales-orders") {
+            setBody(buildJsonObject { put("orderId", orderId); put("status", status) })
+        }.body()
+
     // Tutup buku → api/app/finance/close-period
     suspend fun getClosingPeriods(unitId: Int): ApiResponse<List<ClosingPeriod>> =
         client.get("api/app/finance/close-period") { parameter("unitId", unitId) }.body()
@@ -1189,8 +1564,14 @@ class UpstyleApi(private val client: HttpClient) {
             })
         }.body())
 
+    suspend fun bukaKembaliPeriode(unitId: Int, id: Int): ApiResponse<Unit> =
+        tanpaData(client.delete("api/app/finance/close-period") {
+            parameter("id", id)
+            parameter("unitId", unitId)
+        }.body())
+
     // COA → api/app/finance/coa (tambah / ubah nama-deskripsi-status / nonaktifkan)
-    suspend fun createCoa(unitId: Int, kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?): ApiResponse<Unit> =
+    suspend fun createCoa(unitId: Int, kode: String, nama: String, tipe: String, normalBalance: String, deskripsi: String?, parentId: Int? = null): ApiResponse<Unit> =
         tanpaData(client.post("api/app/finance/coa") {
             setBody(buildJsonObject {
                 put("unitId", unitId)
@@ -1199,16 +1580,25 @@ class UpstyleApi(private val client: HttpClient) {
                 put("tipeAkun", tipe)
                 put("normalBalance", normalBalance)
                 deskripsi?.takeIf { it.isNotBlank() }?.let { put("deskripsi", it) }
+                parentId?.let { put("parentId", it) }
             })
         }.body())
 
-    suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean): ApiResponse<Unit> =
+    /** COA otomatis dari deskripsi bisnis (AI). [tambahkan] = lengkapi COA yang sudah ada. */
+    suspend fun generateCoaAi(unitId: Int, deskripsi: String, tambahkan: Boolean): ApiResponse<Unit> =
+        tanpaData(client.post("api/app/finance/coa") {
+            setBody(buildJsonObject { put("action", "generate-ai"); put("unitId", unitId); put("deskripsi", deskripsi); put("tambahkan", tambahkan) })
+        }.body())
+
+    /** [parentId] 0 = lepas dari induk. */
+    suspend fun updateCoa(id: Int, nama: String, deskripsi: String?, aktif: Boolean, parentId: Int = 0): ApiResponse<Unit> =
         tanpaData(client.put("api/app/finance/coa") {
             setBody(buildJsonObject {
                 put("id", id)
                 put("namaAkun", nama)
                 put("deskripsi", deskripsi ?: "")
                 put("isActive", aktif)
+                put("parentId", parentId)
             })
         }.body())
 
@@ -1255,7 +1645,7 @@ class UpstyleApi(private val client: HttpClient) {
     suspend fun getBudgetItems(unitId: Int, year: Int): ApiResponse<List<BudgetItem>> =
         client.get("api/app/finance/budget") {
             parameter("unitId", unitId)
-            parameter("year", year)
+            parameter("tahun", year)
         }.body()
 
     suspend fun getExportHistory(unitId: Int): ApiResponse<List<ExportHistoryItem>> =
@@ -1369,6 +1759,8 @@ private fun FixedAsset.keJson(withId: Boolean) = buildJsonObject {
     put("nilaiSisa", nilaiSisa)
     if (withId) put("status", status)
     keterangan?.let { put("keterangan", it) }
+    // PUT: kosong = lepas dari akun COA; POST: hanya dikirim bila dipilih
+    if (withId) put("coaId", coaId) else coaId?.let { put("coaId", it) }
 }
 
 private fun TaxRate.keJson(withId: Boolean) = buildJsonObject {
@@ -1385,7 +1777,7 @@ private fun TaxRate.keJson(withId: Boolean) = buildJsonObject {
 private data class IdDto(val id: Int = 0)
 
 @Serializable
-private data class ProfilDto(val username: String = "", val email: String = "", val name: String = "", val phone: String = "")
+private data class ProfilDto(val username: String = "", val email: String = "", val name: String = "", val avatarUrl: String = "")
 
 @Serializable
 private data class HelpItemDto(val id: Int = 0, val q: String = "", val a: String = "", val category: String = "")
@@ -1423,10 +1815,13 @@ private data class BusinessPlanDto(
     val targetPasar: String? = null,
     val aiSummary: String? = null,
     val status: String = "DRAFT",
+    val currentStep: Int? = 1,
+    val isSeeded: Int? = 0,
     val createdAt: String? = null,
     val updatedAt: String? = null
 ) {
     fun keModel(unitAktif: Int) = BusinessPlan(
+        currentStep = (currentStep ?: 1).coerceIn(1, 7), isSeeded = (isSeeded ?: 0) != 0,
         id = id, unitId = unitId ?: unitAktif, title = namaBisnis, kategori = kategori,
         description = deskripsi.orEmpty(), executiveSummary = aiSummary.orEmpty(),
         marketAnalysis = targetPasar.orEmpty(), status = status,

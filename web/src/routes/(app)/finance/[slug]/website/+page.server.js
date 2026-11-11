@@ -1,3 +1,4 @@
+import { domainSlugUnik } from '$lib/server/unitBaru';
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { websiteSettings, unitBisnis } from '$lib/server/schema';
@@ -24,7 +25,7 @@ export const load = async ({ params, cookies }) => {
         // Buat default settings di DB
         const [inserted] = await db.insert(websiteSettings).values({
             unitId: unit.id,
-            domainSlug: slug,
+            domainSlug: await domainSlugUnik(db, slug, 'website'),
             theme: 'modern',
             colorPrimary: '#6366F1',
             heroTitle: `Selamat Datang di ${unit.namaUnit}`,
@@ -34,7 +35,7 @@ export const load = async ({ params, cookies }) => {
             contactEmail: unit.email || '',
             contactAddress: unit.alamat || '',
             isPublished: true
-        }).$returningId();
+        }).then(([r]) => [{ id: r.insertId }]);
 
         settings = await db.query.websiteSettings.findFirst({
             where: eq(websiteSettings.id, inserted.id)

@@ -32,6 +32,11 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		r.marketing = await import('../routes/api/app/marketing/+server.js');
 		r.finance = await import('../routes/api/app/finance/+server.js');
 		r.laporan = await import('../routes/api/app/finance/laporan/+server.js');
+		r.jurnal = await import('../routes/api/app/finance/journal/+server.js');
+		r.bukuBesar = await import('../routes/api/app/finance/buku-besar/+server.js');
+		r.anggaran = await import('../routes/api/app/finance/budget/+server.js');
+		r.tutupBuku = await import('../routes/api/app/finance/close-period/+server.js');
+		r.produk = await import('../routes/api/app/products/+server.js');
 
 		const t = Date.now();
 		const [a] = await db.insert(s.users).values({ username: `ka${t}`, email: `ka${t}@contoh.id` });
@@ -94,11 +99,170 @@ describe.skipIf(!TEST_DB)('Kontrak API mobile', () => {
 		expect(d.kpi.current).toBe(300000);
 		expect(Array.isArray(d.bankBalances)).toBe(true);
 		expect(d.transactions[0]).toHaveProperty('metodeLabel');
+		// tanggal dikirim sebagai teks WIB apa adanya (bukan epoch yang bergeser zona server)
+		expect(String(d.transactions.find((t) => t.keterangan === 'JUAL').tanggal)).toBe(`${tgl} 10:00:00`);
+		// grafik per tanggal dihitung server untuk seluruh periode
+		expect(d.grafik.find((g) => g.label === tgl)).toMatchObject({ masuk: 300000, keluar: 100000 });
+		expect(Array.isArray(d.produkTerlaris)).toBe(true);
+		// satu hari → grafik per jam
+		const sehari = await ambil(`&start=${tgl}&end=${tgl}`);
+		expect(sehari.perJam).toBe(true);
+		expect(sehari.grafik.find((g) => g.label === '10:00')).toMatchObject({ masuk: 300000 });
 		// rentang di masa lalu → ringkasan 0, tetapi saldo kas tetap sepanjang waktu
 		const lama = await ambil('&start=2000-01-01&end=2000-01-02');
 		expect(lama.summary.total_masuk).toBe(0);
 		expect(lama.summary.saldoKas).toBe(200000);
 		expect(lama.transactions).toHaveLength(0);
+	});
+
+	it('finance: riwayat dipaginasi, difilter server & saldo berjalan tetap akurat', async () => {
+		login.userId = id.user;
+		const ambil = async (q) => (await (await r.finance.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const h1 = await ambil('&limit=1');
+		expect(h1.transactions).toHaveLength(1);
+		expect(h1.adaLagi).toBe(true);
+		expect(h1.transactions[0].keterangan).toBe('BELI');
+		expect(h1.transactions[0].saldoSetelah).toBe(200000);
+		const h2 = await ambil('&limit=1&offset=1');
+		expect(h2.transactions[0].keterangan).toBe('JUAL');
+		expect(h2.transactions[0].saldoSetelah).toBe(300000);
+		expect(h2.adaLagi).toBe(false);
+		// filter jenis & kata kunci → saldo berjalan tidak ikut berubah oleh filter
+		const masuk = await ambil('&jenis=masuk');
+		expect(masuk.transactions.map((t) => t.keterangan)).toEqual(['JUAL']);
+		expect(masuk.transactions[0].saldoSetelah).toBe(300000);
+		const cari = await ambil('&q=beli');
+		expect(cari.transactions.map((t) => t.keterangan)).toEqual(['BELI']);
+		expect(cari.transactions[0].saldoSetelah).toBe(200000);
+		expect(Array.isArray(cari.abcOptions)).toBe(true);
+		const lama = await ambil('&urut=terlama');
+		expect(lama.transactions.map((t) => t.keterangan)).toEqual(['JUAL', 'BELI']);
+		const nom = await ambil('&urut=nominal_asc');
+		expect(nom.transactions.map((t) => t.keterangan)).toEqual(['BELI', 'JUAL']);
+		expect(nom.transactions.map((t) => t.saldoSetelah)).toEqual([200000, 300000]);
+	});
+
+	it('jurnal: baris memuat data akun, validasi seimbang & akun milik unit', async () => {
+		login.userId = id.user;
+		const { pastikanCoaStandar } = await import('../lib/server/catatTransaksi.js');
+		await pastikanCoaStandar(db, id.unit);
+		await pastikanCoaStandar(db, id.unitLain);
+		const akun = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unit));
+		const akunLain = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unitLain));
+		const kas = akun.find((a) => a.tipeAkun === 'ASET_LANCAR');
+		const modal = akun.find((a) => a.tipeAkun === 'EKUITAS');
+		const kirim = async (body) => { const res = await r.jurnal.POST({ request: new Request('http://x', { method: 'POST', body: JSON.stringify({ unitId: id.unit, ...body }), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') }); return { st: res.status, j: await res.json() }; };
+		const ok = await kirim({ tanggal: '2026-01-15', memo: 'Setor modal', referensi: 'REF-1', lines: [{ coaId: kas.id, debit: 500000, kredit: 0 }, { coaId: modal.id, debit: 0, kredit: 500000 }] });
+		expect(ok.j.success).toBe(true);
+		// tidak seimbang / satu baris / debit+kredit sekaligus / akun tenant lain
+		expect((await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10 }, { coaId: modal.id, kredit: 5 }] })).st).toBe(400);
+		expect((await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10 }] })).st).toBe(400);
+		expect((await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10, kredit: 10 }, { coaId: modal.id, kredit: 0, debit: 0 }] })).st).toBe(400);
+		const curi = await kirim({ tanggal: '2026-01-15', memo: 'x', lines: [{ coaId: kas.id, debit: 10 }, { coaId: akunLain[0].id, kredit: 10 }] });
+		expect(curi.st).toBe(400);
+		expect(curi.j.message).toMatch(/bukan milik unit/);
+		// GET: 'lines' berisi akun lengkap + filter bulan/tahun
+		const ambil = async (q) => (await (await r.jurnal.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const jan = await ambil('&tahun=2026&bulan=1');
+		const e = jan.find((x) => x.memo === 'Setor modal');
+		expect(e.referensi).toBe('REF-1');
+		expect(e.lines).toHaveLength(2);
+		expect(e.lines[0].account).toMatchObject({ kodeAkun: kas.kodeAkun, namaAkun: kas.namaAkun });
+		expect((await ambil('&tahun=2026&bulan=2')).some((x) => x.memo === 'Setor modal')).toBe(false);
+
+		// buku besar: periode, saldo awal & saldo berjalan (kas bertambah 500.000 pada Januari 2026)
+		await kirim({ tanggal: '2026-02-10', memo: 'Tarik kas', lines: [{ coaId: modal.id, debit: 100000 }, { coaId: kas.id, kredit: 100000 }] });
+		const bb = async (q) => (await (await r.bukuBesar.GET({ url: new URL(`http://x?unitId=${id.unit}&coaId=${kas.id}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const janBB = await bb('&tahun=2026&bulan=1');
+		expect(janBB.saldoAwal).toBe(0);
+		expect(janBB.saldoAkhir).toBe(500000);
+		expect(janBB.entries.map((e) => e.saldo)).toEqual([500000]);
+		const febBB = await bb('&tahun=2026&bulan=2');
+		expect(febBB.saldoAwal).toBe(500000);
+		expect(febBB.entries).toHaveLength(1);
+		expect(febBB.saldoAkhir).toBe(400000);
+		expect(febBB.totalKredit).toBe(100000);
+		const setahun = await bb('&tahun=2026');
+		expect(setahun.entries.map((e) => e.saldo)).toEqual([500000, 400000]);
+		expect(setahun.entries[0].referensi).toBe('REF-1');
+	});
+
+	it('anggaran: realisasi per akun dari jurnal, duplikat ditolak, bisa diubah', async () => {
+		login.userId = id.user;
+		const akun = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unit));
+		const kas = akun.find((a) => a.tipeAkun === 'ASET_LANCAR');
+		const beban = akun.find((a) => a.tipeAkun === 'BEBAN_OPERASIONAL');
+		const kirim = async (method, body, qs = '') => { const res = await r.anggaran[method]({ request: new Request(`http://x/?${qs}`, { method, body: body ? JSON.stringify(body) : undefined, headers: { 'content-type': 'application/json' } }), cookies, url: new URL(`http://x/?${qs}`) }); return { st: res.status, j: await res.json() }; };
+		const buat = await kirim('POST', { unitId: id.unit, coaId: beban.id, tahun: 2026, bulan: 3, nominal: 200000, keterangan: 'Listrik' });
+		expect(buat.j.success).toBe(true);
+		// duplikat & akun tenant lain
+		expect((await kirim('POST', { unitId: id.unit, coaId: beban.id, tahun: 2026, bulan: 3, nominal: 1 })).st).toBe(409);
+		const [lain] = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unitLain)).limit(1);
+		expect((await kirim('POST', { unitId: id.unit, coaId: lain.id, tahun: 2026, bulan: 4, nominal: 1 })).st).toBe(400);
+		// beban Maret 2026 senilai 150.000 → realisasi 75%
+		await r.jurnal.POST({ request: new Request('http://x', { method: 'POST', body: JSON.stringify({ unitId: id.unit, tanggal: '2026-03-05', memo: 'Bayar listrik', lines: [{ coaId: beban.id, debit: 150000 }, { coaId: kas.id, kredit: 150000 }] }), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') });
+		const ambil = async (q) => (await (await r.anggaran.GET({ url: new URL(`http://x?unitId=${id.unit}${q}`), cookies, request: new Request('http://x') })).json()).data;
+		const maret = (await ambil('&tahun=2026')).find((b) => b.id === buat.j.data.id);
+		expect(maret).toMatchObject({ realisasi: 150000, progress: 75, selisih: 50000, melebihi: false, namaAkun: beban.namaAkun });
+		// year= (kiriman app lama) tetap dibaca; tahun lain kosong
+		expect((await ambil('&year=2026')).some((b) => b.id === buat.j.data.id)).toBe(true);
+		expect((await ambil('&tahun=2027')).some((b) => b.id === buat.j.data.id)).toBe(false);
+		// ubah nominal → melebihi anggaran
+		expect((await kirim('PUT', { id: buat.j.data.id, unitId: id.unit, nominal: 100000, keterangan: 'Listrik (revisi)' })).j.success).toBe(true);
+		const revisi = (await ambil('&tahun=2026')).find((b) => b.id === buat.j.data.id);
+		expect(revisi).toMatchObject({ nominal: 100000, melebihi: true, keterangan: 'Listrik (revisi)' });
+		// ubah anggaran milik tenant lain → 404
+		login.userId = id.userLain;
+		expect((await kirim('PUT', { id: buat.j.data.id, unitId: id.unitLain, nominal: 5 })).st).toBe(404);
+	});
+
+	it('tutup buku: periode terkunci menolak jurnal manual & hapus transaksi; tumpang tindih ditolak; bisa dibuka kembali', async () => {
+		login.userId = id.user;
+		const akun = await db.select().from(s.chartOfAccounts).where(eq(s.chartOfAccounts.unitId, id.unit));
+		const kas = akun.find((a) => a.tipeAkun === 'ASET_LANCAR');
+		const modal = akun.find((a) => a.tipeAkun === 'EKUITAS');
+		const [trx] = await db.insert(s.transaksi).values({ unitId: id.unit, userId: id.user, kategoriTrx: 'MASUK', nominal: '1000', totalHarga: '1000', keterangan: 'LAMA', tanggal: '2025-06-10 09:00:00', metodeBayar: 'KAS' });
+		const tutup = async (method, body, qs = '') => { const res = await r.tutupBuku[method]({ request: new Request(`http://x/?${qs}`, { method, body: body ? JSON.stringify(body) : undefined, headers: { 'content-type': 'application/json' } }), cookies, url: new URL(`http://x/?${qs}`) }); return { st: res.status, j: await res.json() }; };
+		const kunci = await tutup('POST', { unitId: id.unit, periodStart: '2025-06-01', periodEnd: '2025-06-30' });
+		expect(kunci.j.success).toBe(true);
+		expect((await tutup('POST', { unitId: id.unit, periodStart: '2025-06-15', periodEnd: '2025-07-15' })).st).toBe(409);
+		const jurnal = async (tanggal) => { const res = await r.jurnal.POST({ request: new Request('http://x', { method: 'POST', body: JSON.stringify({ unitId: id.unit, tanggal, memo: 'Koreksi', lines: [{ coaId: kas.id, debit: 10 }, { coaId: modal.id, kredit: 10 }] }), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') }); return { st: res.status, j: await res.json() }; };
+		const ditolak = await jurnal('2025-06-20');
+		expect(ditolak.st).toBe(409);
+		expect(ditolak.j.message).toMatch(/sudah ditutup/);
+		expect((await jurnal('2025-07-20')).j.success).toBe(true);
+		const hapusTrx = async () => { const res = await r.finance.DELETE({ url: new URL(`http://x?transactionId=${trx.insertId}&unitId=${id.unit}`), cookies, request: new Request('http://x', { method: 'DELETE' }) }); return { st: res.status, j: await res.json() }; };
+		expect((await hapusTrx()).st).toBe(409);
+		// buka kembali → boleh
+		expect((await tutup('DELETE', null, `id=${kunci.j.data.id}&unitId=${id.unit}`)).j.success).toBe(true);
+		expect((await jurnal('2025-06-20')).j.success).toBe(true);
+		expect((await hapusTrx()).j.success).toBe(true);
+	});
+
+	it('produk: kategoriId, minStok, barcode, foto tersimpan; ubah produk tidak menghapus kategori', async () => {
+		login.userId = id.user;
+		const kirim = async (method, body) => { const res = await r.produk[method]({ request: new Request('http://x', { method, body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }), cookies, url: new URL('http://x') }); return { st: res.status, j: await res.json() }; };
+		const [kat] = await db.insert(s.kategoriProduk).values({ unitId: id.unit, namaKategori: `MINUMAN-${Date.now()}` });
+		const [katLain] = await db.insert(s.kategoriProduk).values({ unitId: id.unitLain, namaKategori: `LAIN-${Date.now()}` });
+		const buat = await kirim('POST', { id: '0', nama: 'Es Teh', unitId: id.unit, hargaBeli: 1000, hargaJual: 3000, stok: 10, minStok: 2, sku: `ET-${Date.now()}`, barcode: '8991234', kategoriId: kat.insertId, foto: 'https://x/foto.jpg' });
+		expect(buat.j.success).toBe(true);
+		const [p] = await db.select().from(s.products).where(eq(s.products.id, buat.j.id));
+		expect(p).toMatchObject({ kategoriId: kat.insertId, minStok: 2, barcode: '8991234', foto: 'https://x/foto.jpg', jenis: 'BARANG_JADI' });
+		// foto berupa URI lokal HP diabaikan (tidak berguna di server)
+		const lokal = await kirim('POST', { nama: 'Foto Lokal', unitId: id.unit, foto: 'content://media/external/1' });
+		expect((await db.select().from(s.products).where(eq(s.products.id, lokal.j.id)))[0].foto).toBeNull();
+		// kategori milik unit lain ditolak
+		expect((await kirim('POST', { nama: 'X', unitId: id.unit, kategoriId: katLain.insertId })).st).toBe(500);
+		// ubah harga tanpa mengirim kategori → kategori tetap
+		const ubah = await kirim('PUT', { id: buat.j.id, nama: 'Es Teh Manis', unitId: id.unit, sku: p.sku, hargaBeli: 1000, hargaJual: 3500, stok: 10 });
+		expect(ubah.j.success).toBe(true);
+		const [p2] = await db.select().from(s.products).where(eq(s.products.id, buat.j.id));
+		expect(p2).toMatchObject({ nama: 'Es Teh Manis', kategoriId: kat.insertId, minStok: 2, barcode: '8991234' });
+		expect(Number(p2.hargaJual)).toBe(3500);
+		// ubah kategori & min stok eksplisit
+		await kirim('PUT', { id: buat.j.id, nama: 'Es Teh Manis', unitId: id.unit, sku: p.sku, hargaBeli: 1000, hargaJual: 3500, stok: 10, kategoriId: null, minStok: 7 });
+		const [p3] = await db.select().from(s.products).where(eq(s.products.id, buat.j.id));
+		expect(p3).toMatchObject({ kategoriId: null, minStok: 7 });
 	});
 
 	it('laporan: type=report memuat dashboard, laba rugi & neraca', async () => {

@@ -145,7 +145,7 @@ export const actions = {
 		};
 
 		const parsed = budgetSchema.safeParse(raw);
-		if (!parsed.success) return fail(400, { message: parsed.error.errors[0]?.message });
+		if (!parsed.success) return fail(400, { message: parsed.error.issues[0]?.message });
 
 		const coaId = parseInt(data.get('coaId') || '0') || null;
 
@@ -192,8 +192,9 @@ export const actions = {
 		const id = parseInt(String(data.get('id')));
 		if (!id) return fail(400, { message: 'ID tidak valid' });
 
-		await db.delete(budgetItems)
+		const [hasil] = await db.delete(budgetItems)
 			.where(and(eq(budgetItems.id, id), eq(budgetItems.unitId, unitRows[0].id)));
+		if (!hasil?.affectedRows) return fail(404, { message: 'Anggaran tidak ditemukan di unit ini' });
 		return { success: true };
 	}
 };

@@ -5,14 +5,21 @@ import { unitBisnis, marketplaceIntegrations } from '$lib/server/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { signState, decrypt } from '$lib/server/crypto.js';
 
-export async function GET({ url }) {
+export async function GET({ url, locals }) {
+    // Wajib login dan unit harus milik user. Dulu endpoint ini terbuka: siapa pun yang tahu slug bisa
+    // memulai otorisasi dan menautkan toko Shopee miliknya ke unit orang lain.
+    const userId = locals.user?.id;
+    if (!userId) {
+        return json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const slug = url.searchParams.get('slug');
     if (!slug) {
         return json({ error: 'Missing slug parameter' }, { status: 400 });
     }
 
-    // 1. Get Unit Bisnis
-    const unit = await db.select().from(unitBisnis).where(eq(unitBisnis.slug, slug)).limit(1);
+    // 1. Get Unit Bisnis (milik user)
+    const unit = await db.select({ id: unitBisnis.id }).from(unitBisnis)
+        .where(and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId))).limit(1);
     if (unit.length === 0) {
         return json({ error: 'Unit not found' }, { status: 404 });
     }
@@ -36,7 +43,8 @@ export async function GET({ url }) {
     }
 
     // 3. Buat state terenkripsi
-    const statePayload = { unitId, slug };
+    // State terikat ke user yang memulai dan berlaku 15 menit
+    const statePayload = { unitId, slug, u: userId, x: Date.now() + 15 * 60 * 1000, j: 'shopee' };
     const stateStr = signState(statePayload);
 
     // Build the redirect URL that Shopee will call back after authorization

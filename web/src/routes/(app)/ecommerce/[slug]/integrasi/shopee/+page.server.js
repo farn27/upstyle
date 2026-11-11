@@ -1,69 +1,90 @@
 import { db } from '$lib/server/drizzle.js';
 import { marketplaceIntegrations, unitBisnis } from '$lib/server/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { encrypt } from '$lib/server/crypto.js';
 import { fail, error } from '@sveltejs/kit';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 
-export async function load({ params }) {
-    const { slug } = params;
-    const unitList = await db.select().from(unitBisnis).where(eq(unitBisnis.slug, slug)).limit(1);
-    if (unitList.length === 0) throw error(404, 'Unit bisnis tidak ditemukan');
-    const unit = unitList[0];
-    
-    const integrations = await db.select().from(marketplaceIntegrations)
-        .where(eq(marketplaceIntegrations.unitId, unit.id));
-        
-    const shopee = integrations.find(i => i.platform === 'shopee');
+/**
+ * Unit harus milik user yang login. Dulu unit dicari hanya dengan slug, sehingga user lain bisa
+ * membaca, mengganti, atau menghapus kredensial Shopee unit orang.
+ * @param {App.Locals} locals
+ * @param {string} slug
+ */
+async function unitMilikUser(locals, slug) {
+    const userId = locals.user?.id;
+    if (!userId) return null;
+    const [unit] = await db
+        .select({ id: unitBisnis.id, slug: unitBisnis.slug, namaUnit: unitBisnis.namaUnit, kategori: unitBisnis.kategori })
+        .from(unitBisnis)
+        .where(and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, userId)))
+        .limit(1);
+    return unit || null;
+}
 
+/** @param {number} unitId */
+async function integrasiShopee(unitId) {
+    const [baris] = await db
+        .select()
+        .from(marketplaceIntegrations)
+        .where(and(eq(marketplaceIntegrations.unitId, unitId), eq(marketplaceIntegrations.platform, 'shopee')))
+        .limit(1);
+    return baris || null;
+}
+
+export async function load({ params, locals }) {
+    const unit = await unitMilikUser(locals, params.slug);
+    if (!unit) throw error(404, 'Unit bisnis tidak ditemukan');
+
+    const shopee = await integrasiShopee(unit.id);
+
+    // Kunci partner dan token TIDAK dikirim ke browser — cukup status dan pengenalnya
     return {
-        unit: unit,
-        shopeeIntegration: shopee || null
+        unit,
+        shopeeIntegration: shopee
+            ? {
+                  partnerId: shopee.partnerId,
+                  shopId: shopee.shopId,
+                  isActive: shopee.isActive,
+                  tokenExpiresAt: shopee.tokenExpiresAt,
+                  punyaKunci: Boolean(shopee.partnerKey)
+              }
+            : null
     };
 }
 
 export const actions = {
     saveCredentials: async ({ request, locals, params }) => {
+        const unit = await unitMilikUser(locals, params.slug);
+        if (!unit) return fail(404, { error: 'Unit Bisnis tidak ditemukan' });
+
         const formData = await request.formData();
-        const partnerId = formData.get('partnerId');
-        const partnerKey = formData.get('partnerKey');
+        const partnerId = String(formData.get('partnerId') || '').trim();
+        const partnerKey = String(formData.get('partnerKey') || '').trim();
 
         if (!partnerId || !partnerKey) {
             return fail(400, { error: 'Partner ID dan Partner Key wajib diisi' });
         }
+        if (partnerId.length > 100 || partnerKey.length > 500) {
+            return fail(400, { error: 'Partner ID atau Partner Key terlalu panjang' });
+        }
 
-        // Dapatkan unit id dari slug di params
-        // Kita bisa ambil dari DB lagi
-        const { db } = await import('$lib/server/drizzle.js');
-        const { unitBisnis } = await import('$lib/server/schema.js');
-        const unit = await db.select().from(unitBisnis).where(eq(unitBisnis.slug, params.slug)).limit(1);
-        
-        if (unit.length === 0) return fail(404, { error: 'Unit Bisnis tidak ditemukan' });
-        const unitId = unit[0].id;
-
-        // Enkripsi partnerKey sebelum disimpan!
+        // Enkripsi partnerKey sebelum disimpan
         const encryptedKey = encrypt(partnerKey);
         if (!encryptedKey) {
             return fail(500, { error: 'Terjadi kesalahan sistem saat mengenkripsi kunci Anda.' });
         }
 
-        // Cek apakah integrasi shopee sudah ada
-        const existing = await db.select().from(marketplaceIntegrations)
-            .where(eq(marketplaceIntegrations.unitId, unitId));
-        const shopeeInt = existing.find(i => i.platform === 'shopee');
-
+        const shopeeInt = await integrasiShopee(unit.id);
         if (shopeeInt) {
             await db.update(marketplaceIntegrations)
-                .set({
-                    partnerId: partnerId,
-                    partnerKey: encryptedKey,
-                    updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
-                })
-                .where(eq(marketplaceIntegrations.id, shopeeInt.id));
+                .set({ partnerId, partnerKey: encryptedKey, updatedAt: nowSqlWIB() })
+                .where(and(eq(marketplaceIntegrations.id, shopeeInt.id), eq(marketplaceIntegrations.unitId, unit.id)));
         } else {
             await db.insert(marketplaceIntegrations).values({
-                unitId: unitId,
+                unitId: unit.id,
                 platform: 'shopee',
-                partnerId: partnerId,
+                partnerId,
                 partnerKey: encryptedKey,
                 isActive: 0 // Belum diotentikasi ke toko
             });
@@ -71,24 +92,14 @@ export const actions = {
 
         return { success: true };
     },
-    
-    // Action tambahan: Menghapus Integrasi
-    disconnect: async ({ params }) => {
-        const { db } = await import('$lib/server/drizzle.js');
-        const { unitBisnis, marketplaceIntegrations } = await import('$lib/server/schema.js');
-        
-        const unit = await db.select().from(unitBisnis).where(eq(unitBisnis.slug, params.slug)).limit(1);
-        if (unit.length === 0) return fail(404, { error: 'Unit Bisnis tidak ditemukan' });
-        const unitId = unit[0].id;
 
-        const existing = await db.select().from(marketplaceIntegrations)
-            .where(eq(marketplaceIntegrations.unitId, unitId));
-        const shopeeInt = existing.find(i => i.platform === 'shopee');
-        
-        if (shopeeInt) {
-            await db.delete(marketplaceIntegrations).where(eq(marketplaceIntegrations.id, shopeeInt.id));
-        }
-        
+    disconnect: async ({ params, locals }) => {
+        const unit = await unitMilikUser(locals, params.slug);
+        if (!unit) return fail(404, { error: 'Unit Bisnis tidak ditemukan' });
+
+        await db.delete(marketplaceIntegrations)
+            .where(and(eq(marketplaceIntegrations.unitId, unit.id), eq(marketplaceIntegrations.platform, 'shopee')));
+
         return { success: true };
     }
 };

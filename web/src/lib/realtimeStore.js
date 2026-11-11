@@ -51,45 +51,34 @@ function emit(storeName, store, data) {
     realtimeEvents.update(ev => [{ storeName, data, ts: Date.now() }, ...ev].slice(0, 50));
 }
 
+/** Versi data terakhir yang dilihat polling (null = belum punya pembanding) */
+let versiTerakhir = null;
+let pollingDitolak = false;
+
 /**
- * Polling callback function
- * Checks for updates via API for non-critical events
+ * Polling cadangan: tanya nomor versi data unit; muat ulang hanya kalau berubah.
+ * (Dulu setiap polling mengirim ulang transaksi terbaru sehingga dasbor menghitungnya berkali-kali.)
  */
 async function pollingCallback() {
+    if (pollingDitolak || !currentSlug) return;
     try {
-        const response = await fetch(`/api/updates?slug=${currentSlug}&lastUpdate=${lastUpdate}&type=all`);
+        const response = await fetch(`/api/updates?slug=${encodeURIComponent(currentSlug)}`);
+        if (response.status === 401 || response.status === 403) {
+            // Sesi staf portal / sesi habis: polling tidak berlaku — berhenti, jangan spam server
+            pollingDitolak = true;
+            return;
+        }
+        if (!response.ok) return;
         const updates = await response.json();
-
-        if (updates.transactions && updates.transactions.length > 0) {
-            updates.transactions.forEach(trx => {
-                emit('financeUpdate', financeUpdate, {
-                    action: 'stats-updated',
-                    newTransaction: trx
-                });
-            });
+        const versi = updates?.versi ?? null;
+        if (versi === null) return;
+        if (versiTerakhir !== null && versi !== versiTerakhir) {
+            emit('financeUpdate', financeUpdate, { action: 'stats-updated', triggerRefresh: true, sumber: 'polling' });
+            emit('stockUpdate', stockUpdate, { action: 'stock-updated', triggerRefresh: true, sumber: 'polling' });
+            invalidate('app:finance').catch(() => {});
+            invalidate('app:notifications').catch(() => {});
         }
-
-        if (updates.products && updates.products.length > 0) {
-            updates.products.forEach(prod => {
-                emit('stockUpdate', stockUpdate, {
-                    action: 'stock-updated',
-                    product: prod
-                });
-            });
-        }
-
-        if (updates.sales && updates.sales.length > 0) {
-            updates.sales.forEach(sale => {
-                emit('salesPipelineUpdate', salesPipelineUpdate, sale);
-            });
-        }
-
-        if (updates.marketing && updates.marketing.length > 0) {
-            updates.marketing.forEach(marketing => {
-                emit('marketingLeadUpdate', marketingLeadUpdate, marketing);
-            });
-        }
-
+        versiTerakhir = versi;
         lastUpdate = updates.timestamp || Date.now();
     } catch (error) {
         console.error('[Polling] Error:', error);
@@ -109,6 +98,8 @@ export async function initGlobalRealtime(unitId, slug, username, userId, session
 
     currentUnitId = unitId;
     currentSlug = slug;
+    versiTerakhir = null;
+    pollingDitolak = false;
     currentUsername = username;
     currentUserId = userId;
 

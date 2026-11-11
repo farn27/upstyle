@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -59,8 +61,8 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             salesTargetData?.summary?.let { summary ->
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Target Total", "Rp ${"%,.0f".format(summary.totalTarget)}", icon = Icons.Default.Flag, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
-                    StatCard("Realisasi", "Rp ${"%,.0f".format(summary.totalActual)}", icon = Icons.Default.TrendingUp, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
+                    StatCard("Target Total", "${(summary.totalTarget).toDouble().rupiah()}", icon = Icons.Default.Flag, gradient = BizgrowColors.GradPrimary, modifier = Modifier.weight(1f))
+                    StatCard("Realisasi", "${(summary.totalActual).toDouble().rupiah()}", icon = Icons.Default.TrendingUp, gradient = BizgrowColors.GradSuccess, modifier = Modifier.weight(1f))
                 }
             }
 
@@ -100,8 +102,8 @@ fun SalesTargetsScreen(viewModel: AppViewModel) {
         EditTargetDialog(
             target = target,
             onDismiss = { editTarget = null },
-            onSave = { empId, empName, periode, amount ->
-                viewModel.createSalesTarget(empId, empName, periode, amount)
+            onSave = { _, _, _, amount ->
+                viewModel.ubahTargetSales(target.id, amount)
                 editTarget = null
             }
         )
@@ -127,11 +129,11 @@ fun SalesTargetCard(target: SalesTarget, onEdit: (SalesTarget) -> Unit, onDelete
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column {
                         Text("Target", fontSize = 11.sp, color = BizgrowColors.Gray500)
-                        Text("Rp ${"%,.0f".format(target.targetAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("${(target.targetAmount).toDouble().rupiah()}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
                         Text("Realisasi", fontSize = 11.sp, color = BizgrowColors.Gray500)
-                        Text("Rp ${"%,.0f".format(target.actualAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor)
+                        Text("${(target.actualAmount).toDouble().rupiah()}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor)
                     }
                 }
             }
@@ -172,6 +174,8 @@ fun CreateTargetDialog(
     var targetAmount by remember { mutableStateOf("") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Target Penjualan Baru", fontWeight = FontWeight.Bold) },
         text = {
@@ -205,6 +209,8 @@ fun EditTargetDialog(
     var targetAmount by remember { mutableStateOf(target.targetAmount.toLong().toString()) }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Edit Target Penjualan", fontWeight = FontWeight.Bold) },
         text = {

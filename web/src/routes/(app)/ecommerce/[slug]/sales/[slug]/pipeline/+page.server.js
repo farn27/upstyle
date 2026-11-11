@@ -1,4 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, crmDeals, crmContacts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -20,7 +22,7 @@ export const load = async ({ params, cookies, depends }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
 
-    const cacheKey = `sales_pipeline:${unit.id}`;
+    const cacheKey = `sales_pipeline:${unit.id}:${await versiCache(userId, slug)}`;
     const cached = await redis.get(cacheKey);
     if (cached) return { unit, ...cached, stages: STAGES };
 
@@ -104,7 +106,7 @@ export const actions = {
             pusherServer.trigger(`unit-${unit.id}`, 'pipeline-updated', { action: 'create' }).catch(() => {});
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal buat deal: ' + err.message });
+            return fail(500, { error: 'Gagal buat deal: ' + pesanAman(err) });
         }
     },
 
@@ -121,8 +123,9 @@ export const actions = {
             });
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
 
-            await db.delete(crmDeals)
+            const [hasil] = await db.delete(crmDeals)
                 .where(and(eq(crmDeals.id, dealId), eq(crmDeals.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { error: 'Deal tidak ditemukan di unit ini' });
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal hapus deal' });

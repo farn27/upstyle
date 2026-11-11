@@ -1,10 +1,15 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
-import { stockOpname, stockOpnameItems, products, stockLogs, riwayatAksi } from '$lib/server/schema';
+import { stockOpname, stockOpnameItems, products } from '$lib/server/schema';
+import { prosesOpname } from '$lib/server/stokOpname';
+import { TransaksiError } from '$lib/server/catatTransaksi';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import crypto from 'crypto';
+
+const tgl = (v) => (v ? (v instanceof Date ? v.toISOString() : String(v)) : null);
 
 // GET /api/app/products/stock-opname?unitId=X
 export async function GET({ url, cookies, request }) {
@@ -14,18 +19,20 @@ export async function GET({ url, cookies, request }) {
     if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
 
     try {
-        const sessions = await db.query.stockOpname.findMany({
-            where: eq(stockOpname.unitId, Number(unitId)),
-            orderBy: [desc(stockOpname.id)],
-            with: { items: { with: { product: true } } }
-        });
+        const sesi = await db.select().from(stockOpname).where(eq(stockOpname.unitId, Number(unitId))).orderBy(desc(stockOpname.id)).limit(100);
+        const idSesi = sesi.map((x) => x.id);
+        const baris = idSesi.length ? await db.select().from(stockOpnameItems).where(inArray(stockOpnameItems.opnameId, idSesi)) : [];
+        const idProduk = [...new Set(baris.map((i) => i.productId))];
+        const prod = idProduk.length ? await db.select({ id: products.id, nama: products.nama }).from(products).where(inArray(products.id, idProduk)) : [];
+        const petaProduk = new Map(prod.map((x) => [x.id, x.nama]));
 
-        const data = sessions.map(s => ({
-            id: s.id, unitId: s.unitId, status: s.status, notes: s.notes || '',
-            createdAt: s.createdAt?.toISOString() || '',
-            completedAt: s.completedAt?.toISOString() || null,
-            items: (s.items || []).map(i => ({
-                id: i.id, productId: i.productId, productName: i.product?.nama || '',
+        const data = sesi.map(s => ({
+            id: s.id, unitId: s.unitId, warehouseId: s.warehouseId, createdBy: s.createdBy,
+            status: s.status || 'COMPLETED', notes: s.notes || '',
+            createdAt: tgl(s.createdAt) || '',
+            completedAt: tgl(s.completedAt),
+            items: baris.filter((i) => i.opnameId === s.id).map(i => ({
+                id: i.id, opnameId: i.opnameId, productId: i.productId, productName: petaProduk.get(i.productId) || '',
                 systemStock: i.systemStock, actualStock: i.actualStock, difference: i.difference,
                 notes: i.notes || ''
             }))
@@ -38,71 +45,19 @@ export async function GET({ url, cookies, request }) {
     }
 }
 
-// POST /api/app/products/stock-opname — buat opname baru + selesaikan
+// POST /api/app/products/stock-opname — { unitId, notes, items:[{productId, actualStock, notes?}] }
 export async function POST({ request, cookies }) {
     const userId = await getCurrentUserId(cookies, request);
     if (!userId) return json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     try {
         const body = await request.json();
-        const { unitId, warehouseId, notes, items } = body;
+        const unitId = Number(body?.unitId);
         if (!unitId) return json({ success: false, message: 'unitId wajib' }, { status: 400 });
-
-        // Semua produk yang di-opname harus milik unit ini
-        const idProduk = Array.isArray(items) ? [...new Set(items.map((/** @type {any} */ i) => String(i.productId)))] : [];
-        if (idProduk.length > 0) {
-            const ada = await db.select({ id: products.id }).from(products)
-                .where(and(eq(products.unitId, Number(unitId)), inArray(products.id, idProduk)));
-            if (ada.length !== idProduk.length) {
-                return json({ success: false, message: 'Ada produk yang tidak ditemukan di unit ini' }, { status: 404 });
-            }
-        }
-
-        const wId = warehouseId || 1; // default warehouse
-
-        const [result] = await db.insert(stockOpname).values({
-            unitId: Number(unitId), warehouseId: Number(wId),
-            createdBy: userId, status: 'COMPLETED',
-            notes: notes || null, completedAt: new Date()
-        });
-        const opnameId = result.insertId;
-
-        if (Array.isArray(items)) {
-            for (const item of items) {
-                await db.insert(stockOpnameItems).values({
-                    opnameId, productId: item.productId,
-                    systemStock: Number(item.systemStock),
-                    actualStock: Number(item.actualStock),
-                    difference: Number(item.actualStock) - Number(item.systemStock),
-                    notes: item.notes || null
-                });
-
-                // Adjust stock if there's a difference
-                const diff = Number(item.actualStock) - Number(item.systemStock);
-                if (diff !== 0) {
-                    await db.update(products)
-                        .set({ stok: Number(item.actualStock) })
-                        .where(and(eq(products.id, item.productId), eq(products.unitId, Number(unitId))));
-
-                    await db.insert(stockLogs).values({
-                        id: crypto.randomUUID(), productId: item.productId,
-                        userId: String(userId), unitId: Number(unitId),
-                        stokAwal: Number(item.systemStock), perubahan: diff,
-                        stokAkhir: Number(item.actualStock), alasan: 'OPNAME',
-                        keterangan: `Stok Opname #${opnameId}`
-                    });
-                }
-            }
-        }
-
-        await db.insert(riwayatAksi).values({
-            userId, unitId: Number(unitId),
-            pesan: `Stok Opname #${opnameId} selesai. ${(items || []).length} produk diverifikasi.`,
-            kategori: 'PRODUK', tipe: 'success'
-        });
-
-        return json({ success: true, message: 'Stok opname berhasil diselesaikan', data: { id: opnameId } });
+        const hasil = await prosesOpname(db, { unitId, userId, notes: body?.notes, items: body?.items });
+        return json({ success: true, message: `Stok opname selesai — ${hasil.selisih} produk disesuaikan`, data: hasil });
     } catch (err) {
+        if (err instanceof TransaksiError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'POST products/stock-opname');
         return json({ success: false, message: 'Gagal proses stok opname' }, { status: 500 });
     }

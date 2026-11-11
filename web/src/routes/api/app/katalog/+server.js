@@ -1,7 +1,10 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
-import { products, riwayatAksi, unitBisnis } from '$lib/server/schema';
-import { eq, and, desc, sql, isNull } from 'drizzle-orm';
+import { products, riwayatAksi, unitBisnis, websiteSettings } from '$lib/server/schema';
+import { domainSlugUnik } from '$lib/server/unitBaru';
+import { eq, and, desc, sql, isNull, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -50,11 +53,13 @@ export async function GET({ url, cookies, request }) {
 
         // `data` dibaca app mobile (KatalogData), `products` dipertahankan untuk klien lama
         const unit = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
+        // Alamat publik katalog = situs /w/<domainSlug>; aktif/tidaknya mengikuti pengaturan website (isPublished)
+        const situs = await db.query.websiteSettings.findFirst({ where: eq(websiteSettings.unitId, Number(unitId)) });
         const settings = {
             unitId: Number(unitId),
-            slug: unit?.slug || '',
+            slug: situs?.domainSlug || unit?.slug || '',
             namaPortal: unit?.namaUnit || '',
-            isActive: data.some(p => p.isPublished),
+            isActive: situs ? !!situs.isPublished : data.some(p => p.isPublished),
             totalProducts: data.length,
             publishedProducts: data.filter(p => p.isPublished).length
         };
@@ -89,28 +94,30 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: msg }, { status: 400 });
             }
 
-            const { productIds, unitId, publish } = body;
+            const { productIds, unitId, publish } = parsed.data;
             const newStatus = publish ? 'active' : 'draft';
 
-            await db.update(products)
+            // Dulu: sql`IN (${"'a','b'"})` → seluruh daftar menjadi SATU parameter string sehingga tidak ada
+            // produk yang cocok dan publikasi massal tidak pernah berpengaruh.
+            const [hasil] = await db.update(products)
                 .set({ status: newStatus })
                 .where(and(
                     eq(products.unitId, Number(unitId)),
-                    sql`${products.id} IN (${productIds.map(id => `'${id}'`).join(',')})`
+                    inArray(products.id, productIds)
                 ));
 
             await db.insert(riwayatAksi).values({
                 userId,
                 unitId: Number(unitId),
-                pesan: `${productIds.length} produk ${publish ? 'dipublish' : 'di-unpublish'} di katalog`,
+                pesan: `${Number(hasil?.affectedRows ?? 0)} produk ${publish ? 'dipublish' : 'di-unpublish'} di katalog`,
                 kategori: 'KATALOG',
                 tipe: 'info'
             });
 
             return json({ 
                 success: true, 
-                message: `${productIds.length} produk berhasil ${publish ? 'dipublish' : 'di-unpublish'}`,
-                affectedCount: productIds.length
+                message: `${Number(hasil?.affectedRows ?? 0)} produk berhasil ${publish ? 'dipublish' : 'di-unpublish'}`,
+                affectedCount: Number(hasil?.affectedRows ?? 0)
             });
         }
 
@@ -166,7 +173,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST katalog error');
-        return json({ success: false, message: 'Gagal memproses katalog: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses katalog: ' + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -201,7 +208,7 @@ export async function PUT({ request, cookies }) {
             const currentMetadata = product.metadata || {};
             const updatedMetadata = {
                 ...currentMetadata,
-                publishedAt: publish ? new Date().toISOString() : null,
+                publishedAt: publish ? nowSqlWIB() : null,
                 lastPublishAction: publish ? 'published' : 'unpublished'
             };
 
@@ -233,21 +240,32 @@ export async function PUT({ request, cookies }) {
         }
 
         if (action === 'update-katalog-settings') {
-            const { unitId, settings } = body;
+            const unitId = Number(body.unitId);
+            const aktif = body?.settings?.isActive;
+            if (!unitId || typeof aktif !== 'boolean') {
+                return json({ success: false, message: 'unitId dan settings.isActive (true/false) wajib diisi' }, { status: 400 });
+            }
+            const unit = await db.query.unitBisnis.findFirst({ where: and(eq(unitBisnis.id, unitId), eq(unitBisnis.userId, userId)) });
+            if (!unit) return json({ success: false, message: 'Unit bisnis tidak ditemukan' }, { status: 404 });
 
-            // This could be used to update unit-level katalog settings
-            // For now, just log the action
+            // Katalog publik = website unit: simpan status publikasinya (buat pengaturan website bila belum ada)
+            const situs = await db.query.websiteSettings.findFirst({ where: eq(websiteSettings.unitId, unitId) });
+            if (situs) {
+                await db.update(websiteSettings).set({ isPublished: aktif }).where(eq(websiteSettings.id, situs.id));
+            } else {
+                const slug = await domainSlugUnik(db, unit.slug || unit.namaUnit, 'website');
+                await db.insert(websiteSettings).values({ unitId, domainSlug: slug, theme: 'modern', colorPrimary: '#4F46E5', heroTitle: `Selamat Datang di ${unit.namaUnit}`, isPublished: aktif });
+            }
             await db.insert(riwayatAksi).values({
-                userId,
-                unitId: Number(unitId),
-                pesan: 'Pengaturan katalog diperbarui',
+                userId, unitId,
+                pesan: aktif ? 'Katalog online diaktifkan' : 'Katalog online dinonaktifkan',
                 kategori: 'KATALOG',
                 tipe: 'info'
             });
 
-            return json({ 
-                success: true, 
-                message: 'Pengaturan katalog berhasil diperbarui' 
+            return json({
+                success: true,
+                message: aktif ? 'Katalog online aktif' : 'Katalog online dinonaktifkan'
             });
         }
 
@@ -288,7 +306,7 @@ export async function DELETE({ url, cookies, request }) {
             // Soft delete
             await db.update(products)
                 .set({ 
-                    deletedAt: new Date().toISOString(),
+                    deletedAt: nowSqlWIB(),
                     status: 'archived'
                 })
                 .where(eq(products.id, productId));

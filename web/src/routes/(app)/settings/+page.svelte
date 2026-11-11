@@ -6,8 +6,8 @@
     export let data;
     export let form;
 
-    let profile = data.profile || {};
-    let units = data.units || [];
+    $: profile = data.profile || {};
+    $: units = data.units || [];
 
     let activeTab = 'profile'; // 'profile', 'workspaces', 'preferences'
     let isSubmitting = false;

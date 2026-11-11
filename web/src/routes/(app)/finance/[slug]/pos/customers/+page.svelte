@@ -63,7 +63,7 @@
                                 <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4">
                                     <div class="flex items-center justify-between gap-4">
                                         <div>
-                                            <p class="text-sm font-black text-slate-900 dark:text-white">{customer.nama_customer}</p>
+                                            <p class="text-sm font-black text-slate-900 dark:text-white">{customer.namaCustomer || customer.nama_customer}</p>
                                             <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{customer.telepon || 'No phone'} · {customer.email || 'No email'}</p>
                                         </div>
                                         <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">ID {customer.id}</span>

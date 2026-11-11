@@ -1,4 +1,5 @@
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { unitBisnis } from '$lib/server/schema';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
@@ -40,6 +41,6 @@ export const GET = async ({ params, cookies, request }) => {
         });
 
     } catch (err) {
-        return new Response(`SYSTEM ERROR: ${err.message}`, { status: 500 });
+        return new Response(`SYSTEM ERROR: ${pesanAman(err)}`, { status: 500 });
     }
 };

@@ -189,10 +189,13 @@
           if (h.coa_id) selectedCoaId = h.coa_id.toString();
           if (h.kas_coa_id) selectedKasCoa = h.kas_coa_id.toString();
           keteranganInput = (h.catatan || "").toUpperCase();
-          addNotif("AI Sinkron!", "success");
+          if (!h.coa_id || !h.kas_coa_id || !(Number(h.nominal) > 0)) addNotif("Lengkapi akun / nominal yang belum terisi", "info");
+          addNotif(h.sumber === 'aturan' ? "AI sedang sibuk — formulir diisi otomatis, mohon dicek" : "AI Sinkron!", "success");
         }
+      } else {
+        addNotif((result.type === 'success' && result.data?.error) || "Gagal memproses teks AI", "error");
       }
-    } catch (e) { addNotif("Gagal", "error"); }
+    } catch (e) { addNotif("Gagal menghubungi server", "error"); }
     finally { loadingAI = false; }
   }
 </script>

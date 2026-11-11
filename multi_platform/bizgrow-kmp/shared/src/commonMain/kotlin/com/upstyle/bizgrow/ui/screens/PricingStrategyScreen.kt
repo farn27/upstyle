@@ -1,5 +1,8 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.tanggalJam
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -243,7 +246,7 @@ fun PricingStrategyItemCard(
     }
     val valueLabel = when (strategy.type) {
         "PERCENTAGE" -> "${strategy.value.toInt()}%"
-        else         -> "Rp ${"%,.0f".format(strategy.value)}"
+        else         -> "${(strategy.value).toDouble().rupiah()}"
     }
 
     Card(
@@ -336,7 +339,7 @@ fun PricingStrategyItemCard(
                 ) {
                     Icon(Icons.Default.DateRange, null, modifier = Modifier.size(14.dp), tint = BizgrowColors.Gray400)
                     Text(
-                        "${strategy.startDate.take(10)} – ${strategy.endDate.take(10)}",
+                        "${strategy.startDate.tanggalJam()} – ${strategy.endDate.tanggalJam()}",
                         fontSize = 12.sp,
                         color = BizgrowColors.Gray500,
                         fontWeight = FontWeight.Medium
@@ -384,19 +387,15 @@ fun PricingStrategyFormSheet(
 
     var name      by remember { mutableStateOf(initialStrategy?.name ?: "") }
     var type      by remember { mutableStateOf(initialStrategy?.type ?: "FIXED") }
-    var value     by remember { mutableStateOf(initialStrategy?.value?.toString() ?: "") }
+    // nilai rupiah tanpa ",0" supaya kolom uang tidak bergeser saat diedit (15000.0 → 150000)
+    var value     by remember { mutableStateOf(initialStrategy?.let { st -> if (st.type == "PERCENTAGE") st.value.toString() else st.value.toLong().toString() } ?: "") }
     var minQty    by remember { mutableStateOf(initialStrategy?.minQty?.toString() ?: "1") }
     var startDate by remember { mutableStateOf(initialStrategy?.startDate ?: "") }
     var endDate   by remember { mutableStateOf(initialStrategy?.endDate ?: "") }
     var isActive  by remember { mutableStateOf(initialStrategy?.isActive ?: true) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BizgrowColors.Surface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss, containerColor = BizgrowColors.Surface, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -481,9 +480,10 @@ fun PricingStrategyFormSheet(
             // Value
             OutlinedTextField(
                 value = value,
-                onValueChange = { value = it },
+                onValueChange = { value = if (type != "PERCENTAGE") it.filter(Char::isDigit) else it },
                 label = { Text(if (type == "PERCENTAGE") "Nilai Diskon (%)" else "Nilai Harga (Rp)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                visualTransformation = if (type != "PERCENTAGE") com.upstyle.bizgrow.ui.design.RupiahVisualTransformation else androidx.compose.ui.text.input.VisualTransformation.None, // tampil Rp 1.500.000
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,

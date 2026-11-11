@@ -5,6 +5,7 @@ import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 import { inngest } from '$lib/server/inngest';
+import { bayarPayroll } from '$lib/server/bayarGaji';
 
 export async function load({ params, cookies }) {
 	const userId = await getCurrentUserId(cookies);
@@ -114,85 +115,21 @@ export const actions = {
         const unit = unitList[0];
 
 		const { month, year } = thisMonthWIB();
-        const emps = await db.select({ id: schema.employees.id }).from(schema.employees).where(eq(schema.employees.companyId, unit.id));
-        const empIds = emps.map(e => e.id);
-        
-        if (empIds.length > 0) {
-            // Get unpaid payrolls for this month
-            const unpaidPayrolls = await db.select().from(schema.payrolls)
-                .where(and(
-                    inArray(schema.payrolls.employeeId, empIds), 
-                    eq(schema.payrolls.periodMonth, month), 
-                    eq(schema.payrolls.periodYear, year),
-                    eq(schema.payrolls.paymentStatus, 'unpaid')
-                ));
-                
-            if (unpaidPayrolls.length > 0) {
-                // Calculate total net pay
-                const totalNetPay = unpaidPayrolls.reduce((sum, p) => sum + Number(p.netPay || 0), 0);
-                
-                // Update payrolls to paid
-                await db.update(schema.payrolls)
-                    .set({ paymentStatus: 'paid' })
-                    .where(and(
-                        inArray(schema.payrolls.employeeId, empIds), 
-                        eq(schema.payrolls.periodMonth, month), 
-                        eq(schema.payrolls.periodYear, year)
-                    ));
-
-                // ── INTEGRASI BUKU BESAR (JURNAL UMUM) ──
-                if (totalNetPay > 0) {
-                    const { todayStrWIB } = await import('$lib/server/dateUtils');
-                    const nowWIB = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-                    const tanggalJurnal = nowWIB();
-
-                    // Find Kas account
-                    const akunKasArr = await db.select().from(schema.chartOfAccounts).where(and(eq(schema.chartOfAccounts.unitId, unit.id), eq(schema.chartOfAccounts.tipeAkun, 'ASET_LANCAR'))).limit(1);
-                    const akunBebanArr = await db.select().from(schema.chartOfAccounts).where(and(eq(schema.chartOfAccounts.unitId, unit.id), eq(schema.chartOfAccounts.tipeAkun, 'BEBAN_OPERASIONAL'))).limit(1);
-                    
-                    if (akunKasArr.length > 0 && akunBebanArr.length > 0) {
-                        const akunKas = akunKasArr[0];
-                        const akunBeban = akunBebanArr[0];
-
-                        // Create Journal Header
-                        const [jurnalResult] = await db.insert(schema.journalEntries).values({
-                            unitId: unit.id,
-                            userId: String(userId),
-                            tanggal: tanggalJurnal,
-                            nomorJurnal: `JRN-PAY-${Date.now()}`,
-                            referensi: `Payroll ${month}/${year}`,
-                            memo: `Pembayaran Gaji Karyawan Bulan ${month}/${year}`,
-                            sourceType: 'PAYROLL',
-                            sourceId: `${month}-${year}`,
-                            totalDebit: String(totalNetPay),
-                            totalKredit: String(totalNetPay),
-                            status: 'POSTED',
-                            createdAt: tanggalJurnal
-                        });
-
-                        const journalId = jurnalResult.insertId;
-
-                        // Line 1: Debit Beban Gaji
-                        await db.insert(schema.journalEntryLines).values({
-                            journalId: journalId,
-                            coaId: akunBeban.id,
-                            deskripsi: `Beban Gaji ${month}/${year}`,
-                            debit: String(totalNetPay),
-                            kredit: '0'
-                        });
-
-                        // Line 2: Kredit Kas
-                        await db.insert(schema.journalEntryLines).values({
-                            journalId: journalId,
-                            coaId: akunKas.id,
-                            deskripsi: `Pembayaran Gaji ${month}/${year}`,
-                            debit: '0',
-                            kredit: String(totalNetPay)
-                        });
-                    }
-                }
-            }
+        const belum = await db.select({ id: schema.payrolls.id })
+            .from(schema.payrolls)
+            .innerJoin(schema.employees, eq(schema.employees.id, schema.payrolls.employeeId))
+            .where(and(
+                eq(schema.employees.companyId, unit.id),
+                eq(schema.payrolls.periodMonth, month),
+                eq(schema.payrolls.periodYear, year),
+                eq(schema.payrolls.paymentStatus, 'unpaid')
+            ));
+        if (!belum.length) return { success: false, message: 'Tidak ada payroll bulan ini yang belum dibayar.' };
+        try {
+            const hasil = await db.transaction((/** @type {any} */ tx) => bayarPayroll(tx, { unitId: unit.id, userId, payrollIds: belum.map((b) => b.id) }));
+            return { success: true, message: `${hasil.jumlah} payroll dibayar (Rp ${hasil.total.toLocaleString('id-ID')}) dan dicatat sebagai beban gaji.` };
+        } catch (e) {
+            return { success: false, message: e instanceof Error && /tutup buku|sudah dibayar/i.test(e.message) ? e.message : 'Gagal membayar payroll' };
         }
-		return { success: true, message: 'Semua payroll bulan ini ditandai lunas dan jurnal akuntansi telah dibuat.' };
 	}
 };

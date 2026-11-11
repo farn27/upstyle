@@ -1,292 +1,225 @@
 package com.upstyle.bizgrow.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
+import com.upstyle.bizgrow.data.ChartOfAccount
 import com.upstyle.bizgrow.data.CreateJournalLineBody
 import com.upstyle.bizgrow.data.JournalEntry
 import com.upstyle.bizgrow.ui.AppViewModel
+import com.upstyle.bizgrow.ui.design.*
 import com.upstyle.bizgrow.ui.theme.BizgrowColors
+import kotlinx.coroutines.launch
+import kotlinx.datetime.*
 
+private fun hariIniJurnal() = Clock.System.now().toLocalDateTime(TimeZone.of("Asia/Jakarta")).date
+
+private val namaBulanPanjang = listOf("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
+
+private fun tglJurnal(raw: String): String {
+    val d = runCatching { LocalDate.parse(raw.take(10)) }.getOrNull() ?: return raw
+    return "${d.dayOfMonth} ${namaBulanPendek(d.monthNumber)} ${d.year}"
+}
+
+/** Jurnal Umum (double-entry): filter bulan/tahun, rincian akun, jurnal manual — setara halaman web. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JurnalUmumScreen(viewModel: AppViewModel) {
-    val journalEntries by viewModel.journalEntries.collectAsState(initial = viewModel.journalEntries.value)
-    var showAddJurnal by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(Unit) {
-        viewModel.loadJournalEntries()
-    }
-    
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Jurnal Umum") },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+    val entri by viewModel.journalEntries.collectAsState(initial = viewModel.journalEntries.value)
+    val hari = remember { hariIniJurnal() }
+    var tahun by remember { mutableStateOf(hari.year) }
+    var bulan by remember { mutableStateOf<Int?>(hari.monthNumber) } // null = semua bulan
+    var buat by remember { mutableStateOf(false) }
+    var memuat by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun muat() { scope.launch { memuat = true; viewModel.loadJournalEntries(tahun, bulan?.toString()).join(); memuat = false } }
+    LaunchedEffect(tahun, bulan) { muat() }
+    LaunchedEffect(Unit) { viewModel.loadChartOfAccounts() }
+
+    val totalDebit = entri.sumOf { it.totalDebit }
+    val totalKredit = entri.sumOf { it.totalKredit }
+
+    BizScreen(
+        title = "Jurnal umum",
+        subtitle = "Pencatatan ganda (double-entry)",
+        onBack = { viewModel.navigateBack() },
+        floatingActionButton = { FabTambah("Jurnal manual") { buat = true } }
+    ) { padding ->
+        PullToRefreshBox(memuat, { muat() }, Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterPill("Semua bulan", bulan == null, { bulan = null })
+                        namaBulanPanjang.forEachIndexed { i, n -> FilterPill(n, bulan == i + 1, { bulan = i + 1 }) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        (0..2).map { hari.year - it }.forEach { th -> FilterPill("$th", tahun == th, { tahun = th }) }
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddJurnal = true }, containerColor = MaterialTheme.colorScheme.background,) {
-                Icon(Icons.Default.Add, contentDescription = "Tambah Jurnal", tint = Color.White)
-            }
-        }
-    ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues).fillMaxSize().padding(16.dp)) {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Total Entri Jurnal", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text("${journalEntries.size} Transaksi", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile("Jurnal", "${entri.size}", Icons.Rounded.MenuBook, BizgrowColors.Primary, Modifier.weight(1f))
+                        StatTile("Total debit", totalDebit.rupiahRingkas(), Icons.Rounded.ArrowDownward, BizgrowColors.Success, Modifier.weight(1f))
+                        StatTile("Total kredit", totalKredit.rupiahRingkas(), Icons.Rounded.ArrowUpward, BizgrowColors.Danger, Modifier.weight(1f))
+                    }
                 }
-            }
-
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(journalEntries) { entry ->
-                    JournalEntryItem(entry)
+                if (entri.isEmpty()) {
+                    item {
+                        if (memuat) SkeletonList(rows = 4)
+                        else EmptyView("Belum ada jurnal", "Transaksi penjualan, pengeluaran, atau jurnal manual akan tercatat otomatis di sini.", Icons.Rounded.MenuBook)
+                    }
                 }
+                itemsIndexed(entri, key = { _, e -> e.id }) { i, e -> KartuJurnal(e, Modifier.enterAnimation(i)) }
             }
-        }
-
-        if (showAddJurnal) {
-            AddJurnalSheet(
-                viewModel = viewModel,
-                onDismiss = { showAddJurnal = false },
-                onSave = { tanggal, memo, lines ->
-                    viewModel.createJournalEntry(tanggal, memo, lines)
-                    showAddJurnal = false
-                }
-            )
         }
     }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddJurnalSheet(
-    viewModel: AppViewModel,
-    onDismiss: () -> Unit,
-    onSave: (tanggal: String, memo: String?, lines: List<CreateJournalLineBody>) -> Unit
-) {
-    val chartOfAccounts by viewModel.chartOfAccounts.collectAsState(initial = viewModel.chartOfAccounts.value)
-    var tanggal by remember { mutableStateOf("") }
-    var memo by remember { mutableStateOf("") }
-
-    // Each line: coaId, keterangan, debit, kredit
-    val lines = remember { mutableStateListOf<MutableMap<String, String>>() }
-
-    // Ensure at least 2 lines exist (debit + kredit)
-    LaunchedEffect(Unit) {
-        viewModel.loadChartOfAccounts()
-        lines.add(mutableMapOf("coaId" to "", "keterangan" to "", "debit" to "", "kredit" to ""))
-        lines.add(mutableMapOf("coaId" to "", "keterangan" to "", "debit" to "", "kredit" to ""))
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Text("Tambah Jurnal Umum", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = tanggal,
-                onValueChange = { tanggal = it },
-                label = { Text("Tanggal (YYYY-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = memo,
-                onValueChange = { memo = it },
-                label = { Text("Memo / Keterangan") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            )
-
-            Spacer(Modifier.height(16.dp))
-            Text("Baris Jurnal:", fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(8.dp))
-
-            lines.forEachIndexed { index, lineMap ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Baris ${index + 1}", fontWeight = FontWeight.Medium)
-                            if (lines.size > 2) {
-                                IconButton(onClick = { lines.removeAt(index) }) {
-                                    Icon(Icons.Default.Delete, null, tint = BizgrowColors.Danger)
-                                }
-                            }
-                        }
-                        // COA dropdown for this line
-                        var expandedCoa by remember { mutableStateOf(false) }
-                        val selectedCoaId = lineMap["coaId"]?.toIntOrNull()
-                        val selectedCoaName = chartOfAccounts.firstOrNull { it.id == selectedCoaId }?.let { "${it.kodeAkun} - ${it.namaAkun}" } ?: "Pilih Akun"
-                        ExposedDropdownMenuBox(expanded = expandedCoa, onExpandedChange = { expandedCoa = !expandedCoa }) {
-                            OutlinedTextField(
-                                value = selectedCoaName,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Akun") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCoa) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            ExposedDropdownMenu(expanded = expandedCoa, onDismissRequest = { expandedCoa = false }) {
-                                chartOfAccounts.forEach { coa ->
-                                    DropdownMenuItem(
-                                        text = { Text("${coa.kodeAkun} - ${coa.namaAkun}", fontSize = 13.sp) },
-                                        onClick = { lineMap["coaId"] = coa.id.toString(); expandedCoa = false }
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = lineMap["debit"] ?: "",
-                                onValueChange = { lineMap["debit"] = it },
-                                label = { Text("Debit") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            OutlinedTextField(
-                                value = lineMap["kredit"] ?: "",
-                                onValueChange = { lineMap["kredit"] = it },
-                                label = { Text("Kredit") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            TextButton(
-                onClick = {
-                    lines.add(mutableMapOf("coaId" to "", "keterangan" to "", "debit" to "", "kredit" to ""))
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Add, null)
-                Spacer(Modifier.width(4.dp))
-                Text("Tambah Baris")
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    val journalLines = lines.mapNotNull { lineMap ->
-                        val coaId = lineMap["coaId"]?.toIntOrNull() ?: return@mapNotNull null
-                        CreateJournalLineBody(
-                            coaId = coaId,
-                            keterangan = lineMap["keterangan"]?.ifBlank { null },
-                            debit = lineMap["debit"]?.toDoubleOrNull() ?: 0.0,
-                            kredit = lineMap["kredit"]?.toDoubleOrNull() ?: 0.0
-                        )
-                    }
-                    if (tanggal.isNotBlank() && journalLines.isNotEmpty()) {
-                        onSave(tanggal, memo.ifBlank { null }, journalLines)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Text("Simpan Jurnal", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(32.dp))
-        }
+    if (buat) {
+        JurnalManualSheet(viewModel, { buat = false })
     }
 }
 
 @Composable
-fun JournalEntryItem(entry: JournalEntry) {
-    var expanded by remember { mutableStateOf(false) }
-    val statusColor = if (entry.status == "POSTED") BizgrowColors.Success else Color.Gray
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { expanded = !expanded },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(entry.nomorJurnal, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Surface(
-                    color = statusColor.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(entry.status, color = statusColor, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+private fun KartuJurnal(e: JournalEntry, modifier: Modifier = Modifier) {
+    var buka by remember { mutableStateOf(false) }
+    val seimbang = kotlin.math.abs(e.totalDebit - e.totalKredit) < 0.01
+    BizSurface(modifier.fillMaxWidth(), onClick = { buka = !buka }, contentPadding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(e.nomorJurnal, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(8.dp))
+                    StatusChip(e.sourceType.replace("_", " "), if (e.sourceType == "MANUAL") BizgrowColors.Violet else BizgrowColors.Info)
                 }
+                Text(tglJurnal(e.tanggal) + (e.referensi?.takeIf { it.isNotBlank() }?.let { " • Ref $it" } ?: ""), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!e.memo.isNullOrBlank()) Text(e.memo, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(entry.tanggal, fontSize = 14.sp)
-            Text(entry.memo ?: "-", fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Total Debit: ${formatCurrency(entry.totalDebit)}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            
-            if (expanded) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(8.dp))
-                entry.lines.forEach { line ->
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(line.account?.namaAkun ?: "-", fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        val isDebit = line.debit > 0
-                        val amount = if (isDebit) line.debit else line.kredit
+            Column(horizontalAlignment = Alignment.End) {
+                Text(e.totalDebit.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                if (!seimbang) StatusChip("Tidak seimbang", BizgrowColors.Danger)
+            }
+        }
+        AnimatedVisibility(buka) {
+            Column(Modifier.padding(top = 10.dp)) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(Modifier.height(6.dp))
+                e.lines.forEach { l ->
+                    val debit = l.debit > 0
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f).padding(start = if (debit) 0.dp else 16.dp)) {
+                            Text(l.account?.let { "${it.kodeAkun} • ${it.namaAkun}" } ?: "Akun #${l.coaId}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            l.keterangan?.takeIf { it.isNotBlank() && it != e.memo }?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
                         Text(
-                            if (isDebit) "Db ${formatCurrency(amount)}" else "Kr ${formatCurrency(amount)}",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isDebit) MaterialTheme.colorScheme.primary else BizgrowColors.Danger
+                            (if (debit) "Db " else "Kr ") + (if (debit) l.debit else l.kredit).rupiah(),
+                            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
+                            color = if (debit) BizgrowColors.Success else BizgrowColors.Danger
                         )
                     }
                 }
             }
         }
+    }
+}
+
+private class BarisJurnal(coaId: Int? = null, debit: String = "", kredit: String = "", ket: String = "") {
+    var coaId by mutableStateOf(coaId)
+    var debit by mutableStateOf(debit)
+    var kredit by mutableStateOf(kredit)
+    var ket by mutableStateOf(ket)
+}
+
+/** Form jurnal manual: minimal 2 baris, total debit harus sama dengan total kredit. */
+@Composable
+private fun JurnalManualSheet(viewModel: AppViewModel, onDismiss: () -> Unit) {
+    val akun by viewModel.chartOfAccounts.collectAsState(initial = viewModel.chartOfAccounts.value)
+    var tanggal by remember { mutableStateOf(hariIniJurnal().toString()) }
+    var referensi by remember { mutableStateOf("") }
+    var memo by remember { mutableStateOf("") }
+    val baris: SnapshotStateList<BarisJurnal> = remember { mutableStateListOf(BarisJurnal(), BarisJurnal()) }
+    var galat by remember { mutableStateOf<String?>(null) }
+    var proses by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val totalDebit = baris.sumOf { it.debit.toDoubleOrNull() ?: 0.0 }
+    val totalKredit = baris.sumOf { it.kredit.toDoubleOrNull() ?: 0.0 }
+    val seimbang = totalDebit > 0 && kotlin.math.abs(totalDebit - totalKredit) < 0.01
+    val lengkap = baris.count { it.coaId != null && ((it.debit.toDoubleOrNull() ?: 0.0) > 0 || (it.kredit.toDoubleOrNull() ?: 0.0) > 0) } >= 2
+    val aktif = akun.filter { it.isActive == 1 }
+
+    FormSheet(
+        judul = "Buat jurnal manual",
+        subjudul = "Setiap baris isi debit ATAU kredit; total keduanya harus seimbang",
+        onDismiss = onDismiss,
+        simpanAktif = memo.isNotBlank() && seimbang && lengkap && !proses,
+        labelSimpan = if (proses) "Menyimpan…" else "Simpan jurnal",
+        onSimpan = {
+            proses = true; galat = null
+            scope.launch {
+                val lines = baris.filter { it.coaId != null }.map {
+                    CreateJournalLineBody(it.coaId!!, it.ket.ifBlank { null }, it.debit.toDoubleOrNull() ?: 0.0, it.kredit.toDoubleOrNull() ?: 0.0)
+                }.filter { it.debit > 0 || it.kredit > 0 }
+                val err = viewModel.simpanJurnalManual(tanggal, memo.trim(), referensi.trim().ifBlank { null }, lines)
+                proses = false
+                if (err == null) onDismiss() else galat = err
+            }
+        }
+    ) {
+        TanggalField("Tanggal transaksi *", tanggal) { tanggal = it }
+        BizTextField(referensi, { referensi = it }, "No. referensi (opsional)", leadingIcon = Icons.Rounded.Tag, placeholder = "mis. INV-2025-001")
+        BizTextField(memo, { memo = it }, "Deskripsi / memo *", leadingIcon = Icons.Rounded.Notes, placeholder = "Keterangan transaksi…")
+        Text("Rincian akun", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        baris.forEachIndexed { i, b ->
+            BizSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Baris ${i + 1}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    if (baris.size > 2) BizIconButton(Icons.Rounded.Close, "Hapus baris") { baris.removeAt(i) }
+                }
+                PilihanField("Akun", aktif.map { it.id.toString() to "${it.kodeAkun} • ${it.namaAkun}" }, b.coaId?.toString(), { b.coaId = it.toIntOrNull() }, placeholder = "Pilih akun…")
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)) { AngkaField(b.debit, { b.debit = it; if (it.isNotBlank()) b.kredit = "" }, "Debit (Rp)", placeholder = "0") }
+                    Box(Modifier.weight(1f)) { AngkaField(b.kredit, { b.kredit = it; if (it.isNotBlank()) b.debit = "" }, "Kredit (Rp)", placeholder = "0") }
+                }
+            }
+        }
+        TextButton(onClick = { baris.add(BarisJurnal()) }) {
+            Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Tambah baris")
+        }
+        val selisih = totalDebit - totalKredit
+        BizSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+            Row {
+                Column(Modifier.weight(1f)) {
+                    Text("Total debit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(totalDebit.rupiah(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Total kredit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(totalKredit.rupiah(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (seimbang) "✓ Seimbang" else if (totalDebit == 0.0 && totalKredit == 0.0) "Isi nominal debit & kredit" else "Selisih ${kotlin.math.abs(selisih).rupiah()} — belum seimbang",
+                style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold,
+                color = if (seimbang) BizgrowColors.Success else BizgrowColors.Warning
+            )
+        }
+        galat?.let { Text(it, color = BizgrowColors.Danger, style = MaterialTheme.typography.bodySmall) }
     }
 }
