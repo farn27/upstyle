@@ -48,6 +48,16 @@ describe.skipIf(!TEST_DB)('Katalog app', () => {
 		g = (await jalan(kat.GET, mk('GET', null, `unitId=${unit}`))).j.data.settings;
 		expect(g.isActive).toBe(true);
 
+		// publikasi massal benar-benar mengubah status produk (dulu daftar IN dijadikan satu string → 0 baris)
+		await db.insert(s.products).values([
+			{ id: `KP1-${t}`, slug: `kp1-${t}`, nama: 'P1', userId: a.insertId, unitId: unit, hargaBeli: '1', hargaJual: '2', stok: 1, status: 'active' },
+			{ id: `KP2-${t}`, slug: `kp2-${t}`, nama: 'P2', userId: a.insertId, unitId: unit, hargaBeli: '1', hargaJual: '2', stok: 1, status: 'active' }
+		]);
+		const bp = await jalan(kat.POST, mk('POST', { action: 'bulk-publish', unitId: unit, productIds: [`KP1-${t}`, `KP2-${t}`], publish: false }));
+		expect(bp.j).toMatchObject({ success: true, affectedCount: 2 });
+		const stat = await db.select({ st: s.products.status }).from(s.products).where(eq(s.products.unitId, unit));
+		expect(stat.every((/** @type {any} */ x) => x.st === 'draft')).toBe(true);
+
 		// website: ubah alamat ke yang dipakai unit lain → 409; alamat dirapikan
 		const web = await import('../routes/api/app/website/+server.js');
 		const [ua2] = await db.insert(s.unitBisnis).values({ userId: a.insertId, namaUnit: 'Katalog A2', slug: `kat-a2-${t}`, kategori: 'RETAIL_TOKO' });

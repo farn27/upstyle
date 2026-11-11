@@ -3,7 +3,7 @@ import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { products, riwayatAksi, unitBisnis, websiteSettings } from '$lib/server/schema';
 import { domainSlugUnik } from '$lib/server/unitBaru';
-import { eq, and, desc, sql, isNull } from 'drizzle-orm';
+import { eq, and, desc, sql, isNull, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -93,28 +93,30 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: msg }, { status: 400 });
             }
 
-            const { productIds, unitId, publish } = body;
+            const { productIds, unitId, publish } = parsed.data;
             const newStatus = publish ? 'active' : 'draft';
 
-            await db.update(products)
+            // Dulu: sql`IN (${"'a','b'"})` → seluruh daftar menjadi SATU parameter string sehingga tidak ada
+            // produk yang cocok dan publikasi massal tidak pernah berpengaruh.
+            const [hasil] = await db.update(products)
                 .set({ status: newStatus })
                 .where(and(
                     eq(products.unitId, Number(unitId)),
-                    sql`${products.id} IN (${productIds.map(id => `'${id}'`).join(',')})`
+                    inArray(products.id, productIds)
                 ));
 
             await db.insert(riwayatAksi).values({
                 userId,
                 unitId: Number(unitId),
-                pesan: `${productIds.length} produk ${publish ? 'dipublish' : 'di-unpublish'} di katalog`,
+                pesan: `${Number(hasil?.affectedRows ?? 0)} produk ${publish ? 'dipublish' : 'di-unpublish'} di katalog`,
                 kategori: 'KATALOG',
                 tipe: 'info'
             });
 
             return json({ 
                 success: true, 
-                message: `${productIds.length} produk berhasil ${publish ? 'dipublish' : 'di-unpublish'}`,
-                affectedCount: productIds.length
+                message: `${Number(hasil?.affectedRows ?? 0)} produk berhasil ${publish ? 'dipublish' : 'di-unpublish'}`,
+                affectedCount: Number(hasil?.affectedRows ?? 0)
             });
         }
 
