@@ -6,6 +6,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { log } from '$lib/server/logger';
+import { pinSah, hashPin } from '$lib/server/pinKaryawan';
 
 function slugify(value) {
     return String(value || '')
@@ -97,10 +98,23 @@ export async function POST({ request, params, cookies }) {
         const contractStart = String(body.contract_start || body.join_date || '').trim() || joinDate;
         const contractEnd = String(body.contract_end || '').trim() || null;
         const salary = Number(body.salary || 0);
-        const password = String(body.password || '').trim() || '123456';
-        const pin = String(body.pin || '').trim() || '1234';
+        // Password portal: pakai yang diisi pemilik (min. 6 karakter); kalau kosong dibuat ACAK dan ditampilkan
+        // sekali. Dulu bawaan "123456" dan PIN "1234" → akun karyawan bisa ditebak siapa pun.
+        let password = String(body.password || '').trim();
+        let passwordAwal = null;
+        if (password && password.length < 6) {
+            return json({ success: false, message: 'Password portal minimal 6 karakter.' }, { status: 400 });
+        }
+        if (!password) {
+            password = Array.from(crypto.getRandomValues(new Uint8Array(10))).map((b) => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+            passwordAwal = password;
+        }
+        const pin = String(body.pin || '').trim();
+        if (pin && !pinSah(pin)) {
+            return json({ success: false, message: 'PIN harus 4–6 digit angka.' }, { status: 400 });
+        }
         const passwordHash = await hashEmployeePassword(password);
-        const pinHash = await hashEmployeePassword(pin);
+        const pinHash = pin ? await hashPin(pin) : null; // tanpa PIN = belum bisa otorisasi di kasir sampai diatur
 
         const slugKaryawan = slugify(fullName);
         const finalSlug = await slugKaryawanUnik(db, slugKaryawan);
@@ -152,8 +166,8 @@ export async function POST({ request, params, cookies }) {
 
         return json({
             success: true,
-            message: pesanNotif,
-            data: { slug: finalSlug }
+            message: passwordAwal ? `${pesanNotif}. Password portal sementara: ${passwordAwal} (catat sekarang, tidak ditampilkan lagi)` : pesanNotif,
+            data: { slug: finalSlug, passwordAwal }
         });
     } catch (error) {
         log.hr.error({ err: error }, 'SQL ERROR UTAMA');
@@ -162,9 +176,9 @@ export async function POST({ request, params, cookies }) {
             return json({ success: false, message: 'Gagal: format data tidak sesuai (Data truncation).' }, { status: 400 });
         }
 
-        return json({
-            success: false,
-            message: 'Terjadi kesalahan sistem: ' + error.message
-        }, { status: 500 });
+        if (error.errno === 1062) {
+            return json({ success: false, message: 'Email karyawan sudah dipakai.' }, { status: 409 });
+        }
+        return json({ success: false, message: 'Terjadi kesalahan sistem. Coba lagi.' }, { status: 500 });
     }
 }

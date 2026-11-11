@@ -1,61 +1,59 @@
-import { json } from '@sveltejs/kit';
+import { json, isHttpError } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { unitBisnis, posShifts, posCashTransactions } from '$lib/server/schema';
+import { posShifts, posCashTransactions } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { getCurrentUserId } from '$lib/server/getUser';
+import { resolvePosUnitAccess } from '$lib/server/posAuth';
+import { log } from '$lib/server/logger';
 
-export async function POST({ request, cookies, params }) {
+/** POST /finance/[slug]/pos/shift/cash — setor/tarik kas pada shift yang sedang terbuka (pemilik atau staf unit) */
+export async function POST({ request, cookies, params, locals }) {
     try {
-        const userId = await getCurrentUserId(cookies);
-        if (!userId) return json({ error: 'Silakan login ulang' }, { status: 401 });
+        // Dulu hanya pemilik (staf selalu 401) dan shift dicari per user, bukan per unit
+        const { unit } = await resolvePosUnitAccess(cookies, params, locals);
 
-        const units = await db.select({
-            id: unitBisnis.id
-        })
-        .from(unitBisnis)
-        .where(and(eq(unitBisnis.slug, params.slug), eq(unitBisnis.userId, userId)));
-        if (!units.length) return json({ error: 'Unit tidak ditemukan' }, { status: 404 });
-        const unit = units[0];
+        let body;
+        try {
+            body = await request.json();
+        } catch {
+            return json({ error: 'Data tidak valid' }, { status: 400 });
+        }
+        const type = String(body?.type || '');
+        const amount = Number(body?.amount);
+        const description = body?.description ? String(body.description).slice(0, 255) : null;
 
-        const { type, amount, description } = await request.json();
-        
-        if (!['CASH_IN', 'CASH_OUT'].includes(type) || !amount || amount <= 0) {
+        if (!['CASH_IN', 'CASH_OUT'].includes(type) || !Number.isFinite(amount) || amount <= 0 || amount > 1e12) {
             return json({ error: 'Data tidak valid' }, { status: 400 });
         }
 
-        // Get Active Shift for current user
-        const activeShiftRecords = await db.select()
+        const [activeShift] = await db.select()
             .from(posShifts)
-            .where(and(
-                eq(posShifts.unitId, unit.id),
-                eq(posShifts.userId, userId),
-                eq(posShifts.status, 'OPEN')
-            ))
+            .where(and(eq(posShifts.unitId, unit.id), eq(posShifts.status, 'OPEN')))
             .orderBy(desc(posShifts.id))
             .limit(1);
-        
-        const activeShift = activeShiftRecords[0];
         if (!activeShift) {
             return json({ error: 'Tidak ada shift aktif, silakan buka shift dari POS' }, { status: 400 });
+        }
+        if (type === 'CASH_OUT' && amount > Number(activeShift.kasAkhir || 0)) {
+            return json({ error: 'Kas di laci tidak cukup untuk ditarik sebesar itu' }, { status: 400 });
         }
 
         await db.transaction(async (tx) => {
             await tx.insert(posCashTransactions).values({
                 shiftId: activeShift.id,
-                type,
+                type: /** @type {'CASH_IN' | 'CASH_OUT'} */ (type),
                 amount: String(amount),
-                description: description || null
+                description
             });
-
-            // Update kasAkhir
-            const amountChange = type === 'CASH_IN' ? Number(amount) : -Number(amount);
+            const delta = type === 'CASH_IN' ? amount : -amount;
             await tx.update(posShifts)
-                .set({ kasAkhir: sql`kas_akhir + ${amountChange}` })
+                .set({ kasAkhir: sql`${posShifts.kasAkhir} + ${delta}` })
                 .where(eq(posShifts.id, activeShift.id));
         });
 
         return json({ success: true });
     } catch (e) {
-        return json({ error: e.message }, { status: 500 });
+        if (isHttpError(e)) return json({ error: e.body?.message || 'Akses ditolak' }, { status: e.status });
+        log.pos.error({ err: e }, 'Kas shift gagal');
+        return json({ error: 'Gagal mencatat kas. Coba lagi.' }, { status: 500 });
     }
 }

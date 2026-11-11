@@ -306,6 +306,14 @@ export async function prosesCheckoutPos(db, ctx, input) {
 
 		await tx.insert(posPayments).values(daftarBayar.map((p) => ({ orderId, method: p.method, amount: String(p.amount) })));
 
+		// Uang tunai yang benar-benar masuk laci (tunai diterima − kembalian) menambah kas shift yang sedang
+		// terbuka. Dulu kas shift tidak pernah bertambah oleh penjualan, sehingga saat tutup shift selisihnya
+		// selalu sebesar penjualan tunai dan peringatan selisih kas muncul tanpa sebab.
+		const tunaiMasuk = Math.max(0, daftarBayar.filter((p) => p.method === 'TUNAI').reduce((s, p) => s + p.amount, 0) - kembalian);
+		if (tunaiMasuk > 0) {
+			await tx.execute(sql`UPDATE pos_shifts SET kas_akhir = kas_akhir + ${tunaiMasuk} WHERE unit_id = ${unitId} AND status = 'OPEN' ORDER BY id DESC LIMIT 1`);
+		}
+
 		// 7. Stok: dikurangi secara atomik per produk (aman untuk dua kasir bersamaan)
 		/** @type {Map<string, number>} */
 		const sisaStok = new Map(daftarProduk.map((p) => [String(p.id), Number(p.stok || 0)]));

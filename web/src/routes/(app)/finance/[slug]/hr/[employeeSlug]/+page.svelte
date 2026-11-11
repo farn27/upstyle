@@ -107,6 +107,30 @@
         }
     }
 
+    let kredensial = { password: '', pin: '' };
+    async function aturUlangKredensial() {
+        if (!kredensial.password && !kredensial.pin) { message = 'Isi password baru atau PIN baru.'; return; }
+        if (kredensial.password && kredensial.password.length < 6) { message = 'Password portal minimal 6 karakter.'; return; }
+        if (kredensial.pin && !/^\d{4,6}$/.test(kredensial.pin)) { message = 'PIN harus 4–6 digit angka.'; return; }
+        saving = true;
+        message = '';
+        try {
+            const res = await fetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reset-credential', password: kredensial.password, pin: kredensial.pin })
+            });
+            const json = await res.json();
+            message = json.message || (json.success ? 'Tersimpan.' : 'Gagal memperbarui kredensial.');
+            if (json.success) kredensial = { password: '', pin: '' };
+        } catch (err) {
+            console.error(err);
+            message = 'Terjadi kesalahan saat memperbarui kredensial.';
+        } finally {
+            saving = false;
+        }
+    }
+
     async function addComponent() {
         saving = true;
         message = '';
@@ -407,7 +431,7 @@
                             <p class="text-[9px] font-bold text-indigo-200 uppercase tracking-[0.2em] mb-1">Take Home Pay</p>
                             <h2 class="text-4xl font-black">{formatIDR(takeHomePay)}</h2>
                         </div>
-                        <button class="bg-white dark:bg-slate-800 text-indigo-600 px-5 py-2.5 rounded-md text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-50 dark:bg-indigo-900/30 transition-all">Download Slip</button>
+                        <a href={`/api/slip-gaji/${emp.id}`} target="_blank" rel="noopener" class="bg-white dark:bg-slate-800 text-indigo-600 px-5 py-2.5 rounded-md text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-50 dark:bg-indigo-900/30 transition-all">Download Slip</a>
                     </div>
 
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
@@ -458,6 +482,28 @@
                             {:else}
                                 <p class="rounded-md border border-dashed border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-400 dark:text-slate-500">Belum ada komponen gaji yang ditambahkan.</p>
                             {/each}
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div>
+                            <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Akses Portal &amp; PIN Kasir</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">Atur ulang password portal karyawan atau PIN otorisasi kasir. Kosongkan yang tidak ingin diubah. PIN lama tidak bisa dilihat kembali.</p>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div class="space-y-2">
+                                <label for="kred-password" class="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Password baru (min. 6)</label>
+                                <input id="kred-password" type="password" autocomplete="new-password" bind:value={kredensial.password} class="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+                            </div>
+                            <div class="space-y-2">
+                                <label for="kred-pin" class="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">PIN baru (4–6 digit)</label>
+                                <input id="kred-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" bind:value={kredensial.pin} class="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+                            </div>
+                            <div class="flex items-end">
+                                <button on:click={aturUlangKredensial} disabled={saving} class="w-full rounded-md bg-slate-900 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-slate-800 disabled:opacity-50">
+                                    {saving ? 'Menyimpan...' : 'Simpan Kredensial'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -177,14 +177,13 @@ export async function load({ params, cookies, locals }) {
         .orderBy(asc(posCustomers.namaCustomer));
 
         // Cek shift aktif untuk kasir saat ini
-        const activeShiftUserId = staffSession ? staffSession.user_id : (ownerUserId || 0);
+        const activeShiftUserId = staffSession ? staffSession.owner_id : (ownerUserId || 0);
         let activeShift = null;
         if (activeShiftUserId) {
             const shiftRows = await db.select()
                 .from(posShifts)
                 .where(and(
                     eq(posShifts.unitId, unitId),
-                    eq(posShifts.userId, activeShiftUserId),
                     eq(posShifts.status, 'OPEN')
                 ))
                 .orderBy(desc(posShifts.id))
@@ -222,7 +221,7 @@ export const actions = {
         const modalAwal = parseFloat(data.get('modal_awal') || '0');
 
         let unitId = null;
-        let userId = staffSession ? staffSession.user_id : ownerUserId;
+        let userId = staffSession ? staffSession.owner_id : ownerUserId;
 
         if (staffSession) {
             unitId = staffSession.unit_id;
@@ -234,7 +233,12 @@ export const actions = {
         }
         if (!unitId) return { success: false, error: 'Unit tidak ditemukan' };
 
+        if (!Number.isFinite(modalAwal) || modalAwal < 0) return { success: false, error: 'Modal awal tidak valid' };
         try {
+            // Satu shift terbuka per unit: kalau sudah ada, pakai yang itu (hindari shift ganda)
+            const [terbuka] = await db.select({ id: posShifts.id }).from(posShifts)
+                .where(and(eq(posShifts.unitId, unitId), eq(posShifts.status, 'OPEN'))).limit(1);
+            if (terbuka) return { success: false, error: 'Masih ada shift yang terbuka. Tutup dulu sebelum membuka shift baru.' };
             await db.insert(posShifts).values({
                 unitId,
                 userId,
@@ -245,7 +249,8 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            log.pos.error({ err }, 'Gagal buka shift');
+            return { success: false, error: 'Gagal membuka shift' };
         }
     },
     tutupShift: async ({ request, cookies, params, locals }) => {
@@ -276,6 +281,8 @@ export const actions = {
                 bolehAkses = Boolean(unitMilikOwner);
             }
             if (!bolehAkses) return { success: false, error: 'Shift tidak ditemukan' };
+            if (shiftRecord.status !== 'OPEN') return { success: false, error: 'Shift sudah ditutup' };
+            if (!Number.isFinite(kasAkhir) || kasAkhir < 0) return { success: false, error: 'Jumlah kas tidak valid' };
 
             const selisih = kasAkhir - Number(shiftRecord.kasAkhir);
 
@@ -289,7 +296,7 @@ export const actions = {
 
             if (selisih !== 0) {
                 try {
-                    pusherServer.trigger(`unit-${shiftRecord.unitId}`, 'pos-cash-alert', {
+                    await pusherServer.trigger(`unit-${shiftRecord.unitId}`, 'pos-cash-alert', {
                         cashier: staffSession ? staffSession.full_name : 'Owner',
                         selisih: selisih,
                         shiftId: shiftId

@@ -10,9 +10,10 @@ import crypto from 'crypto';
 import { triggerEvent } from '$lib/server/pusher';
 import { redis } from '$lib/server/redis';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
-import { decryptField } from '$lib/server/encryption';
+import { cocokkanPin, hashPin } from '$lib/server/pinKaryawan';
+import { checkRateLimit } from '$lib/server/rateLimit';
 import { bisaDijual } from '$lib/jenisProduk';
-import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { nowSqlWIB } from '$lib/server/dateUtils';
 import { getActivePosFeatures } from '$lib/posFeatures';
 import { prosesCheckoutPos, siarkanCheckoutPos, PosError } from '$lib/server/posCheckout';
 
@@ -235,7 +236,7 @@ export async function POST({ request, cookies }) {
             const schema = z.object({
                 action: z.literal('verify-pin'),
                 employeeId: z.coerce.number().int().positive(),
-                pin: z.string().length(4, 'PIN harus 4 digit')
+                pin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka')
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
@@ -330,11 +331,18 @@ export async function POST({ request, cookies }) {
         if (action === 'open-shift') {
             const { unitId, modalAwal } = body.shift;
             
+            // Satu shift terbuka per unit (web & mobile memakai shift yang sama)
+            const [terbuka] = await db.select({ id: posShifts.id }).from(posShifts)
+                .where(and(eq(posShifts.unitId, Number(unitId)), eq(posShifts.status, 'OPEN'))).limit(1);
+            if (terbuka) {
+                return json({ success: true, message: "Shift sudah terbuka", data: { id: terbuka.id } });
+            }
             const [result] = await db.insert(posShifts).values({
                 unitId: Number(unitId),
                 userId: userId,
-                waktuBuka: new Date(),
+                waktuBuka: nowSqlWIB(), // dulu new Date() (UTC) padahal kolom lain WIB
                 modalAwal: String(modalAwal),
+                kasAkhir: String(modalAwal), // kas laci yang diharapkan mulai dari modal awal
                 status: 'OPEN'
             });
             
@@ -356,20 +364,23 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: "Shift tidak ditemukan" }, { status: 404 });
             }
             
-            // Optional: kalkulasi selisih di sini, atau berasumsi client/sistem telah hitung.
-            // Di sini kita update saja dulu
-            
+            if (shift.status !== 'OPEN') {
+                return json({ success: false, message: "Shift sudah ditutup" }, { status: 409 });
+            }
+            // Selisih = kas aktual − kas yang diharapkan (modal + penjualan tunai ± setor/tarik), sama seperti web
+            const selisih = Number(kasAkhirAktual) - Number(shift.kasAkhir || 0);
             await db.update(posShifts).set({
-                waktuTutup: new Date(),
+                waktuTutup: nowSqlWIB(),
                 kasAkhirAktual: String(kasAkhirAktual),
+                selisih: String(selisih),
                 status: 'CLOSED'
             }).where(eq(posShifts.id, Number(shiftId)));
             
             await db.insert(riwayatAksi).values({
-                userId, unitId: Number(unitId), pesan: `POS Shift ditutup`, kategori: 'POS', tipe: 'success'
+                userId, unitId: shift.unitId, pesan: `POS Shift ditutup${selisih !== 0 ? `. Selisih kas: Rp ${selisih.toLocaleString('id-ID')}` : ''}`, kategori: 'POS', tipe: selisih !== 0 ? 'info' : 'success'
             });
             
-            return json({ success: true, message: "Shift berhasil ditutup" });
+            return json({ success: true, message: "Shift berhasil ditutup", data: { selisih, kasDiharapkan: Number(shift.kasAkhir || 0) } });
         }
 
         if (action === 'verify-pin') {
@@ -381,15 +392,17 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: "Karyawan tidak ditemukan" }, { status: 404 });
             }
 
-            // PIN disimpan terenkripsi (encryptField), sama seperti verifikasi PIN di web
-            let pinBenar = false;
-            try {
-                pinBenar = !!employee.pin && decryptField(employee.pin, true) === String(pin ?? '');
-            } catch {
-                pinBenar = false;
+            // Cegah tebak-tebakan PIN: 5 percobaan per 15 menit per karyawan
+            const rlPin = await checkRateLimit({ key: String(employee.id), prefix: 'rl:pos:pin', limit: 5, windowSec: 15 * 60 });
+            if (!rlPin.allowed) {
+                return json({ success: false, message: "Terlalu banyak percobaan PIN. Coba lagi nanti." }, { status: 429 });
             }
-            if (!pinBenar) {
-                return json({ success: false, message: "PIN salah" }, { status: 400 });
+            const { cocok, perluHashUlang } = await cocokkanPin(employee.pin, pin);
+            if (!cocok) {
+                return json({ success: false, message: employee.pin ? "PIN salah" : "PIN karyawan belum diatur" }, { status: 400 });
+            }
+            if (perluHashUlang) {
+                await db.update(employees).set({ pin: await hashPin(String(pin)) }).where(eq(employees.id, employee.id)).catch(() => {});
             }
 
             return json({

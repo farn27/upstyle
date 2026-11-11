@@ -181,8 +181,8 @@
             return;
         }
 
-        if (formKaryawan.pin && String(formKaryawan.pin).length !== 6) {
-            alert('⚠️ PIN harus 6 digit.');
+        if (formKaryawan.pin && !/^\d{4,6}$/.test(String(formKaryawan.pin))) {
+            alert('⚠️ PIN harus 4–6 digit angka.');
             return;
         }
 

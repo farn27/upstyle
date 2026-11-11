@@ -5,6 +5,8 @@ import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
 import { log } from '$lib/server/logger';
+import { hashEmployeePassword } from '$lib/server/employeePassword';
+import { pinSah, hashPin } from '$lib/server/pinKaryawan';
 
 export async function POST({ request, params, cookies }) {
     const ownerUserId = await getCurrentUserId(cookies);
@@ -48,11 +50,19 @@ export async function POST({ request, params, cookies }) {
                 return json({ success: false, message: 'Anda tidak punya izin untuk memperbarui data karyawan.' }, { status: 403 });
             }
             const emp = body.employee || {};
+            // Atasan harus karyawan lain di unit yang sama (dulu manager_id dari form diabaikan → tidak pernah tersimpan)
+            let managerId = null;
+            if (emp.manager_id) {
+                const [atasan] = await db.select({ id: schema.employees.id }).from(schema.employees)
+                    .where(and(eq(schema.employees.id, Number(emp.manager_id)), eq(schema.employees.companyId, unit.id))).limit(1);
+                if (atasan && atasan.id !== employeeId) managerId = atasan.id;
+            }
             await db.update(schema.employees).set({
+                managerId,
                 position: emp.position || null,
                 division: emp.division || null,
                 jobGrade: emp.job_grade || 'Junior',
-                salary: emp.salary || 0,
+                salary: Number.isFinite(Number(emp.salary)) && Number(emp.salary) >= 0 ? Number(emp.salary) : 0,
                 email: emp.email || null,
                 phone: emp.phone || null,
                 idNumber: emp.id_number || null,
@@ -66,8 +76,8 @@ export async function POST({ request, params, cookies }) {
                 emergencyContact: emp.emergency_contact || null,
                 emergencyRelation: emp.emergency_relation || null,
                 bloodType: emp.blood_type || null,
-                status: emp.status || 'active'
-            }).where(eq(schema.employees.id, employeeId));
+                status: ['active', 'inactive'].includes(emp.status) ? emp.status : 'active'
+            }).where(and(eq(schema.employees.id, employeeId), eq(schema.employees.companyId, unit.id)));
             return json({ success: true, message: 'Data karyawan berhasil diperbarui.' });
         }
 
@@ -100,6 +110,31 @@ export async function POST({ request, params, cookies }) {
             await db.delete(schema.salaryComponents)
                 .where(and(eq(schema.salaryComponents.id, componentId), eq(schema.salaryComponents.employeeId, employeeId)));
             return json({ success: true, message: 'Komponen gaji berhasil dihapus.' });
+        }
+
+        if (action === 'reset-credential') {
+            // Hanya pemilik unit yang boleh mengatur ulang password portal / PIN kasir karyawan
+            if (!isOwner) {
+                return json({ success: false, message: 'Hanya pemilik yang boleh mengatur ulang kredensial karyawan.' }, { status: 403 });
+            }
+            const passwordBaru = String(body.password || '').trim();
+            const pinBaru = String(body.pin || '').trim();
+            if (!passwordBaru && !pinBaru) {
+                return json({ success: false, message: 'Isi password baru atau PIN baru.' }, { status: 400 });
+            }
+            if (passwordBaru && passwordBaru.length < 6) {
+                return json({ success: false, message: 'Password portal minimal 6 karakter.' }, { status: 400 });
+            }
+            if (pinBaru && !pinSah(pinBaru)) {
+                return json({ success: false, message: 'PIN harus 4–6 digit angka.' }, { status: 400 });
+            }
+            /** @type {Record<string, string>} */
+            const ubah = {};
+            if (passwordBaru) ubah.password = await hashEmployeePassword(passwordBaru);
+            if (pinBaru) ubah.pin = await hashPin(pinBaru);
+            await db.update(schema.employees).set(ubah)
+                .where(and(eq(schema.employees.id, employeeId), eq(schema.employees.companyId, unit.id)));
+            return json({ success: true, message: `${passwordBaru ? 'Password' : ''}${passwordBaru && pinBaru ? ' dan ' : ''}${pinBaru ? 'PIN' : ''} karyawan berhasil diperbarui.` });
         }
 
         return json({ success: false, message: 'Aksi tidak dikenali.' }, { status: 400 });

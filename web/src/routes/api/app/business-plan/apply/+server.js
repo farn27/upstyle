@@ -155,8 +155,10 @@ export async function POST({ request, cookies }) {
       let empCount = 0;
 
       for (const emp of empTemplates) {
-        const pinHash = await hashEmployeePassword(emp.pin || '1234');
-        const encryptedPin = encryptField(emp.pin || '1234', true);
+        // Karyawan contoh: password portal ACAK (dulu = PIN "1234"/"1111" → bisa ditebak begitu email diisi)
+        // dan TANPA PIN; pemilik mengaturnya sendiri saat karyawan sungguhan dimasukkan.
+        const pinHash = await hashEmployeePassword(crypto.randomUUID() + crypto.randomUUID());
+        const encryptedPin = null;
         const slug = await slugKaryawanUnik(tx, emp.fullName);
         try {
           await tx.insert(employees).values({

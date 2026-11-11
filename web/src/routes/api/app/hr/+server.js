@@ -7,6 +7,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { encryptField, decryptField } from '$lib/server/encryption';
+import { hashPin } from '$lib/server/pinKaryawan';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
@@ -124,7 +125,9 @@ export async function GET({ url, cookies, request }) {
             fullName: e.fullName || '',
             position: e.position || '',
             salary: Number(e.salary || 0),
-            pin: decryptField(e.pin || '', true),
+            // PIN tidak pernah dikirim ke klien (dulu didekripsi dan dikirim apa adanya)
+            pin: '',
+            hasPin: Boolean(e.pin),
             role: e.role || 'staff',
             unitId: e.companyId,
             email: e.email || '',
@@ -231,7 +234,7 @@ export async function POST({ request, cookies }) {
                     fullName: z.string().min(2, 'Nama minimal 2 karakter'),
                     position: z.string().min(1, 'Jabatan wajib diisi'),
                     salary: z.coerce.number().min(0),
-                    pin: z.string().length(4, 'PIN harus 4 digit').regex(/^\d+$/),
+                    pin: z.string().regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka'),
                     role: z.enum(['admin', 'manager', 'finance', 'hr', 'cashier', 'operator', 'staff', 'employee']).default('staff'),
                     unitId: z.coerce.number().int().positive(),
                     taxId: z.string().optional(),
@@ -350,8 +353,7 @@ export async function POST({ request, cookies }) {
                 passwordAwal = passwordPlain;
             }
             const passwordHash = await hashEmployeePassword(passwordPlain);
-            const pinHash = await hashEmployeePassword(pin || "1234");
-            const encryptedPin = encryptField(pin || "1234", true); // Encrypt PIN
+            const encryptedPin = await hashPin(String(pin)); // PIN disimpan sebagai hash (bukan terenkripsi)
             const encryptedTaxId = encryptField(taxId || '', true); // Encrypt tax ID
             const encryptedBankAccount = encryptField(bankAccountNumber || '', true); // Encrypt bank account
             
