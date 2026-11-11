@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { products, productVariants, stockLogs, unitBisnis, riwayatAksi, kategoriProduk } from '$lib/server/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -159,7 +160,7 @@ export async function POST({ request, cookies }) {
 
     } catch (error) {
         log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal POST Produk');
-        return json({ error: getErrorMessage(error) }, { status: 500 });
+        return json({ error: pesanAman(error, 'Gagal memproses produk') }, { status: 500 });
     }
 }
 
@@ -176,6 +177,7 @@ export async function PUT({ request, cookies }) {
             stok, min_stok, kategori_id, metadata, status, barcode, videoUrl,
             weightGrams, lengthCm, widthCm, heightCm
         } = body;
+        if (!id || typeof id !== 'string') return json({ error: 'ID produk wajib diisi' }, { status: 400 });
 
         // Cek Data Lama & Validasi Kepemilikan
         const oldData = await db.query.products.findFirst({
@@ -231,7 +233,7 @@ export async function PUT({ request, cookies }) {
         return json({ success: true, message: "Produk diperbarui" });
     } catch (error) {
         log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal PUT Produk');
-        return json({ error: getErrorMessage(error) }, { status: 500 });
+        return json({ error: pesanAman(error, 'Gagal memproses produk') }, { status: 500 });
     }
 }
 
@@ -345,6 +347,6 @@ export async function DELETE({ url, locals, cookies }) {
         return json({ success: true, message: `Produk berhasil dipindahkan ke Sampah` });
     } catch (error) {
         log.api.error({ err: getErrorMessage(error) }, '[produk] Gagal DELETE Produk');
-        return json({ error: getErrorMessage(error) }, { status: 500 });
+        return json({ error: pesanAman(error, 'Gagal memproses produk') }, { status: 500 });
     }
 }
