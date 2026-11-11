@@ -145,7 +145,7 @@ export const actions = {
 		};
 
 		const parsed = budgetSchema.safeParse(raw);
-		if (!parsed.success) return fail(400, { message: parsed.error.errors[0]?.message });
+		if (!parsed.success) return fail(400, { message: parsed.error.issues[0]?.message });
 
 		const coaId = parseInt(data.get('coaId') || '0') || null;
 

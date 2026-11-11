@@ -40,7 +40,7 @@ export async function POST({ request, cookies }) {
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body);
-        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        if (!parsed.success) return json({ success: false, message: parsed.error.issues[0].message }, { status: 422 });
         const { namaPajak, persentase, tipe, isDefault, unitId } = parsed.data;
         const [result] = await db.insert(taxRates).values({
             unitId: Number(unitId), namaPajak, persentase: String(persentase),

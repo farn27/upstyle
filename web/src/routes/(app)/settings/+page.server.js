@@ -97,7 +97,7 @@ export const actions = {
 
 		const parsed = updateProfileSchema.safeParse(raw);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.errors[0]?.message || 'Input tidak valid' });
+			return fail(400, { message: parsed.error.issues[0]?.message || 'Input tidak valid' });
 		}
 
 		const { username, email, avatarUrl } = parsed.data;
@@ -136,7 +136,7 @@ export const actions = {
 
 		const parsed = changePasswordSchema.safeParse(raw);
 		if (!parsed.success) {
-			return fail(400, { passwordError: parsed.error.errors[0]?.message });
+			return fail(400, { passwordError: parsed.error.issues[0]?.message });
 		}
 
 		try {
@@ -183,7 +183,7 @@ export const actions = {
 
 		const parsed = createUnitSchema.safeParse(raw);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.errors[0]?.message });
+			return fail(400, { message: parsed.error.issues[0]?.message });
 		}
 
 		const { namaUnit, kategori, alamat, telepon, modalAwal } = parsed.data;
@@ -235,7 +235,7 @@ export const actions = {
 
 		const parsed = createUnitSchema.safeParse(raw);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.errors[0]?.message });
+			return fail(400, { message: parsed.error.issues[0]?.message });
 		}
 
 		try {

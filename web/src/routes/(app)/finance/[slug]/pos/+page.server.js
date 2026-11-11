@@ -150,6 +150,8 @@ export async function load({ params, cookies, locals }) {
             nama: products.nama,
             slug: products.slug,
             sku: products.sku,
+            // dipakai pemindai barcode kasir (dulu tidak dikirim → scan barcode tidak pernah cocok)
+            barcode: products.barcode,
             foto: products.foto,
             harga_jual: products.hargaJual,
             harga_beli: products.hargaBeli,

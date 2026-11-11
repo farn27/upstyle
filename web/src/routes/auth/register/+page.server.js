@@ -32,7 +32,7 @@ export const actions = {
 		// Validasi input dengan Zod
 		const parsed = registerSchema.safeParse(raw);
 		if (!parsed.success) {
-			const firstError = parsed.error.errors[0]?.message || 'Input tidak valid';
+			const firstError = parsed.error.issues[0]?.message || 'Input tidak valid';
 			return fail(400, {
 				message: firstError,
 				username: raw.username,

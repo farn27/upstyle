@@ -60,7 +60,8 @@ export const load = async ({ params }) => {
     const categories = Array.from(new Set(activeProducts.map(p => p.kategoriProduk?.namaKategori || 'UMUM')));
 
     return {
-        unit,
+        // Halaman publik: jangan kirim baris unit lengkap (dulu termasuk user_id, modal awal, login_slug portal karyawan)
+        unit: { namaUnit: unit.namaUnit, kategori: unit.kategori },
         settings,
         products: activeProducts.map(p => ({
             id: p.id,

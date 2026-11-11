@@ -118,7 +118,7 @@ export const POST = async ({ request }) => {
 
 	const parsed = waWebhookSchema.safeParse(body);
 	if (!parsed.success) {
-		const firstError = parsed.error.errors[0]?.message || 'Input tidak valid';
+		const firstError = parsed.error.issues[0]?.message || 'Input tidak valid';
 		return apiError(firstError, 422, 'VALIDATION_ERROR');
 	}
 

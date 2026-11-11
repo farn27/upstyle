@@ -55,11 +55,13 @@ describe.skipIf(!TEST_DB)('jenis barang di penjualan', () => {
 
 	it('checkout toko online menolak bahan baku dan menerima barang jadi', async () => {
 		const { actions } = await import('../routes/store/[domainSlug]/checkout/+page.server.js');
+		// Unit toko kini dibaca dari domainSlug (bukan unitId kiriman formulir)
+		await db.insert(s.ecommerceSettings).values({ unitId: id.unit, storefrontName: 'Kafe Tes', domainSlug: `toko-${akhiran}`, isActive: true });
 		const pesan = (/** @type {string} */ productId) => {
 			const f = new FormData();
 			for (const [k, v] of Object.entries({ customerName: 'Budi', customerEmail: 'b@tes.local', customerPhone: '08', shippingAddress: 'Jl', totalAmount: '5000', unitId: String(id.unit) })) f.set(k, v);
 			f.set('cartData', JSON.stringify([{ productId, qty: 1, price: 5000 }]));
-			return actions.placeOrder(/** @type {any} */ ({ request: new Request('http://x/', { method: 'POST', body: f }), params: { domainSlug: 'tes' } }));
+			return actions.placeOrder(/** @type {any} */ ({ request: new Request('http://x/', { method: 'POST', body: f }), params: { domainSlug: `toko-${akhiran}` } }));
 		};
 
 		expect(await pesan(`bahan${akhiran}`)).toMatchObject({ success: false });
@@ -70,6 +72,19 @@ describe.skipIf(!TEST_DB)('jenis barang di penjualan', () => {
 		await expect(pesan(`jual${akhiran}`)).rejects.toMatchObject({ status: 303 });
 		const pesanan = await db.select().from(s.ecommerceOrders).where(eq(s.ecommerceOrders.unitId, id.unit));
 		expect(pesanan).toHaveLength(1);
+		// Total dihitung server dari harga produk, bukan totalAmount/price kiriman peramban
+		expect(Number(pesanan[0].totalAmount)).toBe(5000);
+		const f = new FormData();
+		for (const [k, v] of Object.entries({ customerName: 'Curang', customerPhone: '08', shippingAddress: 'Jl', totalAmount: '1' })) f.set(k, v);
+		f.set('cartData', JSON.stringify([{ productId: `jual${akhiran}`, qty: 2, price: 1 }]));
+		await expect(actions.placeOrder(/** @type {any} */ ({ request: new Request('http://x/', { method: 'POST', body: f }), params: { domainSlug: `toko-${akhiran}` } }))).rejects.toMatchObject({ status: 303 });
+		const semua = await db.select().from(s.ecommerceOrders).where(eq(s.ecommerceOrders.unitId, id.unit));
+		expect(semua.map((/** @type {any} */ o) => Number(o.totalAmount)).sort((a, b) => a - b)).toEqual([5000, 10000]);
+		// qty negatif ditolak
+		const g = new FormData();
+		for (const [k, v] of Object.entries({ customerName: 'X', customerPhone: '08', shippingAddress: 'Jl' })) g.set(k, v);
+		g.set('cartData', JSON.stringify([{ productId: `jual${akhiran}`, qty: -3 }]));
+		expect(await actions.placeOrder(/** @type {any} */ ({ request: new Request('http://x/', { method: 'POST', body: g }), params: { domainSlug: `toko-${akhiran}` } }))).toMatchObject({ success: false });
 	});
 
 	it('pengadaan tetap bisa membeli bahan baku', async () => {

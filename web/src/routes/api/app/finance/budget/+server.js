@@ -73,7 +73,7 @@ export async function POST({ request, cookies }) {
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body);
-        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        if (!parsed.success) return json({ success: false, message: parsed.error.issues[0].message }, { status: 422 });
         const { coaId, tahun, bulan, nominal, keterangan, unitId } = parsed.data;
         const akun = await db.query.chartOfAccounts.findFirst({ where: and(eq(chartOfAccounts.id, coaId), eq(chartOfAccounts.unitId, Number(unitId))) });
         if (!akun) return json({ success: false, message: 'Akun tidak ditemukan di unit ini' }, { status: 400 });

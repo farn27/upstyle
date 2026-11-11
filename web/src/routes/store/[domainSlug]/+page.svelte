@@ -10,7 +10,7 @@
 
     $: filteredProducts = selectedCategory === 'all' 
         ? productsList 
-        : productsList.filter(p => p.kategoriId === selectedCategory);
+        : productsList.filter(p => Number(p.kategoriId) === Number(selectedCategory));
 
     function addToCart(product) {
         cart.add(product);

@@ -146,7 +146,8 @@ export const actions = {
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
 
             // Check if it's from the new template marketplace
-            const { ADVANCED_TEMPLATES } = await import('./templates/+page.server.js');
+            // Dulu diimpor dari ./templates/+page.server.js yang TIDAK mengekspornya → TypeError saat membuat halaman
+            const { ADVANCED_TEMPLATES } = await import('$lib/server/landingTemplates');
             const template = ADVANCED_TEMPLATES[templateKey] || TEMPLATES[templateKey] || TEMPLATES.leadgen;
             
             const contentJson = template.content || {

@@ -40,7 +40,7 @@ export async function load({ cookies, params }) {
             job_grade: employees.jobGrade,
             status: employees.status,
             salary: employees.salary,
-            join_date: employees.joinedAt
+            join_date: employees.joinDate
         })
         .from(employees)
         .where(and(

@@ -58,7 +58,7 @@ export const actions = {
 		const parsed = resetSchema.safeParse(raw);
 		if (!parsed.success) {
 			return fail(400, {
-				message: parsed.error.errors[0]?.message,
+				message: parsed.error.issues[0]?.message,
 				token
 			});
 		}

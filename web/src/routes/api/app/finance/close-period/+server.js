@@ -44,7 +44,7 @@ export async function POST({ request, cookies }) {
     try {
         const body = await request.json();
         const parsed = schema.safeParse(body);
-        if (!parsed.success) return json({ success: false, message: parsed.error.errors[0].message }, { status: 422 });
+        if (!parsed.success) return json({ success: false, message: parsed.error.issues[0].message }, { status: 422 });
         const { unitId, periodStart, periodEnd, keterangan } = parsed.data;
 
         if (periodStart > periodEnd) return json({ success: false, message: 'Tanggal mulai tidak boleh setelah tanggal akhir' }, { status: 422 });
