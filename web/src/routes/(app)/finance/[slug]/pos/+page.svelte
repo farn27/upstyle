@@ -5,7 +5,7 @@
     import { fade, scale, fly } from 'svelte/transition';
     import { flip } from 'svelte/animate';
     import { quintOut } from 'svelte/easing';
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import BarcodeScanner from '$lib/components/BarcodeScanner.svelte';
     import { getIndustryGroup } from '$lib/posFeatures';
     export let data;
@@ -269,6 +269,12 @@
         : 0;
     $: total = dasarPpn + (kenaiPpn && !ppnInklusif ? ppnAmount : 0);
     $: totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+    // HP (< md): keranjang dibuka sebagai layar penuh lewat bar ringkasan di bawah
+    let keranjangHp = false;
+    $: if (cart.length === 0) keranjangHp = false;
+    // Saat keranjang layar penuh terbuka, tombol chat AI disembunyikan agar tidak menutupi voucher/bayar
+    $: if (typeof document !== 'undefined') document.body.classList.toggle('pos-keranjang-hp', keranjangHp);
+    onDestroy(() => { if (typeof document !== 'undefined') document.body.classList.remove('pos-keranjang-hp'); });
 
     // --- Quantity Management ---
     function updateQty(id, newQty) {
@@ -490,7 +496,8 @@
     }
 
     function formatRupiah(num) {
-        return 'Rp' + (num || 0).toLocaleString('id-ID');
+        // harga dari DB berupa teks ("14000.00") — tanpa Number() tampil "Rp14000.00"
+        return 'Rp' + Math.round(Number(num) || 0).toLocaleString('id-ID');
     }
 
     onMount(() => {
@@ -498,18 +505,18 @@
     });
 </script>
 
-<div class="flex h-screen w-full bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased text-slate-900 dark:text-white overflow-hidden">
+<div class="flex h-[100dvh] w-full bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased text-slate-900 dark:text-white overflow-hidden pb-14 md:pb-0">
 
     <!-- ===== SIDEBAR ===== -->
-    <aside class="w-16 lg:w-20 bg-slate-900 flex flex-col items-center py-5 shrink-0 z-20 shadow-2xl">
-        <div class="w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-base lg:text-lg mb-6 shadow-lg shadow-blue-500/30">P</div>
+    <aside class="fixed bottom-0 inset-x-0 h-14 flex flex-row items-center justify-around px-2 md:static md:h-auto md:w-16 lg:w-20 md:flex-col md:justify-start md:px-0 bg-slate-900 md:py-5 shrink-0 z-30 shadow-2xl">
+        <div class="hidden md:flex w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-base lg:text-lg mb-6 shadow-lg shadow-blue-500/30">P</div>
 
-        <nav class="flex flex-col gap-3 flex-1">
+        <nav class="flex flex-row md:flex-col gap-1 md:gap-3 flex-1 justify-around md:justify-start">
             <!-- POS -->
             <a href={`/finance/${$page.params.slug}/pos`}
                class="relative p-2.5 lg:p-3 rounded-xl transition-all group {$page.url.pathname.includes('/pos') && !$page.url.pathname.includes('/customers') && !$page.url.pathname.includes('/reports') ? 'text-blue-400 bg-blue-500/15' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-white hover:bg-white dark:hover:bg-slate-700/5'}">
                 <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-                <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">POS / Kasir</span>
+                <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">POS / Kasir</span>
             </a>
 
             <!-- Hold List -->
@@ -521,7 +528,7 @@
                         {heldOrders.length}
                     </span>
                 {/if}
-                <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Pesanan Ditunda</span>
+                <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Pesanan Ditunda</span>
             </button>
 
             <!-- Active Orders / Kitchen -->
@@ -529,7 +536,7 @@
                 <a href={`/finance/${$page.params.slug}/pos/antrean`}
                    class="relative p-2.5 lg:p-3 rounded-xl transition-all group {$page.url.pathname.includes('/antrean') ? 'text-blue-400 bg-blue-500/15' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-white hover:bg-white dark:hover:bg-slate-700/5'}">
                     <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Daftar Antrean / Dapur</span>
+                    <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Daftar Antrean / Dapur</span>
                 </a>
             {/if}
 
@@ -537,14 +544,14 @@
             <a href={`/finance/${$page.params.slug}/pos/customers`}
                class="relative p-2.5 lg:p-3 rounded-xl transition-all group {$page.url.pathname.includes('/customers') ? 'text-blue-400 bg-blue-500/15' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-white hover:bg-white dark:hover:bg-slate-700/5'}">
                 <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Pelanggan</span>
+                <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Pelanggan</span>
             </a>
 
             <!-- Reports -->
             <a href={`/finance/${$page.params.slug}/pos/reports`}
                class="relative p-2.5 lg:p-3 rounded-xl transition-all group {$page.url.pathname.includes('/reports') ? 'text-blue-400 bg-blue-500/15' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-white hover:bg-white dark:hover:bg-slate-700/5'}">
                 <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Laporan</span>
+                <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Laporan</span>
             </a>
 
             <!-- Kelola POS -->
@@ -552,25 +559,25 @@
             <a href={`/finance/${$page.params.slug}/pos/kelola`}
                class="relative p-2.5 lg:p-3 rounded-xl transition-all group text-slate-500 dark:text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10">
                 <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Kelola POS</span>
+                <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Kelola POS</span>
             </a>
             {/if}
         </nav>
 
         <!-- Logout / Shift -->
         {#if isStaff}
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-row md:flex-col gap-2">
                 <button type="button" on:click={() => showCashModal = true}
-                    class="w-12 h-12 flex items-center justify-center rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white transition group relative"
+                    class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white transition group relative"
                     title="Kelola Kas">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-orange-500 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Kas In/Out</span>
+                    <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-orange-500 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Kas In/Out</span>
                 </button>
                 <button type="button" on:click={() => showTutupShiftModal = true}
-                    class="w-12 h-12 flex items-center justify-center rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white transition group relative"
+                    class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white transition group relative"
                     title="Tutup Shift">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                    <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-red-500 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Tutup Shift</span>
+                    <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-red-500 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Tutup Shift</span>
                 </button>
             </div>
         {:else}
@@ -578,7 +585,7 @@
                     class="p-2.5 lg:p-3 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200/50 rounded-xl transition-all group relative"
                     title="Kembali ke Dashboard">
                 <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                <span class="absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Kembali ke Dashboard</span>
+                <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Kembali ke Dashboard</span>
             </button>
         {/if}
     </aside>
@@ -586,8 +593,8 @@
     <!-- ===== MAIN CONTENT ===== -->
     <main class="flex-1 flex flex-col min-w-0">
         <!-- Header -->
-        <header class="h-14 lg:h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700/60 px-4 lg:px-6 flex items-center justify-between shrink-0">
-            <div class="flex items-center gap-4 lg:gap-6">
+        <header class="h-14 lg:h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700/60 px-3 lg:px-6 flex items-center justify-between gap-2 shrink-0">
+            <div class="hidden sm:flex items-center gap-4 lg:gap-6 min-w-0">
                 <div>
                     <h1 class="text-xs lg:text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter leading-none">
                         {#if isFNB}POS Restoran
@@ -630,7 +637,7 @@
             </div>
 
             <!-- Search + Barcode Scanner -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-1 sm:flex-none min-w-0 justify-end">
                 <!-- Industry-specific quick actions -->
                 {#if isFNB}
                     <button title="Meja"
@@ -676,7 +683,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </button>
-                <div class="relative w-48 lg:w-72 xl:w-88">
+                <div class="relative flex-1 min-w-0 sm:flex-none sm:w-48 lg:w-72 xl:w-88">
                     <input type="text" bind:value={searchTerm}
                            autofocus={autoFocusSearch}
                            placeholder="{isRetail ? 'Cari produk / barcode...' : isServices ? 'Cari layanan / paket...' : isTechnical ? 'Cari jasa / sparepart...' : isEducation ? 'Cari kursus / kelas...' : 'Cari produk...'}"
@@ -721,7 +728,7 @@
                             <p class="text-sm font-bold text-slate-300 uppercase tracking-widest">{isServices ? 'Layanan tidak ditemukan' : isTechnical ? 'Jasa/Sparepart tidak ditemukan' : isEducation ? 'Kursus tidak ditemukan' : 'Produk tidak ditemukan'}</p>
                         </div>
                     {:else}
-                        <div class="grid {isFNB ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' : 'grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'} gap-3 lg:gap-5">
+                        <div class="grid {isFNB ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' : 'grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'} gap-3 lg:gap-5">
                             {#each filteredProducts as p (p.id)}
                                 <button on:click={() => addToCart(p)}
                                         disabled={p.stok === 0 && !isServices && !isEducation}
@@ -768,7 +775,15 @@
             </section>
 
             <!-- ===== CART SIDEBAR (RIGHT) ===== -->
-            <aside class="w-80 lg:w-96 xl:w-[420px] bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col shrink-0 shadow-2xl shadow-slate-200/50">
+            <aside class="{keranjangHp ? 'fixed inset-0 z-[80] flex' : 'hidden'} md:static md:z-auto md:flex md:w-80 lg:w-96 xl:w-[420px] bg-white dark:bg-slate-800 md:border-l border-slate-200 dark:border-slate-700 flex-col shrink-0 shadow-2xl shadow-slate-200/50">
+                <!-- Header keranjang (HP saja) -->
+                <div class="md:hidden flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                    <button type="button" on:click={() => keranjangHp = false} class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                        Tambah produk
+                    </button>
+                    <span class="text-xs font-bold text-slate-500">Keranjang • {totalItems} item</span>
+                </div>
                 <!-- Customer Input -->
                 <div class="px-4 lg:px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-white">
                     <div class="flex items-center justify-between mb-2">
@@ -981,6 +996,23 @@
                 </div>
             </aside>
         </div>
+
+        <!-- Bar ringkasan keranjang (HP saja) -->
+        {#if cart.length > 0 && !keranjangHp}
+            <button type="button" on:click={() => keranjangHp = true}
+                    class="md:hidden fixed left-3 right-3 bottom-16 z-30 flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-white shadow-xl shadow-blue-600/30">
+                <span class="flex items-center gap-3 min-w-0">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                    </span>
+                    <span class="text-left leading-tight min-w-0">
+                        <span class="block text-xs opacity-80">{totalItems} item</span>
+                        <span class="block text-base font-black truncate">{formatRupiah(total)}</span>
+                    </span>
+                </span>
+                <span class="text-sm font-bold">Bayar ›</span>
+            </button>
+        {/if}
     </main>
 </div>
 
@@ -1651,6 +1683,7 @@
 {/if}
 
 <style>
+    :global(body.pos-keranjang-hp [aria-label="Chat AI Bizgrow"]) { display: none; }
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
