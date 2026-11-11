@@ -1,6 +1,7 @@
 <script>
     import { fade, fly } from 'svelte/transition';
     import { onMount } from 'svelte';
+    import LandingPage from '$lib/components/landing/LandingPage.svelte';
     import { 
         Building2, 
         Target, 
@@ -74,6 +75,10 @@
         },
     ];
 </script>
+
+{#if data?.tamu || !data?.user}
+    <LandingPage />
+{:else}
 
 <div class="px-4 md:px-8 max-w-7xl mx-auto space-y-8 pb-20 pt-6 font-sans text-slate-800 dark:text-slate-100 transition-opacity duration-500" class:opacity-0={!isLoaded}>
     
@@ -292,6 +297,7 @@
 
 </div>
 
+{/if}
 <style>
     :global(body) { 
         background-color: #f8fafc; 

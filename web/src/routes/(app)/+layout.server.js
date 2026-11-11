@@ -28,6 +28,8 @@ export async function load({ cookies, depends, url, locals }) {
 
     if (url.pathname === '/beranda' || url.pathname === '/beranda/') throw redirect(303, '/');
 
+    // Tamu di "/" melihat landing page (halaman publik), bukan dialihkan ke login
+    if (!userId && url.pathname === '/') return { user: null, riwayatGlobal: [], tamu: true };
     if (!userId && !isAuthPage && !staffPortalAllowed) throw redirect(303, '/auth/login'); 
     if (userId && isAuthPage) throw redirect(303, '/');
     if (!userId) return { user: null, riwayatGlobal: [] };

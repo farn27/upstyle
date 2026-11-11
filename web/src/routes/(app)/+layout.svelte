@@ -137,7 +137,7 @@
 </script>
 
 <div class="relative min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-700 dark:text-slate-200 selection:bg-indigo-500/30">
-  {#if !isPosSide}
+  {#if !isPosSide && !data?.tamu}
   <nav class="sticky top-0 z-[100] bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 print:hidden">
     <div class="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
       
@@ -309,7 +309,7 @@
   </nav>
   {/if}
 
-<main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6" use:tabelHp>
+<main class={data?.tamu ? '' : 'max-w-[1600px] mx-auto px-4 sm:px-6 py-6'} use:tabelHp>
     <slot />
   </main>
 </div>
