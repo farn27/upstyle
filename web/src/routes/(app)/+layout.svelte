@@ -6,6 +6,7 @@
   import ChatAI from "$lib/components/ChatAI.svelte";
   import QuickNav from "$lib/components/QuickNav.svelte";
   import SidebarNav from "$lib/components/SidebarNav.svelte";
+  import { tabelHp } from '$lib/actions/tabelHp';
   import { onMount, onDestroy } from 'svelte';
   import { replaceState , goto } from '$app/navigation';
   import { invalidate } from '$app/navigation';
@@ -308,7 +309,7 @@
   </nav>
   {/if}
 
-<main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
+<main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6" use:tabelHp>
     <slot />
   </main>
 </div>

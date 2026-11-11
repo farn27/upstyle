@@ -48,3 +48,36 @@ a {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Tabel lebar → kartu di HP (lihat src/lib/actions/tabelHp.js) ── */
+@media (max-width: 767px) {
+	table.tabel-kartu { min-width: 0 !important; width: 100% !important; border-collapse: separate; }
+	table.tabel-kartu thead { display: none; }
+	table.tabel-kartu tbody, table.tabel-kartu tfoot, table.tabel-kartu tr { display: block; width: 100%; }
+	table.tabel-kartu tr {
+		margin: 8px 0; padding: 6px 12px; border: 1px solid rgb(226 232 240); border-radius: 12px;
+		background-color: rgb(255 255 255);
+	}
+	table.tabel-kartu td, table.tabel-kartu tbody th, table.tabel-kartu tfoot th {
+		display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+		width: 100% !important; min-width: 0 !important; max-width: none !important;
+		padding: 5px 0 !important; border: 0 !important; text-align: right !important;
+		white-space: normal !important;
+	}
+	table.tabel-kartu td + td { border-top: 1px dashed rgb(241 245 249) !important; }
+	table.tabel-kartu td::before {
+		content: attr(data-label); flex-shrink: 0; max-width: 45%;
+		font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+		color: rgb(148 163 184); text-align: left;
+	}
+	table.tabel-kartu td[data-label=""]::before { content: none; }
+	table.tabel-kartu td[data-label=""] { justify-content: center; text-align: center !important; }
+	/* sel kosong (mis. kolom ikon) tidak perlu baris sendiri */
+	table.tabel-kartu td:empty { display: none; }
+	table.tabel-kartu td > * { min-width: 0; }
+}
+/* mode gelap aplikasi berbasis kelas .dark (bukan preferensi sistem) */
+@media (max-width: 767px) {
+	.dark table.tabel-kartu tr { border-color: rgb(51 65 85); background-color: rgb(30 41 59); }
+	.dark table.tabel-kartu td + td { border-top-color: rgb(51 65 85) !important; }
+}

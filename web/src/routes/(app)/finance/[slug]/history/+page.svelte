@@ -264,6 +264,34 @@
     $: liveTotalMasuk = filteredTransactions.reduce((sum, t) => sum + (getKategoriInfo(t).isMasuk ? Number(t.nominal) : 0), 0);
     $: liveTotalKeluar = filteredTransactions.reduce((sum, t) => sum + (getKategoriInfo(t).isKeluar ? Number(t.nominal) : 0), 0);
     $: liveSaldo = liveTotalMasuk - liveTotalKeluar;
+
+    /** Hapus transaksi (optimistis) — dipakai tabel desktop & daftar kartu HP. @param {any} trx */
+    function hapusEnhance(trx) {
+        // Optimistic UI: Hapus dari layar dulu
+        const idDeleted = trx.id;
+        const backup = [...data.transactions];
+        data.transactions = data.transactions.filter(t => t.id !== idDeleted);
+
+        return async ({ result, update }) => {
+            if (result.type === 'success') {
+                // 🚀 TRIGER TOAST & RED DOT
+                toastPesan.set(result.data.message);
+                showRedDot.set(true);
+
+                // Auto-clear toast setelah 3 detik (sama seperti logic URL kamu lurd)
+                setTimeout(() => toastPesan.set(''), 3000);
+            }
+
+            if (result.type === 'error' || result.type === 'failure') {
+                data.transactions = backup;
+                toastPesan.set(result.data?.message || "Gagal menghapus!");
+                setTimeout(() => toastPesan.set(''), 3000);
+            }
+            
+            // update() akan memicu load ulang riwayatGlobal di layout
+            await update();
+        };
+    }
 </script>
 
 <div class="min-h-screen  text-[#444]">
@@ -279,8 +307,8 @@
 
         <div class="bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 rounded-sm">
             
-            <div class="p-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-800">
-                <div class="flex items-center gap-2">
+            <div class="p-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 md:gap-4 bg-white dark:bg-slate-800">
+                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
                     <div class="flex bg-slate-50 dark:bg-slate-900 p-1 rounded gap-1 border border-slate-100 dark:border-slate-800">
                         <button on:click={() => setQuickFilter('hari-ini')} class="px-2 py-1 text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 hover:bg-white dark:hover:bg-slate-700 dark:bg-slate-800 hover:text-indigo-600 rounded transition-all">Hari ini</button>
                         <button on:click={() => setQuickFilter('kemarin')} class="px-2 py-1 text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 hover:bg-white dark:hover:bg-slate-700 dark:bg-slate-800 hover:text-indigo-600 rounded transition-all">Kemarin</button>
@@ -294,14 +322,14 @@
                         {/each}
                     </select>
 
-                    <div class="flex items-center border border-slate-200 dark:border-slate-700 rounded px-2 py-1 gap-2 bg-white dark:bg-slate-800 ml-2">
-                        <input type="date" bind:value={startDate} on:change={applyFilter} class="border-none p-0 text-[10px] focus:ring-0 w-24 font-bold uppercase">
+                    <div class="flex items-center border border-slate-200 dark:border-slate-700 rounded px-2 py-1 gap-2 bg-white dark:bg-slate-800 md:ml-2 w-full sm:w-auto justify-between">
+                        <input type="date" bind:value={startDate} on:change={applyFilter} class="border-none p-0 text-[10px] focus:ring-0 w-28 font-bold uppercase bg-transparent">
                         <span class="text-slate-300 text-[10px]">-</span>
-                        <input type="date" bind:value={endDate} on:change={applyFilter} class="border-none p-0 text-[10px] focus:ring-0 w-24 font-bold uppercase">
+                        <input type="date" bind:value={endDate} on:change={applyFilter} class="border-none p-0 text-[10px] focus:ring-0 w-28 font-bold uppercase bg-transparent">
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
                     <!-- 👇 BARU: filter jenis -->
                     <select bind:value={jenisFilter} on:change={() => currentPage = 1} class="text-[10px] font-bold uppercase border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 py-1.5 px-2 cursor-pointer focus:ring-1 focus:ring-slate-200">
                         <option value="semua">Semua Jenis</option>
@@ -317,7 +345,7 @@
                         {/each}
                     </select>
 
-                    <input type="text" bind:value={searchQuery} on:input={() => currentPage = 1} placeholder="Cari transaksi..." class="text-[11px] border border-slate-200 dark:border-slate-700 rounded px-3 py-1.5 w-48 focus:ring-1 focus:ring-slate-200">
+                    <input type="text" bind:value={searchQuery} on:input={() => currentPage = 1} placeholder="Cari transaksi..." class="text-[11px] border border-slate-200 dark:border-slate-700 rounded px-3 py-1.5 flex-1 min-w-[150px] md:flex-none md:w-48 focus:ring-1 focus:ring-slate-200">
                     
                     <button on:click={exportPDF} class="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded hover:bg-rose-50 dark:bg-rose-950/30 hover:text-rose-600 hover:border-rose-200 dark:border-rose-900/50 font-bold text-[11px] uppercase transition-all">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" stroke-width="2"/></svg>
@@ -331,7 +359,69 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
+            <!-- HP: daftar kartu (tabel 9 kolom terpotong di layar sempit) -->
+            <div class="md:hidden">
+                <div class="grid grid-cols-3 gap-2 p-3 border-b border-slate-100 dark:border-slate-800 text-center">
+                    <div class="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
+                        <div class="text-[9px] font-bold uppercase text-emerald-700/70">Masuk</div>
+                        <div class="text-[12px] font-black text-emerald-700 truncate">{formatRupiah(liveTotalMasuk)}</div>
+                    </div>
+                    <div class="rounded-lg bg-rose-50 dark:bg-rose-950/30 p-2">
+                        <div class="text-[9px] font-bold uppercase text-rose-700/70">Keluar</div>
+                        <div class="text-[12px] font-black text-rose-700 truncate">{formatRupiah(liveTotalKeluar)}</div>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
+                        <div class="text-[9px] font-bold uppercase text-slate-500">Selisih</div>
+                        <div class="text-[12px] font-black truncate {liveSaldo >= 0 ? 'text-emerald-600' : 'text-rose-600'}">{formatRupiah(liveSaldo)}</div>
+                    </div>
+                </div>
+                {#if paginatedTransactions.length === 0}
+                    <p class="p-8 text-center text-[12px] text-slate-400">Tidak ada transaksi pada filter ini.</p>
+                {/if}
+                <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+                    {#each paginatedTransactions as trx (trx.id)}
+                        {@const info = getKategoriInfo(trx)}
+                        <li class="px-3 py-3">
+                            <div class="flex items-start gap-3">
+                                <div class="shrink-0 w-9 h-9 rounded-full flex items-center justify-center {info.isMasuk ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d={info.isMasuk ? 'M19 14l-7 7m0 0l-7-7m7 7V3' : 'M5 10l7-7m0 0l7 7m-7-7v18'}/></svg>
+                                </div>
+                                <button type="button" class="flex-1 min-w-0 text-left" on:click={() => toggleExpand(trx.id)}>
+                                    <div class="flex items-start justify-between gap-2">
+                                        <span class="text-[12px] font-bold text-slate-700 dark:text-slate-200 leading-snug line-clamp-2">{trx.keterangan || (info.isMasuk ? 'Pemasukan' : 'Pengeluaran')}</span>
+                                        <span class="shrink-0 text-[13px] font-black {info.isMasuk ? 'text-emerald-600' : 'text-rose-600'}">{info.isMasuk ? '+' : '−'}{formatRupiah(trx.nominal)}</span>
+                                    </div>
+                                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-400">
+                                        <span>{new Date(trx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                        <span>•</span>
+                                        <span>{trx.metode_bayar || 'Kas'}</span>
+                                        {#if trx.namaABC}
+                                            <span class="px-1.5 py-0.5 rounded border text-[9px] font-bold {trx.levelABC === 'A' ? 'bg-amber-50 text-amber-700 border-amber-200' : trx.levelABC === 'B' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200'}">[{trx.levelABC}] {trx.namaABC}</span>
+                                        {/if}
+                                    </div>
+                                    {#if expandedId === trx.id}
+                                        <div class="mt-2 text-[11px] text-slate-500 space-y-0.5">
+                                            <div>Saldo setelah transaksi: <b class="text-indigo-700 dark:text-indigo-300">{formatRupiah(balanceMap[trx.id] ?? 0)}</b></div>
+                                            <div class="font-mono">ID #{trx.id}</div>
+                                        </div>
+                                    {/if}
+                                </button>
+                            </div>
+                            <div class="mt-2 pl-12 flex items-center gap-4 text-[11px] font-bold">
+                                <a href={`/finance/${$page.params.slug}/edit/${trx.id}`} class="text-indigo-600">Ubah</a>
+                                <a href={`/api/invoice/${trx.id}?type=manual`} target="_blank" class="text-slate-500">Invoice</a>
+                                <form method="POST" action="?/delete" class="ml-auto"
+                                      use:enhance={({ cancel }) => { if (!confirm('Hapus transaksi ini?')) { cancel(); return; } return hapusEnhance(trx); }}>
+                                    <input type="hidden" name="id" value={trx.id}>
+                                    <button class="text-rose-500">Hapus</button>
+                                </form>
+                            </div>
+                        </li>
+                    {/each}
+                </ul>
+            </div>
+
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
@@ -434,32 +524,7 @@
                                   <form 
     method="POST" 
     action="?/delete" 
-    use:enhance={() => {
-        // Optimistic UI: Hapus dari layar dulu
-        const idDeleted = trx.id;
-        const backup = [...data.transactions];
-        data.transactions = data.transactions.filter(t => t.id !== idDeleted);
-
-        return async ({ result, update }) => {
-            if (result.type === 'success') {
-                // 🚀 TRIGER TOAST & RED DOT
-                toastPesan.set(result.data.message);
-                showRedDot.set(true);
-
-                // Auto-clear toast setelah 3 detik (sama seperti logic URL kamu lurd)
-                setTimeout(() => toastPesan.set(''), 3000);
-            }
-
-            if (result.type === 'error' || result.type === 'failure') {
-                data.transactions = backup;
-                toastPesan.set(result.data?.message || "Gagal menghapus!");
-                setTimeout(() => toastPesan.set(''), 3000);
-            }
-            
-            // update() akan memicu load ulang riwayatGlobal di layout
-            await update();
-        };
-    }}
+    use:enhance={() => hapusEnhance(trx)}
 >
     <input type="hidden" name="id" value={trx.id}>
     <button class="text-slate-300 hover:text-rose-500 transition-colors">
@@ -522,7 +587,7 @@
             </div>
 
             <!-- 👇 BARU: Pagination -->
-            <div class="flex items-center justify-between p-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">
+            <div class="flex flex-wrap items-center justify-between gap-2 p-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">
                 <div>
                     Menampilkan {rangeStart}–{rangeEnd} dari {sortedTransactions.length} transaksi
                 </div>
