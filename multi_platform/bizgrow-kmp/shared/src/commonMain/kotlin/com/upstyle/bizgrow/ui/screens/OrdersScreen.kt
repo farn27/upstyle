@@ -99,7 +99,7 @@ private fun KartuPesanan(o: EcommerceOrder, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(o.customerName.ifBlank { "Pelanggan" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(o.orderNumber, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${o.items.sumOf { it.qty }} barang • ${o.createdAt.take(10)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${o.items.sumOf { it.qty }} barang • ${o.createdAt.tanggalJam()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(o.totalAmount.rupiah(), fontWeight = FontWeight.Bold, color = BizgrowColors.Success)

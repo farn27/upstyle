@@ -186,7 +186,7 @@ private fun HeroSaldo(fd: FinanceData?, periode: String, sembunyi: Boolean, onTo
                 // Angka ini pemasukan − pengeluaran (arus kas), bukan laba: HPP/penyusutan tidak dihitung.
                 // Dulu berlabel "Laba bersih" dengan periode bawaan "Semua" sehingga terbaca sebagai laba (F-14).
                 Text(
-                    "Selisih masuk − keluar · ${if (periode == "Semua") "semua waktu" else periode.lowercase()}",
+                    "Arus kas bersih",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.8f),
                     maxLines = 1,
@@ -217,7 +217,15 @@ private fun HeroSaldo(fd: FinanceData?, periode: String, sembunyi: Boolean, onTo
                 if (hide) Text("Rp ••••••••", style = MaterialTheme.typography.displayMedium, color = Color.White)
                 else AnimatedAmount(bersih, MaterialTheme.typography.displayMedium, Color.White)
             }
-            Spacer(Modifier.height(18.dp))
+            // Penjelasan & periode di baris sendiri supaya label utama tidak terpotong "Selisih masuk…"
+            Text(
+                "Pemasukan − pengeluaran · ${if (periode == "Semua") "semua waktu" else periode.lowercase()}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.75f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ArusMini("Pemasukan", masuk, Icons.Rounded.SouthWest, sembunyi, Modifier.weight(1f))
                 ArusMini("Pengeluaran", keluar, Icons.Rounded.NorthEast, sembunyi, Modifier.weight(1f))

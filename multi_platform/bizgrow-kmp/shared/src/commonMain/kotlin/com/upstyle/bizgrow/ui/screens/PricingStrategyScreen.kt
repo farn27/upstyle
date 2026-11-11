@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.tanggalJam
 import com.upstyle.bizgrow.ui.design.rupiah
 
 import androidx.compose.foundation.BorderStroke
@@ -338,7 +339,7 @@ fun PricingStrategyItemCard(
                 ) {
                     Icon(Icons.Default.DateRange, null, modifier = Modifier.size(14.dp), tint = BizgrowColors.Gray400)
                     Text(
-                        "${strategy.startDate.take(10)} – ${strategy.endDate.take(10)}",
+                        "${strategy.startDate.tanggalJam()} – ${strategy.endDate.tanggalJam()}",
                         fontSize = 12.sp,
                         color = BizgrowColors.Gray500,
                         fontWeight = FontWeight.Medium

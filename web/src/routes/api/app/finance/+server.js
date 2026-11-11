@@ -337,7 +337,7 @@ export async function POST({ request, cookies }) {
                 triggerEvent(`unit-${unitId}`, 'notification', {
                     id: Date.now(),
                     unitId: Number(unitId),
-                    pesan: `Transaksi ${kategoriTrx}: Rp ${String(nominal)}`,
+                    pesan: `Transaksi ${kategoriTrx}: Rp ${Number(nominal || 0).toLocaleString('id-ID')}`,
                     kategori: 'FINANCE',
                     tipe: 'success',
                     waktu: new Date().toISOString()

@@ -82,7 +82,9 @@ fun tebakKategori(nama: String): String? {
 }
 
 fun labelKategori(kode: String?): String =
-    DaftarKategoriWeb.firstOrNull { it.kode == kode }?.label ?: (kode ?: "-").replace("_", " ")
+    DaftarKategoriWeb.firstOrNull { it.kode == kode }?.label
+        // kode lama/tidak dikenal ("FnB", "FNB_CAFE") → label yang sama dengan kartu di Beranda, bukan kode mentah
+        ?: if (kode.isNullOrBlank()) "-" else kategoriDari(kode).label
 
 /** Pemilih kategori: kelompok (pil) lalu pilihan di kelompok itu (dropdown). */
 @Composable

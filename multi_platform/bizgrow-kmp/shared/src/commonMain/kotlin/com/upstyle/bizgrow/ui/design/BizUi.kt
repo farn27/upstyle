@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.design
 
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -761,4 +762,30 @@ object RupiahVisualTransformation : VisualTransformation {
         }
         return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(sb.toString()), peta)
     }
+}
+
+/**
+ * Merapikan angka rupiah mentah di teks bebas dari server ("Rp 4500000" → "Rp 4.500.000"),
+ * mis. pesan notifikasi lama yang tersimpan sebelum server memformatnya.
+ */
+fun String.rapikanRupiah(): String = Regex("""Rp\s?(\d{4,})(?:\.0+)?(?![\d.,])""").replace(this) { m ->
+    "Rp " + ribuan(m.groupValues[1].toLong())
+}
+
+private val BULAN_SINGKAT = listOf("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
+
+/** "2026-11-11 19:08:00" / "2026-11-11T19:08" → "11 Nov 2026, 19:08". Teks lain dikembalikan apa adanya. */
+fun String.tanggalJam(): String {
+    // stempel UTC/offset ("2026-11-11T12:27:43.870Z") → jam lokal perangkat dulu
+    val t = trim()
+    if (Regex("""T\d{2}:\d{2}.*(Z|[+-]\d{2}:?\d{2})$""").containsMatchIn(t)) {
+        runCatching {
+            val l = kotlinx.datetime.Instant.parse(t).toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+            return "${l.dayOfMonth} ${BULAN_SINGKAT[l.monthNumber - 1]} ${l.year}, ${l.hour.toString().padStart(2, '0')}:${l.minute.toString().padStart(2, '0')}"
+        }
+    }
+    val m = Regex("""^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?""").find(t) ?: return this
+    val (th, bl, tg, jm, mn) = m.destructured
+    val bulan = BULAN_SINGKAT.getOrNull(bl.toInt() - 1) ?: return this
+    return "${tg.toInt()} $bulan $th" + if (jm.isNotEmpty()) ", $jm:$mn" else ""
 }

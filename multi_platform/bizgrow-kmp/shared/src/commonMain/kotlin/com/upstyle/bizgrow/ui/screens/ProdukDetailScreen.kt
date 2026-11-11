@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import coil3.compose.AsyncImage
 import com.upstyle.bizgrow.data.*
 import com.upstyle.bizgrow.ui.design.ProductThumb
+import com.upstyle.bizgrow.ui.design.SkeletonList
 import com.upstyle.bizgrow.ui.AppViewModel
 import com.upstyle.bizgrow.ui.Screen
 
@@ -37,12 +38,13 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
     val stockLogs by viewModel.stockLogs.collectAsState(initial = viewModel.stockLogs.value)
     val uiState by viewModel.uiState.collectAsState(initial = viewModel.uiState.value)
     val product = products.find { it.id == productId }
+    val memuatProduk = viewModel.productsState.collectAsState().value.isLoading
 
     var showAdjustSheet by remember { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
 
-    LaunchedEffect(productId) { viewModel.loadStockLogs(productId) }
+    LaunchedEffect(productId) { viewModel.loadStockLogs(productId); if (products.none { it.id == productId }) viewModel.loadProducts() }
 
     Scaffold(
         topBar = {
@@ -66,6 +68,11 @@ fun ProdukDetailScreen(viewModel: AppViewModel, productId: String) {
             )
         }
     ) { padding ->
+        if (product == null && products.isEmpty() && memuatProduk) {
+            // daftar produk masih dimuat — jangan langsung bilang "tidak ditemukan"
+            SkeletonList(rows = 4, modifier = Modifier.padding(padding).padding(16.dp))
+            return@Scaffold
+        }
         if (product == null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

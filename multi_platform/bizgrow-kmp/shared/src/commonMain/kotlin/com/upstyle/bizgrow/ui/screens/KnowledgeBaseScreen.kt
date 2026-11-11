@@ -86,7 +86,7 @@ private fun KartuArtikel(a: KnowledgeArticle, onHapus: () -> Unit) {
                     Text(a.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = if (buka) 4 else 2, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         StatusChip(a.category.ifBlank { "Umum" }, BizgrowColors.Violet)
-                        if (a.createdAt.length >= 10) Text(a.createdAt.take(10), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (a.createdAt.length >= 10) Text(a.createdAt.tanggalJam(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Icon(if (buka) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)

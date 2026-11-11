@@ -22,6 +22,7 @@ private val KIRIM = listOf("PENDING" to "Belum dikirim", "PROCESSING" to "Dipros
 @Composable
 fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
     val o by viewModel.selectedOrder.collectAsState(initial = viewModel.selectedOrder.value)
+    val galatOrder by viewModel.orderDetailGalat.collectAsState()
     val uriHandler = LocalUriHandler.current
     var batal by remember { mutableStateOf(false) }
 
@@ -34,7 +35,10 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
         actions = { BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadOrderDetail(orderId) } }
     ) { padding ->
         if (order == null) {
-            SkeletonList(4, Modifier.padding(padding).padding(16.dp))
+            val g = galatOrder
+            if (g != null) Box(Modifier.fillMaxSize().padding(padding)) {
+                EmptyView("Pesanan tidak bisa dimuat", g, Icons.Rounded.ErrorOutline, "Coba lagi", { viewModel.loadOrderDetail(orderId) })
+            } else SkeletonList(4, Modifier.padding(padding).padding(16.dp))
         } else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 BizSurface(Modifier.fillMaxWidth()) {
@@ -58,7 +62,7 @@ fun OrderDetailScreen(viewModel: AppViewModel, orderId: Int) {
                         Text("Alamat kirim", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(order.shippingAddress, style = MaterialTheme.typography.bodyMedium)
                     }
-                    if (order.createdAt.isNotBlank()) Text("Dipesan ${order.createdAt.take(16).replace('T', ' ')}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (order.createdAt.isNotBlank()) Text("Dipesan ${order.createdAt.tanggalJam()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             item { SectionTitle("Barang (${order.items.size})") }

@@ -57,7 +57,8 @@ fun kategoriDari(type: String?): KategoriUsaha {
     val t = (type ?: "").uppercase()
     KategoriUsahaList.firstOrNull { it.kode == t }?.let { return it }
     return when {
-        t.startsWith("FNB") || "RESTO" in t || "CAFE" in t || "KOPI" in t -> KategoriUsahaList[0]
+        "CAFE" in t || "KOPI" in t || "COFFEE" in t -> KategoriUsahaList[1]
+        t.startsWith("FNB") || "RESTO" in t -> KategoriUsahaList[0]
         t.startsWith("RETAIL") || "TOKO" in t -> KategoriUsahaList[3]
         "LAUNDRY" in t -> KategoriUsahaList[7]
         t.startsWith("JASA") || "SERVICE" in t -> KategoriUsahaList[9]

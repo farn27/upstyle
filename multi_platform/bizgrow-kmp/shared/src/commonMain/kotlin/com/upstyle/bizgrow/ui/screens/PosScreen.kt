@@ -299,9 +299,12 @@ private fun ProdukKasirCard(p: Product, qty: Int, serverUrl: String, modifier: M
         }
         Column(Modifier.padding(12.dp)) {
             Text(p.nama, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+            // produk bervarian: beri tahu kasir bahwa ketukan akan membuka pilihan varian
+            val hargaVarian = if (p.perluPilihVarian) p.variants.map { it.hargaJual }.filter { it > 0 } else emptyList()
+            if (p.perluPilihVarian) Text("${p.variants.size} varian", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(p.hargaJual.rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
+                Text(if (hargaVarian.size > 1 && hargaVarian.min() != hargaVarian.max()) "mulai ${hargaVarian.min().rupiahRingkas()}" else (hargaVarian.firstOrNull() ?: p.hargaJual).rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
                 AnimatedContent(diKeranjang, transitionSpec = { (fadeIn() + scaleIn()) togetherWith (fadeOut() + scaleOut()) }, label = "aksi") { ada ->
                     if (ada) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

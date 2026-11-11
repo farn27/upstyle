@@ -191,7 +191,7 @@ fun FixedAssetsScreen(viewModel: AppViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(a.namaAset, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${kategoriAset.firstOrNull { it.first == a.kategori }?.second ?: a.kategori} • ${a.umurEkonomis} thn • ${a.tanggalPerolehan.take(10)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${kategoriAset.firstOrNull { it.first == a.kategori }?.second ?: a.kategori} • ${a.umurEkonomis} thn • ${a.tanggalPerolehan.tanggalJam()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         StatusChip(statusAset.firstOrNull { it.first == a.status }?.second ?: a.status, if (a.status == "AKTIF") BizgrowColors.Success else BizgrowColors.Warning)
                     }
@@ -552,7 +552,7 @@ fun ClosingPeriodScreen(viewModel: AppViewModel) {
                         IconBadge(Icons.Rounded.Lock, BizgrowColors.Warning)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("${p.periodStart.take(10)}  →  ${p.periodEnd.take(10)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("${p.periodStart.tanggalJam()}  →  ${p.periodEnd.tanggalJam()}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             if (!p.keterangan.isNullOrBlank()) Text(p.keterangan, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Column(horizontalAlignment = Alignment.End) {
@@ -572,7 +572,7 @@ fun ClosingPeriodScreen(viewModel: AppViewModel) {
             containerColor = MaterialTheme.colorScheme.surface,
             icon = { IconBadge(Icons.Rounded.LockOpen, BizgrowColors.Warning) },
             title = { Text("Buka kembali periode?") },
-            text = { Text("${p.periodStart.take(10)} → ${p.periodEnd.take(10)} akan dibuka. Transaksi dan jurnal pada rentang ini bisa diubah lagi sampai Anda mengunci ulang.") },
+            text = { Text("${p.periodStart.tanggalJam()} → ${p.periodEnd.tanggalJam()} akan dibuka. Transaksi dan jurnal pada rentang ini bisa diubah lagi sampai Anda mengunci ulang.") },
             confirmButton = { TextButton(onClick = { viewModel.bukaKembaliPeriode(p.id); bukaLagi = null }) { Text("Buka kembali", fontWeight = FontWeight.Bold) } },
             dismissButton = { TextButton(onClick = { bukaLagi = null }) { Text("Batal") } }
         )
@@ -625,7 +625,7 @@ fun PosVouchersScreen(viewModel: AppViewModel) {
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(v.code, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            Text("Berlaku ${v.validFrom.take(10)} → ${v.validUntil.take(10)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Berlaku ${v.validFrom.tanggalJam()} → ${v.validUntil.tanggalJam()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 "Dipakai ${v.currentUsage}${if (v.maxUsage > 0) " / ${v.maxUsage}" else " (tanpa batas)"}" + if (v.minPurchase > 0) " • min ${v.minPurchase.rupiahRingkas()}" else "",
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -783,7 +783,7 @@ fun PosReportScreen(viewModel: AppViewModel) {
                     l.paymentBreakdown.entries.sortedByDescending { it.value }.forEachIndexed { i, (metode, nilai) ->
                         val p = (nilai / total).toFloat()
                         Column(Modifier.padding(vertical = 5.dp)) {
-                            Row { Text(metode, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text("${nilai.rupiahRingkas()} • ${(p * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Row { Text(labelMetodeBayar(metode), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text("${nilai.rupiahRingkas()} • ${(p * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             Spacer(Modifier.height(4.dp))
                             Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.outlineVariant)) { Box(Modifier.fillMaxWidth(p).fillMaxHeight().clip(CircleShape).background(BizgrowColors.ModuleColors[i % BizgrowColors.ModuleColors.size])) }
                         }

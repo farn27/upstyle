@@ -121,7 +121,7 @@ internal fun KartuTiket(t: SupportTicket, onClick: () -> Unit) {
                     StatusChip(labelPrioritas(t.priority), warna)
                 }
             }
-            Text(t.updatedAt.take(10), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t.updatedAt.tanggalJam(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

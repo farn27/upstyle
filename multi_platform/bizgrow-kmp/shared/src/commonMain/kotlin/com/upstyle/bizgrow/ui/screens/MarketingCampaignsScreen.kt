@@ -75,10 +75,10 @@ fun MarketingCampaignsScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Belum ada kampanye marketing",
-                        color = Color.Gray,
-                        fontSize = 14.sp
+                    com.upstyle.bizgrow.ui.design.EmptyView(
+                        "Belum ada kampanye",
+                        "Catat kampanye promosi beserta anggaran dan periodenya agar hasilnya bisa dibandingkan.",
+                        Icons.Default.Campaign, "Buat kampanye", { showCreateDialog = true }
                     )
                 }
             } else {

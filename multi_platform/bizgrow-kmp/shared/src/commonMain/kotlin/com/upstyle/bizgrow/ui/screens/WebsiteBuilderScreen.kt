@@ -194,12 +194,12 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                 item {
                     PhoneMockup(
                         title = heroTitle.ifBlank { "Judul Hero" },
-                        subtitle = heroSubtitle.ifBlank { "Subtitle hero" },
+                        subtitle = heroSubtitle.ifBlank { "Tulis kalimat singkat tentang usaha Anda" },
                         color = parseHexColor(primaryColor, BizgrowColors.Primary)
                     )
                 }
 
-                item { SectionTitle("Identitas Website") }
+                item { JudulBagianWeb("Identitas Website") }
                 item {
                     BizCard {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -217,11 +217,11 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                item { SectionTitle("Tampilan") }
+                item { JudulBagianWeb("Tampilan") }
                 item {
                     BizCard {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ThemeSelector(selected = theme) { theme = it }
+                            TemaWebsiteSelector(selected = theme) { theme = it }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text("Warna Utama", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(
@@ -245,7 +245,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                item { SectionTitle("Konten Hero") }
+                item { JudulBagianWeb("Konten Hero") }
                 item {
                     BizCard {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -269,7 +269,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                item { SectionTitle("Tentang Kami") }
+                item { JudulBagianWeb("Tentang Kami") }
                 item {
                     BizCard {
                         OutlinedTextField(
@@ -283,7 +283,7 @@ fun WebsiteBuilderScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                item { SectionTitle("Kontak") }
+                item { JudulBagianWeb("Kontak") }
                 item {
                     BizCard {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -349,7 +349,7 @@ fun PhoneMockup(title: String, subtitle: String, color: Color) {
 }
 
 @Composable
-fun ThemeSelector(selected: String, onSelect: (String) -> Unit) {
+fun TemaWebsiteSelector(selected: String, onSelect: (String) -> Unit) {
     val themes = listOf("default", "modern", "minimal", "bold")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         themes.forEach { t ->
@@ -373,6 +373,6 @@ fun ThemeSelector(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-fun SectionTitle(title: String) {
+private fun JudulBagianWeb(title: String) {
     Text(title, style = MaterialTheme.typography.labelLarge, color = BizgrowColors.Gray700, fontWeight = FontWeight.Bold)
 }

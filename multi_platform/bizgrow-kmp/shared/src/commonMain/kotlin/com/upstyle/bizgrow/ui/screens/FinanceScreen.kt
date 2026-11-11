@@ -228,7 +228,7 @@ fun FinanceScreen(viewModel: AppViewModel) {
                             ListRow(
                                 title = t.keterangan.ifBlank { if (masukT) "Pemasukan" else "Pengeluaran" },
                                 subtitle = listOfNotNull(
-                                    ((t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let { "via $it" } ?: if (masukT) "Pemasukan" else "Pengeluaran"),
+                                    ((t.metodeLabel ?: t.metodeBayar).takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let { "via ${labelMetodeBayar(it)}" } ?: if (masukT) "Pemasukan" else "Pengeluaran"),
                                     t.abcNama?.let { "[${t.abcLevel ?: "C"}] $it" }
                                 ).joinToString(" • "),
                                 icon = if (masukT) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
@@ -334,4 +334,15 @@ private fun BarisDetail(label: String, nilai: String) {
         Text(nilai, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(0.55f))
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+
+/** "TUNAI"/"QRIS"/"TRANSFER" dari kasir → teks rapi; nama akun ("Kas Tunai") dibiarkan apa adanya. */
+internal fun labelMetodeBayar(m: String): String = when (m.trim().uppercase()) {
+    "TUNAI", "CASH", "KAS" -> "Tunai"
+    "QRIS" -> "QRIS"
+    "TRANSFER", "BANK", "BANK_TRANSFER" -> "Transfer bank"
+    "DEBIT", "KARTU", "CARD", "EDC" -> "Kartu debit"
+    "EWALLET", "E-WALLET", "EMONEY" -> "E-wallet"
+    else -> m
 }

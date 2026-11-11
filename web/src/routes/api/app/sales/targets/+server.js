@@ -250,7 +250,7 @@ export async function POST({ request, cookies }) {
             await db.insert(riwayatAksi).values({
                 userId,
                 unitId: Number(unitId),
-                pesan: `Komisi sales ditambahkan: Rp ${String(amount)}`,
+                pesan: `Komisi sales ditambahkan: Rp ${Number(amount || 0).toLocaleString('id-ID')}`,
                 kategori: 'SALES',
                 tipe: 'success'
             });

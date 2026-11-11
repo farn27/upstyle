@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { posCashTransactions, posShifts, riwayatAksi } from '$lib/server/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
@@ -59,18 +59,33 @@ export async function POST({ request, cookies }) {
         }
         const { shiftId, type, amount, description, unitId } = parsed.data;
 
+        // Unit harus milik pengguna (dulu tidak dicek → kas shift usaha lain bisa diubah lewat ID)
+        if (!(await unitMilikUser(db, userId, unitId))) {
+            return json({ success: false, message: 'Shift tidak aktif atau tidak ditemukan' }, { status: 404 });
+        }
         // Verify shift exists and is OPEN
         const shift = await db.query.posShifts.findFirst({ where: and(eq(posShifts.id, shiftId), eq(posShifts.unitId, unitId), eq(posShifts.status, 'OPEN')) });
         if (!shift) return json({ success: false, message: 'Shift tidak aktif atau tidak ditemukan' }, { status: 400 });
+        if (type === 'CASH_OUT' && amount > Number(shift.kasAkhir || 0)) {
+            return json({ success: false, message: 'Kas di laci tidak cukup untuk ditarik sebesar itu' }, { status: 409 });
+        }
 
-        await db.insert(posCashTransactions).values({
-            shiftId, type, amount: String(amount), description
-        });
-
-        await db.insert(riwayatAksi).values({
-            userId, unitId,
-            pesan: `${type === 'CASH_IN' ? 'Kas Masuk' : 'Kas Keluar'}: Rp ${amount.toLocaleString('id-ID')} - ${description || '-'}`,
-            kategori: 'POS', tipe: type === 'CASH_IN' ? 'success' : 'warning'
+        // Sama seperti web: kas laci yang diharapkan (kasAkhir) ikut berubah, supaya selisih saat tutup shift benar
+        await db.transaction(async (tx) => {
+            await tx.insert(posCashTransactions).values({
+                shiftId, type, amount: String(amount), description
+            });
+            const delta = type === 'CASH_IN' ? amount : -amount;
+            await tx.update(posShifts)
+                .set({ kasAkhir: sql`${posShifts.kasAkhir} + ${delta}` })
+                .where(eq(posShifts.id, shiftId));
+            // Kolom tipe hanya success/error/info — dulu 'warning' membuat setiap tarik kas galat 500
+            // padahal kasnya sudah tercatat (pengguna mencoba lagi → tercatat dua kali). Kini satu transaksi.
+            await tx.insert(riwayatAksi).values({
+                userId, unitId,
+                pesan: `${type === 'CASH_IN' ? 'Kas Masuk' : 'Kas Keluar'}: Rp ${amount.toLocaleString('id-ID')} - ${description || '-'}`,
+                kategori: 'POS', tipe: type === 'CASH_IN' ? 'success' : 'info'
+            });
         });
 
         return json({ success: true, message: `${type === 'CASH_IN' ? 'Kas masuk' : 'Kas keluar'} berhasil dicatat` });

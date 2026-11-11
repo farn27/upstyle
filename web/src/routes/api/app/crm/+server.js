@@ -196,7 +196,7 @@ export async function POST({ request, cookies }) {
             await tx.insert(riwayatAksi).values({
                 userId,
                 unitId: Number(unitId),
-                pesan: `Pipeline Deal baru ditambahkan: ${contactName} - Rp ${String(dealValue || 0)}`,
+                pesan: `Pipeline Deal baru ditambahkan: ${contactName} - Rp ${Number(dealValue || 0).toLocaleString('id-ID')}`,
                 kategori: 'CRM',
                 tipe: 'success'
             });
@@ -258,7 +258,7 @@ export async function PUT({ request, cookies }) {
                 userId,
                 unitId: deal.unitId,
                 pesan: stage
-                    ? `Deal ${deal.namaDeal || 'Pelanggan'} (Rp ${String(deal.nilai || 0)}) diperbarui ke tahap: ${String(stage).toUpperCase()}`
+                    ? `Deal ${deal.namaDeal || 'Pelanggan'} (Rp ${Number(deal.nilai || 0).toLocaleString('id-ID')}) diperbarui ke tahap: ${String(stage).toUpperCase()}`
                     : `Deal ${deal.namaDeal || 'Pelanggan'} diperbarui`,
                 kategori: 'CRM',
                 tipe: String(stage || '').toUpperCase() === 'WON' ? 'success' : 'info'

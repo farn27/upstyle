@@ -135,7 +135,7 @@ fun QuotationsScreen(viewModel: AppViewModel) {
                                 Column(Modifier.weight(1f)) {
                                     Text(q.customerName.ifBlank { "Tanpa pelanggan" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(q.quotationNumber.ifBlank { "QUO-${q.id}" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    if (q.validUntil.isNotBlank()) Text("Berlaku s/d ${q.validUntil.take(10)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (q.validUntil.isNotBlank()) Text("Berlaku s/d ${q.validUntil.tanggalJam()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(q.totalAmount.rupiah(), fontWeight = FontWeight.Bold, color = BizgrowColors.Success)
@@ -170,7 +170,7 @@ private fun DetailPenawaranSheet(q: Quotation, onDismiss: () -> Unit, onStatus: 
                 }
                 StatusChip(labelStatusJual(q.status), warnaStatusJual(q.status))
             }
-            if (q.validUntil.isNotBlank()) Text("Berlaku sampai ${q.validUntil.take(10)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (q.validUntil.isNotBlank()) Text("Berlaku sampai ${q.validUntil.tanggalJam()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
             q.items.forEach { ItemJualBaris(it.productName, it.qty, it.price, it.total) }
             HorizontalDivider()

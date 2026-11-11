@@ -682,13 +682,18 @@ class AppViewModel(
     private val _hrDetail = MutableStateFlow<HrDetailData?>(null)
     val hrDetail: StateFlow<HrDetailData?> = _hrDetail.asStateFlow()
     private var karyawanDipilih = 0
-    fun bukaKaryawan(id: Int) { karyawanDipilih = id; _hrDetail.value = null; navigate(Screen.EmployeeDetail) }
+    /** Pesan bila profil karyawan gagal dimuat — tanpa ini layar detail menampilkan kerangka loading selamanya. */
+    private val _hrDetailGalat = MutableStateFlow<String?>(null)
+    val hrDetailGalat: StateFlow<String?> = _hrDetailGalat.asStateFlow()
+    fun bukaKaryawan(id: Int) { karyawanDipilih = id; _hrDetail.value = null; _hrDetailGalat.value = null; navigate(Screen.EmployeeDetail) }
     fun loadHrDetail() = viewModelScope.launch {
-        if (karyawanDipilih == 0) return@launch
+        if (karyawanDipilih == 0) { _hrDetailGalat.value = "Pilih karyawan dari daftar HR terlebih dahulu."; return@launch }
+        _hrDetailGalat.value = null
         try {
             val res = api.getHrDetail(karyawanDipilih)
-            if (res.success) _hrDetail.value = res.data else setError(res.message ?: "Gagal memuat karyawan")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+            if (res.success && res.data != null) _hrDetail.value = res.data
+            else _hrDetailGalat.value = res.message ?: "Gagal memuat karyawan"
+        } catch (e: Exception) { _hrDetailGalat.value = "Koneksi gagal. Periksa internet lalu coba lagi." }
     }
     /** Tambah komponen gaji (tunjangan/potongan); mengembalikan pesan galat (null = berhasil). */
     suspend fun tambahKomponenGaji(nama: String, nominal: Double, potongan: Boolean): String? = try {
@@ -1137,7 +1142,7 @@ class AppViewModel(
         setLoading(true)
         try {
             val res = api.createPosCash(unitId, shiftId, type, amount, ket)
-            if (res.success) { loadKasShift(shiftId); setSuccess(if (type == "CASH_IN") "Kas masuk dicatat" else "Kas keluar dicatat") } else setError(res.message ?: "Gagal mencatat kas")
+            if (res.success) { loadKasShift(shiftId); loadPosShifts(); setSuccess(if (type == "CASH_IN") "Kas masuk dicatat" else "Kas keluar dicatat") } else setError(res.message ?: "Gagal mencatat kas")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
     private val _posReport = MutableStateFlow<PosReport?>(null)
@@ -1197,13 +1202,21 @@ class AppViewModel(
     private val _poDetail = MutableStateFlow<PoDetail?>(null)
     val poDetail: StateFlow<PoDetail?> = _poDetail.asStateFlow()
     private var poDipilih = 0
-    fun bukaPo(poId: String) { poDipilih = poId.toIntOrNull() ?: 0; _poDetail.value = null; navigate(Screen.PoDetail) }
+    /** Pesan bila detail PO gagal dimuat — tanpa ini layar menampilkan kerangka loading selamanya. */
+    private val _poDetailGalat = MutableStateFlow<String?>(null)
+    val poDetailGalat: StateFlow<String?> = _poDetailGalat.asStateFlow()
+    fun bukaPo(poId: String) { poDipilih = poId.toIntOrNull() ?: 0; _poDetail.value = null; _poDetailGalat.value = null; navigate(Screen.PoDetail) }
     fun loadPoDetail() = viewModelScope.launch {
-        if (poDipilih == 0) return@launch
+        if (poDipilih == 0) { _poDetailGalat.value = "Pilih purchase order dari daftar Pengadaan terlebih dahulu."; return@launch }
+        _poDetailGalat.value = null
         try {
             val res = api.getPoDetail(poDipilih)
-            if (res.success) _poDetail.value = res.data else setError(res.message ?: "Gagal memuat PO")
-        } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
+            if (res.success && res.data != null) _poDetail.value = res.data
+            else if (_poDetail.value == null) _poDetailGalat.value = res.message ?: "Gagal memuat PO"
+            else setError(res.message ?: "Gagal memuat PO")
+        } catch (e: Exception) {
+            if (_poDetail.value == null) _poDetailGalat.value = "Koneksi gagal. Periksa internet lalu coba lagi." else setError("Koneksi gagal: ${e.message}")
+        }
     }
     fun aksiPo(aksi: String, pesan: String, tambahan: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())) = viewModelScope.launch {
         setLoading(true)
@@ -2190,11 +2203,19 @@ class AppViewModel(
         _orders.value = emptyList()
     }
 
+    /** Pesan bila detail pesanan gagal dimuat — tanpa ini layar menampilkan kerangka loading selamanya. */
+    private val _orderDetailGalat = MutableStateFlow<String?>(null)
+    val orderDetailGalat: StateFlow<String?> = _orderDetailGalat.asStateFlow()
     fun loadOrderDetail(orderId: Int) = viewModelScope.launch {
+        _orderDetailGalat.value = null
         try {
             val res = api.getOrderDetail(orderId)
-            if (res.success) _selectedOrder.value = res.data
-        } catch (e: Exception) { Napier.e("loadOrderDetail error", e) }
+            if (res.success && res.data != null) _selectedOrder.value = res.data
+            else _orderDetailGalat.value = res.message ?: "Pesanan tidak ditemukan"
+        } catch (e: Exception) {
+            Napier.e("loadOrderDetail error", e)
+            _orderDetailGalat.value = "Koneksi gagal. Periksa internet lalu coba lagi."
+        }
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Finance AR/AP ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬

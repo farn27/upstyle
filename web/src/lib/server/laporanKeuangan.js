@@ -4,7 +4,7 @@
  */
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts, transaksi, products } from '$lib/server/schema';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 
 /**
  * @param {{ id: number }} unit
@@ -66,13 +66,39 @@ export async function buatLaporanKeuangan(unit, tahun, bulan) {
     .orderBy(desc(sql`SUM(${transaksi.nominal})`))
     .limit(5);
 
-    const metodeBayarStats = await db.select({
+    const metodeBayarMentah = await db.select({
         metode: transaksi.metodeBayar,
         total: sql`COALESCE(SUM(${transaksi.nominal}), 0)`
     })
     .from(transaksi)
     .where(and(baseFilterTrx, eq(transaksi.kategoriTrx, 'MASUK')))
     .groupBy(transaksi.metodeBayar);
+
+    // Entri manual menyimpan ID akun kas di metode_bayar ("1"), kasir menyimpan "TUNAI"/"QRIS".
+    // Tanpa pemetaan grafik menampilkan "1" — ubah ID ke nama akun lalu gabungkan label yang sama.
+    const idAkun = [...new Set(metodeBayarMentah.map((/** @type {any} */ m) => String(m.metode ?? '')).filter((m) => /^\d+$/.test(m)).map(Number))];
+    const namaAkun = new Map();
+    if (idAkun.length) {
+        const akun = await db.select({ id: chartOfAccounts.id, nama: chartOfAccounts.namaAkun })
+            .from(chartOfAccounts)
+            .where(and(eq(chartOfAccounts.unitId, unit.id), inArray(chartOfAccounts.id, idAkun)));
+        for (const a of akun) namaAkun.set(String(a.id), a.nama);
+    }
+    /** @param {string} m */
+    const labelMetode = (m) => {
+        const t = String(m ?? '').trim();
+        if (!t) return 'Kas';
+        if (namaAkun.has(t)) return namaAkun.get(t);
+        if (/^\d+$/.test(t)) return 'Kas';
+        if (/^(TUNAI|CASH|KAS)$/i.test(t)) return 'Kas Tunai'; // penjualan tunai kasir masuk akun Kas Tunai
+        return t;
+    };
+    const gabung = new Map();
+    for (const m of metodeBayarMentah) {
+        const l = labelMetode(/** @type {any} */ (m).metode);
+        gabung.set(l, (gabung.get(l) || 0) + Number(/** @type {any} */ (m).total || 0));
+    }
+    const metodeBayarStats = [...gabung].map(([metode, total]) => ({ metode, total })).sort((a, b) => b.total - a.total);
 
     const riwayatTrx = await db.select()
         .from(transaksi)

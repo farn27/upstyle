@@ -123,13 +123,13 @@ fun ProductsScreen(viewModel: AppViewModel) {
                     } else {
                         Column {
                             Text(
-                                "Inventaris Produk",
+                                "Produk",
                                 fontWeight = FontWeight.Black,
-                                color = BizgrowColors.Gray950,
+                                color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 20.sp
                             )
                             Text(
-                                "${products.size} Total Item",
+                                "${products.size} produk",
                                 fontSize = 12.sp,
                                 color = BizgrowColors.Gray500,
                                 fontWeight = FontWeight.Medium

@@ -50,21 +50,23 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                 } else {
                     GradientCard(Modifier.fillMaxWidth(), colors = BizgrowColors.GradSuccess) {
                         Column {
-                            Text("Shift aktif • dibuka ${s.waktuBuka.take(16)}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.85f))
-                            Text((s.modalAwal + kasMasuk - kasKeluar).rupiah(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("Perkiraan kas laci (modal + kas masuk − kas keluar, belum termasuk penjualan tunai)", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            Text("Shift aktif • dibuka ${s.waktuBuka.tanggalJam()}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.85f))
+                            Text((if (s.kasAkhir > 0) s.kasAkhir else s.modalAwal + kasMasuk - kasKeluar).rupiah(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Perkiraan uang di laci: modal + penjualan tunai + setor − tarik", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Mini("Modal awal", s.modalAwal.rupiahRingkas(), Modifier.weight(1f))
-                                Mini("Kas masuk", kasMasuk.rupiahRingkas(), Modifier.weight(1f))
-                                Mini("Kas keluar", kasKeluar.rupiahRingkas(), Modifier.weight(1f))
+                                // penjualan tunai = kas diharapkan server − modal − (setor − tarik)
+                                val tunai = if (s.kasAkhir > 0) (s.kasAkhir - s.modalAwal - kasMasuk + kasKeluar).coerceAtLeast(0.0) else 0.0
+                                Mini("Penjualan tunai", tunai.rupiahRingkas(), Modifier.weight(1f))
+                                Mini("Setor − tarik", (kasMasuk - kasKeluar).rupiahRingkas(), Modifier.weight(1f))
                             }
                         }
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BizOutlineButton("+ Setor kas", { kasForm = "CASH_IN" }, Modifier.weight(1f), icon = Icons.Rounded.AddCircleOutline, tint = BizgrowColors.Success, height = 46.dp)
-                        BizOutlineButton("− Tarik kas", { kasForm = "CASH_OUT" }, Modifier.weight(1f), icon = Icons.Rounded.RemoveCircleOutline, tint = BizgrowColors.Danger, height = 46.dp)
+                        BizOutlineButton("Setor kas", { kasForm = "CASH_IN" }, Modifier.weight(1f), icon = Icons.Rounded.AddCircleOutline, tint = BizgrowColors.Success, height = 46.dp)
+                        BizOutlineButton("Tarik kas", { kasForm = "CASH_OUT" }, Modifier.weight(1f), icon = Icons.Rounded.RemoveCircleOutline, tint = BizgrowColors.Danger, height = 46.dp)
                     }
                     Spacer(Modifier.height(8.dp))
                     BizButton("Tutup shift", { tutup = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Lock, colors = listOf(BizgrowColors.Danger, BizgrowColors.DangerDark))
@@ -74,7 +76,7 @@ fun PosShiftScreen(viewModel: AppViewModel) {
                 item { SectionTitle("Kas masuk & keluar shift ini") }
                 itemsIndexed(kas, key = { _, k -> k.id }) { _, k ->
                     val masuk = k.type == "CASH_IN"
-                    ListRow(k.description.ifBlank { if (masuk) "Setor kas" else "Tarik kas" }, subtitle = k.createdAt.take(16), icon = if (masuk) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
+                    ListRow(k.description.ifBlank { if (masuk) "Setor kas" else "Tarik kas" }, subtitle = k.createdAt.tanggalJam(), icon = if (masuk) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast,
                         tint = if (masuk) BizgrowColors.Success else BizgrowColors.Danger,
                         trailing = { Text((if (masuk) "+" else "-") + k.amount.rupiahRingkas(), style = MaterialTheme.typography.titleSmall, color = if (masuk) BizgrowColors.Success else BizgrowColors.Danger) })
                 }
@@ -101,6 +103,20 @@ fun PosShiftScreen(viewModel: AppViewModel) {
             labelSimpan = "Tutup shift", simpanAktif = hitung.toDoubleOrNull() != null,
             onSimpan = { aktif?.let { viewModel.closeShift(it.id, hitung.toDouble(), cat) }; tutup = false }) {
             AngkaField(hitung, { hitung = it }, "Uang di laci (Rp)", desimal = false)
+            aktif?.takeIf { it.kasAkhir > 0 }?.let { a ->
+                val aktual = hitung.toDoubleOrNull()
+                val selisih = aktual?.let { it - a.kasAkhir }
+                Text(
+                    "Perkiraan sistem ${a.kasAkhir.rupiah()}" + when {
+                        selisih == null -> ""
+                        selisih == 0.0 -> " • pas, tidak ada selisih"
+                        selisih > 0 -> " • lebih ${selisih.rupiah()}"
+                        else -> " • kurang ${(-selisih).rupiah()}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selisih != null && selisih < 0) BizgrowColors.Danger else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             BizTextField(cat, { cat = it }, "Catatan (opsional)", singleLine = false)
         }
     }
@@ -132,16 +148,18 @@ fun RiwayatShift(shift: PosShift, modifier: Modifier = Modifier) {
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("Shift #${shift.id}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("${shift.waktuBuka.take(16)} → ${shift.waktuTutup?.take(16) ?: "-"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${shift.waktuBuka.tanggalJam()} → ${shift.waktuTutup?.tanggalJam() ?: "-"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            StatusChip(shift.status, BizgrowColors.Info)
+            StatusChip(if (shift.status == "OPEN") "Berjalan" else "Selesai", if (shift.status == "OPEN") BizgrowColors.Success else BizgrowColors.Info)
         }
         Spacer(Modifier.height(8.dp))
         Row {
             Column(Modifier.weight(1f)) { Text("Modal", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(shift.modalAwal.rupiah(), style = MaterialTheme.typography.bodyMedium) }
-            Column(Modifier.weight(1f)) { Text("Kas akhir (aktual)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(shift.kasAkhirAktual.rupiah(), style = MaterialTheme.typography.bodyMedium) }
+            Column(Modifier.weight(1f)) { Text(if (shift.status == "OPEN") "Kas laci (perkiraan)" else "Kas akhir (aktual)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text((if (shift.status == "OPEN") shift.kasAkhir else shift.kasAkhirAktual).rupiah(), style = MaterialTheme.typography.bodyMedium) }
             Column(horizontalAlignment = Alignment.End) {
                 Text("Selisih", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // shift yang masih berjalan belum punya selisih — jangan tampilkan "Rp 0" hijau seolah sudah cocok
+                if (shift.status == "OPEN") Text("-", style = MaterialTheme.typography.bodyMedium) else
                 Text((if (shift.selisih > 0) "+" else "") + shift.selisih.rupiah(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold,
                     color = if (shift.selisih == 0.0) BizgrowColors.Success else if (shift.selisih > 0) BizgrowColors.Info else BizgrowColors.Danger)
             }

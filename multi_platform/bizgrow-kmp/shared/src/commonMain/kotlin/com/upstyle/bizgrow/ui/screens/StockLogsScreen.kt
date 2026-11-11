@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.tanggalJam
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +37,8 @@ fun StockLogsScreen(viewModel: AppViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.loadStockLogs()
+        // nama produk diambil dari daftar produk; tanpa ini kartu menampilkan ID (UUID) produk
+        if (products.isEmpty()) viewModel.loadProducts()
     }
 
     val filteredLogs = stockLogs.filter { log ->
@@ -44,7 +47,7 @@ fun StockLogsScreen(viewModel: AppViewModel) {
             "Keluar" -> log.perubahan < 0
             else -> true
         }
-        val productName = products.firstOrNull { it.id == log.productId }?.nama ?: log.productId
+        val productName = products.firstOrNull { it.id == log.productId }?.nama ?: if (products.isEmpty()) "Memuat…" else "Produk terhapus"
         val matchesSearch = searchQuery.isBlank() ||
             productName.contains(searchQuery, ignoreCase = true) ||
             log.alasan.contains(searchQuery, ignoreCase = true)
@@ -142,7 +145,7 @@ fun StockLogsScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredLogs, key = { it.id }) { log ->
-                        val productName = products.firstOrNull { it.id == log.productId }?.nama ?: log.productId
+                        val productName = products.firstOrNull { it.id == log.productId }?.nama ?: if (products.isEmpty()) "Memuat…" else "Produk terhapus"
                         EnhancedStockLogCard(log = log, productName = productName)
                     }
                     item { Spacer(Modifier.height(16.dp)) }
@@ -201,7 +204,7 @@ fun EnhancedStockLogCard(log: StockLog, productName: String) {
                     Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
                         Text(log.alasan, fontSize = 10.sp, color = color, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontWeight = FontWeight.Medium)
                     }
-                    Text(log.createdAt.take(10), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(log.createdAt.tanggalJam(), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 

@@ -359,7 +359,7 @@ export async function POST({ request, cookies }) {
             });
             
             await db.insert(riwayatAksi).values({
-                userId, unitId: Number(unitId), pesan: `POS Shift dibuka. Modal: Rp ${String(modalAwal)}`, kategori: 'POS', tipe: 'success'
+                userId, unitId: Number(unitId), pesan: `POS Shift dibuka. Modal: Rp ${Number(modalAwal || 0).toLocaleString('id-ID')}`, kategori: 'POS', tipe: 'success'
             });
             
             // Dulu data hanya { id } → app HP gagal membaca PosShift (unitId/userId/waktuBuka wajib) dan

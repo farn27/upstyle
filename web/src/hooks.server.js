@@ -125,7 +125,8 @@ export async function handle({ event, resolve }) {
 			if (userId) {
 				// Cek Redis dulu — hindari DB query setiap request
 				const userCacheKey = `hooks_user:${userId}`;
-				let userFound = await redis.get(userCacheKey);
+				// Redis opsional: bila tidak tersedia/galat, langsung ke DB (dulu melempar → user tidak termuat)
+				let userFound = redis ? await redis.get(userCacheKey).catch(() => null) : null;
 
 				if (!userFound) {
 					const [row] = await db
@@ -134,7 +135,7 @@ export async function handle({ event, resolve }) {
 						.where(eq(users.id, userId))
 						.limit(1);
 					userFound = row || null;
-					if (userFound) await redis.set(userCacheKey, userFound, { ex: 300 }); // 5 menit
+					if (userFound && redis) await redis.set(userCacheKey, userFound, { ex: 300 }).catch(() => {}); // 5 menit
 				}
 
 				if (userFound) {

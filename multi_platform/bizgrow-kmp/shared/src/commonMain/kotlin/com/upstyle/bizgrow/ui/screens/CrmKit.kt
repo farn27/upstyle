@@ -124,7 +124,7 @@ internal fun KartuDeal(d: CrmDeal, onClick: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(namaDealTampil(d), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val sub = listOf(d.contactName, d.companyName).filter { it.isNotBlank() }.joinToString(" • ")
+                val sub = listOf(d.contactName, d.companyName).filter { it.isNotBlank() }.distinctBy { it.trim().lowercase() }.joinToString(" • ")
                 if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(d.dealValue.rupiah(), style = MaterialTheme.typography.labelLarge, color = BizgrowColors.Success, fontWeight = FontWeight.Bold)
             }
@@ -158,7 +158,7 @@ internal fun DaftarKontak(kontak: List<CrmContact>, memuat: Boolean, onBuka: (Cr
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(k.nama, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (k.perusahaan.isNotBlank()) Text(k.perusahaan, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (k.perusahaan.isNotBlank() && !k.perusahaan.trim().equals(k.nama.trim(), true)) Text(k.perusahaan, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 val kontakInfo = listOf(k.telepon, k.email).filter { it.isNotBlank() }.joinToString(" • ")
                                 if (kontakInfo.isNotBlank()) Text(kontakInfo, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
@@ -204,7 +204,7 @@ internal fun BarisAktivitas(a: CrmActivity) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(TIPE_AKTIVITAS.firstOrNull { it.first == a.tipe }?.second ?: a.tipe, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Text(a.tanggal.take(10), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(a.tanggal.tanggalJam(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 a.contact?.let { Text(it.nama, style = MaterialTheme.typography.labelMedium, color = BizgrowColors.Primary) }
                 if (!a.catatan.isNullOrBlank()) Text(a.catatan, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -240,7 +240,7 @@ internal fun DaftarTugas(tugas: List<CrmTask>, memuat: Boolean, onToggle: (CrmTa
                             Checkbox(checked = t.status == "done", onCheckedChange = { onToggle(t) })
                             Column(Modifier.weight(1f)) {
                                 Text(t.deskripsi, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                                val info = listOfNotNull(t.contactName.takeIf { it.isNotBlank() }, t.deadline?.takeIf { it.isNotBlank() }?.let { "Tenggat ${it.take(10)}" }).joinToString(" • ")
+                                val info = listOfNotNull(t.contactName.takeIf { it.isNotBlank() }, t.deadline?.takeIf { it.isNotBlank() }?.let { "Tenggat ${it.tanggalJam()}" }).joinToString(" • ")
                                 if (info.isNotBlank()) Text(info, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             BizIconButton(Icons.Rounded.DeleteOutline, "Hapus tugas") { hapus = true }
@@ -371,9 +371,9 @@ internal fun DealDetailSheet(
                 }
                 StatusChip(labelTahap(deal.stage), warnaTahap(deal.stage))
             }
-            val sub = listOf(deal.contactName, deal.companyName, deal.phone).filter { it.isNotBlank() }
+            val sub = listOf(deal.contactName, deal.companyName, deal.phone).filter { it.isNotBlank() }.distinctBy { it.trim().lowercase() }
             if (sub.isNotEmpty()) Text(sub.joinToString(" • "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (deal.createdAt.isNotBlank()) Text("Dibuat ${deal.createdAt.take(10)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (deal.createdAt.isNotBlank()) Text("Dibuat ${deal.createdAt.tanggalJam()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Text("Pindahkan ke tahap", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

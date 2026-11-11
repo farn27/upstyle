@@ -150,7 +150,7 @@ fun NotificationScreen(viewModel: AppViewModel) {
                     LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         item { FilterPill("Semua", kategori == null && !hanyaBelumDibaca, { kategori = null; hanyaBelumDibaca = false }) }
                         item { FilterPill("Belum dibaca", hanyaBelumDibaca, { hanyaBelumDibaca = !hanyaBelumDibaca }) }
-                        items(kategoriList) { k -> FilterPill(k, kategori == k, { kategori = if (kategori == k) null else k }) }
+                        items(kategoriList) { k -> FilterPill(labelKategoriNotif(k), kategori == k, { kategori = if (kategori == k) null else k }) }
                     }
                 }
                 if (tampil.isEmpty()) {
@@ -214,7 +214,7 @@ private fun NotifRow(n: RiwayatAksi, tampilUnit: Boolean, modifier: Modifier, on
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                n.pesan,
+                n.pesan.rapikanRupiah(),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (baru) FontWeight.SemiBold else FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -223,7 +223,7 @@ private fun NotifRow(n: RiwayatAksi, tampilUnit: Boolean, modifier: Modifier, on
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (n.kategori.isNotBlank()) {
-                    StatusChip(n.kategori, warna)
+                    StatusChip(labelKategoriNotif(n.kategori), warna)
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
@@ -236,4 +236,20 @@ private fun NotifRow(n: RiwayatAksi, tampilUnit: Boolean, modifier: Modifier, on
             Box(Modifier.padding(top = 6.dp, start = 6.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
         }
     }
+}
+
+
+/** Kode kategori dari server (FINANCE, HR, …) ditampilkan dengan nama yang dipahami pengguna. */
+internal fun labelKategoriNotif(k: String): String = when (k.trim().uppercase()) {
+    "FINANCE", "KEUANGAN" -> "Keuangan"
+    "HR", "HRD" -> "Karyawan"
+    "CRM" -> "Pelanggan"
+    "POS" -> "Kasir"
+    "SCM", "PROCUREMENT" -> "Pengadaan"
+    "INVENTORY", "STOK", "PRODUK", "PRODUCT" -> "Stok"
+    "CS" -> "Layanan"
+    "MARKETING" -> "Marketing"
+    "AI" -> "AI"
+    "SYSTEM", "SISTEM" -> "Sistem"
+    else -> k.lowercase().replaceFirstChar { it.uppercase() }
 }

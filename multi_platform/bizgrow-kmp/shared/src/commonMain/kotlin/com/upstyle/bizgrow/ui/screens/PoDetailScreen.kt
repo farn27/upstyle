@@ -35,6 +35,7 @@ private fun JsonObjectBuilder.baris(items: List<PoItemDetail>, qty: Map<Int, Str
 @Composable
 fun PoDetailScreen(viewModel: AppViewModel) {
     val po by viewModel.poDetail.collectAsState()
+    val galatPo by viewModel.poDetailGalat.collectAsState()
     var form by remember { mutableStateOf<FormPo?>(null) }
     var bayar by remember { mutableStateOf<PoTagihan?>(null) }
     var tutup by remember { mutableStateOf(false) }
@@ -45,7 +46,13 @@ fun PoDetailScreen(viewModel: AppViewModel) {
         actions = { BizIconButton(Icons.Rounded.Refresh, "Muat ulang") { viewModel.loadPoDetail() }; Spacer(Modifier.width(8.dp)) }
     ) { padding ->
         val d = po
-        if (d == null) { SkeletonList(rows = 5, modifier = Modifier.padding(padding)); return@BizScreen }
+        if (d == null) {
+            val g = galatPo
+            if (g != null) Box(Modifier.fillMaxSize().padding(padding)) {
+                EmptyView("Purchase order tidak bisa dimuat", g, Icons.Rounded.ErrorOutline, "Coba lagi", { viewModel.loadPoDetail() })
+            } else SkeletonList(rows = 5, modifier = Modifier.padding(padding))
+            return@BizScreen
+        }
         val (labelStatus, warna) = when (d.status.uppercase()) {
             "DRAFT" -> "Draft" to BizgrowColors.Info; "SENT" -> "Dikirim" to BizgrowColors.Info; "PARTIAL" -> "Diterima sebagian" to BizgrowColors.Warning
             "RECEIVED", "COMPLETED" -> "Selesai" to BizgrowColors.Success; "CLOSED" -> "Ditutup" to BizgrowColors.Success; "CANCELLED" -> "Dibatalkan" to BizgrowColors.Danger

@@ -57,7 +57,7 @@ fun StockOpnameScreen(viewModel: AppViewModel) {
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             StatusChip(if (s.status == "COMPLETED") "Selesai" else s.status, if (s.status == "COMPLETED") BizgrowColors.Success else BizgrowColors.Warning)
-                            Text(s.createdAt.take(10), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(s.createdAt.tanggalJam(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -74,7 +74,7 @@ private fun DetailOpname(s: StockOpnameSession, onDismiss: () -> Unit) {
         LazyColumn(Modifier.fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 Text("Opname #${s.id}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(s.createdAt.take(16).replace('T', ' '), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(s.createdAt.tanggalJam(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (!s.notes.isNullOrBlank()) Text(s.notes, style = MaterialTheme.typography.bodyMedium)
             }
             items(s.items, key = { it.id }) { i ->

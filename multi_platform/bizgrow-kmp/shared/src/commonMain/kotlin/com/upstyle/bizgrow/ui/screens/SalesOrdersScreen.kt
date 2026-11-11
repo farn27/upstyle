@@ -96,7 +96,7 @@ private fun DetailSalesOrderSheet(o: SalesOrder, onDismiss: () -> Unit, onStatus
                 }
                 StatusChip(labelStatusJual(o.status), warnaStatusJual(o.status))
             }
-            if (o.createdAt.isNotBlank()) Text("Dibuat ${o.createdAt.take(10)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (o.createdAt.isNotBlank()) Text("Dibuat ${o.createdAt.tanggalJam()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
             o.items.forEach { ItemJualBaris(it.productName, it.qty, it.price, it.total) }
             HorizontalDivider()

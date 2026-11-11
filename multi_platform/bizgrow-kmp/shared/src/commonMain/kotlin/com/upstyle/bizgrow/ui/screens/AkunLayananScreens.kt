@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.screens
 
+import kotlin.math.roundToLong
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -73,7 +74,7 @@ fun InvoiceHistoryScreen(viewModel: AppViewModel) {
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(inv.invoiceNumber.ifBlank { inv.id }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-                                Text(inv.description.ifBlank { inv.issuedAt.take(10) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                Text(inv.description.ifBlank { inv.issuedAt.tanggalJam() }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(inv.amount.rupiah(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
@@ -151,7 +152,11 @@ private fun KuotaBar(label: String, pakai: Double, batas: Double, icon: ImageVec
         rasio >= 0.75f -> BizgrowColors.Warning
         else -> tint
     }
-    fun f(v: Double) = if (satuan.isEmpty()) v.toLong().toString() else "${(v * 100).toLong() / 100.0} $satuan"
+    // format Indonesia: "0,5 GB", "100 GB" (bukan "100.0 GB")
+    fun f(v: Double) = if (satuan.isEmpty()) v.toLong().toString() else {
+        val r = (v * 10).roundToLong() / 10.0
+        (if (r == r.toLong().toDouble()) r.toLong().toString() else r.toString().replace('.', ',')) + " $satuan"
+    }
     BizSurface(Modifier.fillMaxWidth().enterAnimation(index)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(icon, tint, size = 38.dp, iconSize = 19.dp)
@@ -213,7 +218,7 @@ fun SyncStatusScreen(viewModel: AppViewModel) {
                     BizSurface(Modifier.fillMaxWidth().enterAnimation(i), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)) {
                         ListRow(
                             title = labelEntitas(it.entityType),
-                            subtitle = "${it.method} • ${it.enqueuedAt.take(16).replace('T', ' ')}",
+                            subtitle = "${it.method} • ${it.enqueuedAt.tanggalJam()}",
                             icon = Icons.Rounded.Schedule,
                             tint = BizgrowColors.Warning
                         )

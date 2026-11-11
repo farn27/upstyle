@@ -103,7 +103,7 @@ fun MessageBubble(msg: TicketMessage) {
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                listOfNotNull(msg.senderName?.takeIf { it.isNotBlank() }, msg.createdAt.take(16).replace('T', ' ').takeIf { it.isNotBlank() }).joinToString(" • "),
+                listOfNotNull(msg.senderName?.takeIf { it.isNotBlank() }, msg.createdAt.tanggalJam().takeIf { it.isNotBlank() }).joinToString(" • "),
                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
         }

@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.tanggalJam
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -222,7 +223,7 @@ fun StockMovementItemCard(movement: StockMovement) {
                     Text(movement.reason, fontSize = 12.sp, color = BizgrowColors.Gray500, maxLines = 1)
                 }
                 Text(
-                    movement.createdAt.take(10),
+                    movement.createdAt.tanggalJam(),
                     fontSize = 11.sp,
                     color = BizgrowColors.Gray400,
                     fontWeight = FontWeight.Medium

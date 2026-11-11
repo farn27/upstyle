@@ -174,12 +174,12 @@ fun EmployeeTab(
                             .background(Brush.linearGradient(BizgrowColors.GradPrimary)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(emp.fullName.first().toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(emp.fullName.trim().firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(emp.fullName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${emp.position} · ${emp.placementLocation ?: emp.role}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(listOf(emp.position, emp.placementLocation ?: emp.role).filter { !it.isNullOrBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(emp.salary.toRupiah(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                     StatusBadge(emp.employmentStatus ?: "-")
@@ -279,7 +279,7 @@ fun LeaveTab(requests: List<LeaveRequest>, employees: List<Employee> = emptyList
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(req.employeeName.ifBlank { employees.firstOrNull { it.id == req.employeeId }?.fullName ?: "Karyawan #${req.employeeId}" }, fontWeight = FontWeight.SemiBold)
-                        Text("${if (req.type.equals("overtime", true)) "Lembur" else "Cuti"} · ${req.startDate} s/d ${req.endDate}", style = MaterialTheme.typography.bodySmall)
+                        Text("${if (req.type.equals("overtime", true)) "Lembur" else "Cuti"} · ${req.startDate.tanggalJam()} – ${req.endDate.tanggalJam()}", style = MaterialTheme.typography.bodySmall)
                         req.reason?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                     StatusBadge(req.status)

@@ -31,6 +31,7 @@ private val namaBulanKpi = listOf("", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
 @Composable
 fun EmployeeDetailScreen(viewModel: AppViewModel) {
     val detail by viewModel.hrDetail.collectAsState()
+    val galat by viewModel.hrDetailGalat.collectAsState()
     var edit by remember { mutableStateOf(false) }
     var tambahKomponen by remember { mutableStateOf(false) }
     var hapusKomponen by remember { mutableStateOf<SalaryComponent?>(null) }
@@ -41,7 +42,13 @@ fun EmployeeDetailScreen(viewModel: AppViewModel) {
         actions = { if (detail != null) { BizIconButton(Icons.Rounded.Edit, "Ubah") { edit = true }; Spacer(Modifier.width(8.dp)) } }
     ) { padding ->
         val d = detail
-        if (d == null) { SkeletonList(rows = 5, modifier = Modifier.padding(padding)); return@BizScreen }
+        if (d == null) {
+            val g = galat
+            if (g != null) Box(Modifier.fillMaxSize().padding(padding)) {
+                EmptyView("Profil tidak bisa dimuat", g, Icons.Rounded.ErrorOutline, "Coba lagi", { viewModel.loadHrDetail() })
+            } else SkeletonList(rows = 5, modifier = Modifier.padding(padding))
+            return@BizScreen
+        }
         val e = d.employee
         fun topeng(v: String) = if (v.length <= 4) v else "••••" + v.takeLast(4)
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -66,9 +73,9 @@ fun EmployeeDetailScreen(viewModel: AppViewModel) {
             }
             item { KartuInfo("Kontak & pekerjaan", listOf(
                 "Email" to e.email, "Telepon" to e.phone, "Alamat" to e.address, "Penempatan" to e.placementLocation,
-                "Bergabung" to e.joinDate.take(10), "Kontak darurat" to e.emergencyContact
+                "Bergabung" to e.joinDate.tanggalJam(), "Kontak darurat" to e.emergencyContact
             )) }
-            item { KartuInfo("Kontrak", listOf("Status kerja" to e.employmentStatus, "Mulai" to e.contractStart.take(10), "Berakhir" to e.contractEnd.take(10))) }
+            item { KartuInfo("Kontrak", listOf("Status kerja" to e.employmentStatus, "Mulai" to e.contractStart.tanggalJam(), "Berakhir" to e.contractEnd.tanggalJam())) }
             item { KartuInfo("Kompensasi", listOf("Gaji pokok" to e.salary.rupiah(), "Bank" to e.bankName, "No. rekening" to topeng(e.bankAccountNumber))) }
 
             // Komponen gaji (dipakai saat proses payroll)
@@ -108,13 +115,13 @@ fun EmployeeDetailScreen(viewModel: AppViewModel) {
             if (d.history.isEmpty()) item { Text("Belum ada perubahan jabatan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(d.history.size) { n ->
                 val h = d.history[n]
-                ListRow("${h.oldPosition.ifBlank { "-" }}  →  ${h.newPosition.ifBlank { "-" }}", subtitle = listOf(h.changeDate.take(10), h.reason).filter { it.isNotBlank() }.joinToString(" • "), icon = Icons.Rounded.TrendingUp, tint = BizgrowColors.Info)
+                ListRow("${h.oldPosition.ifBlank { "-" }}  →  ${h.newPosition.ifBlank { "-" }}", subtitle = listOf(h.changeDate.tanggalJam(), h.reason).filter { it.isNotBlank() }.joinToString(" • "), icon = Icons.Rounded.TrendingUp, tint = BizgrowColors.Info)
             }
             item { SectionTitle("Dokumen") }
             if (d.documents.isEmpty()) item { Text("Belum ada dokumen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(d.documents.size) { n ->
                 val doc = d.documents[n]
-                ListRow(doc.documentType.ifBlank { "Dokumen" }, subtitle = listOf(doc.fileName, doc.uploadedAt.take(10)).filter { it.isNotBlank() }.joinToString(" • "), icon = Icons.Rounded.Description, tint = BizgrowColors.Violet)
+                ListRow(doc.documentType.ifBlank { "Dokumen" }, subtitle = listOf(doc.fileName, doc.uploadedAt.tanggalJam()).filter { it.isNotBlank() }.joinToString(" • "), icon = Icons.Rounded.Description, tint = BizgrowColors.Violet)
             }
         }
 

@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.tanggalJam
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -140,7 +141,7 @@ fun ApprovalRequestCard(
                 Spacer(Modifier.height(8.dp))
                 Text(request.amount.toRupiah(), fontSize = 18.sp, fontWeight = FontWeight.Black, color = BizgrowColors.Primary)
                 Spacer(Modifier.height(4.dp))
-                Text("Diajukan: ${request.createdAt.take(10)}", fontSize = 11.sp, color = BizgrowColors.Gray500)
+                Text("Diajukan: ${request.createdAt.tanggalJam()}", fontSize = 11.sp, color = BizgrowColors.Gray500)
             }
         }
 

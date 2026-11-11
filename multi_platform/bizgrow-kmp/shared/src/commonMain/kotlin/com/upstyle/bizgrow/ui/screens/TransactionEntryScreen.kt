@@ -160,6 +160,13 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
         viewModel.loadProducts()
         viewModel.loadChartOfAccounts()
     }
+    // Akun kas langsung terpilih begitu daftar akun termuat (dulu hanya setelah memakai AI, jadi form
+    // manual selalu memaksa pengguna memilih "Kas Tunai" dulu).
+    LaunchedEffect(kasAccounts) {
+        if (selectedKasCoa == null && kasAccounts.isNotEmpty()) {
+            selectedKasCoa = kasAccounts.firstOrNull { it.namaAkun.contains("tunai", true) || it.namaAkun.equals("kas", true) } ?: kasAccounts.first()
+        }
+    }
 
     // ─── Validasi submit ──────────────────────────────────────────────────────
     val nominalDouble = nominal.toDoubleOrNull() ?: 0.0
@@ -189,12 +196,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                     IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.Default.ArrowBack, "Kembali")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -430,7 +432,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = if (showAdvanced) "Sembunyikan Opsi Lanjutan ▴" else "Opsi Lanjutan ▾",
+                            text = if (showAdvanced) "Sembunyikan opsi lanjutan" else "Opsi lanjutan (produk, qty, keterangan)",
                             fontSize = 13.sp
                         )
                     }
@@ -547,16 +549,17 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
             // Info validasi
             if (!canSubmit && !uiState.isLoading) {
                 val missingFields = buildList {
-                    if (selectedCoa == null) add("COA")
+                    if (selectedCoa == null) add("akun (COA)")
                     if (selectedKasCoa == null) add("akun kas/bank")
                     if (nominalDouble <= 0) add("nominal > 0")
                     if (stokKurang) add("qty sesuai stok")
                 }
                 if (missingFields.isNotEmpty()) {
                     Text(
-                        "Wajib isi: ${missingFields.joinToString(", ")}",
+                        "Lengkapi dulu: ${missingFields.joinToString(", ")}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        // merah hanya bila memang ada yang salah (stok kurang); sekadar belum diisi cukup abu-abu
+                        color = if (stokKurang) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
