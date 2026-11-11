@@ -13,6 +13,13 @@ import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 import { normalisasiJenis } from '$lib/jenisProduk';
 
 /** Hanya URL http(s) atau path /uploads yang boleh disimpan; URI lokal HP (content://, file://) diabaikan. */
+/** Galat duplikat SKU (kolom unik) @param {unknown} err */
+function skuBentrok(err) {
+    const e = /** @type {any} */ (err);
+    const pesan = `${e?.message || ''} ${e?.cause?.message || ''} ${e?.code || ''} ${e?.cause?.code || ''}`;
+    return /ER_DUP_ENTRY|Duplicate entry/i.test(pesan) && /sku/i.test(pesan);
+}
+
 function fotoAman(v) {
     const t = typeof v === 'string' ? v.trim() : '';
     return /^https?:\/\//i.test(t) || t.startsWith('/uploads/') ? t : null;
@@ -196,7 +203,7 @@ export async function POST({ request, cookies }) {
                 kategoriId: kategoriId,
                 jenis: normalisasiJenis(body.jenis),
                 nama: nama,
-                sku: sku || `SKU-${newId.slice(0, 8).toUpperCase()}`,
+                sku: String(sku || '').trim() || `SKU-${newId.slice(0, 8).toUpperCase()}`,
                 slug: slug,
                 hargaBeli: String(hargaBeli || 0),
                 hargaJual: String(hargaJual || 0),
@@ -227,6 +234,7 @@ export async function POST({ request, cookies }) {
         triggerEvent(`unit-${unitId}`, 'notification', { id: Date.now(), unitId: Number(unitId), pesan: `Produk baru ditambahkan: ${nama}`, kategori: 'PRODUK', tipe: 'success', waktu: new Date().toISOString() });
         return json({ success: true, message: "Produk berhasil disimpan", id: newId });
     } catch (err) {
+        if (skuBentrok(err)) return json({ success: false, message: 'SKU sudah dipakai produk lain. Ganti SKU-nya.' }, { status: 409 });
         log.api.error({ err }, 'API POST PRODUCT ERROR');
         return json({ success: false, message: "Gagal menyimpan produk" }, { status: 500 });
     }
@@ -245,9 +253,10 @@ export async function PUT({ request, cookies }) {
             where: eq(products.id, id)
         });
         if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
-        // Selalu pakai unit milik produk (bukan unitId kiriman klien) untuk kategori & log stok
+        // Selalu pakai unit milik produk (bukan unitId kiriman klien) untuk kategori & log stok.
+        // (Dulu juga mensyaratkan products.user_id == user login → produk dari impor/template/staf
+        //  selalu "Akses ditolak" saat diedit dari HP; kepemilikan unit di atas sudah cukup.)
         const unitId = existingProduct.unitId;
-        if (Number(existingProduct.userId) !== Number(userId)) return json({ success: false, message: "Akses ditolak" }, { status: 403 });
 
         // Validasi server (dulu stok negatif / bukan angka / tidak dikirim langsung disimpan — F-11)
         const stokLama = Number(existingProduct.stok || 0);
@@ -289,7 +298,9 @@ export async function PUT({ request, cookies }) {
             await tx.update(products)
                 .set({
                     nama: namaBaru,
-                    ...(sku !== undefined ? { sku } : {}),
+                    // SKU kosong dari HP dulu disimpan sebagai '' → bentrok dengan produk lain ber-SKU kosong
+                    // (kolom sku UNIK) dan edit gagal "Gagal memperbarui produk". Kosong = pertahankan SKU lama.
+                    ...(sku !== undefined ? { sku: String(sku || '').trim() || existingProduct.sku || `SKU-${String(id).slice(0, 8).toUpperCase()}` } : {}),
                     hargaBeli: String(hb),
                     hargaJual: String(hj),
                     stok: stokBaru,
@@ -378,6 +389,7 @@ export async function PUT({ request, cookies }) {
         }
         return json({ success: true, message: "Produk berhasil diperbarui" });
     } catch (err) {
+        if (skuBentrok(err)) return json({ success: false, message: 'SKU sudah dipakai produk lain. Ganti SKU-nya.' }, { status: 409 });
         log.api.error({ err }, 'API PUT PRODUCT ERROR');
         return json({ success: false, message: "Gagal memperbarui produk" }, { status: 500 });
     }
@@ -396,7 +408,6 @@ export async function DELETE({ url, cookies, request }) {
             where: eq(products.id, productId)
         });
         if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) return json({ success: false, message: "Produk tidak ditemukan" }, { status: 404 });
-        if (Number(existingProduct.userId) !== Number(userId)) return json({ success: false, message: "Akses ditolak" }, { status: 403 });
 
         const unitId = existingProduct.unitId;
 

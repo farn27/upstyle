@@ -31,7 +31,9 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
     var aktif by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) { if (produk.isEmpty()) viewModel.loadProducts() }
 
+    // SKU varian juga dikenali → langsung jadi produk + varian itu
     fun cari(k: String): Product? = produk.firstOrNull { it.barcode == k || it.sku.equals(k, true) || it.id == k }
+        ?: produk.firstNotNullOfOrNull { p -> p.variants.firstOrNull { v -> v.sku.isNotBlank() && v.sku.equals(k, true) }?.let { p.denganVarian(it) } }
     val hasil = kode?.let { cari(it) }
 
     BizScreen(title = "Scan barcode", subtitle = "Arahkan kamera ke barcode produk", onBack = { viewModel.navigateBack() }) { padding ->
@@ -66,7 +68,22 @@ fun BarcodeScannerScreen(viewModel: AppViewModel) {
                             Text(hasil.hargaJual.rupiah(), fontWeight = FontWeight.Bold, color = BizgrowColors.Primary)
                         }
                         Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (hasil.perluPilihVarian) {
+                            // Produk bervarian: pilih varian langsung di sini
+                            Text("Pilih varian:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                            hasil.variants.forEach { v ->
+                                BizOutlineButton(
+                                    "${v.namaVariasi} · ${(if (v.hargaJual > 0) v.hargaJual else hasil.hargaJual).rupiah()} · stok ${v.stok}",
+                                    onClick = {
+                                        if (v.stok <= 0) viewModel.showError("Stok varian ${v.namaVariasi} habis")
+                                        else { viewModel.addToCart(hasil.denganVarian(v)); viewModel.navigateBack() }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                                )
+                            }
+                            BizOutlineButton("Detail produk", onClick = { viewModel.navigate(Screen.ProdukDetail(hasil.id)) }, modifier = Modifier.fillMaxWidth())
+                        } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             BizOutlineButton("Detail", onClick = { viewModel.navigate(Screen.ProdukDetail(hasil.id)) }, modifier = Modifier.weight(1f))
                             BizButton("Ke keranjang", onClick = { viewModel.addToCart(hasil); viewModel.navigateBack() }, modifier = Modifier.weight(1f), icon = Icons.Rounded.AddShoppingCart, enabled = hasil.stok > 0 || !hasil.bisaDijual)
                         }

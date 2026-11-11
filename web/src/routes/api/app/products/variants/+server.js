@@ -6,6 +6,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { unitMilikUser } from '$lib/server/apiUnitGuard';
 
 // GET /api/app/products/variants?productId=X
 export async function GET({ url, cookies, request }) {
@@ -21,7 +22,8 @@ export async function GET({ url, cookies, request }) {
             columns: { userId: true, unitId: true }
         });
 
-        if (!existingProduct || Number(existingProduct.userId) !== Number(userId)) {
+        // Kepemilikan lewat unit (dulu products.user_id == login → varian produk impor/template tak bisa diakses)
+        if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) {
             return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
         }
 
@@ -79,7 +81,8 @@ export async function POST({ request, cookies }) {
             columns: { userId: true, unitId: true }
         });
 
-        if (!existingProduct || Number(existingProduct.userId) !== Number(userId)) {
+        // Kepemilikan lewat unit (dulu products.user_id == login → varian produk impor/template tak bisa diakses)
+        if (!existingProduct || !(await unitMilikUser(db, userId, existingProduct.unitId))) {
             return json({ success: false, message: 'Produk tidak ditemukan atau akses ditolak' }, { status: 403 });
         }
 
@@ -137,7 +140,7 @@ export async function PUT({ request, cookies }) {
         });
 
         if (!existing) return json({ success: false, message: 'Variasi tidak ditemukan' }, { status: 404 });
-        if (Number(existing.product.userId) !== Number(userId)) {
+        if (!existing.product || !(await unitMilikUser(db, userId, existing.product.unitId))) {
             return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
         }
 
@@ -178,7 +181,7 @@ export async function DELETE({ url, cookies, request }) {
         });
 
         if (!existing) return json({ success: false, message: 'Variasi tidak ditemukan' }, { status: 404 });
-        if (Number(existing.product.userId) !== Number(userId)) {
+        if (!existing.product || !(await unitMilikUser(db, userId, existing.product.unitId))) {
             return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
         }
 

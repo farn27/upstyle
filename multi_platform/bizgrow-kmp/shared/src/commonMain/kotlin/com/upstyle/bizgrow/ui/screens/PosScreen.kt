@@ -64,6 +64,7 @@ fun PosScreen(viewModel: AppViewModel) {
     var query by remember { mutableStateOf("") }
     var sukses by remember { mutableStateOf<Pair<Double, String>?>(null) }
     var pilihPrinter by remember { mutableStateOf<String?>(null) } // teks struk yang menunggu printer dipilih
+    var pilihVarian by remember { mutableStateOf<Product?>(null) } // produk bervarian yang sedang dipilih variannya
     val serverUrl = remember { viewModel.session.getServerUrl() }
 
     LaunchedEffect(Unit) {
@@ -144,11 +145,16 @@ fun PosScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(tampil, key = { _, p -> p.id }) { i, p ->
+                        // Jumlah di keranjang dihitung untuk semua varian produk ini
+                        val qtyProduk = cart.entries.filter { it.key.id == p.id }.sumOf { it.value }
                         ProdukKasirCard(
-                            p, cart[p] ?: 0, serverUrl,
+                            p, qtyProduk, serverUrl,
                             modifier = Modifier.animateItem().enterAnimation(i),
-                            onAdd = { viewModel.addToCart(p) },
-                            onRemove = { viewModel.removeFromCart(p) }
+                            onAdd = { if (p.perluPilihVarian) pilihVarian = p else viewModel.addToCart(p) },
+                            onRemove = {
+                                if (p.perluPilihVarian) pilihVarian = p
+                                else viewModel.removeFromCart(p)
+                            }
                         )
                     }
                 }
@@ -168,6 +174,11 @@ fun PosScreen(viewModel: AppViewModel) {
             val mac = viewModel.session.getPrinterMac()
             if (mac.isBlank()) pilihPrinter = teks else cetakKe(mac, teks)
         }
+    }
+    pilihVarian?.let { induk ->
+        PilihVarianSheet(induk, cart, serverUrl, onDismiss = { pilihVarian = null },
+            onTambah = { v -> viewModel.addToCart(induk.denganVarian(v)) },
+            onKurang = { v -> cart.keys.firstOrNull { it.id == induk.id && it.varianId == v.id }?.let { viewModel.removeFromCart(it) } })
     }
     tundaLabel?.let { label ->
         FormSheet("Tunda pesanan", subjudul = "Keranjang disimpan dan bisa dilanjutkan nanti (hilang bila aplikasi ditutup).", onDismiss = { tundaLabel = null }, labelSimpan = "Tunda",
@@ -192,11 +203,7 @@ fun PosScreen(viewModel: AppViewModel) {
     }
 
     if (showCheckout) {
-        ModalBottomSheet(
-            onDismissRequest = { showCheckout = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
+        com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = { showCheckout = false }, containerColor = MaterialTheme.colorScheme.surface) {
             CheckoutSheet(
                 viewModel = viewModel,
                 cart = cart,
@@ -681,6 +688,56 @@ private fun PemilihPrinterSheet(printer: com.upstyle.bizgrow.device.PrinterManag
             if (session.getPrinterMac().isNotBlank()) {
                 TextButton(onClick = { session.lupakanPrinter(); onDismiss() }) { Text("Lupakan printer (${session.getPrinterNama()})", color = BizgrowColors.Danger) }
             }
+        }
+    }
+}
+
+/** Pemilih varian produk di kasir: setiap varian punya harga, stok, dan jumlah sendiri di keranjang. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PilihVarianSheet(
+    p: Product,
+    cart: Map<Product, Int>,
+    serverUrl: String,
+    onDismiss: () -> Unit,
+    onTambah: (com.upstyle.bizgrow.data.ProductVariant) -> Unit,
+    onKurang: (com.upstyle.bizgrow.data.ProductVariant) -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ProductThumb(p.nama, p.foto, Modifier.size(48.dp), RoundedCornerShape(12.dp), serverUrl)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(p.nama, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Pilih varian", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                p.variants.forEach { v ->
+                    val qty = cart.entries.firstOrNull { it.key.id == p.id && it.key.varianId == v.id }?.value ?: 0
+                    val harga = if (v.hargaJual > 0) v.hargaJual else p.hargaJual
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(v.namaVariasi, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "${harga.rupiah()} · " + if (v.stok <= 0) "Habis" else "Stok ${v.stok}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (v.stok <= 0) BizgrowColors.Danger else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (qty > 0) {
+                            Stepper(Icons.Rounded.Remove, { onKurang(v) })
+                            Text("$qty", Modifier.width(30.dp), style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                        Stepper(Icons.Rounded.Add, { onTambah(v) }, enabled = qty < v.stok)
+                    }
+                    HorizontalDivider(color = LocalBizPalette.current.border)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            BizButton("Selesai", onClick = onDismiss, modifier = Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
         }
     }
 }

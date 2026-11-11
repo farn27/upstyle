@@ -62,6 +62,13 @@ describe.skipIf(!TEST_DB)('prosesCheckoutPos', () => {
 		]);
 		const [v] = await db.insert(s.vouchers).values({ unitId: id.unit, code: `UJI${t}`, discountType: 'PERCENTAGE', discountValue: '10', minPurchase: '1000', maxUsage: 1, currentUsage: 0, validFrom: '2020-01-01', validUntil: '2099-12-31', isActive: true });
 		id.voucher = v.insertId; id.kode = `UJI${t}`;
+		// produk bervarian: induk stok 8 = varian L (5) + XL (3)
+		id.kaos = `KAOS-${t}`; id.varL = `VL-${t}`; id.varXL = `VXL-${t}`;
+		await db.insert(s.products).values(p('KAOS', { nama: 'Kaos', hargaJual: '50000', stok: 8, hasVariant: 1 }));
+		await db.insert(s.productVariants).values([
+			{ id: id.varL, productId: id.kaos, namaVariasi: 'L', hargaBeli: '20000', hargaJual: '55000', stok: 5 },
+			{ id: id.varXL, productId: id.kaos, namaVariasi: 'XL', hargaBeli: '20000', hargaJual: '60000', stok: 3 }
+		]);
 		unit = { id: id.unit, slug: `kasir-${t}`, userId: id.user, kategori: 'UMUM', posFeatureOverride: null };
 	});
 
@@ -105,6 +112,18 @@ describe.skipIf(!TEST_DB)('prosesCheckoutPos', () => {
 		expect(v.currentUsage).toBe(1);
 		// kuota habis → ditolak, bukan diam-diam tanpa potongan
 		await expect(lib.prosesCheckoutPos(db, ctx(), { items: [{ productId: id.ori, qty: 1 }], voucherCode: id.kode })).rejects.toMatchObject({ status: 409 });
+	});
+
+	it('varian: harga varian dipakai, stok varian & induk berkurang, stok varian kurang ditolak', async () => {
+		const h = await lib.prosesCheckoutPos(db, ctx(), { items: [{ productId: id.kaos, variantId: id.varXL, qty: 2 }], amountPaid: 120000 });
+		expect(h.total).toBe(120000);
+		const [xl] = await db.select().from(s.productVariants).where(o.eq(s.productVariants.id, id.varXL));
+		expect(xl.stok).toBe(1); // dulu tetap 3
+		const [induk] = await db.select().from(s.products).where(o.eq(s.products.id, id.kaos));
+		expect(induk.stok).toBe(6);
+		await expect(lib.prosesCheckoutPos(db, ctx(), { items: [{ productId: id.kaos, variantId: id.varXL, qty: 2 }], amountPaid: 120000 })).rejects.toMatchObject({ status: 409 });
+		const [l] = await db.select().from(s.productVariants).where(o.eq(s.productVariants.id, id.varL));
+		expect(l.stok).toBe(5); // gagal = tidak ada yang berubah
 	});
 
 	it('bayar kurang ditolak server dan tidak ada yang tersimpan', async () => {

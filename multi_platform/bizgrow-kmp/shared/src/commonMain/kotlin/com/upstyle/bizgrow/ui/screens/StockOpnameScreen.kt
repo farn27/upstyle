@@ -70,7 +70,7 @@ fun StockOpnameScreen(viewModel: AppViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailOpname(s: StockOpnameSession, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss) {
         LazyColumn(Modifier.fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 Text("Opname #${s.id}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

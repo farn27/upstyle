@@ -102,6 +102,8 @@ fun PosReturnScreen(viewModel: AppViewModel) {
     // New Return Dialog
     if (showReturnDialog) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = { showReturnDialog = false },
             title = { Text("Proses Retur") },
             text = {

@@ -391,12 +391,7 @@ fun PricingStrategyFormSheet(
     var isActive  by remember { mutableStateOf(initialStrategy?.isActive ?: true) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BizgrowColors.Surface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss, containerColor = BizgrowColors.Surface, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

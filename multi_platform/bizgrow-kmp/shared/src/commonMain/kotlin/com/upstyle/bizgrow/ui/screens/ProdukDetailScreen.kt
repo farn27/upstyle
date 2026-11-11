@@ -220,7 +220,7 @@ fun StockAdjustSheet(product: Product, viewModel: AppViewModel, onDismiss: () ->
     var selectedReason by remember { mutableStateOf("PEMBELIAN") }
     val reasons = listOf("PEMBELIAN", "PENJUALAN", "RETUR", "KERUSAKAN", "KOREKSI", "LAINNYA")
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Sesuaikan Stok", fontSize = 20.sp, fontWeight = FontWeight.Bold)

@@ -203,6 +203,8 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
     // Password change dialog
     if (showPasswordDialog) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = { showPasswordDialog = false },
             title = { Text("Ubah Password", fontWeight = FontWeight.Bold) },
             text = {
@@ -256,6 +258,8 @@ fun AdvancedSettingsScreen(viewModel: AppViewModel) {
     // Create unit dialog
     if (showCreateUnitDialog) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = { showCreateUnitDialog = false; newUnitName = "" },
             title = { Text("Tambah Unit Bisnis", fontWeight = FontWeight.Bold) },
             text = {

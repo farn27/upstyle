@@ -88,6 +88,8 @@ fun ProdukFormSheet(
     val namaKombinasi = kombinasi(opsi)
     val punyaVarian = awal == null && namaKombinasi.isNotEmpty()
     val bedaJenis = jenis != "BARANG_JADI"
+    // Produk lama yang sudah bervarian: harga & stok ada di tiap varian, harga induk boleh 0
+    val adaVarianLama = awal != null && awal.hasVariant == 1
 
     val pilihFoto = rememberImagePickerLauncher { uri ->
         if (uri != null) {
@@ -103,7 +105,7 @@ fun ProdukFormSheet(
 
     val beli = hargaBeli.toDoubleOrNull() ?: 0.0
     val jual = hargaJual.toDoubleOrNull() ?: 0.0
-    val valid = nama.isNotBlank() && (punyaVarian || jual > 0 || bedaJenis) && !mengunggah && !proses
+    val valid = nama.isNotBlank() && (punyaVarian || adaVarianLama || jual > 0 || bedaJenis) && !mengunggah && !proses
 
     FormSheet(
         judul = if (awal == null) "Produk baru" else "Ubah produk",
@@ -172,7 +174,7 @@ fun ProdukFormSheet(
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.weight(1f)) { AngkaField(hargaBeli, { hargaBeli = it }, "Harga beli / HPP", desimal = false) }
-            if (!punyaVarian) Box(Modifier.weight(1f)) { AngkaField(hargaJual, { hargaJual = it }, if (bedaJenis) "Harga jual" else "Harga jual *", desimal = false) }
+            if (!punyaVarian) Box(Modifier.weight(1f)) { AngkaField(hargaJual, { hargaJual = it }, if (bedaJenis || adaVarianLama) "Harga jual" else "Harga jual *", desimal = false) }
         }
         if (beli > 0 && jual > 0 && !punyaVarian) {
             val margin = ((jual - beli) / beli * 100).toInt()

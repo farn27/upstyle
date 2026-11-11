@@ -24,6 +24,52 @@ import kotlinx.datetime.*
 
 // Kit formulir seragam untuk layar CRUD (aset, pajak, anggaran, COA, kontak, dll).
 
+/**
+ * Bottom sheet untuk FORMULIR. Dulu sheet bisa tertutup karena tergeser ke bawah / ketukan di luar /
+ * tombol kembali tanpa sengaja, dan semua isian hilang. Sekarang penutupan lewat geser/ketuk luar/kembali
+ * ditahan dan ditanya dulu ("Tutup formulir? Isian akan hilang"), kecuali [lindungi] = false.
+ * Penutupan oleh tombol Simpan/Batal di dalam formulir (pemanggil langsung menyembunyikan sheet) tidak ditanya.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LembarForm(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    lindungi: Boolean = true,
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
+    shape: androidx.compose.ui.graphics.Shape = BottomSheetDefaults.ExpandedShape,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var tanyaTutup by remember { mutableStateOf(false) }
+    val lindungiTerkini by rememberUpdatedState(lindungi)
+    val state = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { nilai ->
+            if (nilai == SheetValue.Hidden && lindungiTerkini) {
+                tanyaTutup = true
+                false
+            } else true
+        }
+    )
+    ModalBottomSheet(
+        onDismissRequest = { if (lindungiTerkini) tanyaTutup = true else onDismiss() },
+        modifier = modifier,
+        sheetState = state,
+        containerColor = containerColor,
+        shape = shape,
+        content = content
+    )
+    if (tanyaTutup) {
+        AlertDialog(
+            onDismissRequest = { tanyaTutup = false },
+            title = { Text("Tutup formulir?") },
+            text = { Text("Isian yang belum disimpan akan hilang.") },
+            confirmButton = { TextButton(onClick = { tanyaTutup = false; onDismiss() }) { Text("Tutup", color = BizgrowColors.Danger) } },
+            dismissButton = { TextButton(onClick = { tanyaTutup = false }) { Text("Lanjut mengisi") } }
+        )
+    }
+}
+
 /** Lembar formulir: judul + isi bisa digulir + tombol Simpan/Hapus. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +84,13 @@ fun FormSheet(
     onHapus: (() -> Unit)? = null,
     isi: @Composable ColumnScope.() -> Unit
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ) {
+    LembarForm(onDismiss = onDismiss) {
         Column(modifier.fillMaxWidth().imePadding().navigationBarsPadding().padding(horizontal = 20.dp)) {
-            Text(judul, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(judul, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                // Tombol tutup eksplisit (tanpa konfirmasi): pengguna sengaja membatalkan
+                IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Tutup formulir", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
             if (subjudul != null) Text(subjudul, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(14.dp))
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = isi)

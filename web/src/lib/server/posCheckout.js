@@ -160,8 +160,10 @@ export async function prosesCheckoutPos(db, ctx, input) {
 			if (!bisaDijual(produk.jenis)) throw new PosError(`${produk.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
 			let harga = Number(produk.hargaJual || 0);
 			let nama = produk.nama;
+			/** @type {any} */
+			let varian = null;
 			if (it.variantId) {
-				const varian = petaVarian.get(String(it.variantId));
+				varian = petaVarian.get(String(it.variantId));
 				if (!varian || String(varian.productId) !== String(produk.id)) throw new PosError(`Varian ${produk.nama} tidak ditemukan`, 404);
 				// pos_order_items.variant_id bertipe INT sedangkan ID varian UUID → simpan namanya saja
 				nama = `${produk.nama} - ${varian.namaVariasi}`;
@@ -173,7 +175,7 @@ export async function prosesCheckoutPos(db, ctx, input) {
 				if (it.harga != null && Number.isFinite(hargaKasir) && hargaKasir >= 0) harga = hargaKasir;
 			}
 			const qty = Number(it.qty);
-			return { produk, qty, harga, nama, bruto: harga * qty };
+			return { produk, varian, qty, harga, nama, bruto: harga * qty };
 		});
 		const subtotal = baris.reduce((s, b) => s + b.bruto, 0);
 
@@ -336,6 +338,19 @@ export async function prosesCheckoutPos(db, ctx, input) {
 				stokAkhir = 0;
 			}
 			sisaStok.set(id, stokAkhir);
+			// Stok varian ikut dikurangi (dulu hanya stok produk induk, sehingga stok tiap varian tidak pernah berubah)
+			if (b.varian) {
+				const [updV] = await tx
+					.update(productVariants)
+					.set({ stok: sql`${productVariants.stok} - ${b.qty}` })
+					.where(and(eq(productVariants.id, b.varian.id), eq(productVariants.productId, b.produk.id), gte(productVariants.stok, b.qty)));
+				if (!updV?.affectedRows) {
+					if (!input.izinkanStokKurang) {
+						throw new PosError(`Stok varian ${b.nama} tidak mencukupi! (Sisa: ${Number(b.varian.stok || 0)})`, 409);
+					}
+					await tx.update(productVariants).set({ stok: 0 }).where(eq(productVariants.id, b.varian.id));
+				}
+			}
 			logStok.push({
 				id: crypto.randomUUID(),
 				productId: b.produk.id,

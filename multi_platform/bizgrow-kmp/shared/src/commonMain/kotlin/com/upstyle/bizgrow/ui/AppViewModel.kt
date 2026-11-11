@@ -1427,6 +1427,8 @@ class AppViewModel(
     }
 
     fun addToCart(product: com.upstyle.bizgrow.data.Product, quantity: Int = 1) {
+        // Produk bervarian tanpa varian terpilih tidak boleh masuk keranjang (layar kasir menampilkan pemilih varian)
+        if (product.perluPilihVarian) { setError("Pilih varian ${product.nama} dulu"); return }
         val current = _cart.value.toMutableMap()
         current[product] = (current[product] ?: 0) + quantity
         _cart.value = current
@@ -1474,7 +1476,8 @@ class AppViewModel(
         val diskon = _posDiskon.value
         val total = subtotal - diskon
         val items = cartItems.entries.map { (p, qty) ->
-            PosOrderItem(productId = p.id, productName = p.nama, qty = qty, price = p.hargaJual)
+            // variantId dikirim supaya server mengurangi stok varian & memakai harganya (dulu varian tidak pernah dikirim)
+            PosOrderItem(productId = p.id, productName = p.nama, variantId = p.varianId, variantName = p.varianNama, qty = qty, price = p.hargaJual)
         }
 
         try {

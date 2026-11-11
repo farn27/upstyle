@@ -171,10 +171,7 @@ fun ProcessPayrollSheet(
     var allowance by remember { mutableStateOf("0") }
     var deduction by remember { mutableStateOf("0") }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ) {
+    com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

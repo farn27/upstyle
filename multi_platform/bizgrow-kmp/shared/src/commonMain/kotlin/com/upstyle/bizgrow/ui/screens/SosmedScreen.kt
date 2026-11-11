@@ -217,6 +217,8 @@ fun SosmedScreen(viewModel: AppViewModel) {
 
     if (showCreate) {
         AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             onDismissRequest = {
                 showCreate = false
                 editingPost = null

@@ -86,7 +86,7 @@ fun ProductVariantsScreen(viewModel: AppViewModel, productId: String) {
     }
 
     edit?.let { awal ->
-        ModalBottomSheet(onDismissRequest = { edit = null }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        com.upstyle.bizgrow.ui.design.LembarForm(onDismiss = { edit = null }, containerColor = MaterialTheme.colorScheme.surface) {
             VarianForm(awal) { hasil ->
                 if (hasil.id.isBlank()) viewModel.createVariant(hasil) else viewModel.updateVariant(hasil)
                 edit = null

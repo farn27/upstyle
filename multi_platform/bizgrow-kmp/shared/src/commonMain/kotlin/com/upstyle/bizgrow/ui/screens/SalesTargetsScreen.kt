@@ -172,6 +172,8 @@ fun CreateTargetDialog(
     var targetAmount by remember { mutableStateOf("") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Target Penjualan Baru", fontWeight = FontWeight.Bold) },
         text = {
@@ -205,6 +207,8 @@ fun EditTargetDialog(
     var targetAmount by remember { mutableStateOf(target.targetAmount.toLong().toString()) }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Edit Target Penjualan", fontWeight = FontWeight.Bold) },
         text = {

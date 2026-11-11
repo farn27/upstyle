@@ -73,9 +73,6 @@ export async function POST({ request, cookies }) {
         });
 
         if (!existing || !(await unitMilikUser(db, userId, existing.unitId))) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
-        if (Number(existing.userId) !== Number(userId)) {
-            return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
-        }
 
         await db.update(products)
             .set({ deletedAt: null, status: 'active' })
@@ -102,9 +99,6 @@ export async function DELETE({ url, cookies, request }) {
         });
 
         if (!existing || !(await unitMilikUser(db, userId, existing.unitId))) return json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
-        if (Number(existing.userId) !== Number(userId)) {
-            return json({ success: false, message: 'Akses ditolak' }, { status: 403 });
-        }
 
         await db.delete(products).where(eq(products.id, productId));
         return json({ success: true, message: 'Produk berhasil dihapus permanen' });

@@ -202,6 +202,8 @@ fun CreateDepartmentDialog(
     var budget by remember { mutableStateOf("") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Departemen Baru", fontWeight = FontWeight.Bold) },
         text = {

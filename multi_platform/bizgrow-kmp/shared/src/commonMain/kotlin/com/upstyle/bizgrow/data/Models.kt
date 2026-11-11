@@ -269,9 +269,25 @@ data class Product(
     val showInPos: Int = 1,
     val variants: List<ProductVariant> = emptyList(),
     /** BARANG_JADI (dijual) | BAHAN_BAKU | KEMASAN | PERLENGKAPAN — hanya barang jadi yang boleh di kasir */
-    val jenis: String = "BARANG_JADI"
+    val jenis: String = "BARANG_JADI",
+    /** Varian terpilih di keranjang kasir (bukan data server). Produk + varian berbeda = baris keranjang berbeda. */
+    @kotlinx.serialization.Transient val varianId: String? = null,
+    @kotlinx.serialization.Transient val varianNama: String? = null
 ) {
     val bisaDijual: Boolean get() = jenis.isBlank() || jenis.equals("BARANG_JADI", ignoreCase = true)
+    /** Produk punya varian yang harus dipilih sebelum masuk keranjang */
+    val perluPilihVarian: Boolean get() = varianId == null && hasVariant == 1 && variants.isNotEmpty()
+
+    /** Salinan produk untuk satu varian: nama, harga, stok, dan SKU mengikuti varian. */
+    fun denganVarian(v: ProductVariant): Product = copy(
+        varianId = v.id,
+        varianNama = v.namaVariasi,
+        nama = "$nama · ${v.namaVariasi}",
+        hargaJual = if (v.hargaJual > 0) v.hargaJual else hargaJual,
+        hargaBeli = if (v.hargaBeli > 0) v.hargaBeli else hargaBeli,
+        stok = v.stok,
+        sku = v.sku.ifBlank { sku }
+    )
 }
 
 @Serializable

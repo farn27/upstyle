@@ -184,6 +184,8 @@ fun CreateApprovalDialog(
     var description by remember { mutableStateOf("") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Ajukan Approval", fontWeight = FontWeight.Bold) },
         text = {

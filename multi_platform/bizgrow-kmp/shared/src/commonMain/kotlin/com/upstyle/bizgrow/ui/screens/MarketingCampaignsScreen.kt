@@ -239,6 +239,8 @@ fun CreateCampaignDialog(
     var scheduledAt by remember { mutableStateOf("") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text("Buat Kampanye Baru") },
         text = {

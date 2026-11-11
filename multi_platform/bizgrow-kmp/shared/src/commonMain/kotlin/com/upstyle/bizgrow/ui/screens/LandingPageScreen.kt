@@ -205,6 +205,8 @@ fun LandingPageFormDialog(
     var content by remember { mutableStateOf(page?.contentJson ?: "{}") }
 
     AlertDialog(
+        // formulir: ketuk di luar dialog tidak menutup (isian tidak hilang tanpa sengaja)
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         onDismissRequest = onDismiss,
         title = { Text(if (page == null) "Buat Landing Page" else "Edit Landing Page") },
         text = {
