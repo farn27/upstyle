@@ -154,8 +154,10 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		const [emp] = await db.select().from(s.employees).where(eq(s.employees.companyId, unitId)).limit(1);
 		await uji('karyawan: detail', `hr/[employeeId]`, 'GET', { params: { employeeId: String(emp?.id) } });
 		await uji('karyawan: ubah profil', `hr/[employeeId]`, 'PUT', { params: { employeeId: String(emp?.id) }, body: { fullName: 'Rina Uji 2', position: 'Kasir Senior', salary: 1200000, email: 'r2@x.id', employmentStatus: 'Tetap', status: 'active' } });
-		await uji('absen masuk', 'hr', 'POST', { body: { action: 'check-in', employeeId: emp?.id, unitId, date: hari, time: '08:00' } });
-		await uji('absen keluar', 'hr', 'POST', { body: { action: 'check-out', employeeId: emp?.id, date: hari, time: '17:00' } });
+		// App kini mengirim PIN karyawan; server memverifikasinya (karyawan uji punya PIN 1234)
+		await uji('absen masuk PIN salah ditolak', 'hr', 'POST', { body: { action: 'check-in', employeeId: emp?.id, unitId, date: hari, time: '07:59', pin: '0000' }, ok: (_j, st) => st === 403 });
+		await uji('absen masuk', 'hr', 'POST', { body: { action: 'check-in', employeeId: emp?.id, unitId, date: hari, time: '08:00', pin: '1234' } });
+		await uji('absen keluar', 'hr', 'POST', { body: { action: 'check-out', employeeId: emp?.id, date: hari, time: '17:00', pin: '1234' } });
 		await uji('payroll: proses', 'hr', 'POST', { body: { action: 'process-payroll', payroll: { employeeId: emp?.id, monthYear: '08/2026', periodMonth: 8, periodYear: 2026, salary: 1000000, allowance: 0, deduction: 0, netSalary: 1000000, unitId } } });
 		await uji('payroll: tolak proses ganda', 'hr', 'POST', { body: { action: 'process-payroll', payroll: { employeeId: emp?.id, monthYear: '08/2026', periodMonth: 8, periodYear: 2026, salary: 1000000, allowance: 0, deduction: 0, netSalary: 1000000, unitId } }, ok: (j, st) => st === 409 });
 		await uji('payroll: tolak net tidak konsisten', 'hr', 'POST', { body: { action: 'process-payroll', payroll: { employeeId: emp?.id, monthYear: '09/2026', periodMonth: 9, periodYear: 2026, salary: 1000000, allowance: 100000, deduction: 0, netSalary: 5000000, unitId } }, ok: (j, st) => st === 422 });
