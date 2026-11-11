@@ -613,17 +613,19 @@ class AppViewModel(
             else setError(res.message ?: "Gagal hapus karyawan")
         } catch (e: Exception) { setError("Koneksi gagal: ${e.message}") }
     }
-    fun checkIn(employeeId: Int, date: String, time: String) = viewModelScope.launch {
+    fun checkIn(employeeId: Int, date: String, time: String, pin: String? = null) = viewModelScope.launch {
         val unitId = _activeUnitId.value
         try {
-            api.checkIn(CheckInRequest(employeeId = employeeId, unitId = unitId, date = date, time = time))
+            val res = api.checkIn(CheckInRequest(employeeId = employeeId, unitId = unitId, date = date, time = time, pin = pin))
+            if (!res.success) { setError(res.message ?: "Check-in gagal"); return@launch }
             loadHrData()
             setSuccess("Check-in berhasil!")
         } catch (e: Exception) { setError("Check-in gagal: ${e.message}") }
     }
-    fun checkOut(employeeId: Int, date: String, time: String) = viewModelScope.launch {
+    fun checkOut(employeeId: Int, date: String, time: String, pin: String? = null) = viewModelScope.launch {
         try {
-            api.checkOut(CheckOutRequest(employeeId = employeeId, date = date, time = time))
+            val res = api.checkOut(CheckOutRequest(employeeId = employeeId, date = date, time = time, pin = pin))
+            if (!res.success) { setError(res.message ?: "Check-out gagal"); return@launch }
             loadHrData()
             setSuccess("Check-out berhasil!")
         } catch (e: Exception) { setError("Check-out gagal: ${e.message}") }

@@ -75,7 +75,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     )
                 }
                 item {
-                    HeroSaldo(financeData, sembunyi, { sembunyi = !sembunyi }, Modifier.padding(horizontal = 20.dp).enterAnimation(0)) {
+                    HeroSaldo(financeData, periode, sembunyi, { sembunyi = !sembunyi }, Modifier.padding(horizontal = 20.dp).enterAnimation(0)) {
                         viewModel.navigate(Screen.Laporan)
                     }
                 }
@@ -175,7 +175,7 @@ private fun DashboardHeader(unitName: String, kategori: String, unread: Int, onS
 }
 
 @Composable
-private fun HeroSaldo(fd: FinanceData?, sembunyi: Boolean, onToggle: () -> Unit, modifier: Modifier, onClick: () -> Unit) {
+private fun HeroSaldo(fd: FinanceData?, periode: String, sembunyi: Boolean, onToggle: () -> Unit, modifier: Modifier, onClick: () -> Unit) {
     val masuk = fd?.summary?.totalMasuk ?: 0.0
     val keluar = fd?.summary?.totalKeluar ?: 0.0
     val bersih = masuk - keluar
@@ -183,7 +183,16 @@ private fun HeroSaldo(fd: FinanceData?, sembunyi: Boolean, onToggle: () -> Unit,
     GradientCard(modifier.fillMaxWidth(), colors = BizgrowColors.GradPrimary, onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Laba bersih", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                // Angka ini pemasukan − pengeluaran (arus kas), bukan laba: HPP/penyusutan tidak dihitung.
+                // Dulu berlabel "Laba bersih" dengan periode bawaan "Semua" sehingga terbaca sebagai laba (F-14).
+                Text(
+                    "Selisih masuk − keluar · ${if (periode == "Semua") "semua waktu" else periode.lowercase()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
                 Spacer(Modifier.width(6.dp))
                 Icon(
                     if (sembunyi) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,

@@ -213,8 +213,9 @@ fun AbsensiScreen(viewModel: AppViewModel) {
                         val empId = selectedEmployeeId ?: return@Button
                         val date = todayDate()
                         val time = currentTime()
-                        if (isCheckIn) viewModel.checkIn(empId, date, time)
-                        else viewModel.checkOut(empId, date, time)
+                        // PIN dikirim ke server untuk diverifikasi (dulu hanya dicek panjangnya)
+                        if (isCheckIn) viewModel.checkIn(empId, date, time, pinInput)
+                        else viewModel.checkOut(empId, date, time, pinInput)
                         showPinDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = if (isCheckIn) BizgrowColors.Success else BizgrowColors.Danger)

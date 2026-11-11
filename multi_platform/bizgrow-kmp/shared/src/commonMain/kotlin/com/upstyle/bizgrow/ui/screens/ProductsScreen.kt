@@ -404,7 +404,8 @@ fun ProductsScreen(viewModel: AppViewModel) {
             ) {
                 listOf(
                     Triple("Semua", products.size, BizgrowColors.Primary),
-                    Triple("Low Stock", lowStockProducts.size, BizgrowColors.Warning),
+                    // Jumlah dihitung dengan aturan yang sama dengan filter & label LOW di kartu (dulu dari API lain → "Low Stock (0)")
+                    Triple("Low Stock", products.count { it.stok in 1..it.minStok }, BizgrowColors.Warning),
                     Triple("Habis", products.count { it.stok <= 0 }, BizgrowColors.Danger)
                 ).forEach { (label, count, color) ->
                     val isSelected = filterType == label

@@ -7,7 +7,8 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { encryptField, decryptField } from '$lib/server/encryption';
-import { hashPin } from '$lib/server/pinKaryawan';
+import { hashPin, cocokkanPin } from '$lib/server/pinKaryawan';
+import { checkRateLimit } from '$lib/server/rateLimit';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
@@ -274,6 +275,7 @@ export async function POST({ request, cookies }) {
                 unitId: z.coerce.number().int().positive(),
                 date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal YYYY-MM-DD'),
                 time: z.string().regex(/^\d{2}:\d{2}$/, 'Format waktu HH:MM'),
+                pin: z.string().max(12).optional().nullable(),
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
@@ -288,6 +290,7 @@ export async function POST({ request, cookies }) {
                 employeeId: z.coerce.number().int().positive(),
                 date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
                 time: z.string().regex(/^\d{2}:\d{2}$/),
+                pin: z.string().max(12).optional().nullable(),
             });
             const parsed = schema.safeParse(body);
             if (!parsed.success) {
@@ -399,8 +402,28 @@ export async function POST({ request, cookies }) {
             return json({ success: true, message: "Karyawan berhasil dibuat", data: { id: result.insertId, slug, ...(passwordAwal ? { passwordAwal } : {}) } });
         }
 
+        if (action === 'check-in' || action === 'check-out') {
+            // Karyawan harus milik pemilik akun ini (dulu ID karyawan usaha lain pun bisa diabsenkan)
+            const emp = await db.query.employees.findFirst({ where: eq(employees.id, Number(body.employeeId)), columns: { id: true, pin: true } });
+            if (!emp || !(await karyawanMilikUser(db, userId, emp.id))) {
+                return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+            }
+            // PIN karyawan diverifikasi di server bila karyawan punya PIN (dulu PIN apa pun diterima — B-16)
+            if (emp.pin) {
+                const batas = await checkRateLimit({ key: `${userId}:${emp.id}`, prefix: 'rl:absen-pin', limit: 5, windowSec: 900 });
+                if (!batas.allowed) return json({ success: false, message: 'Terlalu banyak percobaan PIN. Coba lagi 15 menit lagi.' }, { status: 429 });
+                const { cocok } = await cocokkanPin(emp.pin, String(body.pin || ''));
+                if (!cocok) return json({ success: false, message: 'PIN karyawan salah' }, { status: 403 });
+            }
+        }
+
         if (action === 'check-in') {
             const { employeeId, unitId, date, time } = body;
+            const sudah = await db.query.attendance.findFirst({
+                where: and(eq(attendance.employeeId, Number(employeeId)), like(attendance.checkIn, `${date}%`)),
+                columns: { id: true }
+            });
+            if (sudah) return json({ success: false, message: 'Karyawan ini sudah check-in hari ini' }, { status: 409 });
             
             const checkInDateTime = `${date} ${time}:00`;
             const [result] = await db.insert(attendance).values({

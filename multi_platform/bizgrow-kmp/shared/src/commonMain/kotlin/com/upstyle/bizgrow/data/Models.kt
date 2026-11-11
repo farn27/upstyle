@@ -563,7 +563,9 @@ data class CheckInRequest(
     val employeeId: Int,
     val unitId: Int,
     val date: String,
-    val time: String
+    val time: String,
+    /** PIN karyawan; diverifikasi server bila karyawan punya PIN */
+    val pin: String? = null
 )
 
 @Serializable
@@ -571,7 +573,8 @@ data class CheckOutRequest(
     @EncodeDefault val action: String = "check-out",
     val employeeId: Int,
     val date: String,
-    val time: String
+    val time: String,
+    val pin: String? = null
 )
 
 @Serializable
