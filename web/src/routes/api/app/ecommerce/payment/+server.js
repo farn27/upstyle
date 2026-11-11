@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
@@ -23,7 +24,7 @@ export async function PUT({ request, cookies }) {
 		});
 		return json({ success: true, message: 'Konfigurasi pembayaran disimpan', data });
 	} catch (err) {
-		if (err instanceof TokoError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof TokoError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.api.error({ err: err instanceof Error ? err.message : 'error' }, 'PUT ecommerce/payment');
 		return json({ success: false, message: 'Gagal simpan konfigurasi pembayaran' }, { status: 500 });
 	}

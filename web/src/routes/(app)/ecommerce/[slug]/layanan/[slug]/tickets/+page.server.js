@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, supportTickets, supportTicketMessages, crmContacts } from '$lib/server/schema';
@@ -78,7 +79,7 @@ export const actions = {
             await inngest.send({ name: 'cs/ticket.created', data: { unitId: unit.id, slug, subject, priority } });
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal buat tiket: ' + err.message });
+            return fail(500, { error: 'Gagal buat tiket: ' + pesanAman(err) });
         }
     },
 

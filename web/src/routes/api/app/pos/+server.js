@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { posOrders, posOrderItems, posCustomers, products, productVariants, transaksi, riwayatAksi, chartOfAccounts, journalEntries, journalEntryLines, posShifts, posPayments, unitBisnis, employees, vouchers } from '$lib/server/schema';
 import { eq, and, desc, isNull, isNotNull, sql } from 'drizzle-orm';
@@ -310,7 +311,7 @@ export async function POST({ request, cookies }) {
                     izinkanStokKurang: true
                 });
             } catch (e) {
-                if (e instanceof PosError) return json({ success: false, message: e.message }, { status: e.status });
+                if (e instanceof PosError) return json({ success: false, message: pesanAman(e) }, { status: e.status });
                 // order_number unik: kiriman ulang dari antrean offline tidak boleh tercatat dua kali
                 if (/** @type {any} */ (e)?.code === 'ER_DUP_ENTRY' || /Duplicate entry/i.test(String(/** @type {any} */ (e)?.message))) {
                     return json({ success: false, message: 'Transaksi dengan nomor ini sudah tercatat' }, { status: 409 });
@@ -447,6 +448,6 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.pos.error({ err }, 'API POST POS ERROR');
-        return json({ success: false, message: "Gagal memproses POS: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal memproses POS: " + pesanAman(err) }, { status: 500 });
     }
 }

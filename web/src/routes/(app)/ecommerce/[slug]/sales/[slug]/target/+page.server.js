@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, salesTargets, crmDeals, users } from '$lib/server/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -81,7 +82,7 @@ export const actions = {
             }
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal set target: ' + err.message });
+            return fail(500, { error: 'Gagal set target: ' + pesanAman(err) });
         }
     }
 };

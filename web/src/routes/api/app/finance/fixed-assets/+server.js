@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { fixedAssets, riwayatAksi, transaksi } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -120,7 +121,7 @@ export async function PUT({ request, cookies }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Aset tetap diperbarui', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Aset tetap berhasil diperbarui' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'PUT fixed-assets/+server.js');
         return json({ success: false, message: 'Gagal memperbarui aset tetap' }, { status: 500 });
     }
@@ -138,7 +139,7 @@ export async function DELETE({ url, cookies, request }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Aset tetap dihapus', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Aset tetap berhasil dihapus' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'DELETE fixed-assets/+server.js');
         return json({ success: false, message: 'Gagal menghapus aset tetap' }, { status: 500 });
     }

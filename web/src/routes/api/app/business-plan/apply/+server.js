@@ -14,6 +14,7 @@
  * 9. Budget awal (opsional)
  */
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
@@ -254,7 +255,7 @@ export async function POST({ request, cookies }) {
 
   } catch (err) {
     log.planning.error({ err }, '[BusinessPlan Apply]');
-    return apiError('Gagal apply plan: ' + err.message, 500);
+    return apiError('Gagal apply plan: ' + pesanAman(err), 500);
   }
 }
 

@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, marketingLeads, landingPages, crmContacts, crmDeals } from '$lib/server/schema';
@@ -115,7 +116,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal transfer ke CRM: ' + err.message });
+            return fail(500, { error: 'Gagal transfer ke CRM: ' + pesanAman(err) });
         }
     }
 };

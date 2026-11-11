@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
@@ -53,7 +54,7 @@ export async function POST({ request, cookies, url }) {
 		}
 		return json({ success: true, message: `${file.recordCount} data siap diunduh`, data: hasil });
 	} catch (err) {
-		if (err instanceof ImporEksporError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof ImporEksporError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.api.error({ err }, 'POST app/export');
 		return json({ success: false, message: 'Gagal membuat file export' }, { status: 500 });
 	}

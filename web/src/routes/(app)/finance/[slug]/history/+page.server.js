@@ -1,4 +1,5 @@
 import { versiCache, tandaiBerubah } from '$lib/server/cacheVersi';
+import { pesanAman } from '$lib/server/pesanAman';
 import { TransaksiError } from '$lib/server/catatTransaksi';
 import { error, fail } from '@sveltejs/kit';
 import { hapusTransaksi } from '$lib/server/hapusTransaksi';
@@ -143,7 +144,7 @@ export const actions = {
                 message: `"${namaTerhapus.toUpperCase()}" BERHASIL DIHAPUS!` 
             };
         } catch (e) {
-            if (e?.name === 'TransaksiError') return fail(e.status || 400, { message: e.message });
+            if (e?.name === 'TransaksiError') return fail(e.status || 400, { message: pesanAman(e) });
             log.finance.error({ err: e instanceof Error ? e.message : String(e) }, 'Delete Error');
             return fail(500, { message: "Gagal memproses sinkronisasi data" });
         }

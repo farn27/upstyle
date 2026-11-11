@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { fixedAssets, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -88,7 +89,7 @@ export const actions = {
             await ubahAset(db, unit.id, Number(id), { ...isi, coaId: isi.coaId || null, nilaiSisa: isi.nilaiSisa || 0, status: isi.status || 'AKTIF' });
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Edit Asset Error');
             return fail(500, { error: 'Gagal mengubah aset' });
         }
@@ -105,7 +106,7 @@ export const actions = {
             await hapusAset(db, unit.id, Number(data.get('id')));
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Delete Asset Error');
             return fail(500, { error: 'Gagal menghapus aset' });
         }

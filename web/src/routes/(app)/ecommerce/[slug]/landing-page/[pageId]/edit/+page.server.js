@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, landingPages, products } from '$lib/server/schema';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -54,7 +55,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal menyimpan: ' + err.message });
+            return fail(500, { error: 'Gagal menyimpan: ' + pesanAman(err) });
         }
     },
 

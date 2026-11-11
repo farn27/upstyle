@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { marketingCampaigns, marketingLeads, adTrackers, landingPages, riwayatAksi, crmContacts } from '$lib/server/schema';
 import { eq, and, desc, sql, inArray, asc } from 'drizzle-orm';
@@ -335,7 +336,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST marketing error');
-        return json({ success: false, message: 'Gagal memproses marketing: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses marketing: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

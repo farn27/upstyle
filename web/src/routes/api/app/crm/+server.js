@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { crmDeals, crmContacts, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc, sql, or, like, inArray } from 'drizzle-orm';
@@ -204,10 +205,10 @@ export async function POST({ request, cookies }) {
         return json({ success: true, message: "Deal berhasil ditambahkan", id: dealId });
     } catch (err) {
         if (err instanceof Error && err.message.startsWith('Kontak tidak ditemukan')) {
-            return json({ success: false, message: err.message }, { status: 404 });
+            return json({ success: false, message: pesanAman(err) }, { status: 404 });
         }
         log.crm.error({ err }, 'API POST CRM ERROR');
-        return json({ success: false, message: "Gagal menambahkan deal: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal menambahkan deal: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -267,7 +268,7 @@ export async function PUT({ request, cookies }) {
         return json({ success: true, message: stage ? "Stage deal berhasil diperbarui" : "Deal berhasil diperbarui" });
     } catch (err) {
         log.crm.error({ err }, 'API PUT CRM ERROR');
-        return json({ success: false, message: "Gagal memperbarui deal: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal memperbarui deal: " + pesanAman(err) }, { status: 500 });
     }
 }
 

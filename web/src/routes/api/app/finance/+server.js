@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines, abcCategories } from '$lib/server/schema';
@@ -276,7 +277,7 @@ export async function GET({ url, cookies, request }) {
 
     } catch (err) {
         log.finance.error({ err }, 'API GET FINANCE ERROR');
-        return json({ success: false, message: "Gagal mengambil data keuangan: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal mengambil data keuangan: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -351,10 +352,10 @@ export async function POST({ request, cookies }) {
         return json({ success: true, message: "Transaksi berhasil disimpan", data: { id: hasil.trxId, journalId: hasil.journalId } });
     } catch (err) {
         if (err instanceof TransaksiError) {
-            return json({ success: false, message: err.message }, { status: err.status });
+            return json({ success: false, message: pesanAman(err) }, { status: err.status });
         }
         log.finance.error({ err }, 'API POST FINANCE ERROR');
-        return json({ success: false, message: "Gagal menyimpan transaksi: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal menyimpan transaksi: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -420,7 +421,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: `"${namaTerhapus.toUpperCase()}" berhasil dihapus` });
     } catch (err) {
-        if (err instanceof TransaksiError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof TransaksiError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.finance.error({ err }, 'API DELETE FINANCE ERROR');
         return json({ success: false, message: "Gagal menghapus transaksi" }, { status: 500 });
     }

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { receivables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -71,7 +72,7 @@ export async function POST({ request, cookies, url }) {
 
 		return json({ success: true, message: 'Piutang berhasil dibuat', data: { id: hasil.id } });
 	} catch (err) {
-		if (err instanceof PiutangError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof PiutangError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.finance.error({ err }, 'API POST RECEIVABLE ERROR');
 		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
 	}
@@ -122,7 +123,7 @@ export async function PUT({ request, cookies }) {
 			}
 		});
 	} catch (err) {
-		if (err instanceof PiutangError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof PiutangError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.finance.error({ err }, 'API PUT RECEIVABLE ERROR');
 		return json({ success: false, message: 'Terjadi kesalahan server' }, { status: 500 });
 	}

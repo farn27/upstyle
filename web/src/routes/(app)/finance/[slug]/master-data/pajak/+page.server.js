@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { taxRates, chartOfAccounts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -87,7 +88,7 @@ export const actions = {
             });
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Edit Tax Error');
             return fail(500, { error: 'Gagal merubah pajak' });
         }
@@ -104,7 +105,7 @@ export const actions = {
             await hapusPajak(db, unit.id, Number(data.get('id')));
             return { success: true };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status, { error: err.message });
+            if (err instanceof MasterDataError) return fail(err.status, { error: pesanAman(err) });
             log.finance.error({ err }, 'Delete Tax Error');
             return fail(500, { error: 'Gagal menghapus pajak' });
         }

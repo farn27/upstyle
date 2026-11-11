@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { closingPeriods, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
@@ -58,7 +59,7 @@ export const actions = {
 
             return { success: true, message: `Periode pembukuan berhasil dikunci!` };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     }
 };

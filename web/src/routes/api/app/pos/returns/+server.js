@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { posReturns } from '$lib/server/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -63,7 +64,7 @@ export async function POST({ request, cookies }) {
             data: { returnId: result.returnId, returnNumber: result.returnNumber, totalRefund: result.totalRefund }
         });
     } catch (err) {
-        if (err instanceof ReturError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof ReturError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.pos.error({ err }, 'API POST POS RETURNS ERROR');
         return json({ success: false, message: "Gagal membuat retur POS" }, { status: 500 });
     }

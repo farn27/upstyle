@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, landingPages, products } from '$lib/server/schema';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -166,7 +167,7 @@ export const actions = {
             return { success: true, message: 'Landing page berhasil dibuat! Sekarang kamu bisa edit kontennya.' };
         } catch (err) {
             if (err.code === 'ER_DUP_ENTRY') return fail(400, { error: 'Slug URL sudah digunakan, coba yang lain' });
-            return fail(500, { error: 'Gagal membuat halaman: ' + err.message });
+            return fail(500, { error: 'Gagal membuat halaman: ' + pesanAman(err) });
         }
     },
 

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$lib/server/schema';
 import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm';
@@ -84,7 +85,7 @@ export async function GET({ url, cookies, request }) {
     } catch (err) {
         if (log?.finance?.error) log.finance.error({ err }, 'API GET Journal Error');
         else if (log?.error) log.error({ err }, 'API GET Journal Error');
-        return json({ success: false, message: 'Gagal mengambil data jurnal: ' + err.message, data: null }, { status: 500 });
+        return json({ success: false, message: 'Gagal mengambil data jurnal: ' + pesanAman(err), data: null }, { status: 500 });
     }
 }
 
@@ -107,7 +108,7 @@ export async function POST({ request, cookies, url }) {
         });
 
     } catch (err) {
-        if (err?.name === 'TransaksiError') return json({ success: false, message: err.message, data: null }, { status: err.status || 400 });
+        if (err?.name === 'TransaksiError') return json({ success: false, message: pesanAman(err), data: null }, { status: err.status || 400 });
         if (log?.finance?.error) log.finance.error({ err }, 'API POST Journal Error');
         else if (log?.error) log.error({ err }, 'API POST Journal Error');
         return json({ success: false, message: 'Gagal membuat jurnal', data: null }, { status: 500 });

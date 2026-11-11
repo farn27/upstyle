@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts, transaksi } from '$lib/server/schema';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
@@ -34,7 +35,7 @@ export async function GET({ url, cookies, request }) {
     } catch (err) {
         if (log?.finance?.error) log.finance.error({ err }, 'API GET COA Error');
         else if (log?.error) log.error({ err }, 'API GET COA Error');
-        return json({ success: false, message: 'Gagal mengambil data COA: ' + err.message, data: null }, { status: 500 });
+        return json({ success: false, message: 'Gagal mengambil data COA: ' + pesanAman(err), data: null }, { status: 500 });
     }
 }
 
@@ -68,7 +69,7 @@ export async function POST({ request, cookies }) {
                 const jumlah = await isiCoaStandar(db, Number(body.unitId), body.type);
                 return json({ success: true, message: `${jumlah} akun COA standar dibuat`, data: { created: jumlah } });
             } catch (e) {
-                if (e instanceof MasterDataError) return json({ success: false, message: e.message, data: { pilihan: TIPE_COA } }, { status: e.status });
+                if (e instanceof MasterDataError) return json({ success: false, message: pesanAman(e), data: { pilihan: TIPE_COA } }, { status: e.status });
                 throw e;
             }
         }
@@ -92,7 +93,7 @@ export async function POST({ request, cookies }) {
                 });
                 return json({ success: true, message: `${jumlah} akun COA dibuat oleh AI`, data: { created: jumlah } });
             } catch (e) {
-                if (e instanceof MasterDataError) return json({ success: false, message: e.message, data: null }, { status: e.status });
+                if (e instanceof MasterDataError) return json({ success: false, message: pesanAman(e), data: null }, { status: e.status });
                 throw e;
             }
         }
@@ -160,7 +161,7 @@ export async function POST({ request, cookies }) {
     } catch (err) {
         if (log?.finance?.error) log.finance.error({ err }, 'API POST COA Error');
         else if (log?.error) log.error({ err }, 'API POST COA Error');
-        return json({ success: false, message: 'Gagal membuat COA: ' + err.message, data: null }, { status: 500 });
+        return json({ success: false, message: 'Gagal membuat COA: ' + pesanAman(err), data: null }, { status: 500 });
     }
 }
 
@@ -207,7 +208,7 @@ export async function PUT({ request, cookies }) {
     } catch (err) {
         if (log?.finance?.error) log.finance.error({ err }, 'API PUT COA Error');
         else if (log?.error) log.error({ err }, 'API PUT COA Error');
-        return json({ success: false, message: 'Gagal memperbarui COA: ' + err.message, data: null }, { status: 500 });
+        return json({ success: false, message: 'Gagal memperbarui COA: ' + pesanAman(err), data: null }, { status: 500 });
     }
 }
 
@@ -239,6 +240,6 @@ export async function DELETE({ url, cookies, request }) {
     } catch (err) {
         if (log?.finance?.error) log.finance.error({ err }, 'API DELETE COA Error');
         else if (log?.error) log.error({ err }, 'API DELETE COA Error');
-        return json({ success: false, message: 'Gagal menonaktifkan COA: ' + err.message, data: null }, { status: 500 });
+        return json({ success: false, message: 'Gagal menonaktifkan COA: ' + pesanAman(err), data: null }, { status: 500 });
     }
 }

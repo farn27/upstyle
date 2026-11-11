@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { salesTargets, salesCommissions, salesOrders, riwayatAksi, users } from '$lib/server/schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
@@ -265,7 +266,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST sales/targets error');
-        return json({ success: false, message: 'Gagal memproses target sales: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses target sales: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

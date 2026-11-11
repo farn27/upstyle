@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, kategoriProduk, riwayatAksi, employees, attendance, leaveRequests, payrolls, users } from '$lib/server/schema';
 import { eq, desc, and, sql, inArray } from 'drizzle-orm';
@@ -110,7 +111,7 @@ export async function POST({ request, cookies }) {
         return json({ success: true, message: "Berhasil disimpan", data: { id: unit.id, slug: unit.slug } });
 
     } catch (err) {
-        if (err instanceof UnitError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof UnitError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'API POST BUSINESS ERROR');
         return json({ success: false, message: "Gagal menyimpan data" }, { status: 500 });
     }
@@ -292,6 +293,6 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'API PUT BUSINESS ERROR');
-        return json({ success: false, message: 'Gagal memperbarui data bisnis: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memperbarui data bisnis: ' + pesanAman(err) }, { status: 500 });
     }
 }

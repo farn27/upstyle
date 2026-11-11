@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { accountingContacts, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -130,7 +131,7 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'PUT finance/contacts');
-        return json({ success: false, message: 'Gagal memperbarui kontak: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memperbarui kontak: ' + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -173,6 +174,6 @@ export async function DELETE({ url, cookies, request }) {
 
     } catch (err) {
         log.api.error({ err }, 'DELETE finance/contacts');
-        return json({ success: false, message: 'Gagal menghapus kontak: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal menghapus kontak: ' + pesanAman(err) }, { status: 500 });
     }
 }

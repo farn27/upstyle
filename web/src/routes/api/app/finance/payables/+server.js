@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { payables, accountingContacts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -124,7 +125,7 @@ export async function PUT({ request, cookies }) {
 			try {
 				await bayarTagihan(db, { unitId: payable.unitId, userId }, payable.id, { nominal: bayar, kasCoaId });
 			} catch (e) {
-				if (e instanceof PengadaanError) return json({ success: false, message: e.message }, { status: e.status });
+				if (e instanceof PengadaanError) return json({ success: false, message: pesanAman(e) }, { status: e.status });
 				throw e;
 			}
 			return json({ success: true, message: 'Pembayaran hutang berhasil dicatat' });

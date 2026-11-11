@@ -1,4 +1,5 @@
 import { json, isHttpError } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { log } from '$lib/server/logger.js';
 import { resolvePosUnitAccess } from '$lib/server/posAuth';
@@ -65,7 +66,7 @@ export async function POST({ request, cookies, params, locals }) {
             change: hasil.change
         });
     } catch (err) {
-        if (err instanceof PosError) return json({ error: err.message }, { status: err.status });
+        if (err instanceof PosError) return json({ error: pesanAman(err) }, { status: err.status });
         if (isHttpError(err)) return json({ error: err.body?.message || 'Akses ditolak' }, { status: err.status });
         log.pos.error({ err: err instanceof Error ? err.message : String(err) }, 'POS transaction error');
         return json({ error: 'Transaksi gagal diproses. Coba lagi.' }, { status: 500 });

@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { buatJurnalManual } from '$lib/server/jurnalManual';
 import { db } from '$lib/server/drizzle';
 import { journalEntries, journalEntryLines, chartOfAccounts } from '$lib/server/schema';
@@ -123,7 +124,7 @@ export const actions = {
             const jurnal = await buatJurnalManual(db, { unitId: unit.id, userId, tanggal: String(tanggal || ''), memo: memo ? String(memo) : null, referensi: referensi ? String(referensi) : null, lines });
             return { success: true, nomorJurnal: jurnal.nomorJurnal };
         } catch (err) {
-            if (err instanceof Error && err.name === 'TransaksiError') return fail(/** @type {any} */ (err).status || 400, { error: err.message });
+            if (err instanceof Error && err.name === 'TransaksiError') return fail(/** @type {any} */ (err).status || 400, { error: pesanAman(err) });
             console.error('Manual Journal Error:', err instanceof Error ? err.message : err);
             return fail(500, { error: 'Gagal menyimpan jurnal manual' });
         }

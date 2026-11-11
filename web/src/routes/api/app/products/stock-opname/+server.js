@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { stockOpname, stockOpnameItems, products } from '$lib/server/schema';
 import { prosesOpname } from '$lib/server/stokOpname';
@@ -56,7 +57,7 @@ export async function POST({ request, cookies }) {
         const hasil = await prosesOpname(db, { unitId, userId, notes: body?.notes, items: body?.items });
         return json({ success: true, message: `Stok opname selesai — ${hasil.selisih} produk disesuaikan`, data: hasil });
     } catch (err) {
-        if (err instanceof TransaksiError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof TransaksiError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'POST products/stock-opname');
         return json({ success: false, message: 'Gagal proses stok opname' }, { status: 500 });
     }

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
@@ -15,7 +16,7 @@ export async function GET({ url, cookies, request }) {
 	try {
 		return json({ success: true, data: await ambilPengaturanToko(db, unitId) });
 	} catch (err) {
-		if (err instanceof TokoError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof TokoError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.api.error({ err }, 'GET ecommerce/settings');
 		return json({ success: false, message: 'Gagal memuat pengaturan toko' }, { status: 500 });
 	}
@@ -33,7 +34,7 @@ export async function PUT({ request, cookies }) {
 		const data = await simpanPengaturanToko(db, unitId, isi);
 		return json({ success: true, message: 'Pengaturan toko berhasil diperbarui', data });
 	} catch (err) {
-		if (err instanceof TokoError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof TokoError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.api.error({ err }, 'PUT ecommerce/settings');
 		return json({ success: false, message: 'Gagal memperbarui pengaturan toko' }, { status: 500 });
 	}

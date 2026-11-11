@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { accountingContacts, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
@@ -62,7 +63,7 @@ export const actions = {
 
             return { success: true, message: `Kontak "${namaKontak}" berhasil didaftarkan!` };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 
@@ -97,7 +98,7 @@ export const actions = {
 
             return { success: true, message: `Kontak "${namaKontak}" berhasil diperbarui!` };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 

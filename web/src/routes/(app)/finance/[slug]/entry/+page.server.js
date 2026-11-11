@@ -1,4 +1,5 @@
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { transaksi, unitBisnis, products, chartOfAccounts, journalEntries, journalEntryLines, riwayatAksi } from '$lib/server/schema';
 import { eq, and, or, isNull } from 'drizzle-orm';
@@ -217,7 +218,7 @@ export const actions = {
 			};
 		} catch (err) {
 			console.error(err);
-			return fail(400, { message: err.message });
+			return fail(400, { message: pesanAman(err) });
 		}
 	}
 };

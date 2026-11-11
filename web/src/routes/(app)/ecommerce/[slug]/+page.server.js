@@ -1,4 +1,5 @@
 import { domainSlugUnik } from '$lib/server/unitBaru';
+import { pesanAman } from '$lib/server/pesanAman';
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, ecommerceSettings, ecommerceOrders } from '$lib/server/schema';
@@ -103,7 +104,7 @@ export const actions = {
             });
             return { success: true, message: 'Pengaturan toko berhasil diperbarui!' };
         } catch (err) {
-            if (err instanceof TokoError) return fail(err.status, { error: err.message });
+            if (err instanceof TokoError) return fail(err.status, { error: pesanAman(err) });
             console.error("UPDATE STORE SETTINGS ERROR:", err);
             return fail(500, { error: 'Gagal memperbarui pengaturan toko.' });
         }

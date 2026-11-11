@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, crmDeals, crmContacts } from '$lib/server/schema';
@@ -105,7 +106,7 @@ export const actions = {
             pusherServer.trigger(`unit-${unit.id}`, 'pipeline-updated', { action: 'create' }).catch(() => {});
             return { success: true };
         } catch (err) {
-            return fail(500, { error: 'Gagal buat deal: ' + err.message });
+            return fail(500, { error: 'Gagal buat deal: ' + pesanAman(err) });
         }
     },
 

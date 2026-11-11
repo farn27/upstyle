@@ -3,6 +3,7 @@
  * Generate slip gaji HTML untuk karyawan tertentu
  */
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { employees, unitBisnis, payrolls, salaryComponents } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
@@ -84,6 +85,6 @@ export async function GET({ params, url, cookies, request, locals }) {
 		});
 	} catch (err) {
 		log.api.error({ err }, '[SlipGaji] Error');
-		return apiError('Gagal generate slip gaji: ' + err.message, 500);
+		return apiError('Gagal generate slip gaji: ' + pesanAman(err), 500);
 	}
 }

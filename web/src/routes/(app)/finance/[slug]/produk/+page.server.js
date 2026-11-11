@@ -1,4 +1,5 @@
 import { versiCache } from '$lib/server/cacheVersi';
+import { pesanAman } from '$lib/server/pesanAman';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle'; 
 import { products, kategoriProduk, unitBisnis, stockLogs, productVariants } from '$lib/server/schema'; 
@@ -250,7 +251,7 @@ export const actions = {
 
         } catch (err) {
             log.api.error({ err: err.message }, 'Produk createProduct: DB error');
-            return fail(500, { message: "Gagal menyimpan data ke Database", error: err.message });
+            return fail(500, { message: "Gagal menyimpan data ke Database", error: pesanAman(err) });
         }
     }
 };

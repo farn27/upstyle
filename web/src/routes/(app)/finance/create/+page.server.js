@@ -1,4 +1,5 @@
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { unitBisnis, kategoriProduk, riwayatAksi } from '$lib/server/schema';
 import { eq, and, or, isNull, asc, sql } from 'drizzle-orm';
 import { redirect, error } from '@sveltejs/kit';
@@ -106,11 +107,11 @@ throw redirect(303, `/finance?sorot=${unitId}&pesan=${encodeURIComponent(pesanTo
             // Error Handling untuk Data Truncated
             if (err.code === 'WARN_DATA_TRUNCATED' || err.errno === 1265) {
                 log.api.error({ err }, '❌ DB ERROR: Data truncated.');
-                throw error(500, `Database error: Data truncated/kurang lebar. Detail: ${err.message || err}`);
+                throw error(500, `Database error: Data truncated/kurang lebar. Detail: ${pesanAman(err, '') || err}`);
             }
 
             log.api.error({ err }, '❌ GAGAL SIMPAN:');
-            throw error(500, err.code === 'ER_DUP_ENTRY' ? `Nama unit "${nama_unit}" sudah ada.` : `Gagal menyimpan unit: ${err.message}`);
+            throw error(500, err.code === 'ER_DUP_ENTRY' ? `Nama unit "${nama_unit}" sudah ada.` : `Gagal menyimpan unit: ${pesanAman(err)}`);
         }
     }
 };

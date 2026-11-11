@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { vouchers, riwayatAksi, marketingCampaigns } from '$lib/server/schema';
 import { eq, and, desc, or, sql } from 'drizzle-orm';
@@ -311,7 +312,7 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'PUT pos/vouchers');
-        return json({ success: false, message: 'Gagal memproses voucher: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses voucher: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

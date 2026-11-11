@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { approvalRequests, approvalLogs, employees, riwayatAksi, transaksi } from '$lib/server/schema';
@@ -241,7 +242,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST hr/approvals error');
-        return json({ success: false, message: 'Gagal membuat approval request: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal membuat approval request: ' + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -396,7 +397,7 @@ export async function PUT({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'PUT hr/approvals error');
-        return json({ success: false, message: 'Gagal memproses approval: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses approval: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

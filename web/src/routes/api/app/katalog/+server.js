@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { nowSqlWIB } from '$lib/server/dateUtils';
 import { db } from '$lib/server/drizzle';
 import { products, riwayatAksi, unitBisnis, websiteSettings } from '$lib/server/schema';
@@ -172,7 +173,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.api.error({ err }, 'POST katalog error');
-        return json({ success: false, message: 'Gagal memproses katalog: ' + err.message }, { status: 500 });
+        return json({ success: false, message: 'Gagal memproses katalog: ' + pesanAman(err) }, { status: 500 });
     }
 }
 

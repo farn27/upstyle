@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { unitMilikUser } from '$lib/server/apiUnitGuard';
@@ -109,8 +110,8 @@ export async function POST({ request, cookies }) {
 		}
 		return json({ success: true, message: 'Berhasil' });
 	} catch (err) {
-		if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.scm.error({ err }, 'API POST SCM PO');
-		return json({ success: false, message: 'Gagal memproses PO: ' + err.message }, { status: 500 });
+		return json({ success: false, message: 'Gagal memproses PO: ' + pesanAman(err) }, { status: 500 });
 	}
 }

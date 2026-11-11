@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { suppliers, purchaseOrders, purchaseOrderItems, products, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -98,7 +99,7 @@ export async function GET({ url, cookies, request }) {
 
     } catch (err) {
         log.scm.error({ err }, 'API GET SCM ERROR');
-        return json({ success: false, message: "Gagal mengambil data SCM: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal mengambil data SCM: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -201,9 +202,9 @@ export async function POST({ request, cookies }) {
         return json({ success: false, message: "Aksi tidak dikenali" }, { status: 400 });
 
     } catch (err) {
-        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.scm.error({ err }, 'API POST SCM ERROR');
-        return json({ success: false, message: "Gagal membuat SCM: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal membuat SCM: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -244,9 +245,9 @@ export async function PUT({ request, cookies }) {
 
         return json({ success: true, message: `Status PO berhasil diubah menjadi ${status}` });
     } catch (err) {
-        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.scm.error({ err }, 'API PUT SCM ERROR');
-        return json({ success: false, message: "Gagal memperbarui PO: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal memperbarui PO: " + pesanAman(err) }, { status: 500 });
     }
 }
 
@@ -275,7 +276,7 @@ export async function DELETE({ url, cookies, request }) {
 
         return json({ success: true, message: "Supplier berhasil dihapus" });
     } catch (err) {
-        if (err instanceof PengadaanError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof PengadaanError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.scm.error({ err }, 'API DELETE SCM ERROR');
         return json({ success: false, message: "Gagal menghapus supplier" }, { status: 500 });
     }

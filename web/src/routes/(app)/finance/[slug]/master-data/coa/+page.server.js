@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { chartOfAccounts, unitBisnis } from '$lib/server/schema';
 import { eq, and, asc, sql } from 'drizzle-orm';
@@ -79,7 +80,7 @@ export const actions = {
             return { success: true, message: `Akun "${namaAkun}" berhasil ditambahkan!` };
         } catch (err) {
             log.finance.error({ err }, 'Add COA Error');
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 
@@ -114,7 +115,7 @@ export const actions = {
 
             return { success: true, message: `Akun "${namaAkun}" berhasil diperbarui!` };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 
@@ -174,12 +175,12 @@ export const actions = {
             try {
                 await isiCoaStandar(db, unit.id, type);
             } catch (e) {
-                if (e instanceof MasterDataError) return fail(e.status === 409 ? 400 : e.status, { message: e.message });
+                if (e instanceof MasterDataError) return fail(e.status === 409 ? 400 : e.status, { message: pesanAman(e) });
                 throw e;
             }
             return { success: true, message: 'COA Standard berhasil dibuat jeh!' };
         } catch (err) {
-            return fail(500, { message: err.message });
+            return fail(500, { message: pesanAman(err) });
         }
     },
 
@@ -213,9 +214,9 @@ export const actions = {
             });
             return { success: true, message: `${jumlah} akun COA berhasil dibuat oleh AI!` };
         } catch (err) {
-            if (err instanceof MasterDataError) return fail(err.status === 409 ? 400 : err.status, { message: err.message });
+            if (err instanceof MasterDataError) return fail(err.status === 409 ? 400 : err.status, { message: pesanAman(err) });
             log.ai.error({ err }, 'AI Error generate COA');
-            return fail(500, { message: 'Gagal generate AI: ' + err.message });
+            return fail(500, { message: 'Gagal generate AI: ' + pesanAman(err) });
         }
     }
 };

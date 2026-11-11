@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { taxRates, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -68,7 +69,7 @@ export async function PUT({ request, cookies }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Pajak diperbarui', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Pajak berhasil diperbarui' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'PUT tax-rates/+server.js');
         return json({ success: false, message: 'Gagal memperbarui pajak' }, { status: 500 });
     }
@@ -86,7 +87,7 @@ export async function DELETE({ url, cookies, request }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Pajak dihapus', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Pajak berhasil dihapus' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'DELETE tax-rates/+server.js');
         return json({ success: false, message: 'Gagal menghapus pajak' }, { status: 500 });
     }

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { budgetItems, chartOfAccounts, riwayatAksi, journalEntries, journalEntryLines } from '$lib/server/schema';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
@@ -102,7 +103,7 @@ export async function DELETE({ url, cookies, request }) {
         await db.insert(riwayatAksi).values({ userId, unitId, pesan: 'Anggaran dihapus', kategori: 'FINANCE', tipe: 'info' });
         return json({ success: true, message: 'Anggaran berhasil dihapus' });
     } catch (err) {
-        if (err instanceof MasterDataError) return json({ success: false, message: err.message }, { status: err.status });
+        if (err instanceof MasterDataError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
         log.api.error({ err }, 'DELETE budget/+server.js');
         return json({ success: false, message: 'Gagal menghapus anggaran' }, { status: 500 });
     }

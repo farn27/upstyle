@@ -1,4 +1,5 @@
 import { db } from '$lib/server/drizzle';
+import { pesanAman } from '$lib/server/pesanAman';
 import { unitBisnis, products, kategoriProduk, posCustomers, posShifts, posCashTransactions } from '$lib/server/schema';
 import { eq, and, or, asc, desc, sql, isNull } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
@@ -310,7 +311,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return { success: false, error: pesanAman(err) };
         }
     },
     cashManagement: async ({ request, cookies, params, locals }) => {
@@ -361,7 +362,7 @@ export const actions = {
 
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return { success: false, error: pesanAman(err) };
         }
     }
 };

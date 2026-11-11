@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { vouchers, unitBisnis } from '$lib/server/schema';
 import { eq, and } from 'drizzle-orm';
@@ -57,6 +58,6 @@ export async function POST({ request, cookies, params, locals }) {
             }
         });
     } catch (e) {
-        return json({ error: e.message }, { status: 500 });
+        return json({ error: pesanAman(e) }, { status: 500 });
     }
 }

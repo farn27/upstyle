@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { kategoriProduk, products } from '$lib/server/schema';
 import { eq, and, sql } from 'drizzle-orm';
@@ -79,7 +80,7 @@ export async function POST({ request, cookies }) {
         });
     } catch (err) {
         log.api.error({ err }, 'API POST CATEGORY ERROR');
-        return json({ success: false, message: "Gagal membuat kategori: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal membuat kategori: " + pesanAman(err) }, { status: 500 });
     }
 }
 

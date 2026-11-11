@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { redis } from '$lib/server/redis';
@@ -23,7 +24,7 @@ export async function POST({ url, request, cookies }) {
 		await bersihkanCacheProduk(db, redis, unitId);
 		return json({ success: true, message: `${restored} produk dikembalikan`, data: { restored } });
 	} catch (err) {
-		if (err instanceof MassalError) return json({ success: false, message: err.message }, { status: err.status });
+		if (err instanceof MassalError) return json({ success: false, message: pesanAman(err) }, { status: err.status });
 		log.api.error({ err }, 'POST products/bulk/rollback');
 		return json({ success: false, message: 'Gagal rollback edit massal' }, { status: 500 });
 	}
