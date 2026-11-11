@@ -1,5 +1,4 @@
 import { Server } from 'socket.io';
-import { Redis } from '@upstash/redis';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -9,8 +8,6 @@ import { createHmac, timingSafeEqual } from 'crypto';
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const SOCKET_API_KEY = process.env.SOCKET_API_KEY;
 
 if (!SOCKET_API_KEY || SOCKET_API_KEY.length < 32) {
@@ -71,7 +68,7 @@ const isAllowedOrigin = (origin) =>
   !origin || ALLOWED_ORIGINS.includes(origin) || LOCALHOST_ORIGIN.test(origin);
 
 app.use(cors({ origin: (origin, cb) => cb(null, isAllowedOrigin(origin)), credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 
 const httpServer = createServer(app);
 
@@ -88,12 +85,6 @@ const io = new Server(httpServer, {
   pingInterval: 25000
 });
 
-const redisPublisher = new Redis({
-  url: UPSTASH_REDIS_REST_URL,
-  token: UPSTASH_REDIS_REST_TOKEN
-});
-
-console.log('✅ Redis clients initialized');
 
 // unitId diambil dari token yang ditandatangani web, BUKAN dari kiriman client
 io.use((socket, next) => {
@@ -120,17 +111,9 @@ io.on('connection', (socket) => {
     timestamp: new Date().toISOString()
   });
 
-  socket.on('pos-transaction', (data) => {
-    io.to(unitRoom).emit('pos-transaction', { ...data, timestamp: new Date().toISOString() });
-  });
-
-  socket.on('stock-updated', (data) => {
-    io.to(unitRoom).emit('stock-updated', { ...data, timestamp: new Date().toISOString() });
-  });
-
-  socket.on('stock-alert', (data) => {
-    io.to(unitRoom).emit('stock-alert', { ...data, timestamp: new Date().toISOString() });
-  });
+  // Event bisnis (pos-transaction, stock-updated, notification, …) HANYA dikirim server web lewat POST /emit
+  // (berkunci SOCKET_API_KEY). Dulu event yang dipancarkan klien diteruskan ke seluruh room unit, sehingga
+  // pemegang token mana pun (termasuk staf) bisa menyiarkan notifikasi/transaksi palsu ke semua layar unit.
 
   // Room tiket di-scope per unit: user unit lain otomatis masuk room berbeda
   const ticketRoom = (ticketId) => {
@@ -152,27 +135,6 @@ io.on('connection', (socket) => {
     socket.emit('left-ticket', { ticketId: Number(ticketId) });
   });
 
-  socket.on('ticket-message', (data) => {
-    const room = ticketRoom(data?.ticketId);
-    if (!room) return;
-    io.to(room).emit('ticket-message', {
-      ...data,
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  socket.on('pos-cash-alert', (data) => {
-    io.to(unitRoom).emit('pos-cash-alert', { ...data, timestamp: new Date().toISOString() });
-  });
-
-  socket.on('notification', (data) => {
-    io.to(unitRoom).emit('notification', { ...data, timestamp: new Date().toISOString() });
-  });
-
-  socket.on('order-status-changed', (data) => {
-    io.to(unitRoom).emit('order-status-changed', { ...data, timestamp: new Date().toISOString() });
-  });
-
   socket.on('disconnect', (reason) => {
     console.log(`🔌 Client disconnected: ${socket.id} (${reason})`);
   });
@@ -192,9 +154,9 @@ app.post('/emit', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { room, event, data } = req.body;
-  if (!room || !event) {
-    return res.status(400).json({ error: 'Missing room or event' });
+  const { room, event, data } = req.body || {};
+  if (typeof room !== 'string' || typeof event !== 'string' || !/^unit-\d+(:ticket-\d+)?$/.test(room)) {
+    return res.status(400).json({ error: 'Missing or invalid room / event' });
   }
 
   io.to(room).emit(event, data);
