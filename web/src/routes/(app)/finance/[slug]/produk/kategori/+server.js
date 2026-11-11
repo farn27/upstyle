@@ -14,25 +14,27 @@ export async function POST({ request, cookies, params }) {
         const { newKategoriName } = body;
         const unitSlug = params.slug;
 
-        if (!newKategoriName) {
+        if (!newKategoriName || typeof newKategoriName !== 'string' || !newKategoriName.trim()) {
             return json({ error: "Nama kategori tidak boleh kosong" }, { status: 400 });
         }
 
-        const cleanName = newKategoriName.trim().toUpperCase();
+        const cleanName = newKategoriName.trim().toUpperCase().slice(0, 100);
         
         let finalKategoriId;
 
         await db.transaction(async (tx) => {
+            // Unit harus milik user yang login (dulu cukup slug → bisa menambah kategori di unit orang)
             const unit = await tx.query.unitBisnis.findFirst({
-                where: eq(unitBisnis.slug, unitSlug)
+                where: and(eq(unitBisnis.slug, unitSlug), eq(unitBisnis.userId, userId))
             });
 
             if (!unit) {
                 throw new Error("Unit tidak ditemukan");
             }
 
+            // Kategori dicari DI UNIT INI saja (dulu tanpa unit → bisa mengembalikan id kategori unit lain)
             const existing = await tx.query.kategoriProduk.findFirst({
-                where: eq(kategoriProduk.namaKategori, cleanName)
+                where: and(eq(kategoriProduk.namaKategori, cleanName), eq(kategoriProduk.unitId, unit.id))
             });
 
             if (existing) {
@@ -54,6 +56,7 @@ export async function POST({ request, cookies, params }) {
 
     } catch (error) {
         log.api.error({ err: error.message }, '[kategori] Gagal simpan kategori');
-        return json({ error: error.message }, { status: 500 });
+        const tidakAda = error.message === 'Unit tidak ditemukan';
+        return json({ error: tidakAda ? error.message : 'Gagal menyimpan kategori' }, { status: tidakAda ? 404 : 500 });
     }
 }

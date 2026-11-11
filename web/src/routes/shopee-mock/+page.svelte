@@ -15,7 +15,14 @@
         const code = 'mock_auth_code_' + Math.random().toString(36).substring(7);
         
         // Redirect kembali ke callback dengan code dan shop_id
-        const finalUrl = new URL(redirectUrl);
+        const finalUrl = new URL(redirectUrl, window.location.origin);
+        // Simulator hanya boleh kembali ke callback milik situs ini (cegah open redirect)
+        if (finalUrl.origin !== window.location.origin || finalUrl.pathname !== '/api/shopee/callback') {
+            alert('Redirect URL tidak diizinkan.');
+            return;
+        }
+        const state = $page.url.searchParams.get('state');
+        if (state && !finalUrl.searchParams.has('state')) finalUrl.searchParams.append('state', state);
         finalUrl.searchParams.append('code', code);
         finalUrl.searchParams.append('shop_id', shopId);
         
