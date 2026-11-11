@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, quotations, quotationItems, salesOrders, salesOrderItems, crmContacts, products, riwayatAksi } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -18,7 +19,7 @@ export const load = async ({ params, cookies, depends }) => {
     });
     if (!unit) throw error(404, 'Unit tidak ditemukan');
 
-    const cacheKey = `sales_quotation:${unit.id}`;
+    const cacheKey = `sales_quotation:${unit.id}:${await versiCache(userId, slug)}`;
     const cached = await redis.get(cacheKey);
 
     let quotationList, contactList, productList;

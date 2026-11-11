@@ -1,4 +1,5 @@
 import { db } from '$lib/server/drizzle';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { transaksi, unitBisnis, products, chartOfAccounts, journalEntries, journalEntryLines, riwayatAksi } from '$lib/server/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { pusherServer } from '$lib/server/pusher';
@@ -240,20 +241,7 @@ OUTPUT JSON SAJA: { "product_id": string|null, "qty": number, "kategori": "Masuk
 			savedTrxId = hasil.trxId;
 
 			// 5. Invalidate cache (Bungkus di try-catch agar transaksi tidak gagal jika Redis down)
-			try {
-				if (redis) {
-					const dashboardKeys = await redis.keys(`finance_dash_v4:*:${slug}:*`);
-					if (dashboardKeys.length > 0) await redis.del(...dashboardKeys);
-
-					const historyKeys = await redis.keys(`history_v3:*:${slug}:*`);
-					if (historyKeys.length > 0) await redis.del(...historyKeys);
-
-					const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
-					if (productKeys.length > 0) await redis.del(...productKeys);
-				}
-			} catch (err) {
-				console.error('[Redis] Gagal invalidate cache:', err.message);
-			}
+			await tandaiBerubah({ userId, slug });
 
 			// 6. Trigger realtime & background job
 			try {

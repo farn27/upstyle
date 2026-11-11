@@ -4,6 +4,8 @@ import { eq, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getPlanLimits, estimateStorageGB, getNextBillingDate } from '$lib/server/planLimits';
 import { log } from '$lib/server/logger';
+import { redis } from '$lib/server/redis';
+import { versiCache } from '$lib/server/cacheVersi';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -12,15 +14,13 @@ export async function load({ cookies }) {
 	if (!userId) return { user: null, stats: {} };
 
 	// --- STRATEGI CACHE: Hyper-Fast Home Dashboard ---
-	const cacheKey = `home_dash_v2:${userId}`;
+	const cacheKey = `home_dash_v3:${userId}:${await versiCache(userId, null)}`;
 
 	try {
 		let cachedData = null;
-		// eslint-disable-next-line no-undef
-		if (typeof redis !== 'undefined' && redis) {
+		if (redis) {
 			try {
-				const { redis: redisClient } = await import('$lib/server/redis');
-				cachedData = await redisClient.get(cacheKey);
+				cachedData = await redis.get(cacheKey);
 			} catch (redisErr) {
 				log.api.warn({ err: redisErr.message }, '[Redis] Gagal get cache beranda');
 			}
@@ -127,11 +127,9 @@ export async function load({ cookies }) {
 			]
 		};
 
-		// eslint-disable-next-line no-undef
-		if (typeof redis !== 'undefined' && redis) {
+		if (redis) {
 			try {
-				const { redis: redisClient } = await import('$lib/server/redis');
-				await redisClient.set(cacheKey, finalData, { ex: 300 }); // Cache 5 menit
+				await redis.set(cacheKey, finalData, { ex: 300 }); // Cache 5 menit
 			} catch (redisErr) {
 				log.api.warn({ err: redisErr.message }, '[Redis] Gagal set cache beranda');
 			}

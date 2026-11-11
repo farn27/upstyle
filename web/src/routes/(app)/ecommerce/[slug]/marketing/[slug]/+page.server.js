@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, marketingCampaigns, adTrackers, marketingLeads, vouchers, landingPages } from '$lib/server/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
@@ -16,7 +17,7 @@ export const load = async ({ params, cookies }) => {
         });
         if (!unit) throw error(404, 'Unit bisnis tidak ditemukan');
 
-        const cacheKey = `marketing_dash:${unit.id}`;
+        const cacheKey = `marketing_dash:${unit.id}:${await versiCache(userId, slug)}`;
         const cached = await redis.get(cacheKey);
         if (cached) return { unit, ...cached };
 

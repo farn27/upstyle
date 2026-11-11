@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, crmDeals, salesTargets, users } from '$lib/server/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
@@ -20,7 +21,7 @@ export const load = async ({ params, cookies }) => {
         const { month: currentMonth, year: currentYear } = thisMonthWIB();
 
         // Redis cache — 3 menit
-        const cacheKey = `sales_dash:${unitData.id}:${currentMonth}:${currentYear}`;
+        const cacheKey = `sales_dash:${unitData.id}:${currentMonth}:${currentYear}:${await versiCache(userId, slug)}`;
         const cached = await redis.get(cacheKey);
         if (cached) return { unit: unitData, ...cached };
 

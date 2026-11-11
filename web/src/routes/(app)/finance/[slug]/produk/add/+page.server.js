@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle'; 
 import { products, unitBisnis, productVariants, kategoriProduk } from '$lib/server/schema'; 
 import { eq, and } from 'drizzle-orm';
@@ -20,7 +21,7 @@ export const load = async ({ params, locals, parent }) => {
     if (!user) throw redirect(302, '/auth/login');
 
     const { slug } = params;
-    const cacheKey = `unit-data-v4:${slug}:${user.id}`; 
+    const cacheKey = `unit-data-v5:${slug}:${user.id}:${await versiCache(user.id, slug)}`; 
 
     try {
         // A. CEK REDIS

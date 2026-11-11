@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { transaksi, riwayatAksi, unitBisnis, products, receivables, payables, chartOfAccounts, journalEntries, journalEntryLines, abcCategories } from '$lib/server/schema';
 import { eq, and, asc, desc, sql, lte, inArray } from 'drizzle-orm';
@@ -344,18 +345,7 @@ export async function POST({ request, cookies }) {
             ]);
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
-            try {
-                const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
-                if (keys.length > 0) await redis.del(...keys);
-                const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
-                if (historyKeys.length > 0) await redis.del(...historyKeys);
-                
-                // Hapus juga cache beranda dan layout
-                await redis.del(`home_dash_v2:${userId}`);
-                await redis.del(`layout_session_v2:${userId}`);
-            } catch (err) {
-                log.finance.warn({ err }, 'Gagal menghapus cache Redis (POST)');
-            }
+            await tandaiBerubah({ userId, slug });
         }
 
         return json({ success: true, message: "Transaksi berhasil disimpan", data: { id: hasil.trxId, journalId: hasil.journalId } });
@@ -420,17 +410,7 @@ export async function DELETE({ url, cookies, request }) {
             ]);
 
             // Hapus cache redis agar web langsung menampilkan data terbaru
-            try {
-                const keys = await redis.keys(`finance_dash_v4:${userId}:${slug}:*`);
-                if (keys.length > 0) await redis.del(...keys);
-                const historyKeys = await redis.keys(`history_v3:${userId}:${slug}:*`);
-                if (historyKeys.length > 0) await redis.del(...historyKeys);
-                
-                await redis.del(`home_dash_v2:${userId}`);
-                await redis.del(`layout_session_v2:${userId}`);
-            } catch (err) {
-                log.finance.warn({ err }, 'Gagal menghapus cache Redis (DELETE)');
-            }
+            await tandaiBerubah({ userId, slug });
             try {
                 await inngest.send({ name: 'app/transaction.changed', data: { userId, slug } });
             } catch (err) {

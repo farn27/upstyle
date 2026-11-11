@@ -1,3 +1,4 @@
+import { versiCache } from '$lib/server/cacheVersi';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle'; 
 import { products, kategoriProduk, unitBisnis, stockLogs, productVariants } from '$lib/server/schema'; 
@@ -19,7 +20,7 @@ export async function load({ params, url, locals }) {
     const historyId = url.searchParams.get('history');
 
     // 2. STRATEGI CACHE KEY: Menggunakan struktur v4 yang bersih
-    const cacheKey = `cache:products_page_v4:${unitSlug}:${historyId || 'none'}:${user.id}`;
+    const cacheKey = `cache:products_page_v5:${unitSlug}:${historyId || 'none'}:${user.id}:${await versiCache(user.id, unitSlug)}`;
 
     try {
         // 3. PINTU UTAMA REDIS: Cek cache

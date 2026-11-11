@@ -31,7 +31,7 @@ import { bisaDijual } from '$lib/jenisProduk';
 import { getActivePosFeatures } from '$lib/posFeatures';
 import { pilihAkunDefault } from '$lib/server/catatTransaksi';
 import { hitungPpn, tarifPpnAktif, pastikanAkunPpnKeluaran } from '$lib/server/pajak';
-import { redis } from '$lib/server/redis';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { triggerEvent } from '$lib/server/pusher';
 import { log } from '$lib/server/logger';
 
@@ -448,7 +448,7 @@ export async function prosesCheckoutPos(db, ctx, input) {
  * SEMUA ditunggu (await) sebelum respons dikirim. Dulu event dikirim tanpa ditunggu, sehingga di
  * serverless fungsi sering berhenti sebelum event terkirim (pada pengujian hanya 5 dari 20 event sampai).
  * Dijalankan paralel supaya tidak menambah waktu respons lebih dari satu perjalanan jaringan.
- * @param {{ id: number, slug?: string | null }} unit
+ * @param {{ id: number, slug?: string | null, userId?: number | null }} unit
  * @param {{ orderNumber: string, total: number, customerName?: string | null }} hasil
  */
 export async function siarkanCheckoutPos(unit, hasil) {
@@ -456,13 +456,8 @@ export async function siarkanCheckoutPos(unit, hasil) {
 	const room = `unit-${unitId}`;
 	const slug = unit.slug || '';
 
-	const bersihkanCache = async () => {
-		if (!redis || !slug) return;
-		const pola = [`finance_dash_v4:*:${slug}:*`, `history_v3:*:${slug}:*`, `cache:products_page_v4:${slug}:*`];
-		const daftar = await Promise.all(pola.map((p) => redis.keys(p).catch(() => [])));
-		const kunci = daftar.flat();
-		if (kunci.length > 0) await redis.del(...kunci);
-	};
+	// Cache halaman (dasbor/riwayat/produk) memakai nomor versi — cukup dinaikkan (tanpa perintah KEYS)
+	const bersihkanCache = () => tandaiBerubah({ userId: unit.userId ?? null, slug });
 
 	const tugas = [
 		bersihkanCache(),

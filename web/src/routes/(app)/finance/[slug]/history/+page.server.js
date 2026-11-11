@@ -1,3 +1,4 @@
+import { versiCache, tandaiBerubah } from '$lib/server/cacheVersi';
 import { error, fail } from '@sveltejs/kit';
 import { hapusTransaksi } from '$lib/server/hapusTransaksi';
 import { db } from '$lib/server/drizzle'; 
@@ -21,7 +22,7 @@ export const load = async ({ params, url, cookies }) => {
     const end = url.searchParams.get('end') || 'all';
 
     // 👇 BARU: versi cache key dinaikkan ke v3 karena bentuk payload berubah (nambah openingBalance)
-    const cacheKey = `history_v3:${userId}:${slug}:${start}:${end}`;
+    const cacheKey = `history_v4:${userId}:${slug}:${start}:${end}:${await versiCache(userId, slug)}`;
 
     try {
         const cachedHistory = redis ? await redis.get(cacheKey) : null;
@@ -121,16 +122,7 @@ export const actions = {
 
             // Bersihkan cache SETELAH data aman terhapus. Best-effort: kalau Redis / Inngest
             // sedang tidak bisa dihubungi, penghapusan TIDAK ikut dibatalkan.
-            if (redis) {
-                try {
-                    for (const pola of [`finance_dash_v4:${userId}:${slug}:*`, `history_v3:${userId}:${slug}:*`]) {
-                        const keys = await redis.keys(pola);
-                        if (keys.length > 0) await redis.del(...keys);
-                    }
-                } catch (redisErr) {
-                    log.finance.warn({ err: redisErr instanceof Error ? redisErr.message : String(redisErr) }, '[Redis] Gagal hapus cache setelah delete');
-                }
-            }
+            await tandaiBerubah({ userId, slug });
             try {
                 await inngest.send({ name: "app/transaction.changed", data: { userId, slug } });
             } catch (inngestErr) {

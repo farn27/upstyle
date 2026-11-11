@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { versiCache } from '$lib/server/cacheVersi';
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, supportTickets, supportTicketMessages, crmContacts } from '$lib/server/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -21,7 +22,7 @@ export const load = async ({ params, cookies, url }) => {
     if (!unit) throw error(404, 'Unit tidak ditemukan');
 
     // Cache per filter — TTL 30 detik (tiket harus near-realtime)
-    const cacheKey = `cs_tickets:${unit.id}:${statusFilter}:${priorityFilter}`;
+    const cacheKey = `cs_tickets:${unit.id}:${statusFilter}:${priorityFilter}:${await versiCache(userId, slug)}`;
     const cached = await redis.get(cacheKey);
 
     let tickets, contacts;

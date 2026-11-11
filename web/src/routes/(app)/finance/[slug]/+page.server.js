@@ -7,6 +7,7 @@ import { log } from '$lib/server/logger';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { buildStrategicBI } from '$lib/server/strategicBI';
 import { todayStrWIB } from '$lib/server/dateUtils';
+import { versiCache } from '$lib/server/cacheVersi';
 import { hitungSaldoKas, targetBulananOtomatis, labelMetodeBayar } from '$lib/financeDashboard';
 
 export const load = async ({ params, url, depends, cookies }) => {
@@ -18,7 +19,7 @@ export const load = async ({ params, url, depends, cookies }) => {
     const endDate = url.searchParams.get('end') || "all"; 
 
     // --- STRATEGI CACHE: Unik per User, Unit, dan Filter Tanggal ---
-    const cacheKey = `finance_dash_v4:${userId}:${slug}:${startDate}:${endDate}`;
+    const cacheKey = `finance_dash_v5:${userId}:${slug}:${startDate}:${endDate}:${await versiCache(userId, slug)}`;
 
     try {
         depends('app:finance');

@@ -11,6 +11,7 @@ import { bacaKunciIdempoten, mulaiIdempoten, selesaiIdempoten } from '$lib/serve
 import { log } from '$lib/server/logger';
 import { peranDiizinkan } from '$lib/server/rbac';
 import { slugUnitDariPath, pemilikUnitDariSlug, putuskanAksesUnit } from '$lib/server/unitSlugGuard';
+import { tandaiBerubah } from '$lib/server/cacheVersi';
 
 const PROTECTED_PATHS = [
 	'/finance',
@@ -289,6 +290,12 @@ export async function handle({ event, resolve }) {
 	const response = await resolve(event);
 
 	if (idemKey && event.locals.user) await selesaiIdempoten(redis, event.locals.user.id, idemKey, response);
+
+	// Permintaan yang mengubah data → naikkan versi cache pemilik/unit supaya dasbor, riwayat, dan daftar
+	// produk tidak menyajikan data basi (lihat lib/server/cacheVersi.js)
+	if (!['GET', 'HEAD', 'OPTIONS'].includes(event.request.method) && response.status < 400 && (event.locals.user || staffSession || segUnit)) {
+		await tandaiBerubah({ userId: event.locals.user?.id ?? staffSession?.owner_id ?? null, slug: segUnit?.slug ?? null });
+	}
 
 	// Terapkan security headers ke semua response
 	Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {

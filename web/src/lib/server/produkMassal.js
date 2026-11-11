@@ -14,6 +14,7 @@
  * Nilai lama setiap produk disimpan di Redis 24 jam supaya operasi bisa di-rollback.
  */
 import { and, eq, inArray } from 'drizzle-orm';
+import { tandaiBerubah } from './cacheVersi.js';
 import { products, kategoriProduk, riwayatAksi, unitBisnis } from '$lib/server/schema';
 import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 
@@ -232,11 +233,7 @@ export async function bersihkanCacheProduk(db, redis, unitId) {
 	try {
 		const unit = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, unitId), columns: { slug: true } });
 		if (!unit?.slug) return;
-		const keys = [
-			...(await redis.keys(`cache:products_page_v4:${unit.slug}:*`)),
-			...(await redis.keys(`unit-data-v3:${unit.slug}:*`))
-		];
-		if (keys.length > 0) await redis.del(...keys);
+		await tandaiBerubah({ slug: unit.slug });
 	} catch {
 		// cache basi paling lama sampai TTL habis — tidak menggagalkan operasi
 	}
