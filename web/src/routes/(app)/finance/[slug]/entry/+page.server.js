@@ -145,7 +145,13 @@ export const actions = {
 		const qty = parseInt(formData.get('qty')) || 1;
 		const nominal = Number(formData.get('nominal')) || 0;
 		const keterangan = formData.get('keterangan')?.toString().toUpperCase() || '';
-		const kategori = normalizeKategoriTrx(formData.get('kategori_trx'));
+		/** @type {'MASUK' | 'KELUAR'} */
+		let kategori;
+		try {
+			kategori = normalizeKategoriTrx(formData.get('kategori_trx'));
+		} catch {
+			return fail(400, { error: 'Pilih jenis transaksi: Masuk atau Keluar' });
+		}
 		const coaId = formData.get('coa_id') ? parseInt(formData.get('coa_id')) : null;
 		const kasCoaId = formData.get('kas_coa_id') ? parseInt(formData.get('kas_coa_id')) : null;
 

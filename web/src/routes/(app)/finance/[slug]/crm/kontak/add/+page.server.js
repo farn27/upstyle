@@ -25,11 +25,15 @@ export const actions = {
     if (!userId) return { status: 401, errors: { message: 'Unauthorized' } };
 
     const form = await request.formData();
-    const nama = form.get('nama');
-    const telepon = form.get('telepon');
-    const email = form.get('email');
-    const perusahaan = form.get('perusahaan');
-    const stage = form.get('stage') || 'lead';
+    const teks = (/** @type {string} */ k, /** @type {number} */ maks) => String(form.get(k) ?? '').trim().slice(0, maks);
+    const nama = teks('nama', 150);
+    const telepon = teks('telepon', 30) || null;
+    const email = teks('email', 150) || null;
+    const perusahaan = teks('perusahaan', 150) || null;
+    const stage = teks('stage', 30) || 'lead';
+    // Dulu nama kosong langsung dikirim ke database (kolom wajib) → galat 500
+    if (!nama) return fail(400, { message: 'Nama kontak wajib diisi' });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, { message: 'Format email tidak valid' });
 
     const unit = await db.query.unitBisnis.findFirst({
       where: (table) => and(eq(table.slug, params.slug), eq(table.userId, userId))

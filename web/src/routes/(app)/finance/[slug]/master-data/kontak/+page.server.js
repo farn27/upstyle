@@ -109,6 +109,7 @@ export const actions = {
         const { slug } = params;
         const formData = await request.formData();
         const id = parseInt(formData.get('id'));
+        if (!Number.isInteger(id) || id <= 0) return fail(400, { message: 'Kontak tidak valid' });
 
         try {
             const unit = await db.query.unitBisnis.findFirst({

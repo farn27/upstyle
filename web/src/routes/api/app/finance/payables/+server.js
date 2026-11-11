@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { buatHutangManual, HutangError } from '$lib/server/hutangManual';
 import { pesanAman } from '$lib/server/pesanAman';
 import { db } from '$lib/server/drizzle';
 import { payables, accountingContacts } from '$lib/server/schema';
@@ -54,24 +55,17 @@ export async function POST({ request, cookies, url }) {
 	try {
 		const body = await request.json();
 		const unitId = body.unitId ?? url.searchParams.get('unitId');
-		const { contactId, tanggal, jatuhTempo, nominal, keterangan } = body;
-		const nomorFaktur = String(body.nomorFaktur || '').trim() || `FKT-${Date.now()}`;
-
-		if (!unitId || !contactId || !tanggal || !jatuhTempo || nominal == null) {
-			return json({ success: false, message: 'Data tidak lengkap' }, { status: 400 });
+		if (!unitId) return json({ success: false, message: 'unitId wajib diisi' }, { status: 400 });
+		/** @type {{ id: number, nomorFaktur: string }} */
+		let hasil;
+		try {
+			hasil = await buatHutangManual(db, Number(unitId), body);
+		} catch (e) {
+			if (e instanceof HutangError) return json({ success: false, message: e.message }, { status: e.status });
+			throw e;
 		}
-
-		const [inserted] = await db.insert(payables).values({
-			unitId: Number(unitId),
-			contactId: Number(contactId),
-			nomorFaktur,
-			tanggal,
-			jatuhTempo,
-			nominal: String(nominal),
-			sudahDibayar: '0',
-			status: 'BELUM_BAYAR',
-			keterangan: keterangan || null
-		});
+		const inserted = { insertId: hasil.id };
+		const nomorFaktur = hasil.nomorFaktur;
 
 		try {
 			await triggerEvent(`unit-${unitId}`, 'payable-created', {

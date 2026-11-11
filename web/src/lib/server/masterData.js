@@ -68,6 +68,33 @@ export async function ubahAset(db, unitId, id, input) {
 	if (!r?.affectedRows) throw new MasterDataError('Aset tidak ditemukan', 404);
 }
 
+/**
+ * Tambah aset tetap (web). Field wajib divalidasi; COA harus milik unit.
+ * @param {any} db @param {number} unitId @param {Record<string, unknown>} input
+ */
+export async function buatAset(db, unitId, input) {
+	const wajib = asetSchema.required({ namaAset: true, nilaiPerolehan: true, tanggalPerolehan: true, umurEkonomis: true });
+	const hasil = wajib.safeParse({ kategori: 'LAINNYA', metodePenyusutan: 'GARIS_LURUS', nilaiSisa: 0, ...input, coaId: input.coaId || null });
+	if (!hasil.success) throw new MasterDataError('Lengkapi nama aset, nilai perolehan (> 0), tanggal perolehan, dan umur ekonomis');
+	const d = hasil.data;
+	if (Number(d.nilaiSisa || 0) > Number(d.nilaiPerolehan)) throw new MasterDataError('Nilai sisa tidak boleh melebihi nilai perolehan');
+	await cekCoa(db, unitId, d.coaId);
+	const [r] = await db.insert(fixedAssets).values({
+		unitId,
+		namaAset: d.namaAset,
+		kategori: d.kategori,
+		nilaiPerolehan: String(d.nilaiPerolehan),
+		tanggalPerolehan: String(d.tanggalPerolehan).slice(0, 10),
+		umurEkonomis: d.umurEkonomis,
+		metodePenyusutan: d.metodePenyusutan,
+		nilaiSisa: String(d.nilaiSisa || 0),
+		nilaiBuku: String(d.nilaiPerolehan),
+		status: 'AKTIF',
+		coaId: d.coaId ?? null
+	});
+	return Number(r.insertId);
+}
+
 /** @param {any} db @param {number} unitId @param {number} id */
 export async function hapusAset(db, unitId, id) {
 	const [r] = await db.delete(fixedAssets).where(and(eq(fixedAssets.id, id), eq(fixedAssets.unitId, unitId)));
@@ -103,6 +130,42 @@ export async function ubahPajak(db, unitId, id, input) {
 	await cekCoa(db, unitId, ubah.coaId);
 	const [r] = await db.update(taxRates).set(ubah).where(and(eq(taxRates.id, id), eq(taxRates.unitId, unitId)));
 	if (!r?.affectedRows) throw new MasterDataError('Pajak tidak ditemukan', 404);
+}
+
+/**
+ * Tambah tarif pajak (web).
+ * @param {any} db @param {number} unitId @param {Record<string, unknown>} input
+ */
+export async function buatPajak(db, unitId, input) {
+	const wajib = pajakSchema.required({ namaPajak: true, persentase: true, tipe: true });
+	const hasil = wajib.safeParse({ ...input, coaId: input.coaId || null });
+	if (!hasil.success) throw new MasterDataError('Lengkapi nama pajak, persentase (0–100), dan jenis pajak');
+	const d = hasil.data;
+	await cekCoa(db, unitId, d.coaId);
+	const [r] = await db.insert(taxRates).values({
+		unitId, namaPajak: d.namaPajak, persentase: String(d.persentase), tipe: d.tipe,
+		isDefault: d.isDefault ?? 0, isActive: 1, coaId: d.coaId ?? null
+	});
+	return Number(r.insertId);
+}
+
+/**
+ * Tambah anggaran (web budgeting).
+ * @param {any} db @param {number} unitId @param {Record<string, unknown>} input
+ */
+export async function buatBudget(db, unitId, input) {
+	const hasil = z.object({
+		coaId: z.coerce.number().int().positive(),
+		tahun: z.coerce.number().int().min(2000).max(2100),
+		bulan: z.coerce.number().int().min(1).max(12),
+		nominal: z.coerce.number().min(0),
+		keterangan: z.string().max(500).nullable().optional()
+	}).safeParse({ ...input, keterangan: input.keterangan ? String(input.keterangan) : null });
+	if (!hasil.success) throw new MasterDataError('Lengkapi akun, tahun, bulan (1–12), dan nominal anggaran');
+	const d = hasil.data;
+	await cekCoa(db, unitId, d.coaId);
+	const [r] = await db.insert(budgetItems).values({ unitId, coaId: d.coaId, tahun: d.tahun, bulan: d.bulan, nominal: String(d.nominal), keterangan: d.keterangan ?? null });
+	return Number(r.insertId);
 }
 
 /** @param {any} db @param {number} unitId @param {number} id */

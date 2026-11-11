@@ -56,6 +56,9 @@ export const actions = {
         const targetAmount = Number(data.get('target_amount') || 0);
         const komisiPersen = Number(data.get('komisi_persen') || 0);
         const { month, year } = thisMonthWIB();
+        if (!Number.isInteger(targetUserId) || targetUserId <= 0) return fail(400, { error: 'Pilih anggota tim sales' });
+        if (!Number.isFinite(targetAmount) || targetAmount <= 0) return fail(400, { error: 'Target harus lebih dari 0' });
+        if (!Number.isFinite(komisiPersen) || komisiPersen < 0 || komisiPersen > 100) return fail(400, { error: 'Komisi harus 0–100%' });
 
         try {
             const unit = await db.query.unitBisnis.findFirst({
