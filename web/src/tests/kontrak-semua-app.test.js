@@ -20,6 +20,8 @@ vi.mock('$lib/server/inngest', () => ({ inngest: { send: async () => {} } }));
 vi.mock('$lib/server/groq', () => ({ groqChatCompletion: async () => ({ choices: [{ message: { content: '[{"namaAkun":"Kas Besar","tipeAkun":"ASET_LANCAR"},{"namaAkun":"Omzet","tipeAkun":"PENDAPATAN"}]' } }], usage: {} }) }));
 
 const mods = import.meta.glob('../routes/api/app/**/+server.js');
+// Endpoint di luar /api/app yang juga dipakai aplikasi HP (mis. /api/low-stock — dulu lolos dari pemeriksaan kontrak)
+const modsLain = import.meta.glob(['../routes/api/low-stock/+server.js', '../routes/api/updates/+server.js']);
 
 describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 	it('semua payload app diterima server', async () => {
@@ -42,6 +44,8 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		const beban = coa.find((x) => x.tipeAkun === 'BEBAN_OPERASIONAL');
 		const pid = `PU${t}`;
 		await db.insert(s.products).values({ id: pid, slug: `pu-${t}`, nama: 'Kopi Uji', userId: usr.insertId, unitId, hargaBeli: '1000', hargaJual: '2000', stok: 50, minStok: 5, status: 'active', jenis: 'BARANG_JADI' });
+		// produk stok menipis: supaya daftar low-stock tidak kosong & kontrak LowStockProduct ikut diperiksa
+		await db.insert(s.products).values({ id: `${pid}-tipis`, slug: `pu-tipis-${t}`, nama: 'Gula Uji', userId: usr.insertId, unitId, hargaBeli: '1000', hargaJual: '2000', stok: 1, minStok: 5, status: 'active', jenis: 'BARANG_JADI' });
 		const [kontakAk] = await db.insert(s.accountingContacts).values({ unitId, namaKontak: 'Pelanggan Uji', tipeKontak: 'BOTH', isActive: 1 });
 		const [kontakCrm] = await db.insert(s.crmContacts).values({ ownerId: usr.insertId, unitId, nama: 'Lead Uji' });
 		const [sup] = await db.insert(s.suppliers).values({ unitId, namaSupplier: 'Sup Uji' });
@@ -256,18 +260,19 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 			const abaikan = new Set(['api/app/finance']); // diuji terpisah (query periode)
 			for (const ep of kotlin.endpoints) {
 				const rute = ep.path.replace(/^api\/app\//, '');
-				if (ep.path.includes('$') || !ep.path.startsWith('api/app/') || abaikan.has(ep.path)) continue;
-				const key = `../routes/api/app/${rute}/+server.js`;
-				if (!mods[key]) continue;
+				if (ep.path.includes('$') || abaikan.has(ep.path)) continue;
+				const key = ep.path.startsWith('api/app/') ? `../routes/api/app/${rute}/+server.js` : `../routes/${ep.path}/+server.js`;
+				const muat = mods[key] || modsLain[key];
+				if (!muat) continue;
 				const q = { unitId };
 				for (const [k, v] of Object.entries(ep.query)) {
 					if (/^"[^"]*"$/.test(v)) q[k] = v.slice(1, -1);
 					else if (k === 'tahun' || k === 'year') q[k] = new Date().getFullYear();
 				}
 				try {
-					const m = await mods[key]();
+					const m = await muat();
 					const url = `http://x/?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)])).toString()}`;
-					const res = await m.GET({ request: new Request(url), cookies: { get() {} }, url: new URL(url), params: {}, locals: {} });
+					const res = await m.GET({ request: new Request(url), cookies: { get() {} }, url: new URL(url), params: {}, locals: {}, setHeaders() {} });
 					const j = await res.json().catch(() => null);
 					if (!j || res.status >= 500 || j.success === false) { if (res.status >= 500) temuan.push(`${ep.fn} (${rute}): HTTP ${res.status} ${j?.message || ''}`.slice(0, 600)); continue; }
 					const kendala = [];
@@ -282,5 +287,9 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		await pool?.end();
 		console.log('DILEWATI (khusus MariaDB lokal):', dilewati.join('; '));
 		expect(hasil).toEqual([]);
+		// Ketidakcocokan kontrak dengan model Kotlin (field wajib hilang, bukan array, tipe salah) & crash
+		// membuat tes gagal. HTTP 500 dikecualikan: di MariaDB lokal itu akibat kueri relasional (LATERAL),
+		// endpoint tersebut diuji tersendiri di asap-api-get.
+		expect(temuan.filter((/** @type {string} */ t) => !/: HTTP 500/.test(t))).toEqual([]);
 	}, 120000);
 });

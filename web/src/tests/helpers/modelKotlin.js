@@ -58,7 +58,9 @@ function parseEndpoint(src) {
 	for (const b of bagian) {
 		const fn = b.match(/^(\w+)/)?.[1] || '?';
 		const get = b.match(/client\.get\("([^"]+)"/);
-		const ret = b.match(/\)\s*:\s*ApiResponse<([^=\n{]+?)>\s*(?:=|\{)/);
+		// Bila balasan dibaca ke tipe lain dulu (val res: ApiResponse<X> = client.get(...) lalu mapData), periksa tipe X itu
+		const antara = b.match(/val\s+\w+\s*:\s*ApiResponse<([^=\n]+?)>\s*=\s*client\.get/);
+		const ret = antara || b.match(/\)\s*:\s*ApiResponse<([^=\n{]+?)>\s*(?:=|\{)/);
 		// PaginatedResponse<T> → data adalah List<T>
 		const pag = b.match(/\)\s*:\s*PaginatedResponse<([^=\n{]+?)>\s*(?:=|\{)/);
 		if (!get || (!ret && !pag)) continue;
