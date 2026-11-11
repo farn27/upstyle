@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { redis } from '$lib/server/redis';
-import { env } from '$env/dynamic/private';
 
 /**
  * Health Check Endpoint
@@ -12,8 +11,6 @@ export async function GET({ request }) {
 	const health = {
 		status: 'healthy',
 		timestamp: new Date().toISOString(),
-		uptime: process.uptime(),
-		version: env.NODE_ENV || 'development',
 		checks: {}
 	};
 
@@ -26,14 +23,13 @@ export async function GET({ request }) {
 		};
 	} catch (error) {
 		health.status = 'degraded';
-		health.checks.database = {
-			status: 'unhealthy',
-			error: error.message
-		};
+		console.error('[health] database', error instanceof Error ? error.message : error);
+		health.checks.database = { status: 'unhealthy' };
 	}
 
 	// Redis health check
 	try {
+		if (!redis) throw new Error('Redis belum dikonfigurasi');
 		await redis.ping();
 		health.checks.redis = {
 			status: 'healthy',
@@ -41,20 +37,9 @@ export async function GET({ request }) {
 		};
 	} catch (error) {
 		health.status = 'degraded';
-		health.checks.redis = {
-			status: 'unhealthy',
-			error: error.message
-		};
+		console.error('[health] redis', error instanceof Error ? error.message : error);
+		health.checks.redis = { status: 'unhealthy' };
 	}
-
-	// Memory usage
-	const memoryUsage = process.memoryUsage();
-	health.checks.memory = {
-		status: 'healthy',
-		heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-		heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
-		rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`
-	};
 
 	// Overall status
 	const totalLatency = Date.now() - startTime;
@@ -63,5 +48,5 @@ export async function GET({ request }) {
 	// Return appropriate status code
 	const statusCode = health.status === 'healthy' ? 200 : 503;
 
-	return json(health, { status: statusCode });
+	return json(health, { status: statusCode, headers: { 'cache-control': 'no-store' } });
 }

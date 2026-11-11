@@ -4,6 +4,7 @@ import { db } from '$lib/server/drizzle';
 import { users } from '$lib/server/schema';
 import { eq, or } from 'drizzle-orm';
 import argon2 from 'argon2';
+import crypto from 'crypto';
 import { secureCookieOptions } from '$lib/server/cookieOptions';
 import { checkRateLimit, getClientIP, LOGIN_LIMIT } from '$lib/server/rateLimit';
 import { loginSchema, formDataToObject } from '$lib/server/validation';
@@ -96,7 +97,10 @@ export const actions = {
 	},
 
 	// 2. LOGIN GOOGLE
-	google: async ({ url }) => {
+	google: async ({ url, cookies }) => {
+		// state acak diikat ke peramban lewat cookie → mencegah login CSRF (S-08)
+		const state = crypto.randomBytes(24).toString('base64url');
+		cookies.set('oauth_state', state, { ...secureCookieOptions(600), path: '/auth/callback' });
 		const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
 		const origin = (url.origin && !url.origin.includes('localhost') ? url.origin : (env.ORIGIN || url.origin)).replace(/\/$/, '');
 		const options = {
@@ -104,7 +108,8 @@ export const actions = {
 			client_id: env.GOOGLE_CLIENT_ID,
 			access_type: 'offline',
 			response_type: 'code',
-			prompt: 'consent',
+			prompt: 'select_account',
+			state,
 			scope: [
 				'https://www.googleapis.com/auth/userinfo.profile',
 				'https://www.googleapis.com/auth/userinfo.email'

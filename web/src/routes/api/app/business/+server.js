@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
-import { unitBisnis, kategoriProduk, riwayatAksi } from '$lib/server/schema';
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { unitBisnis, kategoriProduk, riwayatAksi, employees, attendance, leaveRequests, payrolls, users } from '$lib/server/schema';
+import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
 import { buatUnit, slugUnik, UnitError } from '$lib/server/unitBaru';
@@ -130,7 +130,24 @@ export async function DELETE({ url, cookies, request }) {
     }
 
     try {
-        await db.delete(unitBisnis).where(and(eq(unitBisnis.id, Number(unitId)), eq(unitBisnis.userId, userId)));
+        const idUnit = Number(unitId);
+        const terhapus = await db.transaction(async (/** @type {any} */ tx) => {
+            const unit = await tx.query.unitBisnis.findFirst({ where: and(eq(unitBisnis.id, idUnit), eq(unitBisnis.userId, userId)), columns: { id: true } });
+            if (!unit) return false;
+            // Tabel absensi, cuti, dan payroll merujuk karyawan TANPA ON DELETE CASCADE; dulu unit yang
+            // karyawannya punya data tersebut selalu gagal dihapus (galat 500)
+            const karyawan = await tx.select({ id: employees.id }).from(employees).where(eq(employees.companyId, idUnit));
+            const ids = karyawan.map((/** @type {{ id: number }} */ k) => k.id);
+            if (ids.length) {
+                await tx.delete(attendance).where(inArray(attendance.employeeId, ids));
+                await tx.delete(leaveRequests).where(inArray(leaveRequests.employeeId, ids));
+                await tx.delete(payrolls).where(inArray(payrolls.employeeId, ids));
+            }
+            await tx.update(users).set({ companyId: null }).where(eq(users.companyId, idUnit));
+            await tx.delete(unitBisnis).where(and(eq(unitBisnis.id, idUnit), eq(unitBisnis.userId, userId)));
+            return true;
+        });
+        if (!terhapus) return json({ success: false, message: "Unit bisnis tidak ditemukan" }, { status: 404 });
         return json({ success: true, message: "Unit bisnis berhasil dihapus" });
     } catch (err) {
         log.api.error({ err }, 'API DELETE UNIT ERROR');

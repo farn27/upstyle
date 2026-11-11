@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import crypto from 'crypto';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/drizzle';
 import { users } from '$lib/server/schema';
@@ -8,11 +9,26 @@ import { createSession } from '$lib/server/session';
 import { log } from '$lib/server/logger';
 import { nowSqlWIB } from '$lib/server/dateUtils';
 
+/** @param {string} a @param {string} b */
+function timingSafeSama(a, b) {
+    const x = Buffer.from(a);
+    const y = Buffer.from(b);
+    return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
 export async function GET({ url, cookies }) {
     try {
         const code = url.searchParams.get('code');
+        const state = url.searchParams.get('state');
+        const stateCookie = cookies.get('oauth_state');
+        cookies.delete('oauth_state', { path: '/auth/callback' });
 
         if (!code) throw redirect(303, '/auth/login?error=auth_failed');
+        // Tolak callback yang tidak dimulai dari peramban ini (login CSRF)
+        if (!state || !stateCookie || !timingSafeSama(state, stateCookie)) {
+            log.auth.warn({}, '[Google OAuth] state tidak cocok');
+            throw redirect(303, '/auth/login?error=auth_failed');
+        }
 
         const origin = (url.origin && !url.origin.includes('localhost') ? url.origin : (env.ORIGIN || url.origin)).replace(/\/$/, '');
         const redirectUri = `${origin}/auth/callback/google`;
@@ -32,7 +48,7 @@ export async function GET({ url, cookies }) {
         const tokens = await res.json();
 
         if (tokens.error) {
-            log.auth.error({ tokens }, 'Google OAuth Token Error');
+            log.auth.error({ error: tokens.error, desc: tokens.error_description }, 'Google OAuth Token Error');
             throw redirect(303, '/auth/login?error=oauth_token_failed');
         }
 
@@ -42,7 +58,8 @@ export async function GET({ url, cookies }) {
         });
         const profile = await userRes.json();
 
-        if (profile.error || !profile.email) {
+        // Email harus sudah diverifikasi Google sebelum dipakai untuk menautkan akun yang ada
+        if (profile.error || !profile.email || profile.verified_email === false) {
             log.auth.error({ profile }, 'Google OAuth Profile Error');
             throw redirect(303, '/auth/login?error=oauth_profile_failed');
         }
@@ -86,7 +103,7 @@ export async function GET({ url, cookies }) {
             throw err;
         }
         log.auth.error({ err }, '[Google OAuth Exception]');
-        const errMsg = encodeURIComponent(err.message || 'unknown_error');
-        throw redirect(303, `/auth/login?error=oauth_server_error&details=${errMsg}`);
+        // Detail galat tidak lagi ditaruh di URL (bisa membocorkan info server)
+        throw redirect(303, '/auth/login?error=oauth_server_error');
     }
 }

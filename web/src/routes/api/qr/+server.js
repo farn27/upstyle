@@ -14,7 +14,10 @@ export async function GET({ url, cookies, request }) {
   const type = url.searchParams.get('type') || 'product';
   const id = url.searchParams.get('id') || '';
   const unitId = url.searchParams.get('unitId') || '';
-  const size = parseInt(url.searchParams.get('size') || '300');
+  // Ukuran dibatasi: dulu size bebas (mis. 50000) membuat server membuat gambar raksasa (S-15)
+  const sizeMentah = parseInt(url.searchParams.get('size') || '300');
+  const size = Number.isFinite(sizeMentah) ? Math.min(1024, Math.max(64, sizeMentah)) : 300;
+  if (id.length > 100 || unitId.length > 20) return apiError('Parameter terlalu panjang', 400);
 
   let payload = '';
 
@@ -33,6 +36,7 @@ export async function GET({ url, cookies, request }) {
       break;
     case 'text':
       payload = url.searchParams.get('text') || id;
+      if (!payload || payload.length > 500) return apiError('Teks QR wajib diisi (maks. 500 karakter)', 400);
       break;
     default:
       return apiError('type tidak valid', 400);
@@ -43,8 +47,8 @@ export async function GET({ url, cookies, request }) {
   return new Response(buffer, {
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
-      'Content-Disposition': `inline; filename="qr-${type}-${id}.png"`,
+      'Cache-Control': 'private, max-age=3600',
+      'Content-Disposition': `inline; filename="qr-${type}-${id.replace(/[^\w.-]/g, '_').slice(0, 60)}.png"`,
     },
   });
 }

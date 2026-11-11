@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { slugKaryawanUnik } from '$lib/server/slugKaryawan';
 import { db } from '$lib/server/drizzle';
-import { employees, attendance, payrolls, riwayatAksi, salaryComponents, transaksi, approvalRequests, shifts } from '$lib/server/schema';
+import { employees, attendance, payrolls, riwayatAksi, salaryComponents, approvalRequests, shifts } from '$lib/server/schema';
 import { eq, and, desc, inArray, like, isNull, sql, gte } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { hashEmployeePassword } from '$lib/server/employeePassword';
@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { unitMilikUser, karyawanMilikUser } from '$lib/server/apiUnitGuard';
 import { thisMonthWIB } from '$lib/server/dateUtils';
 import { ringkasanHr } from '$lib/server/ringkasanHr';
+import { bayarPayroll } from '$lib/server/bayarGaji';
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -440,37 +441,24 @@ export async function POST({ request, cookies }) {
             const sudahAda = await db.query.payrolls.findFirst({ where: and(eq(payrolls.employeeId, Number(employeeId)), eq(payrolls.periodMonth, bulanGaji), eq(payrolls.periodYear, tahunGaji)) });
             if (sudahAda) return json({ success: false, message: `Payroll karyawan ini untuk ${monthYear} sudah diproses` }, { status: 409 });
 
-            await db.transaction(async (tx) => {
-                await tx.insert(payrolls).values({
+            if (!(await karyawanMilikUser(db, userId, Number(employeeId)))) {
+                return json({ success: false, message: 'Karyawan tidak ditemukan' }, { status: 404 });
+            }
+            const emp = await db.query.employees.findFirst({ where: eq(employees.id, Number(employeeId)), columns: { companyId: true } });
+
+            await db.transaction(async (/** @type {any} */ tx) => {
+                const [baru] = await tx.insert(payrolls).values({
                     employeeId: Number(employeeId),
-                    periodMonth: Number(periodMonth || month),
-                    periodYear: Number(periodYear || year),
+                    periodMonth: bulanGaji,
+                    periodYear: tahunGaji,
                     basicSalary: String(salary),
                     allowances: String(allowance),
                     deductions: String(deduction),
                     netSalary: String(netSalary),
-                    paymentStatus: 'paid'
+                    paymentStatus: 'unpaid'
                 });
-
-                // Get employee name
-                const emp = await tx.query.employees.findFirst({
-                    where: eq(employees.id, Number(employeeId))
-                });
-                const empName = emp ? emp.fullName : 'Karyawan';
-
-                // Record financial expense
-                await tx.insert(transaksi).values({
-                    unitId: Number(unitId), userId, kategoriTrx: 'KELUAR', nominal: String(netSalary), totalHarga: String(netSalary), keterangan: `Gaji Karyawan: ${empName} (${monthYear})`
-                });
-
-                // Save action log
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId),
-                    pesan: `Penggajian diproses untuk ${empName} (${monthYear}) sebesar Rp ${String(netSalary)}`,
-                    tipe: 'success',
-                    kategori: 'HR'
-                });
+                // Dicatat sebagai beban gaji lewat transaksi + jurnal (dulu transaksi tanpa jurnal)
+                await bayarPayroll(tx, { unitId: Number(emp?.companyId), userId, payrollIds: [Number(baru.insertId)] });
             });
 
             return json({ success: true, message: "Payroll berhasil diproses" });
@@ -532,7 +520,7 @@ export async function POST({ request, cookies }) {
 
     } catch (err) {
         log.hr.error({ err }, 'API POST HR ERROR');
-        return json({ success: false, message: "Gagal memproses aksi HR: " + err.message }, { status: 500 });
+        return json({ success: false, message: (err instanceof Error && /tutup buku|sudah dibayar/i.test(err.message)) ? err.message : "Gagal memproses aksi HR" }, { status: 500 });
     }
 }
 
