@@ -5,9 +5,8 @@
     import { ecommerceOrderUpdate } from '$lib/realtimeStore';
     import { invalidate } from '$app/navigation';
     export let data;
-    const { unit } = data;
-    let orders = data.orders || [];
-    let stats = data.stats || {};
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit } = data);
     const fmt = v => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(Number(v)||0);
 
     const PAY_COLOR = { PENDING:'bg-amber-100 text-amber-700', PAID:'bg-emerald-100 text-emerald-700', FAILED:'bg-rose-100 text-rose-700', EXPIRED:'bg-slate-100 text-slate-500' };

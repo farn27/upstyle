@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade, fly } from 'svelte/transition';
     export let data; export let form;
-    const { unit, pages, templates } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, pages, templates } = data);
 
     let showCreate = false;
     let selectedTemplate = 'leadgen';

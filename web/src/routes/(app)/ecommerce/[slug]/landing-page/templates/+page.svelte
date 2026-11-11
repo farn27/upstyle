@@ -4,7 +4,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     
     export let data;
-    const { unit, templates, existingPages, categories, styles, difficulties } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, templates, existingPages, categories, styles, difficulties } = data);
     
     let selectedCategory = 'All';
     let selectedStyle = 'All';

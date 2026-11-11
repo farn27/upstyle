@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data;
-    const { unit, leads } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, leads } = data);
 </script>
 
 <PageLayout title="Manajemen Leads" subtitle="Prospek dari landing page dan form" badge="Marketing" slug={unit.slug} {unit}>

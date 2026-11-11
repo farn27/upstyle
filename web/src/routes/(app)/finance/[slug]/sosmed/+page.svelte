@@ -3,7 +3,8 @@
     import { toastPesan } from '$lib/notifStore';
     import { page } from '$app/stores';
     export let data;
-    const { unit, posts } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, posts } = data);
     let isSubmitting = false;
     // Form fields
     let platform = '';

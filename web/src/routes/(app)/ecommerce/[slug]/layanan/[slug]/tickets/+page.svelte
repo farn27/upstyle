@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data; export let form;
-    const { unit, tickets, contacts, statusFilter, priorityFilter } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, tickets, contacts, statusFilter, priorityFilter } = data);
     const PRIORITY_COLOR = { LOW:'bg-slate-100 text-slate-600', MEDIUM:'bg-blue-100 text-blue-700', HIGH:'bg-orange-100 text-orange-700', URGENT:'bg-rose-100 text-rose-700' };
     const STATUS_COLOR = { OPEN:'bg-amber-100 text-amber-700', IN_PROGRESS:'bg-sky-100 text-sky-700', RESOLVED:'bg-emerald-100 text-emerald-700', CLOSED:'bg-slate-100 text-slate-500' };
     const NEXT_STATUS = { OPEN:'IN_PROGRESS', IN_PROGRESS:'RESOLVED', RESOLVED:'CLOSED' };

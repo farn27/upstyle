@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data; export let form;
-    const { unit, voucherList } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, voucherList } = data);
     const fmt = v => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(Number(v)||0);
     let showModal = false;
     let autoCode = 'PROMO-' + Math.random().toString(36).slice(2, 8).toUpperCase();

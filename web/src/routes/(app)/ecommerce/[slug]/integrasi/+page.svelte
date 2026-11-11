@@ -3,8 +3,9 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data; export let form;
-    const { unit, paymentConfig } = data;
-    const midtrans = paymentConfig?.midtrans || {};
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, paymentConfig } = data);
+    $: midtrans = paymentConfig?.midtrans || {};
     let showKey = false;
 </script>
 

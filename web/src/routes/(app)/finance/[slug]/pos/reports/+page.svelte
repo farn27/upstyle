@@ -11,6 +11,12 @@
         selectedTrx = null;
     }
 
+    // 'CASH' = data lama aplikasi HP, sama dengan 'TUNAI'
+    /** @param {string | null | undefined} m */
+    const metodeTunai = (m) => ['CASH', 'TUNAI', 'KAS'].includes(String(m || 'TUNAI').toUpperCase());
+    /** @param {string | null | undefined} m */
+    const labelMetode = (m) => (metodeTunai(m) ? 'TUNAI' : String(m));
+
     /** @param {number | null | undefined} n */
     const teksTren = (n) => (n == null ? 'Baru' : `${n > 0 ? '+' : ''}${n.toLocaleString('id-ID')}%`);
     /** @param {number | null | undefined} n */
@@ -159,8 +165,8 @@
             <td class="py-4 text-right">
                 <div class="flex items-center justify-end gap-2">
                     <span class="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest 
-                        {/^(CASH|TUNAI|KAS)$/i.test(trx.payment_method || 'TUNAI') ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
-                        {/^(CASH|KAS)$/i.test(trx.payment_method || '') ? 'TUNAI' : (trx.payment_method || 'TUNAI')}
+                        {metodeTunai(trx.payment_method) ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
+                        {labelMetode(trx.payment_method)}
                     </span>
                     {#if trx.id}
                     <a href="/api/invoice/{trx.id}?type=pos" target="_blank"

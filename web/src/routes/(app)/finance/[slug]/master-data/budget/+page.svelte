@@ -5,7 +5,9 @@
 	export let data;
 	export let form;
 
-	const { unit, tahun, bulan, budgets, coaList, summary, realisasiPerBulan } = data;
+	// reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+
+	$: ({ unit, tahun, bulan, budgets, coaList, summary, realisasiPerBulan } = data);
 
 	const bulanNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 	const bulanFull = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];

@@ -7,11 +7,13 @@
     export let data;
     export let form;
     
-    const { unit, shopeeIntegration } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    
+    $: ({ unit, shopeeIntegration } = data);
     
     $: successMsg = $page.url.searchParams.get('success') === 'true';
     
-    let isEditingKey = !shopeeIntegration || !shopeeIntegration.partnerId;
+    let isEditingKey = !data.shopeeIntegration?.partnerId;
     let isLoading = false;
 </script>
 

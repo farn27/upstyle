@@ -3,7 +3,8 @@
     import SubNav from '$lib/components/SubNav.svelte';
 
     export let data;
-    const { unit, tahun, budgets, accounts } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, tahun, budgets, accounts } = data);
     $: slug = $page.params.slug;
 
     const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');

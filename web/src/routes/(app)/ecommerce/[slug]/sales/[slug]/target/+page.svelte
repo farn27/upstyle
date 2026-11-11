@@ -3,7 +3,8 @@
     import PageLayout from '$lib/components/PageLayout.svelte';
     import { fade } from 'svelte/transition';
     export let data; export let form;
-    const { unit, targets, month, year } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ unit, targets, month, year } = data);
     const fmt = v => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(Number(v)||0);
     const MONTHS = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
     let newUserId = '';

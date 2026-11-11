@@ -5,7 +5,8 @@
     import SubNav from '$lib/components/SubNav.svelte';
     
     export let data;
-    const { tickets, activeTicket, messages, userId } = data;
+    // reaktif: ikut diperbarui setelah simpan/hapus (dulu salinan sekali → data basi)
+    $: ({ tickets, activeTicket, messages, userId } = data);
     $: slug = $page.params.slug;
     $: ticketIdParam = $page.url.searchParams.get('ticketId');
 
