@@ -1,6 +1,6 @@
 import { db } from '$lib/server/drizzle';
 import { unitBisnis, products, kategoriProduk, posCustomers, posShifts, posCashTransactions } from '$lib/server/schema';
-import { eq, and, or, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, or, asc, desc, sql, isNull } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { getVerifiedStaffSession } from '$lib/server/portalAuth';
@@ -163,7 +163,8 @@ export async function load({ params, cookies, locals }) {
         })
         .from(products)
         .leftJoin(kategoriProduk, eq(products.kategoriId, kategoriProduk.id))
-        .where(and(eq(products.unitId, unitId), eq(products.showInPos, 1), eq(products.jenis, JENIS_DIJUAL)));
+        // produk yang sudah dihapus (deletedAt terisi) tidak boleh tampil di kasir
+        .where(and(eq(products.unitId, unitId), eq(products.showInPos, 1), eq(products.jenis, JENIS_DIJUAL), isNull(products.deletedAt)));
 
         const customersData = await db.select({
             id: posCustomers.id,

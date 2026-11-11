@@ -14,16 +14,7 @@ import { decryptField } from '$lib/server/encryption';
 import { bisaDijual } from '$lib/jenisProduk';
 import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { getActivePosFeatures } from '$lib/posFeatures';
-import { hitungPpn, tarifPpnAktif, pastikanAkunPpnKeluaran } from '$lib/server/pajak';
-
-/** Error checkout yang pesannya aman ditampilkan */
-class CheckoutError extends Error {
-    /** @param {string} message @param {number} [status] */
-    constructor(message, status = 400) {
-        super(message);
-        this.status = status;
-    }
-}
+import { prosesCheckoutPos, siarkanCheckoutPos, PosError } from '$lib/server/posCheckout';
 
 // 1. GET: Ambil list order POS dan customer POS untuk unitId
 export async function GET({ url, cookies, request }) {
@@ -283,221 +274,57 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, changeAmount, voucherCode, payments, diskon, kenaiPpn, ppnInklusif } = body.order;
+            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, voucherCode, payments, diskon, kenaiPpn, ppnInklusif } = body.order;
 
-            let finalOrderId = null;
-            let subtotal = 0;
-            let diskonFinal = 0;
-            let total = 0;
-            let ppnJual = 0;
-            let ppnTarif = 0;
+            // Unit dipastikan milik user oleh guardUnitApiApp (hooks); di sini diambil datanya saja
+            const unitRow = await db.query.unitBisnis.findFirst({ where: and(eq(unitBisnis.id, Number(unitId)), eq(unitBisnis.userId, userId)) });
+            if (!unitRow) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
+            const unit = { id: unitRow.id, slug: unitRow.slug, userId: Number(unitRow.userId), kategori: unitRow.kategori, posFeatureOverride: unitRow.posFeatureOverride };
+
+            let hasil;
             try {
-            await db.transaction(async (tx) => {
-                const unitRow = await tx.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, Number(unitId)) });
-                if (!unitRow) throw new CheckoutError('Unit tidak ditemukan', 404);
-                const fitur = getActivePosFeatures(unitRow.kategori, unitRow.posFeatureOverride);
-
-                // 0. Normalisasi item: produk HARUS milik unit ini, harga dari database
-                //    (harga kiriman app hanya dipakai kalau fitur harga bebas/openPrice aktif)
-                if (!Array.isArray(items) || items.length === 0) throw new CheckoutError('Keranjang kosong');
-                const baris = [];
-                for (const item of items) {
-                    const qty = Number(item?.qty);
-                    if (!Number.isInteger(qty) || qty <= 0 || qty > 1_000_000) {
-                        throw new CheckoutError(`Jumlah ${item?.productName || 'barang'} tidak valid`);
-                    }
-                    const prod = await tx.query.products.findFirst({
-                        where: and(eq(products.id, String(item?.productId ?? '')), eq(products.unitId, Number(unitId)))
-                    });
-                    if (!prod) throw new CheckoutError(`Produk ${item?.productName || ''} tidak ditemukan di unit ini`.trim(), 404);
-                    if (!bisaDijual(prod.jenis)) {
-                        throw new CheckoutError(`${prod.nama} bukan barang jual (bahan/kemasan/perlengkapan)`);
-                    }
-                    let harga = Number(prod.hargaJual || 0);
-                    let namaItem = item.productName || prod.nama;
-                    if (item.variantId) {
-                        const varian = await tx.query.productVariants.findFirst({
-                            where: and(eq(productVariants.id, String(item.variantId)), eq(productVariants.productId, prod.id))
-                        });
-                        if (!varian) throw new CheckoutError(`Varian ${prod.nama} tidak ditemukan`, 404);
-                        // pos_order_items.variant_id bertipe INT sedangkan ID varian UUID → simpan namanya saja
-                        if (!String(namaItem).includes(varian.namaVariasi)) namaItem = `${prod.nama} - ${varian.namaVariasi}`;
-                        if (Number(varian.hargaJual) > 0) harga = Number(varian.hargaJual);
-                    }
-                    if (fitur.openPrice) {
-                        const hargaApp = Number(item.price);
-                        if (Number.isFinite(hargaApp) && hargaApp >= 0) harga = hargaApp;
-                    }
-                    baris.push({ prod, qty, harga, nama: namaItem });
-                }
-                subtotal = baris.reduce((sum, b) => sum + b.harga * b.qty, 0);
-
-                /** @type {number | null} */
-                let voucherIdDipakai = null;
-                // Diskon: voucher divalidasi di server; diskon manual hanya kalau fiturnya aktif.
-                // (Pemakaian voucher dicatat lewat action 'use-voucher' di /api/app/pos/vouchers.)
-                if (voucherCode) {
-                    const v = await tx.query.vouchers.findFirst({
-                        where: and(eq(vouchers.code, String(voucherCode)), eq(vouchers.unitId, Number(unitId)))
-                    });
-                    const hariIni = todayStrWIB();
-                    if (v && v.isActive && v.validFrom <= hariIni && v.validUntil >= hariIni && subtotal >= Number(v.minPurchase || 0)) {
-                        diskonFinal = v.discountType === 'PERCENTAGE'
-                            ? Math.floor(subtotal * (Number(v.discountValue) / 100))
-                            : Number(v.discountValue);
-                        voucherIdDipakai = v.id;
-                    }
-                } else if (fitur.manualDiscount) {
-                    diskonFinal = Number(diskon || 0);
-                }
-                if (!Number.isFinite(diskonFinal) || diskonFinal < 0) diskonFinal = 0;
-                diskonFinal = Math.min(diskonFinal, subtotal);
-                total = subtotal - diskonFinal;
-
-                // PPN penjualan: tarif diambil dari pengaturan pajak unit (bukan dari kiriman app)
-                if (kenaiPpn) {
-                    const tarif = await tarifPpnAktif(tx, Number(unitId));
-                    if (!tarif || tarif.persentase <= 0) throw new CheckoutError('Belum ada tarif PPN aktif. Atur di Pengaturan Pajak dulu.', 422);
-                    const h = hitungPpn(total, tarif.persentase, ppnInklusif ? 'INCLUSIVE' : 'EXCLUSIVE');
-                    ppnJual = h.ppn;
-                    ppnTarif = tarif.persentase;
-                    total = h.total;
-                }
-
-                // 1. Insert order (nilai resmi dihitung server)
-                const [orderInsertResult] = await tx.insert(posOrders).values({
-                    orderNumber: orderNumber || `POS-${unitId}-${Date.now()}`, 
-                    unitId: Number(unitId), 
-                    customerId: customerId || null, 
-                    createdBy: userId, 
-                    subtotal: String(subtotal), 
-                    discount: String(diskonFinal), 
-                    total: String(total), 
-                    paymentMethod: paymentMethod || 'CASH', 
-                    status: 'PAID',
-                    orderType: orderType || 'TAKEAWAY',
-                    tableNumber: tableNumber || null,
-                    queueNumber: queueNumber || null,
-                    fulfillmentStatus: queueNumber ? 'PENDING' : 'COMPLETED',
-                    notes: [notes, ppnJual > 0 ? `PPN ${ppnTarif}% ${ppnInklusif ? '(termasuk)' : ''}: Rp ${ppnJual.toLocaleString('id-ID')}` : null].filter(Boolean).join(' | ') || null,
-                    amountPaid: String(amountPaid !== undefined && amountPaid !== null ? amountPaid : total),
-                    change: String(changeAmount || 0), // kolomnya bernama "change" (dulu changeAmount → tidak pernah tersimpan)
-                    voucherId: voucherIdDipakai
+                // Logika checkout sama persis dengan kasir web (lib/server/posCheckout.js)
+                hasil = await prosesCheckoutPos(db, { unit, kasirPemilik: true, namaKasir: null }, {
+                    items: items.map((/** @type {any} */ i) => ({
+                        productId: String(i.productId),
+                        variantId: i.variantId ? String(i.variantId) : null,
+                        qty: Number(i.qty),
+                        harga: i.price,
+                        nama: i.productName
+                    })),
+                    customerId: customerId ? Number(customerId) : null,
+                    voucherCode: voucherCode || null,
+                    diskonManual: diskon,
+                    paymentMethod,
+                    payments: Array.isArray(payments) ? payments : null,
+                    amountPaid,
+                    orderType,
+                    tableNumber,
+                    queueNumber,
+                    notes,
+                    kenaiPpn: Boolean(kenaiPpn),
+                    ppnInklusif: Boolean(ppnInklusif),
+                    orderNumber,
+                    // Penjualan offline yang baru tersinkron tetap dicatat walau stok sudah habis (stok berhenti di 0)
+                    izinkanStokKurang: true
                 });
-
-                finalOrderId = orderInsertResult.insertId;
-
-                // Insert payments if split payment
-                if (payments && Array.isArray(payments) && payments.length > 0) {
-                    for (const p of payments) {
-                        await tx.insert(posPayments).values({
-                            orderId: finalOrderId,
-                            method: p.method,
-                            amount: String(p.amount)
-                        });
-                    }
-                }
-
-                // 2. Insert items and reduce stock
-                for (const { prod, qty, harga, nama } of baris) {
-                    const nominal = harga * qty;
-
-                    // Atomik (aman untuk beberapa kasir). Penjualan offline yang disinkron belakangan tetap
-                    // dicatat walau stok sudah habis — stok berhenti di 0 seperti perilaku sebelumnya.
-                    await tx.update(products)
-                        .set({ stok: sql`GREATEST(${products.stok} - ${qty}, 0)` })
-                        .where(and(eq(products.id, prod.id), eq(products.unitId, Number(unitId))));
-
-                    await tx.insert(posOrderItems).values({
-                        orderId: finalOrderId, productId: prod.id, variantId: null, productName: nama, qty: qty, price: String(harga), total: String(nominal), costTotal: String(Number(prod.hargaBeli || 0) * qty)
-                    });
-
-                    // Save transaction
-                    await tx.insert(transaksi).values({
-                        userId: userId,
-                        unitId: Number(unitId),
-                        keterangan: `Penjualan POS: ${nama} (${qty}x)`,
-                        nominal: String(nominal),
-                        totalHarga: String(nominal),
-                        kategoriTrx: 'MASUK',
-                        metodeBayar: paymentMethod || 'CASH',
-                        productId: prod.id,
-                        qty: qty,
-                        hppTotal: String(Number(prod.hargaBeli || 0) * qty)
-                    });
-                }
-
-                // 3. Log action
-                await tx.insert(riwayatAksi).values({
-                    userId,
-                    unitId: Number(unitId),
-                    pesan: `Transaksi POS selesai #${orderNumber}. Total: Rp ${String(total)}`,
-                    kategori: 'POS',
-                    tipe: 'success'
-                });
-
-                // 4. Accounting COA Journal entries
-                const coaCash = await tx.query.chartOfAccounts.findFirst({
-                    where: and(eq(chartOfAccounts.unitId, Number(unitId)), eq(chartOfAccounts.tipeAkun, 'ASET_LANCAR'))
-                });
-                const coaRevenue = await tx.query.chartOfAccounts.findFirst({
-                    where: and(eq(chartOfAccounts.unitId, Number(unitId)), eq(chartOfAccounts.tipeAkun, 'PENDAPATAN'))
-                });
-
-                if (coaCash && coaRevenue && Number(total || 0) > 0) {
-                    const [jurnalResult] = await tx.insert(journalEntries).values({
-                        unitId: Number(unitId), userId: String(userId), tanggal: todayStrWIB(), nomorJurnal: `JRN-POS-${orderNumber}`, referensi: orderNumber, memo: 'Pendapatan POS', sourceType: 'POS', sourceId: String(finalOrderId), totalDebit: String(total), totalKredit: String(total), status: 'POSTED'
-                    });
-                    const journalId = jurnalResult.insertId;
-
-                    // Debit Cash
-                    await tx.insert(journalEntryLines).values({
-                        journalId, coaId: coaCash.id, keterangan: `Penerimaan Kas - ${orderNumber}`, debit: String(total), kredit: '0'
-                    });
-
-                    // Credit Revenue (tanpa PPN) + Credit PPN Keluaran
-                    await tx.insert(journalEntryLines).values({
-                        journalId, coaId: coaRevenue.id, keterangan: `Pendapatan Penjualan - ${orderNumber}`, debit: '0', kredit: String(Number(total) - ppnJual)
-                    });
-                    if (ppnJual > 0) {
-                        const coaPpn = await pastikanAkunPpnKeluaran(tx, Number(unitId));
-                        await tx.insert(journalEntryLines).values({
-                            journalId, coaId: coaPpn, keterangan: `PPN Keluaran ${ppnTarif}% - ${orderNumber}`, debit: '0', kredit: String(ppnJual)
-                        });
-                    }
-                }
-            });
             } catch (e) {
-                if (e instanceof CheckoutError) return json({ success: false, message: e.message }, { status: e.status });
+                if (e instanceof PosError) return json({ success: false, message: e.message }, { status: e.status });
+                // order_number unik: kiriman ulang dari antrean offline tidak boleh tercatat dua kali
+                if (/** @type {any} */ (e)?.code === 'ER_DUP_ENTRY' || /Duplicate entry/i.test(String(/** @type {any} */ (e)?.message))) {
+                    return json({ success: false, message: 'Transaksi dengan nomor ini sudah tercatat' }, { status: 409 });
+                }
                 throw e;
             }
 
-            const unit = await db.query.unitBisnis.findFirst({
-                where: eq(unitBisnis.id, Number(unitId))
+            await siarkanCheckoutPos(unit, hasil);
+
+            return json({
+                success: true,
+                message: "Transaksi berhasil diproses",
+                id: String(hasil.orderId),
+                data: { orderNumber: hasil.orderNumber, subtotal: hasil.subtotal, discount: hasil.discount, ppn: hasil.ppn, total: hasil.total, paid: hasil.paid, change: hasil.change }
             });
-            const slug = unit?.slug || '';
-            if (slug) {
-                const productKeys = await redis.keys(`cache:products_page_v4:${slug}:*`);
-                if (productKeys.length > 0) await redis.del(...productKeys);
-
-                // Trigger on correct unit room for web notifications
-                triggerEvent(`unit-${unitId}`, 'pos-transaction', {
-                    orderNumber,
-                    total: Number(total),
-                    unitId: Number(unitId),
-                    timestamp: nowWIB()
-                });
-                triggerEvent(`unit-${unitId}`, 'notification', {
-                    id: Date.now(),
-                    unitId: Number(unitId),
-                    pesan: `POS: Transaksi #${orderNumber} - Rp ${String(total)}`,
-                    kategori: 'POS',
-                    tipe: 'success',
-                    waktu: nowWIB()
-                });
-            }
-
-            return json({ success: true, message: "Transaksi berhasil diproses", id: String(finalOrderId), data: { subtotal, discount: diskonFinal, ppn: ppnJual, total } });
         }
 
         if (action === 'open-shift') {
