@@ -1027,10 +1027,12 @@
 		window.removeEventListener('touchmove', dragTouch);
 		window.removeEventListener('touchend', endDragTouch);
 	}
+	$: diKasir = /\/pos\/?$/.test($page.url.pathname);
 </script>
 
 <!-- ROOT -->
-<div class="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-[200] select-none" role="region" aria-label="Chat AI Bizgrow">
+<!-- Di kasir (HP) tombol dinaikkan agar tidak menutupi navigasi bawah & bar Bayar -->
+<div class="fixed {diKasir ? 'bottom-36 md:bottom-5' : 'bottom-4 sm:bottom-5'} right-4 sm:right-5 z-[200] select-none" role="region" aria-label="Chat AI Bizgrow">
 
 {#if isOpen || showUnitPicker}
 <div style="transform: translate({dragX}px, {dragY}px);" class="fixed sm:absolute bottom-0 right-0 left-0 sm:left-auto z-50">
