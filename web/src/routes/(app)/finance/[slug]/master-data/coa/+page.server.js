@@ -1,7 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { chartOfAccounts, unitBisnis } from '$lib/server/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { DEFAULT_COAS } from '$lib/server/defaultCoa';
 import { isiCoaStandar, buatCoaDenganAi, MasterDataError } from '$lib/server/masterData';
@@ -132,12 +132,28 @@ export const actions = {
             });
             if (!unit) return fail(404, { message: 'Unit tidak ditemukan' });
 
-            await db.delete(chartOfAccounts)
+            if (!Number.isInteger(id) || id <= 0) return fail(400, { message: 'ID akun tidak valid' });
+
+            // Akun yang sudah dipakai jurnal TIDAK boleh dihapus: FK journal_entry_lines.coa_id ON DELETE CASCADE
+            // akan ikut menghapus baris jurnalnya sehingga buku besar & neraca tidak seimbang.
+            const [pakai] = await db.execute(sql`
+                SELECT
+                  (SELECT COUNT(*) FROM journal_entry_lines l JOIN journal_entries j ON j.id = l.journal_id WHERE l.coa_id = ${id} AND j.unit_id = ${unit.id}) AS jurnal,
+                  (SELECT COUNT(*) FROM chart_of_accounts c WHERE c.parent_id = ${id} AND c.unit_id = ${unit.id}) AS anak`);
+            const baris = Array.isArray(pakai) ? pakai[0] : pakai;
+            if (Number(baris?.jurnal) > 0) {
+                return fail(409, { message: `Akun sudah dipakai di ${baris.jurnal} baris jurnal. Nonaktifkan akun ini, jangan dihapus.` });
+            }
+            if (Number(baris?.anak) > 0) return fail(409, { message: 'Akun masih menjadi induk akun lain. Pindahkan sub-akunnya dulu.' });
+
+            const [hasil] = await db.delete(chartOfAccounts)
                 .where(and(eq(chartOfAccounts.id, id), eq(chartOfAccounts.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { message: 'Akun tidak ditemukan di unit ini' });
 
             return { success: true, message: 'Akun berhasil dihapus!' };
         } catch (err) {
-            return fail(500, { message: err.message });
+            log.finance.error({ err: err instanceof Error ? err.message : String(err) }, '[COA] deleteCoa');
+            return fail(500, { message: 'Gagal menghapus akun' });
         }
     },
 

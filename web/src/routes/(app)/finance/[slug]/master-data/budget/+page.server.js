@@ -192,8 +192,9 @@ export const actions = {
 		const id = parseInt(String(data.get('id')));
 		if (!id) return fail(400, { message: 'ID tidak valid' });
 
-		await db.delete(budgetItems)
+		const [hasil] = await db.delete(budgetItems)
 			.where(and(eq(budgetItems.id, id), eq(budgetItems.unitId, unitRows[0].id)));
+		if (!hasil?.affectedRows) return fail(404, { message: 'Anggaran tidak ditemukan di unit ini' });
 		return { success: true };
 	}
 };

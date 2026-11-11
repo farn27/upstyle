@@ -107,8 +107,9 @@ export async function POST({ request, params, cookies }) {
             if (!componentId) {
                 return json({ success: false, message: 'ID komponen tidak valid.' }, { status: 400 });
             }
-            await db.delete(schema.salaryComponents)
+            const [hasil] = await db.delete(schema.salaryComponents)
                 .where(and(eq(schema.salaryComponents.id, componentId), eq(schema.salaryComponents.employeeId, employeeId)));
+            if (!hasil?.affectedRows) return json({ success: false, message: 'Komponen gaji tidak ditemukan.' }, { status: 404 });
             return json({ success: true, message: 'Komponen gaji berhasil dihapus.' });
         }
 

@@ -108,10 +108,11 @@ export async function DELETE({ url, cookies, request }) {
   if (!id) return apiError('id wajib', 400);
 
   try {
-    await db.delete(businessPlans)
+    const [hasil] = await db.delete(businessPlans)
       .where(and(eq(businessPlans.id, Number(id)), eq(businessPlans.userId, userId)));
+    if (!hasil?.affectedRows) return apiError('Plan tidak ditemukan', 404);
     return apiSuccess(null, 'Plan berhasil dihapus');
   } catch (err) {
-    return apiError('Gagal hapus: ' + err.message, 500);
+    return apiError('Gagal menghapus plan', 500);
   }
 }

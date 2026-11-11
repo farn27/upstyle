@@ -117,6 +117,6 @@ export async function DELETE({ url, cookies, request }) {
         return json({ success: true, message: "Kategori berhasil dihapus" });
     } catch (err) {
         log.api.error({ err }, 'API DELETE CATEGORY ERROR');
-        return json({ success: false, message: "Gagal menghapus kategori: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal menghapus kategori" }, { status: 500 });
     }
 }

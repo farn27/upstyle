@@ -115,12 +115,14 @@ export const actions = {
             });
             if (!unit) return fail(404, { message: 'Unit tidak ditemukan' });
 
-            await db.delete(accountingContacts)
+            const [hasil] = await db.delete(accountingContacts)
                 .where(and(eq(accountingContacts.id, id), eq(accountingContacts.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { message: 'Kontak tidak ditemukan di unit ini' });
 
             return { success: true, message: 'Kontak berhasil dihapus!' };
         } catch (err) {
-            return fail(500, { message: err.message });
+            console.error('[Kontak] hapus', err instanceof Error ? err.message : err);
+            return fail(500, { message: 'Gagal menghapus kontak (mungkin masih dipakai piutang/hutang)' });
         }
     }
 };

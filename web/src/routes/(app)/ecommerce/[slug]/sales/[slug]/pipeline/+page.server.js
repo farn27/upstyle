@@ -122,8 +122,9 @@ export const actions = {
             });
             if (!unit) return fail(404, { error: 'Unit tidak ditemukan' });
 
-            await db.delete(crmDeals)
+            const [hasil] = await db.delete(crmDeals)
                 .where(and(eq(crmDeals.id, dealId), eq(crmDeals.unitId, unit.id)));
+            if (!hasil?.affectedRows) return fail(404, { error: 'Deal tidak ditemukan di unit ini' });
             return { success: true };
         } catch (err) {
             return fail(500, { error: 'Gagal hapus deal' });

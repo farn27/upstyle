@@ -228,7 +228,7 @@ export async function POST({ request, cookies }) {
         return json({ success: true, message: "Produk berhasil disimpan", id: newId });
     } catch (err) {
         log.api.error({ err }, 'API POST PRODUCT ERROR');
-        return json({ success: false, message: "Gagal menyimpan produk: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal menyimpan produk" }, { status: 500 });
     }
 }
 
@@ -249,8 +249,15 @@ export async function PUT({ request, cookies }) {
         const unitId = existingProduct.unitId;
         if (Number(existingProduct.userId) !== Number(userId)) return json({ success: false, message: "Akses ditolak" }, { status: 403 });
 
+        // Validasi server (dulu stok negatif / bukan angka / tidak dikirim langsung disimpan — F-11)
         const stokLama = Number(existingProduct.stok || 0);
-        const stokBaru = Number(stok || 0);
+        const stokBaru = stok === undefined || stok === null || stok === '' ? stokLama : Number(stok);
+        if (!Number.isInteger(stokBaru) || stokBaru < 0) return json({ success: false, message: 'Stok harus bilangan bulat 0 atau lebih' }, { status: 400 });
+        const hb = hargaBeli === undefined ? Number(existingProduct.hargaBeli || 0) : Number(hargaBeli);
+        const hj = hargaJual === undefined ? Number(existingProduct.hargaJual || 0) : Number(hargaJual);
+        if (!Number.isFinite(hb) || hb < 0 || !Number.isFinite(hj) || hj < 0) return json({ success: false, message: 'Harga harus angka 0 atau lebih' }, { status: 400 });
+        const namaBaru = nama === undefined ? existingProduct.nama : String(nama || '').trim();
+        if (!namaBaru) return json({ success: false, message: 'Nama produk wajib diisi' }, { status: 400 });
         const selisih = stokBaru - stokLama;
 
         await db.transaction(async (tx) => {
@@ -281,10 +288,10 @@ export async function PUT({ request, cookies }) {
 
             await tx.update(products)
                 .set({
-                    nama: nama,
-                    sku: sku,
-                    hargaBeli: String(hargaBeli || 0),
-                    hargaJual: String(hargaJual || 0),
+                    nama: namaBaru,
+                    ...(sku !== undefined ? { sku } : {}),
+                    hargaBeli: String(hb),
+                    hargaJual: String(hj),
                     stok: stokBaru,
                     kategoriId: kategoriId,
                     ...(body.minStok !== undefined ? { minStok: Math.max(0, Number(body.minStok) || 0) } : {}),
@@ -372,7 +379,7 @@ export async function PUT({ request, cookies }) {
         return json({ success: true, message: "Produk berhasil diperbarui" });
     } catch (err) {
         log.api.error({ err }, 'API PUT PRODUCT ERROR');
-        return json({ success: false, message: "Gagal memperbarui produk: " + err.message }, { status: 500 });
+        return json({ success: false, message: "Gagal memperbarui produk" }, { status: 500 });
     }
 }
 

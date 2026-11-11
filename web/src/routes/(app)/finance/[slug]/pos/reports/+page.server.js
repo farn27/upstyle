@@ -81,7 +81,47 @@ export async function load({ params, cookies, locals }) {
         .orderBy(desc(sql`SUM(${posOrderItems.qty})`))
         .limit(5);
 
+        // Tren nyata: 7 hari terakhir vs 7 hari sebelumnya + penjualan harian untuk grafik
+        // (dulu angka tren "+12%", "+5%", "-2%", "Naik 15.4%" dan tinggi batang grafik ditulis tetap — F-3)
+        const harianRows = await db.select({
+            hari: sql`DATE(${posOrders.createdAt})`,
+            total: sql`COALESCE(SUM(${posOrders.total}), 0)`,
+            jumlah: sql`COUNT(*)`
+        })
+        .from(posOrders)
+        .where(and(eq(posOrders.unitId, unitId), eq(posOrders.status, 'PAID'), sql`${posOrders.createdAt} >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)`))
+        .groupBy(sql`DATE(${posOrders.createdAt})`);
+
+        const peta = new Map(harianRows.map((r) => [String(r.hari).slice(0, 10), { total: Number(r.total) || 0, jumlah: Number(r.jumlah) || 0 }]));
+        const NAMA_HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        const sekarangWIB = new Date(Date.now() + 7 * 3600_000);
+        /** @type {{ tanggal: string, label: string, total: number, jumlah: number }[]} */
+        const empatBelasHari = [];
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(sekarangWIB.getTime() - i * 86_400_000);
+            const tanggal = d.toISOString().slice(0, 10);
+            const v = peta.get(tanggal) || { total: 0, jumlah: 0 };
+            empatBelasHari.push({ tanggal, label: NAMA_HARI[d.getUTCDay()], ...v });
+        }
+        const mingguLalu = empatBelasHari.slice(0, 7);
+        const mingguIni = empatBelasHari.slice(7);
+        const jumlahkan = (/** @type {typeof mingguIni} */ arr, /** @type {'total' | 'jumlah'} */ k) => arr.reduce((a, b) => a + b[k], 0);
+        const persen = (/** @type {number} */ kini, /** @type {number} */ dulu) => (dulu > 0 ? Math.round(((kini - dulu) / dulu) * 1000) / 10 : null);
+        const penjualanIni = jumlahkan(mingguIni, 'total');
+        const penjualanLalu = jumlahkan(mingguLalu, 'total');
+        const orderIni = jumlahkan(mingguIni, 'jumlah');
+        const orderLalu = jumlahkan(mingguLalu, 'jumlah');
+        const tren = {
+            penjualan: persen(penjualanIni, penjualanLalu),
+            pesanan: persen(orderIni, orderLalu),
+            rataRata: persen(orderIni ? penjualanIni / orderIni : 0, orderLalu ? penjualanLalu / orderLalu : 0),
+            penjualanMingguIni: penjualanIni,
+            penjualanMingguLalu: penjualanLalu
+        };
+
         return {
+            tren,
+            grafikMingguan: mingguIni,
             stats: {
                 totalSales: Number(statsRows[0]?.total_sales) || 0,
                 totalOrders: statsRows[0]?.total_orders || 0,
@@ -96,7 +136,7 @@ export async function load({ params, cookies, locals }) {
             }))
         };
     } catch (e) {
-        console.error("MySQL Error:", e.message);
-        throw error(500, "Koneksi Database Gagal: " + e.message);
+        console.error('[POS Reports]', e instanceof Error ? e.message : e);
+        throw error(500, 'Gagal memuat laporan kasir. Coba muat ulang halaman.');
     }
 }
