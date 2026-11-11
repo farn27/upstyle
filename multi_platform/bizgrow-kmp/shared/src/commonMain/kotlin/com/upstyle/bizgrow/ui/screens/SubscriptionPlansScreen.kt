@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -88,7 +90,7 @@ private fun PlansTab(plans: List<SubscriptionPlan>, currentPlanId: String?, view
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text("Rp ${plan.priceMonthly.toLong()} / bulan", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text("${plan.priceMonthly.rupiah()} / bulan", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
                     plan.features.forEach { feature ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
@@ -161,7 +163,7 @@ private fun InvoicesTab(invoices: List<com.upstyle.bizgrow.data.Invoice>) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Invoice #${invoice.id}", fontWeight = FontWeight.Medium)
-                        Text("Rp ${invoice.amount.toLong()} • ${invoice.issuedDate}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${invoice.amount.rupiah()} • ${invoice.issuedDate}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Surface(
                         color = if (invoice.status == "paid") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,

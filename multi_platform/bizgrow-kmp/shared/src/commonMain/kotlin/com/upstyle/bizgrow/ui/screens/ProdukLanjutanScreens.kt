@@ -119,8 +119,8 @@ private fun VarianForm(awal: ProductVariant, onSimpan: (ProductVariant) -> Unit)
         BizTextField(nama, { nama = it }, "Nama varian", placeholder = "mis. Large / Merah")
         BizTextField(sku, { sku = it }, "SKU (opsional)")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            BizTextField(beli, { beli = it.filter(Char::isDigit) }, "Harga beli", Modifier.weight(1f), keyboardType = KeyboardType.Number)
-            BizTextField(jual, { jual = it.filter(Char::isDigit) }, "Harga jual", Modifier.weight(1f), keyboardType = KeyboardType.Number)
+            BizTextField(beli, { beli = it.filter(Char::isDigit) }, "Harga beli", Modifier.weight(1f), keyboardType = KeyboardType.Number, uang = true)
+            BizTextField(jual, { jual = it.filter(Char::isDigit) }, "Harga jual", Modifier.weight(1f), keyboardType = KeyboardType.Number, uang = true)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             BizTextField(stok, { stok = it.filter(Char::isDigit) }, "Stok", Modifier.weight(1f), keyboardType = KeyboardType.Number)

@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.upstyle.bizgrow.api.UpstyleApi
@@ -1506,7 +1508,7 @@ class AppViewModel(
                 clearCart()
                 loadProducts()
                 loadDashboard()
-                setSuccess("Transaksi berhasil! Total: Rp ${"%,.0f".format(total)}")
+                setSuccess("Transaksi berhasil! Total: ${(total).toDouble().rupiah()}")
                 onSuccess(true)
             } else {
                 setError(res.message ?: "Checkout gagal")

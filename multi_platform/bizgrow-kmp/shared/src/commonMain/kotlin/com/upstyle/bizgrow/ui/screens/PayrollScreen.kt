@@ -229,18 +229,20 @@ fun ProcessPayrollSheet(
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = allowance,
-                onValueChange = { allowance = it },
+                onValueChange = { allowance = it.filter(Char::isDigit) },
                 label = { Text("Tunjangan (Rp)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = com.upstyle.bizgrow.ui.design.RupiahVisualTransformation, // tampil Rp 1.500.000
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp)
             )
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = deduction,
-                onValueChange = { deduction = it },
+                onValueChange = { deduction = it.filter(Char::isDigit) },
                 label = { Text("Potongan (Rp)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = com.upstyle.bizgrow.ui.design.RupiahVisualTransformation, // tampil Rp 1.500.000
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp)
             )

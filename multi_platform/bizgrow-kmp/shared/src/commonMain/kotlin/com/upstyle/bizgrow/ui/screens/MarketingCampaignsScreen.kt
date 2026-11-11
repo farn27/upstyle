@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -177,7 +179,7 @@ fun CampaignCard(campaign: MarketingCampaign, onStatus: ((String) -> Unit)? = nu
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Anggaran: Rp ${campaign.budget.toLong()}",
+                    text = "Anggaran: ${campaign.budget.rupiah()}",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary

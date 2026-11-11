@@ -473,7 +473,8 @@ private fun CheckoutSheet(
                 BizTextField(
                     diskonText, { diskonText = it.filter { c -> c.isDigit() }; voucherPotongan = null; voucherPesan = null },
                     if (modeDiskon == "PERSEN") "Diskon (%)" else "Diskon (Rp)", leadingIcon = Icons.Rounded.LocalOffer, keyboardType = KeyboardType.Number,
-                    enabled = voucherPotongan == null
+                    enabled = voucherPotongan == null,
+                    uang = modeDiskon == "RP"
                 )
             }
             FilterPill("Rp", modeDiskon == "RP", { modeDiskon = "RP" })
@@ -555,7 +556,7 @@ private fun CheckoutSheet(
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            BizTextField(splitNominal[i], { v -> splitNominal = splitNominal.toMutableList().also { it[i] = v.filter(Char::isDigit) } }, "Nominal", keyboardType = KeyboardType.Number)
+                            BizTextField(splitNominal[i], { v -> splitNominal = splitNominal.toMutableList().also { it[i] = v.filter(Char::isDigit) } }, "Nominal", keyboardType = KeyboardType.Number, uang = true)
                         }
                     }
                 }
@@ -569,7 +570,7 @@ private fun CheckoutSheet(
 
         AnimatedVisibility(metode == "CASH" && !bayarTerpisah, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.padding(top = 12.dp)) {
-                BizTextField(diterimaText, { diterimaText = it.filter(Char::isDigit) }, "Uang diterima", leadingIcon = Icons.Rounded.Payments, keyboardType = KeyboardType.Number)
+                BizTextField(diterimaText, { diterimaText = it.filter(Char::isDigit) }, "Uang diterima", leadingIcon = Icons.Rounded.Payments, keyboardType = KeyboardType.Number, uang = true)
                 Spacer(Modifier.height(8.dp))
                 // Nominal cepat: uang pas & pecahan umum di atas total
                 val saran = remember(total) {

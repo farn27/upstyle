@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -243,7 +245,7 @@ fun PricingStrategyItemCard(
     }
     val valueLabel = when (strategy.type) {
         "PERCENTAGE" -> "${strategy.value.toInt()}%"
-        else         -> "Rp ${"%,.0f".format(strategy.value)}"
+        else         -> "${(strategy.value).toDouble().rupiah()}"
     }
 
     Card(
@@ -384,7 +386,8 @@ fun PricingStrategyFormSheet(
 
     var name      by remember { mutableStateOf(initialStrategy?.name ?: "") }
     var type      by remember { mutableStateOf(initialStrategy?.type ?: "FIXED") }
-    var value     by remember { mutableStateOf(initialStrategy?.value?.toString() ?: "") }
+    // nilai rupiah tanpa ",0" supaya kolom uang tidak bergeser saat diedit (15000.0 → 150000)
+    var value     by remember { mutableStateOf(initialStrategy?.let { st -> if (st.type == "PERCENTAGE") st.value.toString() else st.value.toLong().toString() } ?: "") }
     var minQty    by remember { mutableStateOf(initialStrategy?.minQty?.toString() ?: "1") }
     var startDate by remember { mutableStateOf(initialStrategy?.startDate ?: "") }
     var endDate   by remember { mutableStateOf(initialStrategy?.endDate ?: "") }
@@ -476,9 +479,10 @@ fun PricingStrategyFormSheet(
             // Value
             OutlinedTextField(
                 value = value,
-                onValueChange = { value = it },
+                onValueChange = { value = if (type != "PERCENTAGE") it.filter(Char::isDigit) else it },
                 label = { Text(if (type == "PERCENTAGE") "Nilai Diskon (%)" else "Nilai Harga (Rp)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                visualTransformation = if (type != "PERCENTAGE") com.upstyle.bizgrow.ui.design.RupiahVisualTransformation else androidx.compose.ui.text.input.VisualTransformation.None, // tampil Rp 1.500.000
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true,

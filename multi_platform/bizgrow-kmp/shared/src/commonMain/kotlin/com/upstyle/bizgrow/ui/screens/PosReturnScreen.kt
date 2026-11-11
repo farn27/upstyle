@@ -117,9 +117,10 @@ fun PosReturnScreen(viewModel: AppViewModel) {
                     )
                     OutlinedTextField(
                         value = refundAmount,
-                        onValueChange = { refundAmount = it },
+                        onValueChange = { refundAmount = it.filter(Char::isDigit) },
                         label = { Text("Jumlah Refund (Rp)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = com.upstyle.bizgrow.ui.design.RupiahVisualTransformation, // tampil Rp 1.500.000
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp)
                     )

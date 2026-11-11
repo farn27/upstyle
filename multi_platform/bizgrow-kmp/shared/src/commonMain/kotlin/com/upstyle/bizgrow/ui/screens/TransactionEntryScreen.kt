@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -405,9 +407,10 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                     // Nominal — primary required field, always visible
                     OutlinedTextField(
                         value = nominal,
-                        onValueChange = { nominal = it },
+                        onValueChange = { nominal = it.filter(Char::isDigit) },
                         label = { Text("Nominal (Rp) *") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = com.upstyle.bizgrow.ui.design.RupiahVisualTransformation, // tampil Rp 1.500.000
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
@@ -472,7 +475,7 @@ fun TransactionEntryScreen(viewModel: AppViewModel) {
                                 ) {
                                     products.take(50).forEach { p ->
                                         DropdownMenuItem(
-                                            text = { Text("${p.nama} — Rp${"%,.0f".format(p.hargaJual)}", fontSize = 13.sp) },
+                                            text = { Text("${p.nama} — ${(p.hargaJual).toDouble().rupiah()}", fontSize = 13.sp) },
                                             onClick = { selectedProduct = p; showProductMenu = false }
                                         )
                                     }

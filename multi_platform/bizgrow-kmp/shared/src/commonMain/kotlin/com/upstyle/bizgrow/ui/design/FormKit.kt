@@ -104,10 +104,27 @@ fun FormSheet(
     }
 }
 
-/** Field angka: hanya digit & titik/koma desimal. */
+/** Label kolom yang berisi uang → tampil berformat rupiah. */
+private val LABEL_UANG = Regex("\\(Rp\\)|^(harga|nominal|gaji|modal|biaya|tunjangan|potongan|ongkir|uang|limit|anggaran|budget|setor|tarik|bayar|kas|diterima|omzet|target)", RegexOption.IGNORE_CASE)
+
+/** Field angka: hanya digit & titik desimal. Kolom uang (label "(Rp)", "Harga…", "Nominal…", dst.) tampil "Rp 1.500.000". */
 @Composable
-fun AngkaField(nilai: String, onUbah: (String) -> Unit, label: String, placeholder: String? = null, desimal: Boolean = true, supporting: String? = null) {
-    BizTextField(
+fun AngkaField(nilai: String, onUbah: (String) -> Unit, label: String, placeholder: String? = null, desimal: Boolean = true, supporting: String? = null, uang: Boolean? = null) {
+    val kolomUang = uang ?: LABEL_UANG.containsMatchIn(label.trim())
+    if (kolomUang) {
+        // Rupiah tanpa sen: nilai awal seperti "1500.0" (dari Double) dirapikan jadi "1500" supaya pengetikan
+        // berikutnya tidak menggeser angka (mis. 1500.0 → 15000)
+        LaunchedEffect(nilai) {
+            if (nilai.contains('.') || nilai.contains(',')) {
+                val bulat = nilai.replace(',', '.').toDoubleOrNull()?.let { kotlin.math.round(it).toLong().toString() } ?: nilai.filter { it.isDigit() }
+                if (bulat != nilai) onUbah(bulat)
+            }
+        }
+        BizTextField(
+            nilai, { v -> onUbah(v.filter { it.isDigit() }.trimStart('0').ifEmpty { if (v.any { it.isDigit() }) "0" else "" }) }, label,
+            placeholder = placeholder, keyboardType = KeyboardType.Number, supportingText = supporting, uang = true
+        )
+    } else BizTextField(
         nilai, { v -> onUbah(v.filter { it.isDigit() || (desimal && (it == '.')) }) }, label,
         placeholder = placeholder, keyboardType = if (desimal) KeyboardType.Decimal else KeyboardType.Number, supportingText = supporting
     )

@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.upstyle.bizgrow.api.UpstyleApi
@@ -161,7 +163,7 @@ class PosViewModel(
                 clearCart()
                 onProductsUpdated()
                 onDashboardUpdated()
-                _state.update { it.copy(isLoading = false, successMessage = "Transaksi berhasil! Total: Rp ${"%,.0f".format(total)}") }
+                _state.update { it.copy(isLoading = false, successMessage = "Transaksi berhasil! Total: ${(total).toDouble().rupiah()}") }
                 onSuccess?.invoke(true)
             } else {
                 _state.update { it.copy(isLoading = false, error = res.message ?: "Checkout gagal") }

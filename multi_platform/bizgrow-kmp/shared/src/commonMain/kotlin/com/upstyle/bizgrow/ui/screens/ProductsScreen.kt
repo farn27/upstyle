@@ -1,5 +1,7 @@
 package com.upstyle.bizgrow.ui.screens
 
+import com.upstyle.bizgrow.ui.design.rupiah
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -701,7 +703,7 @@ fun ProductItemCardWithVariants(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        "Rp ${"%,.0f".format(product.hargaJual.toDouble())}",
+                        "${(product.hargaJual.toDouble()).toDouble().rupiah()}",
                         fontWeight = FontWeight.Black,
                         fontSize = 15.sp,
                         color = BizgrowColors.Primary
@@ -837,7 +839,7 @@ fun VariantRow(variant: ProductVariant) {
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                "Rp ${"%,.0f".format(variant.hargaJual)}",
+                "${(variant.hargaJual).toDouble().rupiah()}",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = BizgrowColors.Primary
@@ -903,7 +905,7 @@ fun AdvancedProductFilterSheet(
                 ) {
                     Text("Rentang Harga Jual", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BizgrowColors.Gray800)
                     Text(
-                        "Rp ${"%,.0f".format(localPriceRange.start)} – Rp ${"%,.0f".format(localPriceRange.endInclusive)}",
+                        "${(localPriceRange.start).toDouble().rupiah()} – ${(localPriceRange.endInclusive).toDouble().rupiah()}",
                         fontSize = 12.sp,
                         color = BizgrowColors.Primary,
                         fontWeight = FontWeight.Medium
