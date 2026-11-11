@@ -202,6 +202,17 @@ export async function POST({ request, cookies }) {
                 return json({ success: false, message: msg }, { status: 400 });
             }
         }
+        /** Baris shift lengkap dalam bentuk model PosShift aplikasi HP (id, unitId, userId, waktuBuka wajib). */
+        const shiftLengkap = async (/** @type {number} */ idShift) => {
+            const [sh] = await db.select().from(posShifts).where(eq(posShifts.id, idShift)).limit(1);
+            if (!sh) return null;
+            return {
+                id: sh.id, unitId: sh.unitId, userId: sh.userId, waktuBuka: sh.waktuBuka, waktuTutup: sh.waktuTutup ?? null,
+                modalAwal: Number(sh.modalAwal || 0), kasAkhir: Number(sh.kasAkhir || 0), kasAkhirAktual: Number(sh.kasAkhirAktual || 0),
+                selisih: Number(sh.selisih || 0), status: sh.status || 'OPEN', catatan: sh.catatan ?? null
+            };
+        };
+
         if (action === 'open-shift') {
             const schema = z.object({
                 action: z.literal('open-shift'),
@@ -336,7 +347,7 @@ export async function POST({ request, cookies }) {
             const [terbuka] = await db.select({ id: posShifts.id }).from(posShifts)
                 .where(and(eq(posShifts.unitId, Number(unitId)), eq(posShifts.status, 'OPEN'))).limit(1);
             if (terbuka) {
-                return json({ success: true, message: "Shift sudah terbuka", data: { id: terbuka.id } });
+                return json({ success: true, message: "Shift sudah terbuka", data: await shiftLengkap(terbuka.id) });
             }
             const [result] = await db.insert(posShifts).values({
                 unitId: Number(unitId),
@@ -351,7 +362,9 @@ export async function POST({ request, cookies }) {
                 userId, unitId: Number(unitId), pesan: `POS Shift dibuka. Modal: Rp ${String(modalAwal)}`, kategori: 'POS', tipe: 'success'
             });
             
-            return json({ success: true, message: "Shift berhasil dibuka", data: { id: result.insertId } });
+            // Dulu data hanya { id } → app HP gagal membaca PosShift (unitId/userId/waktuBuka wajib) dan
+            // menampilkan galat padahal shift sudah terbuka
+            return json({ success: true, message: "Shift berhasil dibuka", data: await shiftLengkap(Number(result.insertId)) });
         }
 
         if (action === 'close-shift') {
@@ -381,7 +394,8 @@ export async function POST({ request, cookies }) {
                 userId, unitId: shift.unitId, pesan: `POS Shift ditutup${selisih !== 0 ? `. Selisih kas: Rp ${selisih.toLocaleString('id-ID')}` : ''}`, kategori: 'POS', tipe: selisih !== 0 ? 'info' : 'success'
             });
             
-            return json({ success: true, message: "Shift berhasil ditutup", data: { selisih, kasDiharapkan: Number(shift.kasAkhir || 0) } });
+            const tutup = await shiftLengkap(Number(shiftId));
+            return json({ success: true, message: "Shift berhasil ditutup", data: { ...tutup, kasDiharapkan: Number(shift.kasAkhir || 0) } });
         }
 
         if (action === 'verify-pin') {

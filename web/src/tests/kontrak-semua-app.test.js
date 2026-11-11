@@ -54,6 +54,9 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		await p.kirimPO(db, ctx, poId);
 
 		const hasil = []; const dilewati = [];
+		/** balasan aksi tulis yang berhasil, untuk dicocokkan dengan tipe balasan di UpstyleApi.kt */
+		/** @type {{ rute: string, meth: string, action: string | null, data: any, nama: string }[]} */
+		const balasanTulis = [];
 		/** @type {Record<string, any>} */
 		const c = {};
 		/**
@@ -71,6 +74,7 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 				const req = new Request(url, o.body !== undefined ? { method: meth, body: JSON.stringify(o.body), headers: { 'content-type': 'application/json' } } : { method: meth });
 				const res = await m[meth]({ request: req, cookies: { get() {} }, url: new URL(url), params: o.params || {}, locals: {} });
 				const j = await res.json().catch(() => ({}));
+				if (res.status < 400 && j?.success !== false) balasanTulis.push({ rute, meth, action: o.body?.action ?? null, data: j?.data, nama });
 				const bagus = o.ok ? o.ok(j, res.status) : (res.status < 400 && j.success !== false);
 				const lateral = o.lateral && res.status === 500; // MariaDB lokal tak mendukung LATERAL (produksi TiDB/MySQL8 mendukung)
 				if (!bagus && lateral) { dilewati.push(nama); return j; }
@@ -126,6 +130,13 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 		const [teh] = await db.select().from(s.products).where(and(eq(s.products.unitId, unitId), eq(s.products.nama, 'TEH UJI')));
 		const tehId = teh?.id || (await db.select().from(s.products).where(eq(s.products.unitId, unitId))).find((x) => /teh/i.test(x.nama))?.id;
 		await uji('produk: ubah', 'products', 'PUT', { body: { id: tehId, sku: 'SKU-' + t, nama: 'Teh Uji 2', hargaBeli: 500, hargaJual: 1600, stok: 8, minStok: 2, kategori: 'MINUMAN', unitId } });
+		// Aksi tulis bertipe yang dulu belum diuji balasannya (dicocokkan dengan model Kotlin di bawah)
+		await uji('produk: ubah massal (status)', 'products/bulk', 'POST', { q: { unitId }, body: { type: 'STATUS_CHANGE', productIds: [tehId], payload: { status: 'active' }, unitId } });
+		await uji('portal: perbarui link', 'business', 'PUT', { body: { unitId, generateNewSlug: false, action: 'updatePortal' } });
+		await uji('toko online: pengaturan', 'ecommerce/settings', 'PUT', { body: { unitId, storefrontName: 'Toko Uji', description: 'd', domainSlug: `toko-uji-${t}`, isActive: true } });
+		await uji('toko online: pembayaran', 'ecommerce/payment', 'PUT', { body: { unitId, midtransClientKey: 'SB-Mid-client-x', midtransServerKey: 'SB-Mid-server-y', midtransSandbox: true } });
+		await uji('bantuan: diagnostik', 'help/diagnostics', 'POST', { body: { unitId: String(unitId) } });
+		await uji('ekspor data', 'export', 'POST', { body: { unitId, dataType: 'products', format: 'csv' } });
 		await uji('produk: koreksi stok', 'products', 'POST', { body: { action: 'adjust-stock', productId: tehId, unitId, perubahan: 3, alasan: 'ADJUSTMENT', keterangan: '' } });
 		await uji('produk: log stok', 'products', 'GET', { q: { unitId, action: 'stock-logs', productId: tehId } });
 		await uji('varian: buat', 'products/variants', 'POST', { q: { unitId }, body: { productId: tehId, namaVariasi: 'Besar', sku: '', hargaBeli: 1, hargaJual: 2, stok: 1, minStok: 0 } });
@@ -280,6 +291,26 @@ describe.skipIf(!TEST_DB)('Uji menyeluruh aksi app mobile', () => {
 					for (const k of kendala.slice(0, 4)) temuan.push(`${ep.fn} (${rute}) → ${ep.tipe}: ${k}`);
 				} catch (e) { temuan.push(`${ep.fn} (${rute}): CRASH ${String(e.message).slice(0, 100)}`); }
 			}
+		}
+		// Balasan aksi tulis (POST/PUT/DELETE) ↔ tipe ApiResponse<T> di app: kalau tidak cocok, app menampilkan
+		// "Koneksi gagal" walaupun data sudah tersimpan.
+		if (kotlin) {
+			for (const ep of kotlin.tulis) {
+				if (!ep.path.startsWith('api/app/')) continue;
+				const rute = ep.path.replace(/^api\/app\//, '');
+				const cocok = balasanTulis.filter((b) => b.rute === rute && b.meth === ep.metode && (ep.action ? b.action === ep.action : true));
+				if (!cocok.length) continue;
+				// action tak diketahui & rute melayani beberapa action → tidak bisa dipastikan balasan mana
+				if (!ep.action && new Set(cocok.map((b) => b.action)).size > 1) continue;
+				const b = cocok[0];
+				const kendala = [];
+				periksa(b.data, ep.tipe, kotlin.classes, '', kendala);
+				for (const k of kendala.slice(0, 3)) temuan.push(`${ep.fn} (${ep.metode} ${rute}${ep.action ? ' ' + ep.action : ''}) → ${ep.tipe}: ${k}`);
+			}
+		}
+		// ApiResponse<Unit>: data harus null/objek — daftar atau angka membuat app gagal membaca balasan
+		for (const b of balasanTulis) {
+			if (b.meth !== 'GET' && b.data != null && (Array.isArray(b.data) || typeof b.data !== 'object')) temuan.push(`${b.nama} (${b.meth} ${b.rute}): data ${Array.isArray(b.data) ? 'array' : typeof b.data} — app bertipe Unit gagal membaca`);
 		}
 		if (process.env.AUDIT_OUT) (await import('node:fs')).writeFileSync(process.env.AUDIT_OUT, temuan.join('\n'));
 

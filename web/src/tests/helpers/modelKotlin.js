@@ -12,7 +12,42 @@ export function muatKotlin() {
 	const fModels = path.join(ROOT, 'data/Models.kt');
 	const fApi = path.join(ROOT, 'api/UpstyleApi.kt');
 	if (!fs.existsSync(fModels) || !fs.existsSync(fApi)) return null;
-	return { classes: parseKelas(fs.readFileSync(fModels, 'utf8')), endpoints: parseEndpoint(fs.readFileSync(fApi, 'utf8')) };
+	const srcModels = fs.readFileSync(fModels, 'utf8');
+	const srcApi = fs.readFileSync(fApi, 'utf8');
+	return { classes: parseKelas(srcModels), endpoints: parseEndpoint(srcApi), tulis: parseTulis(srcApi, srcModels) };
+}
+
+/**
+ * Fungsi API yang MENGIRIM data (post/put/delete) beserta tipe balasan yang diharapkan app.
+ * action diambil dari nilai bawaan field `action` pada kelas body (mis. CheckInRequest.action = "check-in").
+ * @param {string} src @param {string} srcModels
+ */
+function parseTulis(src, srcModels) {
+	/** @type {{ fn: string, path: string, metode: string, tipe: string, action: string | null }[]} */
+	const out = [];
+	for (const b of src.split(/\n\s*(?:private )?suspend fun /).slice(1)) {
+		const fn = b.match(/^(\w+)/)?.[1] || '?';
+		const m = b.match(/client\.(post|put|delete|patch)\("([^"$]+)"/);
+		const ret = b.match(/\)\s*:\s*ApiResponse<([^=\n{]+?)>\s*(?:=|\{)/);
+		if (!m || !ret) continue;
+		const tipe = ret[1].trim();
+		if (/^(Unit|JsonObject|JsonElement|Any|Map<.*>)\??$/.test(tipe)) continue;
+		let action = null;
+		const sb = b.match(/setBody\((\w+)\)/);
+		const tb = sb && b.match(new RegExp(`\\b${sb[1]}\\s*:\\s*(\\w+)`));
+		if (tb) {
+			const k = srcModels.match(new RegExp(`data class ${tb[1]}\\s*\\(([\\s\\S]*?)\\n\\)`));
+			const a = k?.[1].match(/val action\s*:\s*String\s*=\s*"([^"]+)"/);
+			if (a) action = a[1];
+		}
+		const am = b.match(/"action"\s*to\s*"([^"]+)"|put\("action",\s*"([^"]+)"\)/);
+		if (!action && am) action = am[1] || am[2];
+		// setBody(UpdatePortalRequest(unitId, buatBaru, "updatePortal")) — action sebagai argumen posisi
+		const pos = b.match(/setBody\(\w+\([^)]*"([a-zA-Z][\w-]*)"\s*\)\)/);
+		if (!action && pos) action = pos[1];
+		out.push({ fn, path: m[2], metode: m[1].toUpperCase(), tipe, action });
+	}
+	return out;
 }
 
 /** @param {string} src */
