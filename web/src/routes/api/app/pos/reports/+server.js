@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { normalisasiMetodeBayar } from '$lib/server/posCheckout';
 import { db } from '$lib/server/drizzle';
 import { posOrders, posOrderItems, posShifts, products } from '$lib/server/schema';
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
@@ -50,7 +51,8 @@ export async function GET({ url, cookies, request }) {
         // Payment method breakdown
         const paymentBreakdown = {};
         for (const order of filteredOrders) {
-            const method = order.paymentMethod || 'CASH';
+            // 'CASH' (data lama mobile) dan 'TUNAI' (web) digabung — dulu muncul sebagai dua baris terpisah
+            const method = normalisasiMetodeBayar(order.paymentMethod);
             if (!paymentBreakdown[method]) paymentBreakdown[method] = 0;
             paymentBreakdown[method] += Number(order.total || 0);
         }

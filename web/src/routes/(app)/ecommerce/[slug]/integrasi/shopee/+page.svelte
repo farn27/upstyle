@@ -124,12 +124,15 @@
                         <div class="space-y-4">
                             {#if shopeeIntegration.shopId}
                                 <div class="grid grid-cols-2 gap-4">
+                                    <!-- Jujur soal status: yang berjalan baru otorisasi toko & pembaruan token.
+                                         Sinkronisasi pesanan/stok/produk dengan Shopee belum dibuat (dulu tertulis "Aktif Berjalan"). -->
                                     <div class="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
-                                        <p class="text-[10px] font-black text-emerald-600/70 uppercase tracking-wider mb-1">Status Sinkronisasi</p>
+                                        <p class="text-[10px] font-black text-emerald-600/70 uppercase tracking-wider mb-1">Status Koneksi</p>
                                         <div class="flex items-center justify-between">
-                                            <p class="text-sm font-bold text-emerald-800 dark:text-emerald-400">Aktif Berjalan</p>
-                                            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                                            <p class="text-sm font-bold text-emerald-800 dark:text-emerald-400">Toko terhubung</p>
+                                            <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
                                         </div>
+                                        <p class="text-[10px] text-slate-500 mt-1">Sinkronisasi pesanan & stok otomatis belum tersedia.</p>
                                     </div>
                                     <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
                                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Refresh Token Valid s/d</p>

@@ -118,5 +118,7 @@ export function labelMetodeBayar(raw, namaAkunById = {}) {
 	if (!raw) return 'KAS';
 	const value = String(raw);
 	if (/^\d+$/.test(value)) return namaAkunById[value] || 'Kas';
+	// Data POS lama dari aplikasi HP memakai "CASH"; tampilkan sama dengan web ("TUNAI")
+	if (/^(cash|kas)$/i.test(value)) return 'TUNAI';
 	return value;
 }

@@ -259,7 +259,15 @@
         : (discountType === "persen"
             ? Math.round(subtotal * (discount / 100))
             : Math.min(discount, subtotal));
-    $: total = Math.max(0, subtotal - discountAmount);
+    // PPN: dihitung ulang & disahkan server (tarif dari pengaturan pajak unit)
+    let kenaiPpn = false;
+    let ppnInklusif = false;
+    $: tarifPpn = Number(data.tarifPpn || 0);
+    $: dasarPpn = Math.max(0, subtotal - discountAmount);
+    $: ppnAmount = kenaiPpn && tarifPpn > 0
+        ? (ppnInklusif ? Math.round(dasarPpn * tarifPpn / (100 + tarifPpn)) : Math.round(dasarPpn * tarifPpn / 100))
+        : 0;
+    $: total = dasarPpn + (kenaiPpn && !ppnInklusif ? ppnAmount : 0);
     $: totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
 
     // --- Quantity Management ---
@@ -425,7 +433,9 @@
                     discount_value: discountAmount,
                     order_type: orderType,
                     table_number: tableNumber,
-                    queue_number: queueNumber
+                    queue_number: queueNumber,
+                    kenai_ppn: kenaiPpn && tarifPpn > 0,
+                    ppn_inklusif: ppnInklusif
                 }),
             });
 
@@ -893,6 +903,21 @@
                                 </div>
                             {/if}
                         </div>
+
+                        {#if tarifPpn > 0}
+                        <div class="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900 rounded-xl p-2">
+                            <label class="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase cursor-pointer">
+                                <input type="checkbox" bind:checked={kenaiPpn} class="rounded" />
+                                PPN {tarifPpn}%
+                            </label>
+                            {#if kenaiPpn}
+                                <label class="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase cursor-pointer">
+                                    <input type="checkbox" bind:checked={ppnInklusif} class="rounded" /> Harga sudah termasuk
+                                </label>
+                                <span class="text-[10px] font-bold text-slate-700 dark:text-slate-200">{ppnInklusif ? '(termasuk) ' : '+'}{formatRupiah(ppnAmount)}</span>
+                            {/if}
+                        </div>
+                        {/if}
 
                         <!-- Total -->
                         <div class="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">

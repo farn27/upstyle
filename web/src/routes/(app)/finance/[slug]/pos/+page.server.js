@@ -10,6 +10,7 @@ import { getActivePosFeatures } from '$lib/posFeatures';
 import { log } from '$lib/server/logger';
 import { JENIS_DIJUAL } from '$lib/jenisProduk';
 import { nowSqlWIB } from '$lib/server/dateUtils';
+import { tarifPpnAktif } from '$lib/server/pajak';
 
 export async function load({ params, cookies, locals }) {
     const ownerUserId = locals.user?.id ?? await getCurrentUserId(cookies);
@@ -205,7 +206,9 @@ export async function load({ params, cookies, locals }) {
             staffRole: normalizedRole || null,
             staffLoginSlug: staffSession?.login_slug || null,
             staffName: staffSession?.full_name || null,
-            featureAktif
+            featureAktif,
+            // Tarif PPN aktif unit (0 = belum diatur); kasir web kini bisa mengenakan PPN seperti aplikasi HP
+            tarifPpn: (await tarifPpnAktif(db, unitId).catch(() => null))?.persentase ?? 0
         };
     } catch (err) {
         log.pos.error({ err }, 'POS Load Error');

@@ -159,8 +159,8 @@
             <td class="py-4 text-right">
                 <div class="flex items-center justify-end gap-2">
                     <span class="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest 
-                        {trx.metode_bayar === 'CASH' || trx.payment_method === 'CASH' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
-                        {trx.metode_bayar || trx.payment_method || 'CASH'}
+                        {/^(CASH|TUNAI|KAS)$/i.test(trx.payment_method || 'TUNAI') ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}">
+                        {/^(CASH|KAS)$/i.test(trx.payment_method || '') ? 'TUNAI' : (trx.payment_method || 'TUNAI')}
                     </span>
                     {#if trx.id}
                     <a href="/api/invoice/{trx.id}?type=pos" target="_blank"

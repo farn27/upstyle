@@ -17,7 +17,7 @@ export async function POST({ request, cookies, params, locals }) {
         } catch {
             return json({ error: 'Data tidak valid' }, { status: 400 });
         }
-        const { cart, payment_method, payments, amount_paid, keterangan, customer_id, customer_name, voucher_id, discount_value, order_type, table_number, queue_number } = body || {};
+        const { cart, payment_method, payments, amount_paid, keterangan, customer_id, customer_name, voucher_id, discount_value, order_type, table_number, queue_number, kenai_ppn, ppn_inklusif } = body || {};
 
         const unit = {
             id: akses.unit.id,
@@ -49,7 +49,9 @@ export async function POST({ request, cookies, params, locals }) {
             orderType: order_type,
             tableNumber: table_number,
             queueNumber: queue_number,
-            notes: keterangan
+            notes: keterangan,
+            kenaiPpn: kenai_ppn === true,
+            ppnInklusif: ppn_inklusif === true
         });
 
         await siarkanCheckoutPos(unit, hasil);
