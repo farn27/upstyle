@@ -3,7 +3,7 @@
  * Generate caption AI untuk postingan sosial media.
  */
 import { json } from '@sveltejs/kit';
-import { groqChatCompletion } from '$lib/server/groq';
+import { groqChatCompletion, GroqError, pesanGalatAI } from '$lib/server/groq';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { apiSuccess, apiError } from '$lib/server/apiResponse';
 import { log } from '$lib/server/logger';
@@ -49,6 +49,7 @@ export async function POST({ request, cookies }) {
         return apiSuccess({ caption }, 'Caption berhasil dibuat');
     } catch (err) {
         log.api.error({ err }, 'POST sosmed/generate-caption');
+        if (err instanceof GroqError) return apiError(pesanGalatAI(err), err.status === 429 ? 429 : 503);
         return apiError('Gagal membuat caption AI', 500);
     }
 }

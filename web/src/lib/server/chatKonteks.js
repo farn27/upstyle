@@ -210,6 +210,47 @@ export function periodeDariTeks(teks, sekarang = new Date()) {
 	return unik.slice(0, 3);
 }
 
+// ─── Periode pembanding ─
+
+/** @param {string} ymd @param {number} n */
+export const geserHari = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+/** @param {string} a @param {string} b */
+export const selisihHari = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86_400_000);
+
+/**
+ * Periode pembanding yang adil: bulan berjalan dibanding tanggal yang sama bulan lalu; periode lain
+ * dibanding periode sepanjang itu tepat sebelumnya. Hari ini (belum selesai) tidak dibandingkan.
+ * @param {{ mulai: string, akhir: string }} p
+ * @param {{ hariIni: string }} kal
+ * @returns {{ label: string, mulai: string, akhir: string } | null}
+ */
+export function periodeSebelumnya(p, kal) {
+	const panjang = selisihHari(p.mulai, p.akhir);
+	if (p.mulai === kal.hariIni) return null;
+	if (p.mulai.endsWith('-01')) {
+		const [y, m] = p.mulai.split('-').map(Number);
+		const mulai = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
+		const panjangBulanLalu = new Date(Date.UTC(y, m - 1, 0)).getUTCDate();
+		return { label: 'periode yang sama bulan sebelumnya', mulai, akhir: geserHari(mulai, Math.min(panjang, panjangBulanLalu)) };
+	}
+	// Minggu berjalan / beberapa hari terakhir → hari yang sama minggu lalu
+	if (panjang >= 2 && panjang <= 7) return { label: 'periode yang sama minggu lalu', mulai: geserHari(p.mulai, -7), akhir: geserHari(p.akhir, -7) };
+	return { label: `${panjang} hari sebelumnya`, mulai: geserHari(p.mulai, -panjang), akhir: p.mulai };
+}
+
+/**
+ * Untuk perbandingan yang adil, periode yang masih berjalan dipotong sampai kemarin (hari ini belum selesai).
+ * Mengembalikan null bila periode hanya berisi hari ini.
+ * @param {{ label: string, mulai: string, akhir: string }} p
+ * @param {{ hariIni: string, besok: string }} kal
+ * @returns {{ label: string, mulai: string, akhir: string } | null}
+ */
+export function hariPenuh(p, kal) {
+	if (p.akhir !== kal.besok) return p;
+	if (p.mulai >= kal.hariIni) return null;
+	return { ...p, label: `${p.label} s/d kemarin`, akhir: kal.hariIni };
+}
+
 // ─── Riwayat percakapan ─────────────────────────────────────────────────────
 
 /**

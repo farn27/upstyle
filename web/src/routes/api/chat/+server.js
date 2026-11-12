@@ -22,6 +22,8 @@ import {
 	namaHari
 } from '$lib/server/chatKonteks';
 import { kumpulkanData } from '$lib/server/chatData';
+import { jawabInstan } from '$lib/server/chatInstan';
+import { kunciCache, ambilCache, simpanCache } from '$lib/server/aiCache';
 import { unitBisnis, chartOfAccounts } from '$lib/server/schema';
 
 const MAKS_PESAN = 1000;
@@ -181,8 +183,11 @@ export async function POST({ request, cookies }) {
 		if (!pesan) return balas({ reply: 'Pesan tidak boleh kosong.' }, { status: 400 });
 		const slugAktif = typeof body?.activeUnitSlug === 'string' && body.activeUnitSlug ? body.activeUnitSlug : null;
 
-		const kuota = await cekKuotaAI(userId);
-		if (!kuota.allowed) return balas({ reply: kuota.pesan }, { status: 429 });
+		// Kuota AI hanya dipotong saat model benar-benar dipanggil (perintah memori & jawaban instan gratis)
+		const cekKuota = async () => {
+			const k = await cekKuotaAI(userId);
+			return k.allowed ? null : balas({ reply: k.pesan }, { status: 429 });
+		};
 
 		// Unit milik pengguna (unit aktif harus milik pengguna)
 		const semuaUnit = await db
@@ -226,6 +231,8 @@ export async function POST({ request, cookies }) {
 			if (!unitId) {
 				return balas({ reply: 'Transaksi ini mau dicatat ke unit bisnis yang mana kak? Pilih unitnya dulu di atas kolom chat, lalu kirim ulang perintahnya ya.', suggestions: [], needsUnit: true });
 			}
+			const tolak = await cekKuota();
+			if (tolak) return tolak;
 			const tanggal = /\b(kemarin|kmrn|kemaren)\b/i.test(pesan) ? kal.kemarin : kal.hariIni;
 			const previews = await pratinjauTransaksi(unitId, pesan, tanggal);
 			if (!previews.length) {
@@ -279,9 +286,18 @@ export async function POST({ request, cookies }) {
 		const hanyaBantuan = topik.length === 1 && topik[0] === 'bantuan';
 		const umum = basaBasi;
 
-		const [{ data, saran }, memori] = await Promise.all([
+		// ── 5. Jawaban instan dari basis data (0 token) untuk pertanyaan fakta sederhana ──
+		if (!umum && !susulan) {
+			const instan = await jawabInstan({ pesan, unit, unitIds: semuaUnit.map((u) => u.id), topik, periode });
+			if (instan) {
+				log.ai.info({ jenis: instan.intent, prompt: 0, completion: 0, total: 0 }, '[Chat] Jawaban instan tanpa model');
+				return balas({ reply: saringTautan(instan.reply, unit?.slug ?? null), suggestions: instan.suggestions, chartData: instan.chartData ?? null, transactionPreviews: null, intent: instan.intent });
+			}
+		}
+
+		const [{ data, saran, grafik: grafikData }, memori] = await Promise.all([
 			umum || hanyaBantuan
-				? Promise.resolve({ data: '', saran: [] })
+				? Promise.resolve({ data: '', saran: [], grafik: null })
 				: kumpulkanData({ unit, unitIds: semuaUnit.map((u) => u.id), userId, pesan: susulan ? `${riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || ''} ${pesan}` : pesan, topik, periode }),
 			getAiMemories(unitId, userId)
 		]);
@@ -298,15 +314,28 @@ export async function POST({ request, cookies }) {
 			umum
 		});
 
-		const res = await panggilDanCatat(umum ? 'sapaan' : hanyaBantuan ? 'bantuan' : 'analitis')({
+		const permintaan = {
 			// Sapaan & panduan cukup model kecil (batas token per menit dihitung per model → beban terbagi)
 			model: umum || hanyaBantuan ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile',
 			messages: [{ role: 'system', content: sistem }, ...(umum ? riwayat.slice(-2) : riwayat), { role: 'user', content: pesan }],
 			temperature: 0.3,
 			max_tokens: umum ? 200 : 600
-		});
+		};
+		// Pertanyaan yang sama dengan data yang sama (prompt identik) → pakai jawaban sebelumnya, tanpa token.
+		// Waktu dalam prompt dibulatkan ke jam supaya kunci tidak berubah tiap menit.
+		const kunci = kunciCache({ ...permintaan, messages: permintaan.messages.map((x, i) => (i === 0 ? { ...x, content: x.content.replace(/(WAKTU: [^\n]*? \d{2}):\d{2}/, '$1') } : x)), unitId, userId });
+		let isiJawaban = await ambilCache(kunci);
+		if (isiJawaban) {
+			log.ai.info({ jenis: 'cache', prompt: 0, completion: 0, total: 0 }, '[Chat] Jawaban dari cache');
+		} else {
+			const tolak = await cekKuota();
+			if (tolak) return tolak;
+			const res = await panggilDanCatat(umum ? 'sapaan' : hanyaBantuan ? 'bantuan' : 'analitis')(permintaan);
+			isiJawaban = String(res?.choices?.[0]?.message?.content || '').trim();
+			if (isiJawaban) await simpanCache(kunci, isiJawaban, 600);
+		}
 
-		let reply = String(res?.choices?.[0]?.message?.content || '').trim() || 'Maaf kak, AI sedang sibuk. Coba lagi sebentar ya! 😊';
+		let reply = isiJawaban || 'Maaf kak, AI sedang sibuk. Coba lagi sebentar ya! 😊';
 
 		// Grafik opsional dari model
 		/** @type {any} */
@@ -327,7 +356,8 @@ export async function POST({ request, cookies }) {
 		return balas({
 			reply,
 			suggestions: saran.length ? saran : saranBawaan(topik),
-			chartData,
+			// Grafik dibuat server dari data (tren, rincian) bila model tidak membuatnya — tanpa token
+			chartData: chartData || grafikData || null,
 			transactionPreviews: null,
 			intent: umum ? 'sapaan' : topik.join(',') || 'umum'
 		});

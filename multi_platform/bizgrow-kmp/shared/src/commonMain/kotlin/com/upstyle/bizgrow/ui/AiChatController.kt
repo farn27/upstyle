@@ -34,7 +34,7 @@ class AiChatController(
         private const val MAKS_SESI = 40
         // Sama persis dengan web (ChatAI.svelte) supaya perilakunya konsisten
         private val BISNIS = Regex(
-            "omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales",
+            "kesehatan\\s+usaha|omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales",
             RegexOption.IGNORE_CASE
         )
         private val UMUM = Regex(

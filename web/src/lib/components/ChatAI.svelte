@@ -10,7 +10,7 @@
 	/** @type {string} — reserved for future role-based feature gating */
 	export const role = '';
 
-	const BUSINESS_PATTERN = /omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|restock|saldo|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales/i;
+	const BUSINESS_PATTERN = /kesehatan\s+usaha|omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|restock|saldo|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales/i;
 	const GENERAL_PATTERN = /cara|bagaimana|di mana|dimana|apa itu|jelaskan|tutorial|bantuan|help|setting|setup|fitur|menu|aplikasi|export|import|cetak|print|download|integrasi|password|login|tips|strategi|rekomendasi|perbedaan|pengertian|definisi|apa perbedaan|double.?entry|chart of account|onboarding|panduan|petunjuk|langkah/i;
 
 	// ─── Session & History Types ────────────────────────────────────────────────
@@ -1388,7 +1388,7 @@
 
         {#if welcomeTab === 'bisnis'}
         <div class="wsec"><p class="wlbl">💰 Keuangan & Akuntansi</p><div class="wchips">
-          {#each ['Omzet hari ini?','Analisis cash flow','Cek piutang overdue','Cek hutang jatuh tempo','Laba rugi bulan ini','Status tutup buku','Saldo kas & bank'] as p}
+          {#each ['Cek kesehatan usaha','Omzet hari ini?','Apa saja yang perlu di-restock?','Analisis cash flow','Cek piutang overdue','Cek hutang jatuh tempo','Laba rugi bulan ini','Status tutup buku','Saldo kas & bank'] as p}
             <button on:click={() => sendSuggestion(p)} class="chip c-blue">{p}</button>{/each}
         </div></div>
         <div class="wsec"><p class="wlbl">🛒 Kasir & POS</p><div class="wchips">

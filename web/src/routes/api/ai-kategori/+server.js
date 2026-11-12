@@ -11,6 +11,7 @@ import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { log } from '$lib/server/logger';
 import { cekKuotaAI } from '$lib/server/rateLimit';
+import { GroqError, pesanGalatAI } from '$lib/server/groq';
 
 const schema = z.object({
 	teks: z.string().min(2).max(300),
@@ -48,6 +49,7 @@ export async function POST({ request, cookies }) {
 		return apiSuccess(suggestion, 'Saran kategori');
 	} catch (err) {
 		log.ai.error({ err }, '[AI Kategori]');
+		if (err instanceof GroqError) return apiError(pesanGalatAI(err), err.status === 429 ? 429 : 503);
 		return apiError('Gagal menyarankan kategori', 500);
 	}
 }
