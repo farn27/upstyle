@@ -127,7 +127,7 @@ function produkDariTeks(daftar, teks) {
  * @param {'Masuk' | 'Keluar'} kategori
  * @param {string} teks
  */
-function akunLawanDefault(coa, kategori, teks) {
+export function akunLawanDefault(coa, kategori, teks) {
 	if (kategori === 'Masuk') {
 		const pend = coa.filter((a) => a.tipeAkun === 'PENDAPATAN');
 		return (pend.find((a) => /penjualan/i.test(a.namaAkun)) || pend[0] || coa.find((a) => a.tipeAkun === 'PENDAPATAN_LAINNYA'))?.id ?? null;

@@ -1,5 +1,6 @@
 package com.upstyle.bizgrow.data
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** Transaksi yang dikenali AI dari kalimat biasa ("jual kopi 25rb"). */
@@ -9,7 +10,13 @@ data class TrxPreview(
     val nominal: Double = 0.0,
     val keterangan: String = "",
     val tanggal: String? = null,
-    val metode: String? = null
+    val metode: String? = null,
+    /** Akun yang dipilihkan server sesuai isi kalimat & metode bayar (boleh kosong). */
+    @SerialName("coa_id") val coaId: Int? = null,
+    @SerialName("kas_coa_id") val kasCoaId: Int? = null,
+    /** Produk yang dijual ("jual 2 kopi susu") → stok ikut berkurang saat disimpan. */
+    @SerialName("product_id") val productId: String? = null,
+    val qty: Int = 1
 )
 
 /** Satu pesan di layar chat AI (disimpan lokal per sesi, jadi harus serializable). */

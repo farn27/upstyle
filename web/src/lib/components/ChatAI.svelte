@@ -166,12 +166,16 @@
 
 	function initNLConfirm(idx, trxData) {
 		if (nlConfirm[idx]) return;
-		const defaultKas = nlMasterData.kasAccounts[0]?.id ? String(nlMasterData.kasAccounts[0].id) : '';
 		const kategori = trxData.kategori;
 		const coaTypes = kategori === 'Masuk'
 			? ['PENDAPATAN', 'PENDAPATAN_LAINNYA']
 			: ['BEBAN_OPERASIONAL', 'BEBAN_LAINNYA', 'HPP'];
-		const firstCoa = nlMasterData.coaAccounts.find(c => coaTypes.includes(c.tipeAkun));
+		// Akun yang dipilihkan server (sesuai metode bayar & isi kalimat) dipakai bila ada di daftar akun unit;
+		// dulu selalu akun pertama → pembayaran transfer/QRIS tercatat ke Kas Tunai.
+		const saranKas = nlMasterData.kasAccounts.find((/** @type {any} */ a) => String(a.id) === String(trxData.kas_coa_id ?? ''));
+		const saranCoa = nlMasterData.coaAccounts.find((/** @type {any} */ c) => String(c.id) === String(trxData.coa_id ?? '') && coaTypes.includes(c.tipeAkun));
+		const defaultKas = saranKas ? String(saranKas.id) : (nlMasterData.kasAccounts[0]?.id ? String(nlMasterData.kasAccounts[0].id) : '');
+		const firstCoa = saranCoa || nlMasterData.coaAccounts.find((/** @type {any} */ c) => coaTypes.includes(c.tipeAkun));
 		nlConfirm = {
 			...nlConfirm,
 			[idx]: {
@@ -203,25 +207,37 @@
 		nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: true, error: '' } };
 		try {
 			const fd = new FormData();
-			fd.append('product_id', ''); // For non-product transactions
+			// Penjualan produk ikut mengurangi stok (produk & qty dari pengurai transaksi)
+			fd.append('product_id', trxData.product_id ? String(trxData.product_id) : '');
 			fd.append('tglTrx', conf.tanggal); // Transaction date
 			fd.append('kategori_trx', trxData.kategori);
 			fd.append('kas_coa_id', conf.kas_coa_id);
 			fd.append('coa_id', conf.coa_id);
 			fd.append('nominal', String(trxData.nominal));
 			fd.append('keterangan', (trxData.keterangan || '').toUpperCase());
-			fd.append('qty', '1');
+			fd.append('qty', String(Math.max(1, Number(trxData.qty) || 1)));
 
 			const res = await fetch(`/finance/${selectedUnitSlug}/entry?/addTransaction`, {
 				method: 'POST', body: fd, headers: { 'x-sveltekit-action': 'true' }
 			});
-			if (res.ok) {
+			// Action SvelteKit membalas HTTP 200 juga saat gagal ({ type: 'failure' }) → baca jenisnya
+			const hasil = await res.json().catch(() => null);
+			if (res.ok && (hasil?.type === 'success' || hasil?.type === 'redirect')) {
 				// Tandai transaksi spesifik ini sukses
 				nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, success: true } };
 				currentSuggestions = ['Input transaksi lain', 'Lihat ringkasan keuangan'];
 				scrollToBottom();
 			} else {
-				nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, error: 'Gagal menyimpan. Coba lagi.' } };
+				let pesanGagal = 'Gagal menyimpan. Coba lagi.';
+				try {
+					const d = typeof hasil?.data === 'string' ? JSON.parse(hasil.data) : hasil?.data;
+					// devalue: [ {message: 1}, "teks" ]
+					if (Array.isArray(d) && d[0] && typeof d[0] === 'object') {
+						const idx = d[0].message ?? d[0].error;
+						if (typeof idx === 'number' && typeof d[idx] === 'string') pesanGagal = d[idx];
+					}
+				} catch { /* pakai pesan umum */ }
+				nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, error: pesanGagal } };
 			}
 		} catch {
 			nlConfirm = { ...nlConfirm, [key]: { ...conf, isSaving: false, error: 'Koneksi gagal.' } };
@@ -570,7 +586,8 @@
 			const res = await fetch('/api/chat', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message: msg, userId, activeUnitSlug: selectedUnitSlug || null, history: chatHistory.slice(-20) })
+				// Riwayat tanpa pesan saat ini (sudah dikirim di "message"); server memakai 6 pesan terakhir
+				body: JSON.stringify({ message: msg, activeUnitSlug: selectedUnitSlug || null, history: chatHistory.slice(0, -1).slice(-8).map((/** @type {any} */ h) => ({ role: h.role, content: h.fullReply || h.content })) })
 			});
 			if (!res.ok) throw new Error(`${res.status}`);
 			const data = await res.json();
@@ -1125,7 +1142,7 @@
       <div class="min-w-0">
         <div class="flex items-center gap-1.5">
           <span class="text-[12.5px] font-bold text-white">Bizgrow AI</span>
-          <span class="text-[7.5px] font-bold bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded uppercase tracking-wider border border-indigo-500/25">70B</span>
+          <span class="text-[7.5px] font-bold bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded uppercase tracking-wider border border-indigo-500/25">GPT-OSS</span>
         </div>
         {#if selectedUnitName}
           <div class="flex items-center gap-1 mt-0.5">
@@ -2002,7 +2019,7 @@
     {/if}
 
     <p class="text-center text-[8px] text-slate-300 dark:text-slate-700 tracking-widest mt-1.5 uppercase select-none">
-      Bizgrow AI · LLaMA 3.3 70B via Groq
+      Bizgrow AI · GPT-OSS via Groq · cek ulang angka penting
     </p>
   </div>
 
@@ -2084,7 +2101,7 @@
                 border-t border-slate-100 dark:border-slate-800
                 bg-slate-50/60 dark:bg-slate-900/60">
       <p class="text-[9px] text-slate-400 uppercase tracking-widest select-none">
-        Bizgrow AI · LLaMA 3.3 70B via Groq
+        Bizgrow AI · GPT-OSS via Groq · cek ulang angka penting
       </p>
       <button on:click={closeModal}
         class="text-[11px] font-semibold px-4 py-1.5 rounded-xl border transition-colors

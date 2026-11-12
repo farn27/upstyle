@@ -17,6 +17,9 @@ const modelPenalaran = (/** @type {string} */ m) => /gpt-oss|qwen|deepseek/i.tes
 
 const BATAS_WAKTU_MS = 25_000;
 
+/** Alamat API (bisa diarahkan ke server tiruan untuk pengujian lewat GROQ_BASE_URL) */
+const alamatApi = () => `${(env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '')}/chat/completions`;
+
 /** Galat pemanggilan AI dengan kode status, supaya pemanggil bisa memberi pesan yang ramah. */
 export class GroqError extends Error {
 	/**
@@ -99,7 +102,7 @@ export async function groqChatCompletion({
 		const ac = new AbortController();
 		const timer = setTimeout(() => ac.abort(), BATAS_WAKTU_MS);
 		try {
-			return await fetchFn('https://api.groq.com/openai/v1/chat/completions', {
+			return await fetchFn(alamatApi(), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
 				body: JSON.stringify(body),
