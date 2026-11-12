@@ -240,7 +240,8 @@ class AiChatController(
 
         scope.launch {
             try {
-                val riwayat = _pesan.value.takeLast(20)
+                // Riwayat tanpa pesan saat ini (sudah dikirim di "message"); server memakai 6 pesan terakhir
+                val riwayat = _pesan.value.dropLast(1).takeLast(8)
                     .filter { !it.isError }
                     .map { ChatMessage(role = it.role, content = it.content) }
                 val res = api().chat(ChatRequest(message = pesan, activeUnitSlug = unit?.slug, history = riwayat))
@@ -308,6 +309,8 @@ class AiChatController(
                         nominal = p.nominal,
                         keterangan = p.keterangan.uppercase(),
                         metodeBayar = p.metode ?: "KAS",
+                        productId = p.productId,
+                        qty = p.qty.coerceAtLeast(1),
                         coaId = coaId,
                         kasCoaId = kasCoaId
                     )

@@ -650,8 +650,9 @@ private fun KartuTransaksi(
 ) {
     val masuk = p.kategori.equals("Masuk", true)
     val warna = if (masuk) BizgrowColors.Success else BizgrowColors.Danger
-    var kasId by remember(kas) { mutableStateOf(kas.firstOrNull()?.id) }
-    var coaId by remember(lawan) { mutableStateOf(lawan.firstOrNull()?.id) }
+    // Akun saran server dipakai bila ada di daftar; dulu selalu akun pertama → transfer/QRIS tercatat ke kas tunai
+    var kasId by remember(kas) { mutableStateOf(kas.firstOrNull { it.id == p.kasCoaId }?.id ?: kas.firstOrNull()?.id) }
+    var coaId by remember(lawan) { mutableStateOf(lawan.firstOrNull { it.id == p.coaId }?.id ?: lawan.firstOrNull()?.id) }
     var galat by remember { mutableStateOf<String?>(null) }
 
     Column(

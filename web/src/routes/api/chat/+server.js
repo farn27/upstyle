@@ -1,954 +1,341 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/drizzle';
 import { getCurrentUserId } from '$lib/server/getUser';
-import { groqChatCompletion, GroqError, pesanGalatAI } from '$lib/server/groq';
-import { eq, and, sql, desc, or, inArray, asc } from 'drizzle-orm';
+import { groqChatCompletion, GroqError, pesanGalatAI, bacaJsonAI } from '$lib/server/groq';
+import { and, asc, eq } from 'drizzle-orm';
 import { log } from '$lib/server/logger';
 import { cekKuotaAI } from '$lib/server/rateLimit';
-import { detectIntent, parseTransactionNL } from '$lib/server/chatIntent';
+import { getAiMemories, saveAiMemory, deleteAiMemory, clearAllAiMemories, isFinancialOrTransactionData } from '$lib/server/aiMemory';
+import { uraikanTransaksi, metodeDariTeks, pilihAkunKas, akunLawanDefault, nominalDariTeks } from '$lib/server/aiTransaksi';
 import {
-	getAiMemories,
-	saveAiMemory,
-	deleteAiMemory,
-	clearAllAiMemories,
-	formatMemoriesForPrompt,
-	isFinancialOrTransactionData
-} from '$lib/server/aiMemory';
-import {
-	receivables,
-	payables,
-	journalEntries,
-	employees,
-	employeeKpi,
-	attendance,
-	leaveRequests,
-	posOrders,
-	suppliers,
-	purchaseOrders,
-	fixedAssets,
-	taxRates,
-	budgetItems,
-	chartOfAccounts,
-	approvalRequests,
-	stockOpname,
-	salaryComponents,
-	riwayatAksi,
-	salesOrders,
-	salesTargets,
-	users,
-	marketingCampaigns,
-	adTrackers,
-	vouchers,
-	marketingLeads,
-	landingPages,
-	supportTickets,
-	ecommerceOrders,
-	ecommerceSettings,
-	transaksi,
-	unitBisnis,
-	crmContacts,
-	crmDeals,
-	crmActivities,
-	closingPeriods,
-	products as productsTable
-} from '$lib/server/schema';
+	sapaan,
+	deteksiTopik,
+	topikSusulan,
+	periodeDariTeks,
+	perintahTransaksi,
+	perintahIngat,
+	jumlahNominal,
+	rapikanRiwayat,
+	halamanRelevan,
+	saringTautan,
+	kalender,
+	namaHari
+} from '$lib/server/chatKonteks';
+import { kumpulkanData } from '$lib/server/chatData';
+import { unitBisnis, chartOfAccounts } from '$lib/server/schema';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const MAKS_PESAN = 1000;
 
-function fmtDate(v) {
-	if (!v) return '-';
-	const d = v instanceof Date ? v : new Date(v);
-	if (isNaN(d.getTime())) return String(v);
-	const pad = (n) => String(n).padStart(2, '0');
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+/** Label metode bayar di kartu transaksi (web: Tunai/Transfer/QRIS/Kartu Debit) */
+const LABEL_METODE = { TUNAI: 'Tunai', BANK: 'Transfer', QRIS: 'QRIS', MERCHANT: 'Transfer' };
+
+/**
+ * @param {unknown} data
+ * @param {ResponseInit} [init]
+ */
+const balas = (data, init) => json(data, init);
+
+// ─── Prompt ─────────────────────────────────────────────────────────────────
+
+/**
+ * Prompt sistem ringkas. Aturan inti dijaga pendek karena dikirim di setiap pertanyaan.
+ * @param {{ waktu: string, unit: string, data: string, halaman: {label: string, path: string}[], memori: string, umum: boolean }} p
+ */
+function promptSistem(p) {
+	const aturan = p.umum
+		? 'Kamu Bizgrow AI, asisten aplikasi Bizgrow untuk pemilik UMKM. Balas singkat, ramah, Bahasa Indonesia, sapa "kak". Jangan menyebut angka usaha apa pun karena data tidak disertakan; tawarkan bantuan (cek omzet, stok, mencatat transaksi lewat chat seperti "catat beli gula 50rb").'
+		: `Kamu Bizgrow AI, asisten bisnis untuk pemilik UMKM. Bahasa Indonesia santai-sopan, sapa "kak".
+ATURAN:
+1. Jawab pertanyaan TERAKHIR secara langsung di kalimat pertama, lalu maksimal 3 poin pendukung. Riwayat hanya untuk memahami maksud.
+2. Angka HANYA dari DATA di bawah, tulis persis (format Rp1.250.000). Jangan menjumlah ulang angka yang sudah tersedia. Persentase/selisih boleh dihitung dari angka DATA.
+3. Jika data yang dibutuhkan tidak ada di DATA, katakan terus terang dan arahkan ke halaman yang tepat. Jangan mengarang produk, nama, tanggal, atau angka.
+4. Bila relevan beri 1 saran tindakan yang konkret dan masuk akal untuk usaha kecil.
+5. Tautan hanya dari HALAMAN, format [Label](/path), maksimal 2, di akhir jawaban.
+6. Kamu tidak bisa mengubah data. Untuk mencatat transaksi, minta pengguna mengetik perintah seperti "catat beli gula 50rb".
+Widget opsional (maks 3): :::metric{label:"Omzet",value:"Rp1.250.000",trend:"+8%",color:"green"}::: :::alert{type:"warning",title:"Judul",msg:"Isi"}:::`;
+	const hal = p.halaman.length ? `\nHALAMAN: ${p.halaman.map((h) => `${h.label}=${h.path}`).join('; ')}` : '';
+	const data = p.umum ? '' : `\nDATA:\n${p.data || '(tidak ada data relevan untuk pertanyaan ini)'}`;
+	return `${aturan}\n\nWAKTU: ${p.waktu} WIB\nUNIT: ${p.unit}${p.memori}${data}${hal}`;
 }
 
-function fmtRp(v) {
-	return `Rp${Number(v || 0).toLocaleString('id-ID')}`;
+/** Memori pengguna sebagai baris ringkas. */
+function teksMemori(/** @type {{ fact: string }[]} */ memori) {
+	if (!Array.isArray(memori) || !memori.length) return '';
+	return `\nPREFERENSI PENGGUNA (bukan sumber angka): ${memori.slice(0, 10).map((m) => m.fact).join(' | ')}`;
 }
 
-// ─── Dynamic Context Loader ────────────────────────────────────────────────────
+/** Saran pertanyaan lanjutan bila pemuat data tidak memberi saran. */
+function saranBawaan(/** @type {string[]} */ topik) {
+	if (topik.includes('bantuan')) return ['Cara mencatat transaksi lewat chat', 'Cara menambah produk'];
+	if (topik.includes('produk')) return ['Produk terlaris bulan ini', 'Stok yang hampir habis'];
+	return ['Omzet hari ini', 'Pengeluaran terbesar bulan ini', 'Produk terlaris'];
+}
 
-async function loadDynamicContext(intent, userId, targetUnitId) {
-	let ctx = '';
-	let suggestions = [];
+// ─── Transaksi dari chat ────────────────────────────────────────────────────
 
-	try {
-		if (intent === 'finance' && targetUnitId) {
-			const piutang = await db.select({
-				nomor_invoice: receivables.nomorInvoice,
-				nominal: receivables.nominal,
-				jatuh_tempo: receivables.jatuhTempo,
-				status: receivables.status
-			}).from(receivables)
-			  .where(and(
-				eq(receivables.unitId, targetUnitId),
-				inArray(receivables.status, ['BELUM_BAYAR', 'SEBAGIAN'])
-			  )).limit(10);
-
-			const hutang = await db.select({
-				nomor_faktur: payables.nomorFaktur,
-				nominal: payables.nominal,
-				jatuh_tempo: payables.jatuhTempo,
-				status: payables.status
-			}).from(payables)
-			  .where(and(
-				eq(payables.unitId, targetUnitId),
-				inArray(payables.status, ['BELUM_BAYAR', 'SEBAGIAN'])
-			  )).limit(10);
-
-			const journal = await db.select({
-				tanggal: journalEntries.tanggal,
-				memo: journalEntries.memo,
-				total_debit: journalEntries.totalDebit,
-				total_kredit: journalEntries.totalKredit
-			}).from(journalEntries)
-			  .where(eq(journalEntries.unitId, targetUnitId))
-			  .orderBy(desc(journalEntries.tanggal))
-			  .limit(5);
-
-			ctx += `\n[FOKUS KEUANGAN & AKUNTANSI]\n`;
-			if (piutang.length) ctx += `- Piutang Belum Lunas: ${piutang.map(p => `Invoice ${p.nomor_invoice} | ${fmtRp(p.nominal)} | JT: ${fmtDate(p.jatuh_tempo)} | ${p.status}`).join('; ')}\n`;
-			if (hutang.length)  ctx += `- Hutang Belum Lunas: ${hutang.map(h => `Faktur ${h.nomor_faktur} | ${fmtRp(h.nominal)} | JT: ${fmtDate(h.jatuh_tempo)} | ${h.status}`).join('; ')}\n`;
-			if (journal.length) ctx += `- Jurnal Umum Terakhir: ${journal.map(j => `[${fmtDate(j.tanggal)}] ${j.memo || '-'} | D:${fmtRp(j.total_debit)} K:${fmtRp(j.total_kredit)}`).join('; ')}\n`;
-			suggestions = ['Cek tagihan hutang supplier', 'Proyeksi cash flow bulan ini', 'Analisis laba rugi'];
-		}
-		else if (intent === 'finance_advanced' && targetUnitId) {
-			const closing = await db.select({
-				period_start: closingPeriods.periodStart,
-				period_end: closingPeriods.periodEnd,
-				status: closingPeriods.status,
-				laba_rugi_periode: closingPeriods.labaRugiPeriode
-			}).from(closingPeriods)
-			  .where(eq(closingPeriods.unitId, targetUnitId))
-			  .orderBy(desc(closingPeriods.id))
-			  .limit(3);
-
-			ctx += `\n[FOKUS TUTUP BUKU]\n`;
-			if (closing.length) ctx += `- Periode: ${closing.map(c => `${fmtDate(c.period_start)}~${fmtDate(c.period_end)} | ${c.status} | L/R: ${fmtRp(c.laba_rugi_periode)}`).join('; ')}\n`;
-			suggestions = ['Apakah bulan lalu sudah tutup buku?', 'Cek laba bersih bulan lalu'];
-		}
-		else if (intent === 'crm' && targetUnitId) {
-			const contacts = await db.select({
-				nama: crmContacts.nama,
-				telepon: crmContacts.telepon,
-				email: crmContacts.email,
-				stage: crmContacts.stage
-			}).from(crmContacts)
-			  .where(eq(crmContacts.unitId, targetUnitId))
-			  .limit(10);
-
-			const deals = await db.select({
-				nama_deal: crmDeals.namaDeal,
-				nilai: crmDeals.nilai,
-				stage: crmDeals.stage
-			}).from(crmDeals)
-			  .where(and(
-				eq(crmDeals.unitId, targetUnitId),
-				eq(crmDeals.status, 'open')
-			  )).limit(5);
-
-			const activities = await db.select({
-				tipe: crmActivities.tipe,
-				catatan: crmActivities.catatan,
-				tanggal: crmActivities.tanggal
-			}).from(crmActivities)
-			  .where(eq(crmActivities.unitId, targetUnitId))
-			  .orderBy(desc(crmActivities.tanggal))
-			  .limit(5);
-
-			ctx += `\n[FOKUS CRM & PELANGGAN]\n`;
-			if (contacts.length)   ctx += `- Kontak: ${contacts.map(c => `${c.nama} (${c.stage || 'lead'})`).join('; ')}\n`;
-			if (deals.length)      ctx += `- Deals Aktif: ${deals.map(d => `${d.nama_deal} | ${fmtRp(d.nilai)} | ${d.stage}`).join('; ')}\n`;
-			if (activities.length) ctx += `- Aktivitas: ${activities.map(a => `[${fmtDate(a.tanggal)}] ${a.tipe}: ${a.catatan || '-'}`).join('; ')}\n`;
-			suggestions = ['Pipeline deals terbesar', 'Follow up pelanggan mana?', 'Riwayat meeting terakhir'];
-		}
-		else if (intent === 'hr') {
-			const employeesList = await db.select({
-				full_name: employees.fullName,
-				position: employees.position,
-				salary: employees.salary,
-				status: employees.status
-			}).from(employees)
-			  .where(and(
-				eq(employees.userId, userId),
-				eq(employees.status, 'active')
-			  )).limit(15);
-
-			const attendanceList = await db.select({
-				full_name: employees.fullName,
-				status: attendance.status,
-				check_in: attendance.checkIn
-			}).from(attendance)
-			  .innerJoin(employees, eq(attendance.employeeId, employees.id))
-			  .where(eq(employees.userId, userId))
-			  .orderBy(desc(attendance.checkIn))
-			  .limit(10);
-
-			const leaves = await db.select({
-				full_name: employees.fullName,
-				start_date: leaveRequests.startDate,
-				end_date: leaveRequests.endDate,
-				status: leaveRequests.status
-			}).from(leaveRequests)
-			  .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
-			  .where(and(
-				eq(employees.userId, userId),
-				eq(leaveRequests.status, 'pending')
-			  )).limit(5);
-
-			ctx += `\n[FOKUS HR & KARYAWAN]\n`;
-			if (employeesList.length)  ctx += `- Karyawan Aktif: ${employeesList.map(e => `${e.full_name} (${e.position || '-'}) ${fmtRp(e.salary)}`).join('; ')}\n`;
-			if (attendanceList.length) ctx += `- Absensi Terkini: ${attendanceList.map(a => `${a.full_name}: ${a.status}`).join('; ')}\n`;
-			if (leaves.length)     ctx += `- Cuti Pending Approval: ${leaves.map(l => `${l.full_name}: ${fmtDate(l.start_date)} sd ${fmtDate(l.end_date)}`).join('; ')}\n`;
-			suggestions = ['Siapa yang cuti hari ini?', 'Evaluasi efisiensi payroll', 'Siapa yang sering terlambat?'];
-		}
-		else if (intent === 'hr_advanced') {
-			const kpi = await db.select({
-				full_name: employees.fullName,
-				period_month: employeeKpi.periodMonth,
-				period_year: employeeKpi.periodYear,
-				score: employeeKpi.score,
-				notes: employeeKpi.notes
-			}).from(employeeKpi)
-			  .innerJoin(employees, eq(employeeKpi.employeeId, employees.id))
-			  .where(eq(employees.userId, userId))
-			  .orderBy(desc(employeeKpi.periodYear), desc(employeeKpi.periodMonth))
-			  .limit(5);
-
-			ctx += `\n[FOKUS KPI KARYAWAN]\n`;
-			if (kpi.length) ctx += `- KPI: ${kpi.map(k => `${k.full_name} (${k.period_month}/${k.period_year}): Skor ${k.score}`).join('; ')}\n`;
-			suggestions = ['Siapa karyawan KPI tertinggi?', 'Dokumen kontrak yang mau habis?'];
-		}
-		else if (intent === 'inventory') {
-			suggestions = ['Produk stok nyaris habis', 'Analisis dead stock', 'Cek aktivitas gudang'];
-		}
-		else if (intent === 'pos' && targetUnitId) {
-			const orders = await db.select({
-				order_number: posOrders.orderNumber,
-				total: posOrders.total,
-				payment_method: posOrders.paymentMethod,
-				status: posOrders.status,
-				created_at: posOrders.createdAt
-			}).from(posOrders)
-			  .where(eq(posOrders.unitId, targetUnitId))
-			  .orderBy(desc(posOrders.createdAt))
-			  .limit(10);
-
-			const posHariIni = await db.select({
-				jumlah: sql`COUNT(*)`,
-				total: sql`COALESCE(SUM(${posOrders.total}), 0)`
-			}).from(posOrders)
-			  .where(and(eq(posOrders.unitId, targetUnitId), eq(posOrders.status, 'PAID'), sql`DATE(${posOrders.createdAt}) = CURDATE()`));
-
-			ctx += `\n[FOKUS KASIR / POS]\n`;
-			ctx += `- Penjualan kasir HARI INI (status PAID): ${Number(posHariIni[0]?.jumlah || 0)} order, total ${fmtRp(posHariIni[0]?.total)}\n`;
-			if (orders.length) ctx += `- Transaksi POS Terakhir: ${orders.map(o => `#${o.order_number} | ${fmtRp(o.total)} | ${o.payment_method} | ${o.status}`).join('; ')}\n`;
-			suggestions = ['Total omzet kasir hari ini?', 'Jam kasir paling ramai?', 'Metode pembayaran terpopuler?'];
-		}
-		else if (intent === 'procurement' && targetUnitId) {
-			const suppliersList = await db.select({
-				nama_supplier: suppliers.namaSupplier,
-				kontak: suppliers.kontak
-			}).from(suppliers)
-			  .where(eq(suppliers.unitId, targetUnitId))
-			  .limit(10);
-
-			const po = await db.select({
-				po_number: purchaseOrders.poNumber,
-				total_amount: purchaseOrders.totalAmount,
-				status: purchaseOrders.status
-			}).from(purchaseOrders)
-			  .where(and(
-				eq(purchaseOrders.unitId, targetUnitId),
-				eq(purchaseOrders.status, 'DRAFT')
-			  )).limit(5);
-
-			ctx += `\n[FOKUS PROCUREMENT & SUPPLIER]\n`;
-			if (suppliersList.length) ctx += `- Supplier: ${suppliersList.map(s => s.nama_supplier).join('; ')}\n`;
-			if (po.length)        ctx += `- PO Pending: ${po.map(p => `PO #${p.po_number} | ${fmtRp(p.total_amount)}`).join('; ')}\n`;
-			suggestions = ['Barang yang harus direstock?', 'PO yang belum dikirim supplier?'];
-		}
-		else if (intent === 'asset' && targetUnitId) {
-			const assets = await db.select({
-				nama_aset: fixedAssets.namaAset,
-				nilai_perolehan: fixedAssets.nilaiPerolehan,
-				nilai_buku: fixedAssets.nilaiBuku,
-				status: fixedAssets.status
-			}).from(fixedAssets)
-			  .where(eq(fixedAssets.unitId, targetUnitId))
-			  .limit(10);
-
-			ctx += `\n[FOKUS ASET TETAP]\n`;
-			if (assets.length) ctx += `- Aset: ${assets.map(a => `${a.nama_aset} | Perolehan: ${fmtRp(a.nilai_perolehan)} | Buku: ${fmtRp(a.nilai_buku)}`).join('; ')}\n`;
-			suggestions = ['Total nilai aset saat ini?', 'Penyusutan aset terbesar?'];
-		}
-		else if (intent === 'tax' && targetUnitId) {
-			const taxes = await db.select({
-				nama_pajak: taxRates.namaPajak,
-				persentase: taxRates.persentase,
-				tipe: taxRates.tipe
-			}).from(taxRates)
-			  .where(and(
-				eq(taxRates.unitId, targetUnitId),
-				eq(taxRates.isActive, 1)
-			  )).limit(5);
-
-			ctx += `\n[FOKUS PAJAK]\n`;
-			if (taxes.length) ctx += `- Tarif Pajak: ${taxes.map(t => `${t.nama_pajak} (${t.tipe}): ${t.persentase}%`).join('; ')}\n`;
-			suggestions = ['Perhitungan PPN bulan ini?', 'Tarif pajak yang berlaku?'];
-		}
-		else if (intent === 'budget' && targetUnitId) {
-			const budgets = await db.select({
-				tahun: budgetItems.tahun,
-				bulan: budgetItems.bulan,
-				nominal: budgetItems.nominal,
-				nama_akun: chartOfAccounts.namaAkun
-			}).from(budgetItems)
-			  .leftJoin(chartOfAccounts, eq(chartOfAccounts.id, budgetItems.coaId))
-			  .where(eq(budgetItems.unitId, targetUnitId))
-			  .orderBy(desc(budgetItems.tahun), desc(budgetItems.bulan))
-			  .limit(5);
-
-			ctx += `\n[FOKUS ANGGARAN]\n`;
-			if (budgets.length) ctx += `- Budget: ${budgets.map(b => `${b.nama_akun || '-'} (${b.bulan}/${b.tahun}): ${fmtRp(b.nominal)}`).join('; ')}\n`;
-			suggestions = ['Ada pengeluaran over-budget?', 'Evaluasi anggaran bulan ini?'];
-		}
-		else if (intent === 'approval' && targetUnitId) {
-			const approvals = await db.select({
-				module: approvalRequests.module,
-				action_type: approvalRequests.actionType,
-				status: approvalRequests.status,
-				created_at: approvalRequests.createdAt
-			}).from(approvalRequests)
-			  .where(and(
-				eq(approvalRequests.unitId, targetUnitId),
-				eq(approvalRequests.status, 'PENDING')
-			  )).limit(5);
-
-			ctx += `\n[FOKUS APPROVALS]\n`;
-			if (approvals.length) ctx += `- Menunggu Approval: ${approvals.map(a => `${a.module} - ${a.action_type} (${fmtDate(a.created_at)})`).join('; ')}\n`;
-			suggestions = ['Dokumen butuh approval saya?', 'Log persetujuan terbaru?'];
-		}
-		else if (intent === 'gudang' && targetUnitId) {
-			const opname = await db.select({
-				status: stockOpname.status,
-				created_at: stockOpname.createdAt
-			}).from(stockOpname)
-			  .where(eq(stockOpname.unitId, targetUnitId))
-			  .orderBy(desc(stockOpname.createdAt))
-			  .limit(3);
-
-			ctx += `\n[FOKUS GUDANG]\n`;
-			if (opname.length) ctx += `- Opname Terakhir: ${opname.map(o => `${fmtDate(o.created_at)} (${o.status})`).join('; ')}\n`;
-			suggestions = ['Selisih stok opname?', 'Pergerakan barang hari ini?'];
-		}
-		else if (intent === 'penggajian') {
-			const komponen = await db.select({
-				name: salaryComponents.name,
-				type: salaryComponents.type,
-				amount: salaryComponents.amount
-			}).from(salaryComponents)
-			  .innerJoin(employees, eq(salaryComponents.employeeId, employees.id))
-			  .where(eq(employees.userId, userId))
-			  .limit(10);
-
-			ctx += `\n[FOKUS PENGGAJIAN]\n`;
-			if (komponen.length) ctx += `- Komponen Gaji: ${komponen.map(k => `${k.name} (${k.type}): ${fmtRp(k.amount)}`).join('; ')}\n`;
-			suggestions = ['Tunjangan karyawan aktif?', 'Siapa yang lembur bulan ini?'];
-		}
-		else if (intent === 'akuntansi' && targetUnitId) {
-			const coa = await db.select({
-				kode_akun: chartOfAccounts.kodeAkun,
-				nama_akun: chartOfAccounts.namaAkun,
-				tipe_akun: chartOfAccounts.tipeAkun
-			}).from(chartOfAccounts)
-			  .where(and(
-				eq(chartOfAccounts.unitId, targetUnitId),
-				eq(chartOfAccounts.isActive, 1)
-			  )).limit(10);
-
-			ctx += `\n[FOKUS AKUNTANSI (COA)]\n`;
-			if (coa.length) ctx += `- Bagan Akun: ${coa.map(c => `[${c.kode_akun}] ${c.nama_akun} (${c.tipe_akun})`).join('; ')}\n`;
-			suggestions = ['Saldo buku besar?', 'Akun yang saldonya minus?', 'Status tutup buku?'];
-		}
-		else if (intent === 'audit' && targetUnitId) {
-			const riwayat = await db.select({
-				pesan: riwayatAksi.pesan,
-				tipe: riwayatAksi.tipe,
-				waktu: riwayatAksi.waktu,
-				kategori: riwayatAksi.kategori
-			}).from(riwayatAksi)
-			  .where(eq(riwayatAksi.unitId, targetUnitId))
-			  .orderBy(desc(riwayatAksi.waktu))
-			  .limit(10);
-
-			ctx += `\n[FOKUS AUDIT LOG]\n`;
-			if (riwayat.length) ctx += `- Log Aktivitas: ${riwayat.map(r => `[${fmtDate(r.waktu)}] [${r.tipe}] ${r.pesan}`).join('; ')}\n`;
-			suggestions = ['Siapa yang hapus data hari ini?', 'Aktivitas mencurigakan?'];
-		}
-		else if (intent === 'sales' && targetUnitId) {
-			const deals = await db.select({
-				nama_deal: crmDeals.namaDeal,
-				nilai: crmDeals.nilai,
-				stage: crmDeals.stage,
-				status: crmDeals.status
-			}).from(crmDeals)
-			  .where(eq(crmDeals.unitId, targetUnitId))
-			  .orderBy(desc(crmDeals.createdAt))
-			  .limit(10);
-
-			const orders = await db.select({
-				order_number: salesOrders.orderNumber,
-				total_amount: salesOrders.totalAmount,
-				status: salesOrders.status
-			}).from(salesOrders)
-			  .where(eq(salesOrders.unitId, targetUnitId))
-			  .orderBy(desc(salesOrders.createdAt))
-			  .limit(5);
-
-			const targets = await db.select({
-				target_amount: salesTargets.targetAmount,
-				komisi_percent: salesTargets.komisiPersen,
-				username: users.username
-			}).from(salesTargets)
-			  .innerJoin(users, eq(users.id, salesTargets.userId))
-			  .where(and(
-				eq(salesTargets.unitId, targetUnitId),
-				sql`${salesTargets.periodMonth} = MONTH(NOW())`,
-				sql`${salesTargets.periodYear} = YEAR(NOW())`
-			  )).limit(5);
-
-			ctx += `\n[FOKUS PENJUALAN (SALES)]\n`;
-			if (deals.length) ctx += `- Pipeline Deals: ${deals.map(d => `${d.nama_deal} | ${fmtRp(d.nilai)} | ${d.stage} | ${d.status}`).join('; ')}\n`;
-			if (orders.length) ctx += `- Sales Order Terbaru: ${orders.map(o => `SO#${o.order_number} | ${fmtRp(o.total_amount)} | ${o.status}`).join('; ')}\n`;
-			if (targets.length) ctx += `- Target Bulan Ini: ${targets.map(t => `${t.username}: target ${fmtRp(t.target_amount)}, komisi ${t.komisi_percent}%`).join('; ')}\n`;
-			suggestions = ['Pipeline deals terbesar?', 'Siapa sales terbaik bulan ini?', 'Status quotation pending?'];
-		}
-		else if (intent === 'marketing' && targetUnitId) {
-			const campaigns = await db.select({
-				name: marketingCampaigns.name,
-				type: marketingCampaigns.type,
-				status: marketingCampaigns.status,
-				budget: marketingCampaigns.budget
-			}).from(marketingCampaigns)
-			  .where(eq(marketingCampaigns.unitId, targetUnitId))
-			  .orderBy(desc(marketingCampaigns.createdAt))
-			  .limit(5);
-
-			const adSpend = await db.select({
-				platform: adTrackers.platform,
-				total_spend: sql`SUM(${adTrackers.spendAmount})`,
-				total_conv: sql`SUM(${adTrackers.conversions})`
-			}).from(adTrackers)
-			  .where(eq(adTrackers.unitId, targetUnitId))
-			  .groupBy(adTrackers.platform)
-			  .orderBy(desc(sql`SUM(${adTrackers.spendAmount})`))
-			  .limit(5);
-
-			const vouchersList = await db.select({
-				code: vouchers.code,
-				discount_type: vouchers.discountType,
-				discount_value: vouchers.discountValue,
-				current_usage: vouchers.currentUsage,
-				max_usage: vouchers.maxUsage,
-				is_active: vouchers.isActive
-			}).from(vouchers)
-			  .where(and(
-				eq(vouchers.unitId, targetUnitId),
-				eq(vouchers.isActive, true)
-			  )).limit(5);
-
-			const leads = await db.select({
-				cnt: sql`COUNT(*)`,
-				transferred: sql`SUM(CASE WHEN ${marketingLeads.isTransferredToCrm} = 1 THEN 1 ELSE 0 END)`
-			}).from(marketingLeads)
-			  .innerJoin(landingPages, eq(landingPages.id, marketingLeads.landingPageId))
-			  .where(eq(landingPages.unitId, targetUnitId));
-
-			ctx += `\n[FOKUS PEMASARAN (MARKETING)]\n`;
-			if (campaigns.length) ctx += `- Kampanye: ${campaigns.map(c => `${c.name} (${c.type}) - ${c.status} | Budget: ${fmtRp(c.budget)}`).join('; ')}\n`;
-			if (adSpend.length) ctx += `- Ad Spend per Platform: ${adSpend.map(a => `${a.platform}: ${fmtRp(a.total_spend)}, ${a.total_conv} konversi`).join('; ')}\n`;
-			if (vouchersList.length) ctx += `- Voucher Aktif: ${vouchersList.map(v => `${v.code} (${v.discount_value}${v.discount_type === 'PERCENTAGE' ? '%' : 'Rp'}) | Pemakaian: ${v.current_usage}/${v.max_usage || '∞'}`).join('; ')}\n`;
-			if (leads[0]?.cnt) ctx += `- Leads Total: ${leads[0].cnt} | Sudah di CRM: ${leads[0].transferred}\n`;
-			suggestions = ['Kampanye mana yang paling efektif?', 'Berapa leads bulan ini?', 'ROAS iklan Meta vs Google?'];
-		}
-		else if (intent === 'cs' && targetUnitId) {
-			const tickets = await db.select({
-				ticket_number: supportTickets.ticketNumber,
-				subject: supportTickets.subject,
-				priority: supportTickets.priority,
-				status: supportTickets.status,
-				created_at: supportTickets.createdAt
-			}).from(supportTickets)
-			  .where(eq(supportTickets.unitId, targetUnitId))
-			  .orderBy(desc(supportTickets.createdAt))
-			  .limit(10);
-
-			const ticketStats = await db.select({
-				status: supportTickets.status,
-				cnt: sql`COUNT(*)`
-			}).from(supportTickets)
-			  .where(eq(supportTickets.unitId, targetUnitId))
-			  .groupBy(supportTickets.status);
-
-			ctx += `\n[FOKUS LAYANAN PELANGGAN (CS)]\n`;
-			if (tickets.length) ctx += `- Tiket Terbaru: ${tickets.map(t => `#${t.ticket_number} - "${t.subject}" | ${t.priority} | ${t.status}`).join('; ')}\n`;
-			if (ticketStats.length) ctx += `- Statistik: ${ticketStats.map(s => `${s.status}: ${s.cnt}`).join(', ')}\n`;
-			suggestions = ['Berapa tiket urgent yang belum diselesaikan?', 'Tiket mana yang sudah lama tidak direspons?', 'Cek tiket pelanggan VIP'];
-		}
-		else if (intent === 'ecommerce' && targetUnitId) {
-			const eOrders = await db.select({
-				order_number: ecommerceOrders.orderNumber,
-				customer_name: ecommerceOrders.customerName,
-				total_amount: ecommerceOrders.totalAmount,
-				payment_status: ecommerceOrders.paymentStatus,
-				shipping_status: ecommerceOrders.shippingStatus,
-				created_at: ecommerceOrders.createdAt
-			}).from(ecommerceOrders)
-			  .where(eq(ecommerceOrders.unitId, targetUnitId))
-			  .orderBy(desc(ecommerceOrders.createdAt))
-			  .limit(10);
-
-			const eStats = await db.select({
-				payment_status: ecommerceOrders.paymentStatus,
-				cnt: sql`COUNT(*)`,
-				total: sql`SUM(${ecommerceOrders.totalAmount})`
-			}).from(ecommerceOrders)
-			  .where(eq(ecommerceOrders.unitId, targetUnitId))
-			  .groupBy(ecommerceOrders.paymentStatus);
-
-			const eSettings = await db.select({
-				storefront_name: ecommerceSettings.storefrontName,
-				domain_slug: ecommerceSettings.domainSlug,
-				is_active: ecommerceSettings.isActive
-			}).from(ecommerceSettings)
-			  .where(eq(ecommerceSettings.unitId, targetUnitId))
-			  .limit(1);
-
-			ctx += `\n[FOKUS E-COMMERCE]\n`;
-			if (eSettings.length) ctx += `- Toko: ${eSettings[0].storefront_name} | URL: ${eSettings[0].domain_slug}.bizgrow.id | Status: ${eSettings[0].is_active ? 'BUKA' : 'TUTUP'}\n`;
-			if (eStats.length) ctx += `- Statistik Order: ${eStats.map(s => `${s.payment_status}: ${s.cnt} order (${fmtRp(s.total)})`).join('; ')}\n`;
-			if (eOrders.length) ctx += `- Order Terbaru: ${eOrders.slice(0, 5).map(o => `#${o.order_number} - ${o.customer_name} | ${fmtRp(o.total_amount)} | ${o.payment_status}`).join('; ')}\n`;
-			suggestions = ['Berapa order pending yang belum dibayar?', 'Revenue toko online bulan ini?', 'Produk terlaris di toko online?'];
-		}
-		else if (intent === 'help') {
-			ctx += `\n[PANDUAN NAVIGASI ERP]\n`;
-			ctx += `Peta Fitur: Piutang → /piutang | Hutang → /hutang | Produk → /produk | Kasir → /pos | Karyawan → /hr | CRM → /crm | Jurnal → /jurnal-umum | Buku Besar → /buku-besar | Laporan → /laporan | Master Data → /master-data\n`;
-			ctx += `Modul Baru: Pipeline → /sales/[slug]/pipeline | Quotation → /sales/[slug]/quotation | Target Sales → /sales/[slug]/target | Kampanye → /marketing/[slug]/campaign | Leads → /marketing/[slug]/leads | Voucher → /marketing/[slug]/voucher | Tiket CS → /customer-service/[slug]/tickets | Katalog Toko → /ecommerce/[slug]/katalog\n`;
-			suggestions = ['Di mana pengaturan unit bisnis?', 'Cara input transaksi?', 'Cara buat sales order?'];
-		}
-		else {
-			suggestions = ['Ringkasan keuangan hari ini', 'Stok produk menipis', 'Analisis laba rugi'];
-		}
-	} catch (e) {
-		log.ai.error({ err: e.message, intent }, '[Chat] Dynamic context error');
+/**
+ * Ubah perintah transaksi menjadi kartu pratinjau. Kalimat dengan satu nominal memakai pengurai yang sama
+ * dengan form entri (uraikanTransaksi: produk, akun lawan, akun kas sesuai metode bayar); kalimat berisi
+ * beberapa nominal dipecah oleh model, lalu akunnya dipilih dengan aturan yang sama.
+ * @param {number} unitId
+ * @param {string} pesan
+ * @param {string} tanggal  YYYY-MM-DD
+ */
+async function pratinjauTransaksi(unitId, pesan, tanggal) {
+	if (jumlahNominal(pesan) <= 1) {
+		const u = await uraikanTransaksi(db, unitId, pesan, { panggilAI: panggilDanCatat('transaksi') });
+		if (!(u.nominal > 0)) return [];
+		return [{
+			kategori: u.kategori,
+			nominal: u.nominal,
+			keterangan: u.catatan,
+			tanggal,
+			metode: LABEL_METODE[/** @type {keyof typeof LABEL_METODE} */ (u.metode)] || 'Tunai',
+			coa_id: u.coa_id,
+			kas_coa_id: u.kas_coa_id,
+			product_id: u.product_id,
+			qty: u.qty
+		}];
 	}
 
-	return { ctx, suggestions };
+	const coa = await db
+		.select({ id: chartOfAccounts.id, kodeAkun: chartOfAccounts.kodeAkun, namaAkun: chartOfAccounts.namaAkun, tipeAkun: chartOfAccounts.tipeAkun, deskripsi: chartOfAccounts.deskripsi })
+		.from(chartOfAccounts)
+		.where(and(eq(chartOfAccounts.unitId, unitId), eq(chartOfAccounts.isActive, 1)))
+		.orderBy(asc(chartOfAccounts.kodeAkun));
+	/** @type {any[]} */
+	let daftar = [];
+	try {
+		const res = await panggilDanCatat('transaksi-multi')({
+			model: 'openai/gpt-oss-20b',
+			messages: [
+				{
+					role: 'system',
+					content: 'Pecah kalimat menjadi daftar transaksi UMKM. Balas HANYA JSON: {"transaksi":[{"kategori":"Masuk|Keluar","nominal":50000,"keterangan":"maks 40 karakter","metode":"tunai|transfer|qris"}]}. Masuk = penjualan/uang diterima; Keluar = pembelian/biaya. 15k=15000, 50rb=50000, 1,5jt=1500000.'
+				},
+				{ role: 'user', content: pesan }
+			],
+			temperature: 0,
+			max_tokens: 400,
+			response_format: { type: 'json_object' }
+		});
+		const isi = bacaJsonAI(res?.choices?.[0]?.message?.content);
+		daftar = Array.isArray(isi?.transaksi) ? isi.transaksi : Array.isArray(isi) ? isi : [];
+	} catch (e) {
+		log.ai.warn({ err: e instanceof Error ? e.message : String(e) }, '[Chat] Pecah transaksi gagal');
+	}
+	return daftar
+		.slice(0, 10)
+		.map((x) => {
+			const kategori = /^keluar$/i.test(String(x?.kategori || '').trim()) ? 'Keluar' : 'Masuk';
+			const ket = String(x?.keterangan || '').trim().slice(0, 60) || (kategori === 'Masuk' ? 'Pemasukan' : 'Pengeluaran');
+			const metode = metodeDariTeks(`${x?.metode || ''} ${pesan}`);
+			const nominal = Math.round(Number(x?.nominal) || nominalDariTeks(ket));
+			return {
+				kategori,
+				nominal,
+				keterangan: ket,
+				tanggal,
+				metode: LABEL_METODE[/** @type {keyof typeof LABEL_METODE} */ (metode || 'TUNAI')] || 'Tunai',
+				coa_id: akunLawanDefault(/** @type {any} */ (coa), kategori, ket),
+				kas_coa_id: pilihAkunKas(/** @type {any} */ (coa), metode),
+				product_id: null,
+				qty: 1
+			};
+		})
+		.filter((x) => x.nominal > 0);
 }
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
+// ─── Pemanggilan model + pencatatan token ───────────────────────────────────
+
+/**
+ * Bungkus groqChatCompletion dengan log pemakaian token per jenis permintaan.
+ * @param {string} jenis
+ * @returns {typeof groqChatCompletion}
+ */
+function panggilDanCatat(jenis) {
+	return async (opsi) => {
+		const mulai = Date.now();
+		const res = await groqChatCompletion(opsi);
+		const u = res?.usage || {};
+		log.ai.info({ jenis, model: res?.model || opsi.model, prompt: u.prompt_tokens, completion: u.completion_tokens, total: u.total_tokens, ms: Date.now() - mulai }, '[Chat] Pemakaian token');
+		return res;
+	};
+}
+
+// ─── Handler ────────────────────────────────────────────────────────────────
 
 export async function POST({ request, cookies }) {
 	try {
-		// 1. Auth
 		const userId = await getCurrentUserId(cookies, request);
-		if (!userId) {
-			return json({ reply: 'Sesi tidak valid, silakan login ulang ya kak.' }, { status: 401 });
+		if (!userId) return balas({ reply: 'Sesi tidak valid, silakan login ulang ya kak.' }, { status: 401 });
+
+		/** @type {any} */
+		let body;
+		try {
+			body = await request.json();
+		} catch {
+			return balas({ reply: 'Format permintaan tidak valid.' }, { status: 400 });
 		}
+		const pesan = String(body?.message || '').trim().slice(0, MAKS_PESAN);
+		if (!pesan) return balas({ reply: 'Pesan tidak boleh kosong.' }, { status: 400 });
+		const slugAktif = typeof body?.activeUnitSlug === 'string' && body.activeUnitSlug ? body.activeUnitSlug : null;
+
 		const kuota = await cekKuotaAI(userId);
-		if (!kuota.allowed) return json({ reply: kuota.pesan }, { status: 429 });
+		if (!kuota.allowed) return balas({ reply: kuota.pesan }, { status: 429 });
 
-		// 2. Parse body
-		const { message, activeUnitSlug, history = [] } = await request.json();
-		if (!message?.trim()) {
-			return json({ reply: 'Pesan tidak boleh kosong.' }, { status: 400 });
+		// Unit milik pengguna (unit aktif harus milik pengguna)
+		const semuaUnit = await db
+			.select({ id: unitBisnis.id, nama_unit: unitBisnis.namaUnit, slug: unitBisnis.slug, modal_awal: unitBisnis.modalAwal, kategori: unitBisnis.kategori })
+			.from(unitBisnis)
+			.where(eq(unitBisnis.userId, userId));
+		if (!semuaUnit.length) return balas({ reply: 'Data unit bisnis tidak ditemukan. Silakan buat unit bisnis terlebih dahulu ya kak.', suggestions: [] });
+		const unit = slugAktif ? semuaUnit.find((u) => u.slug === slugAktif) || null : semuaUnit.length === 1 ? semuaUnit[0] : null;
+		if (slugAktif && !unit) return balas({ reply: 'Unit bisnis yang dipilih tidak ditemukan. Pilih ulang unitnya ya kak.', suggestions: [] });
+		const unitId = unit?.id ?? null;
+
+		const kal = kalender();
+		const riwayat = rapikanRiwayat(body?.history, pesan);
+
+		// ── 1. Perintah memori (tanpa memanggil model) ──
+		if (/^(apa\s+saja\s+(yang\s+)?(kamu\s+)?ingat|kamu\s+ingat\s+apa|daftar\s+memori|cek\s+memori|memori\s+saya)\b/i.test(pesan)) {
+			const memori = await getAiMemories(unitId, userId);
+			return balas({
+				reply: memori.length
+					? `🧠 **Yang saya ingat:**\n\n${memori.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')}\n\n💡 Tambah dengan "Ingat bahwa …" atau hapus dengan "Lupakan memori tentang …".`
+					: '🧠 **Belum ada memori yang disimpan kak.**\n\nContoh: *"Ingat bahwa toko kami libur setiap hari Minggu"* atau *"Ingat, jawab singkat saja"*.\n\n*(Angka keuangan tidak disimpan di memori karena selalu dibaca langsung dari basis data.)*',
+				suggestions: memori.length ? ['Lupakan memori…', 'Omzet hari ini'] : ['Ingat bahwa toko libur hari Minggu', 'Omzet hari ini']
+			});
 		}
-
-		// 3. Unit bisnis
-		const unitsQuery = db.select({
-			id: unitBisnis.id,
-			nama_unit: unitBisnis.namaUnit,
-			slug: unitBisnis.slug,
-			modal_awal: unitBisnis.modalAwal,
-			kategori: unitBisnis.kategori
-		}).from(unitBisnis);
-
-		const conditions = [eq(unitBisnis.userId, userId)];
-		if (activeUnitSlug) {
-			conditions.push(eq(unitBisnis.slug, activeUnitSlug));
+		if (/^(reset\s+semua\s+memori|hapus\s+semua\s+(memori|ingatan)|bersihkan\s+memori)\b/i.test(pesan)) {
+			await clearAllAiMemories(unitId, userId);
+			return balas({ reply: '🧹 **Seluruh memori AI sudah dibersihkan kak.**', suggestions: ['Apa saja yang kamu ingat?', 'Omzet hari ini'] });
 		}
-		const units = await unitsQuery.where(and(...conditions));
-
-		if (units.length === 0) {
-			return json({ reply: 'Data unit bisnis tidak ditemukan. Silakan buat unit bisnis terlebih dahulu ya kak.' });
-		}
-		const targetUnitId = activeUnitSlug ? units[0]?.id : null;
-
-		// 4. Tanggal helper — semua pakai WIB (Asia/Jakarta, UTC+7)
-		const pad = n => String(n).padStart(2, '0');
-		const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
-		const nowWIBDate = new Date(Date.now() + WIB_OFFSET_MS);
-		const thisYear  = nowWIBDate.getUTCFullYear();
-		const thisMonth = nowWIBDate.getUTCMonth() + 1; // 1-12
-		const lastMonth = thisMonth === 1 ? 12 : thisMonth - 1;
-		const lastMonthYear = thisMonth === 1 ? thisYear - 1 : thisYear;
-		const thisMonthStart = `${thisYear}-${pad(thisMonth)}-01`;
-		const lastMonthStart = `${lastMonthYear}-${pad(lastMonth)}-01`;
-		const lastMonthEnd   = `${thisYear}-${pad(thisMonth)}-01`; // exclusive (< thisMonthStart)
-		const hariIniStr = nowWIBDate.toISOString().slice(0, 10);
-		const kemarinStr = new Date(nowWIBDate.getTime() - 86_400_000).toISOString().slice(0, 10);
-		
-		// 5. Deteksi intent awal
-		const intent = detectIntent(message);
-		const isTransactionParse = intent === 'transaction_input';
-
-		// 5b. AI Memory Management & Guardrails (Simpan & Ingat Konteks Non-Angka)
-		const msgTrim = message.trim();
-
-		// A. Tanya daftar memori yang diingat
-		if (/^(apa\s+saja\s+(yang\s+)?(kamu\s+)?ingat|kamu\s+ingat\s+apa|daftar\s+memori|cek\s+memori|memori\s+saya)\b/i.test(msgTrim)) {
-			const memories = await getAiMemories(targetUnitId, userId);
-			if (memories.length === 0) {
-				return json({
-					reply: '🧠 **Belum ada memori khusus yang disimpan kak.**\n\nKakak bisa meminta saya mengingat konteks penting seperti nama panggilan, aturan operasional, atau profil usaha. Contoh:\n• *"Ingat bahwa toko kami libur setiap hari Minggu"*\n• *"Ingat nama panggilan saya Mas Farhan"*\n• *"Catat preferensi: jawaban to-the-point dan singkat"*\n\n*(Catatan: Data angka keuangan tidak disimpan di memori permanen agar selalu akurat merujuk ke database live).*',
-					suggestions: ['Ingat nama panggilan saya...', 'Toko kami libur hari...']
-				});
-			}
-			const listText = memories.map((m, i) => `${i + 1}. ${m.fact}`).join('\n');
-			return json({
-				reply: `🧠 **Berikut konteks bisnis & preferensi yang saya ingat:**\n\n${listText}\n\n💡 *Kakak bisa menambah dengan mengetik "Ingat bahwa...", atau menghapus dengan "Lupakan memori tentang [topik]".*`,
-				suggestions: ['Lupakan memori...', 'Cek saldo kas saat ini']
+		const hapus = pesan.match(/^(?:tolong\s+)?(?:lupakan|hapus)\s+(?:memori|ingatan)\s*(?:tentang\s*)?[:,-]?\s*(.+)/i);
+		if (hapus) {
+			const kata = hapus[1].trim();
+			const { removedCount } = await deleteAiMemory(unitId, userId, kata);
+			return balas({
+				reply: removedCount > 0 ? `🗑️ **Memori dihapus kak.** ${removedCount} memori tentang *"${kata}"* sudah saya lupakan.` : `Tidak ada memori yang cocok dengan *"${kata}"* kak. Ketik *"Apa saja yang kamu ingat?"* untuk melihat daftarnya.`,
+				suggestions: ['Apa saja yang kamu ingat?']
 			});
 		}
 
-		// B. Reset / Hapus seluruh memori
-		if (/^(reset\s+semua\s+memori|hapus\s+semua\s+ingatan|bersihkan\s+memori)\b/i.test(msgTrim)) {
-			await clearAllAiMemories(targetUnitId, userId);
-			return json({
-				reply: '🧹 **Seluruh memori AI berhasil dibersihkan kak.**\nAI sekarang mulai kembali dengan konteks bawaan tanpa memori masa lalu.',
-				suggestions: ['Apa saja yang kamu ingat?', 'Cek status bisnis']
+		// ── 2. Perintah mencatat transaksi → kartu pratinjau ──
+		if (perintahTransaksi(pesan)) {
+			if (!unitId) {
+				return balas({ reply: 'Transaksi ini mau dicatat ke unit bisnis yang mana kak? Pilih unitnya dulu di atas kolom chat, lalu kirim ulang perintahnya ya.', suggestions: [], needsUnit: true });
+			}
+			const tanggal = /\b(kemarin|kmrn|kemaren)\b/i.test(pesan) ? kal.kemarin : kal.hariIni;
+			const previews = await pratinjauTransaksi(unitId, pesan, tanggal);
+			if (!previews.length) {
+				return balas({ reply: 'Nominalnya berapa kak? Contoh: *"catat beli gula 50rb"* atau *"jual 2 kopi susu"*.', suggestions: ['Catat beli gula 50rb'] });
+			}
+			const satu = previews[0];
+			return balas({
+				reply:
+					previews.length > 1
+						? `✅ **${previews.length} transaksi** terdeteksi kak. Periksa akunnya di setiap kartu, lalu simpan ya 👇`
+						: `${satu.kategori === 'Masuk' ? '💰 **Pemasukan' : '💸 **Pengeluaran'} Rp${Number(satu.nominal).toLocaleString('id-ID')}** terdeteksi kak. Akun sudah saya pilihkan sesuai metode bayar — periksa lalu simpan ya 👇`,
+				transactionPreviews: previews,
+				suggestions: ['Input transaksi lain', 'Lihat riwayat transaksi'],
+				intent: 'transaksi'
 			});
 		}
 
-		// C. Hapus / Lupakan memori tertentu
-		const deleteMatch = msgTrim.match(/^(?:tolong\s+)?(?:lupakan|hapus)\s+(?:memori|ingatan)\s*(?:tentang\s*)?[:,-]?\s*(.+)/i);
-		if (deleteMatch) {
-			const targetKeyword = deleteMatch[1].trim();
-			const { removedCount } = await deleteAiMemory(targetUnitId, userId, targetKeyword);
-			if (removedCount > 0) {
-				return json({
-					reply: `🗑️ **Memori dihapus kak.**\nBerhasil melupakan ${removedCount} memori terkait *"${targetKeyword}"*.`,
-					suggestions: ['Apa saja yang kamu ingat sekarang?', 'Cek data bisnis']
-				});
-			} else {
-				return json({
-					reply: `Kak, tidak ditemukan memori yang cocok dengan kata kunci *"${targetKeyword}"*. Ketik *"Apa saja yang kamu ingat?"* untuk melihat daftar memori aktif ya kak.`,
-					suggestions: ['Apa saja yang kamu ingat?']
+		// ── 3. Simpan memori ──
+		const fakta = perintahIngat(pesan);
+		if (fakta) {
+			if (isFinancialOrTransactionData(fakta)) {
+				return balas({
+					reply: '⚠️ **Angka transaksi & keuangan tidak disimpan di memori kak**, supaya angka lama tidak tertukar dengan data terbaru. Angka selalu saya baca langsung dari basis data.\n\nMemori dipakai untuk konteks seperti hari libur, nama supplier langganan, atau gaya jawaban. Kalau maksudnya mencatat transaksi, ketik misalnya *"catat beli gula 50rb"*.',
+					suggestions: ['Ingat bahwa toko libur hari Minggu', 'Catat beli gula 50rb']
 				});
 			}
+			const simpan = await saveAiMemory(unitId, userId, fakta, 'context');
+			return balas({
+				reply: simpan.success ? `🧠 **Tersimpan kak.** Saya akan ingat: *"${fakta}"*` : `Gagal menyimpan memori: ${simpan.message}`,
+				suggestions: ['Apa saja yang kamu ingat?']
+			});
 		}
 
-		// D. Simpan memori / konteks baru
-		const rememberMatch = msgTrim.match(/^(?:tolong\s+)?(?:ingat(?:kan)?|catat|simpan)\s*(?:memori|bahwa|fakta|preferensi)?\s*[:,-]?\s*(.+)/i);
-		if (rememberMatch) {
-			const factCandidate = rememberMatch[1].trim();
-
-			// GUARDRAIL KRITIS: Tolak jika mengandung data angka transaksi / keuangan
-			if (isFinancialOrTransactionData(factCandidate)) {
-				return json({
-					reply: '⚠️ **Data angka transaksi & keuangan tidak disimpan di memori permanen kak.**\n\nAlasannya: Supaya data angka lama tidak tertukar atau mengotori pembukuan periode terbaru. Seluruh data angka keuangan (seperti saldo, omzet, hutang, atau transaksi) **selalu dibaca secara live langsung dari database keuangan** agar selalu 100% akurat.\n\nMemori khusus digunakan untuk mengingat **konteks bisnis & preferensi** (misalnya nama supplier, hari libur toko, menu andalan, target pasar, atau nama panggilan kakak). Silakan coba lagi dengan konteks non-angka ya kak! 😊',
-					suggestions: ['Ingat nama panggilan saya...', 'Toko kami libur hari...']
-				});
+		// ── 4. Pertanyaan → kumpulkan data yang relevan saja ──
+		const basaBasi = sapaan(pesan);
+		let topik = basaBasi ? [] : deteksiTopik(pesan);
+		let periode = periodeDariTeks(pesan);
+		let susulan = false;
+		if (!basaBasi && (!topik.length || !periode.length)) {
+			const susulanTopik = topikSusulan(pesan, riwayat);
+			if (!topik.length && susulanTopik.length) {
+				topik = susulanTopik;
+				susulan = true;
 			}
-
-			const saveRes = await saveAiMemory(targetUnitId, userId, factCandidate, 'context');
-			if (saveRes.success) {
-				return json({
-					reply: `🧠 **Memori tersimpan kak!**\nSaya sudah mengingat: *"${factCandidate}"*\n\nInformasi ini akan selalu saya jadikan konteks dan preferensi di setiap obrolan kita berikutnya. 😊`,
-					suggestions: ['Apa saja yang kamu ingat?', 'Cek data bisnis']
-				});
-			} else {
-				return json({
-					reply: `Gagal menyimpan memori: ${saveRes.message}`,
-					suggestions: ['Apa saja yang kamu ingat?']
-				});
+			// "kalau minggu lalu?" sudah punya periode; "kenapa?" mewarisi periode pertanyaan sebelumnya
+			if (!periode.length && susulanTopik.length) {
+				const userSebelum = [...riwayat].reverse().find((h) => h.role === 'user');
+				if (userSebelum && pesan.split(/\s+/).length <= 8) periode = periodeDariTeks(userSebelum.content);
 			}
 		}
+		const hanyaBantuan = topik.length === 1 && topik[0] === 'bantuan';
+		const umum = basaBasi;
 
-		// 6. Transaction NL detection — RUNS FIRST
-		if (targetUnitId) {
-			const trxDataList = parseTransactionNL(message);
-			if (trxDataList && trxDataList.length > 0) {
-				const isMultiple = trxDataList.length > 1;
-				const emoji = trxDataList[0].kategori === 'Masuk' ? '💰' : '💸';
-				const previewReply = isMultiple
-					? `✅ **${trxDataList.length} Transaksi** terdeteksi kak!\nSilakan lengkapi akun di masing-masing card di bawah, lalu simpan ya 👇`
-					: `${emoji} **${trxDataList[0].kategori === 'Masuk' ? 'Pemasukan' : 'Pengeluaran'} Rp${Number(trxDataList[0].nominal).toLocaleString('id-ID')}** terdeteksi kak!\nSilakan lengkapi akun COA dan kas di card di bawah, lalu simpan ya 👇`;
+		const [{ data, saran }, memori] = await Promise.all([
+			umum || hanyaBantuan
+				? Promise.resolve({ data: '', saran: [] })
+				: kumpulkanData({ unit, unitIds: semuaUnit.map((u) => u.id), userId, pesan: susulan ? `${riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || ''} ${pesan}` : pesan, topik, periode }),
+			getAiMemories(unitId, userId)
+		]);
 
-				return json({
-					reply: previewReply,
-					transactionPreviews: trxDataList,
-					suggestions: ['Input transaksi lain', 'Lihat riwayat transaksi']
-				});
-			}
-		}
+		const panduan = hanyaBantuan
+			? '\nPANDUAN: Catat transaksi → halaman Catat Transaksi (tombol "Tambah Transaksi" di Dasbor) atau ketik di chat, mis. "catat beli gula 50rb". Jualan → halaman Kasir. Tambah produk → halaman Tambah Produk. Karyawan → halaman SDM. Tambah unit usaha → menu Operasional, tombol "Unit Baru". Laporan laba rugi → Laporan Keuangan.'
+			: '';
+		const sistem = promptSistem({
+			waktu: `${namaHari(kal.hariKe)}, ${kal.hariIni} ${kal.jam}`,
+			unit: unit ? `${unit.nama_unit}${unit.kategori ? ` (${unit.kategori})` : ''}` : `belum dipilih — data gabungan ${semuaUnit.length} unit: ${semuaUnit.map((u) => u.nama_unit).join(', ')}`,
+			data: data + panduan,
+			halaman: umum ? [] : halamanRelevan(unit?.slug ?? null, topik),
+			memori: teksMemori(memori),
+			umum
+		});
 
-		// 7. Optimasi DB Fetching (Lazy Load Context)
-		const queryTrxCondition = targetUnitId ? eq(transaksi.unitId, targetUnitId) : eq(transaksi.userId, userId);
-		const msgLower = message.toLowerCase();
-		const bulanNames = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-		
-		let financeSummary = '';
-		let trxSnippet = '';
-		let prodSnippet = '';
-		let trenText = '';
-
-		const isFinance = intent === 'finance' || intent === 'general' || intent === 'pos' || /omzet|omset|pemasukan|pengeluaran|transaksi|laba|untung/i.test(msgLower);
-		const isTren = /tren|grafik|chart|perkembangan|bulan/i.test(msgLower);
-		const isHistory = /transaksi|terakhir|riwayat|kemarin/i.test(msgLower);
-		const isInventory = intent === 'inventory' || /stok|produk|barang|jual|harga/i.test(msgLower);
-
-		if (!isTransactionParse) {
-			if (isFinance) {
-				// 7a. Summary
-				const allTimeRows = await db.select({
-					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-					hpp: sql`SUM(COALESCE(${transaksi.hppTotal}, 0))`
-				}).from(transaksi).where(queryTrxCondition);
-
-				const bulanIniRows = await db.select({
-					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-					jumlah: sql`COUNT(*)`
-				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${thisMonthStart}`));
-
-				const bulanLaluRows = await db.select({
-					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-					jumlah: sql`COUNT(*)`
-				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${lastMonthStart}`, sql`DATE(${transaksi.tanggal}) < ${lastMonthEnd}`));
-
-				// Agregat HARI INI & KEMARIN dihitung di database (dulu model menebak dari 8 transaksi terakhir
-				// sehingga "omzet hari ini" berbeda dengan dasbor dan berubah antarpertanyaan — F-16)
-				const harianRows = await db.select({
-					hari: sql`DATE(${transaksi.tanggal})`,
-					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`,
-					jumlah: sql`COUNT(*)`
-				}).from(transaksi).where(and(queryTrxCondition, sql`DATE(${transaksi.tanggal}) >= ${kemarinStr}`)).groupBy(sql`DATE(${transaksi.tanggal})`);
-				const hariRow = (/** @type {string} */ tgl) => harianRows.find(h => String(h.hari).slice(0, 10) === tgl) || { masuk: 0, keluar: 0, jumlah: 0 };
-				const hIni = hariRow(hariIniStr);
-				const hLalu = hariRow(kemarinStr);
-
-				const totalMasuk  = Number(allTimeRows[0]?.masuk  || 0);
-				const totalKeluar = Number(allTimeRows[0]?.keluar || 0);
-				const totalHpp    = Number(allTimeRows[0]?.hpp    || 0);
-				const saldoBersih = totalMasuk - totalKeluar;
-				const bulanIniMasuk  = Number(bulanIniRows[0]?.masuk  || 0);
-				const bulanIniKeluar = Number(bulanIniRows[0]?.keluar || 0);
-				const bulanLaluMasuk  = Number(bulanLaluRows[0]?.masuk  || 0);
-				const bulanLaluKeluar = Number(bulanLaluRows[0]?.keluar || 0);
-				const bulanLaluJumlah = Number(bulanLaluRows[0]?.jumlah || 0);
-
-				financeSummary = [
-					`• HARI INI (${hariIniStr}): Omzet/Masuk ${fmtRp(hIni.masuk)} | Keluar ${fmtRp(hIni.keluar)} | Selisih ${fmtRp(Number(hIni.masuk || 0) - Number(hIni.keluar || 0))} | ${Number(hIni.jumlah || 0)} transaksi`,
-					`• KEMARIN (${kemarinStr}): Omzet/Masuk ${fmtRp(hLalu.masuk)} | Keluar ${fmtRp(hLalu.keluar)} | ${Number(hLalu.jumlah || 0)} transaksi`,
-					`• ALL TIME  : Masuk ${fmtRp(totalMasuk)} | Keluar ${fmtRp(totalKeluar)} | Saldo ${fmtRp(saldoBersih)} | HPP ${fmtRp(totalHpp)} | Gross Profit ${fmtRp(totalMasuk - totalHpp)}`,
-					`• BULAN INI (${bulanNames[thisMonth]} ${thisYear}): Masuk ${fmtRp(bulanIniMasuk)} | Keluar ${fmtRp(bulanIniKeluar)} | Saldo ${fmtRp(bulanIniMasuk - bulanIniKeluar)} | ${Number(bulanIniRows[0]?.jumlah || 0)} transaksi`,
-					`• BULAN LALU (${bulanNames[lastMonth]} ${lastMonthYear}): Masuk ${fmtRp(bulanLaluMasuk)} | Keluar ${fmtRp(bulanLaluKeluar)} | Saldo ${fmtRp(bulanLaluMasuk - bulanLaluKeluar)} | ${bulanLaluJumlah} transaksi`,
-				].join('\n');
-			}
-
-			if (isTren) {
-				const trenRows = await db.select({
-					tahun: sql`YEAR(${transaksi.tanggal})`,
-					bulan: sql`MONTH(${transaksi.tanggal})`,
-					masuk: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='MASUK' THEN ${transaksi.nominal} ELSE 0 END)`,
-					keluar: sql`SUM(CASE WHEN UPPER(${transaksi.kategoriTrx})='KELUAR' THEN ${transaksi.nominal} ELSE 0 END)`
-				}).from(transaksi).where(and(queryTrxCondition, sql`${transaksi.tanggal} >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`)).groupBy(sql`YEAR(${transaksi.tanggal})`, sql`MONTH(${transaksi.tanggal})`).orderBy(sql`YEAR(${transaksi.tanggal})`, sql`MONTH(${transaksi.tanggal})`);
-				
-				trenText = trenRows.length ? trenRows.map(r => `${bulanNames[r.bulan]} ${r.tahun}: Masuk ${fmtRp(r.masuk)} | Keluar ${fmtRp(r.keluar)}`).join(' | ') : 'Belum ada data tren';
-			}
-
-			if (isFinance || isHistory) {
-				const freshTrx = await db.select({
-					kategori_trx: transaksi.kategoriTrx,
-					nominal: transaksi.nominal,
-					keterangan: transaksi.keterangan,
-					tanggal: transaksi.tanggal,
-					metode_bayar: transaksi.metodeBayar
-				}).from(transaksi).where(queryTrxCondition).orderBy(desc(transaksi.tanggal)).limit(8);
-				trxSnippet = freshTrx.length ? freshTrx.map(t => `[${fmtDate(t.tanggal)}] ${t.kategori_trx} ${fmtRp(t.nominal)} - ${t.keterangan || t.metode_bayar || '-'}`).join('\n  ') : 'Belum ada transaksi';
-			}
-
-			if (isInventory) {
-				const queryProdCondition = targetUnitId ? eq(productsTable.unitId, targetUnitId) : eq(productsTable.userId, userId);
-				const products = await db.select({
-					nama: productsTable.nama,
-					harga_jual: productsTable.hargaJual,
-					stok: productsTable.stok,
-					min_stok: productsTable.minStok
-				}).from(productsTable).where(and(queryProdCondition, sql`${productsTable.deletedAt} IS NULL`)).orderBy(asc(productsTable.stok)).limit(10);
-				prodSnippet = products.length ? products.map(p => `${p.nama} | Jual: ${fmtRp(p.harga_jual)} | Stok: ${p.stok}${p.stok <= p.min_stok ? ' ⚠️MENIPIS' : ''}`).join('\n  ') : 'Belum ada produk';
-			}
-		}
-
-		// 8. Muat konteks dinamis tambahan (CRM, HR, dll)
-		const { ctx: dynamicContext, suggestions: dynamicSuggestions } = isTransactionParse ? { ctx: '', suggestions: [] } : await loadDynamicContext(intent, userId, targetUnitId);
-
-
-		// 9. Bangun prompt
-		// 8b. Ambil memori konteks yang tersimpan untuk unit/user
-		const activeMemories = await getAiMemories(targetUnitId, userId);
-		const memoryPromptSection = formatMemoriesForPrompt(activeMemories);
-
-		let systemPrompt = '';
-
-		if (isTransactionParse) {
-			systemPrompt = `Kamu adalah **Bizgrow AI** pengurai transaksi.
-User mengetikkan beberapa transaksi. Ekstrak menjadi ARRAY JSON dalam blok code \`\`\`transaction\`\`\`.
-
-\`\`\`transaction
-[
-  {
-    "kategori": "Keluar", // Masuk atau Keluar
-    "nominal": 10000,
-    "keterangan": "Beli sesuatu",
-    "tanggal": "${fmtDate(nowWIBDate).split(' ')[0]}",
-    "metode": "Tunai"
-  }
-]
-\`\`\`
-Hanya balas dengan blok code tersebut tanpa basa-basi!`;
-		} else {
-			const businessCtx = units
-				.map(u => `  • ${u.nama_unit} [${u.slug}] | Modal: ${fmtRp(u.modal_awal)} | Industri: ${u.kategori || 'Umum'}`)
-				.join('\n');
-
-			const hasActiveUnit = Boolean(activeUnitSlug && units.length > 0);
-			const activeUnit = hasActiveUnit ? units[0] : null;
-			const slug = activeUnit?.slug ?? null;
-
-			const navInstructions = hasActiveUnit && slug
-				? `## INSTRUKSI NAVIGASI (Unit: ${activeUnit.nama_unit})
-Akhiri jawaban dengan TEPAT 1-2 tombol aksi. Format: [Label Tombol](/path/halaman)
-Halaman VALID: /finance/${slug}/history, /finance/${slug}/laporan, dll.`
-				: `## INSTRUKSI NAVIGASI (Tanpa Unit Aktif)
-JANGAN buat link /finance/[slug]/... karena unit belum dipilih.
-Gunakan hanya: [Pilih Unit Bisnis](/finance) atau [Beranda](/beranda)`;
-
-			systemPrompt = `Kamu adalah **Bizgrow AI** — asisten ERP cerdas untuk UMKM Indonesia.
-Gaya bicara: ramah, analitis, padat, gunakan sapaan "kak". Bahasa Indonesia natural.
-PENTING: Jawab langsung to-the-point dan ringkas (maksimal 2-3 paragraf). Jangan bertele-tele. Jawab SATU KALI SAJA.
-
-## FORMAT KAYA (Gunakan jika relevan):
-:::metric{label:"Omzet",value:"Rp12.5M",trend:"+8%",color:"green"}:::
-:::alert{type:"warning",title:"Info",msg:"Pesan"}:::
-:::badge{text:"LUNAS",color:"green"}:::
-:::progress{label:"Target Omzet",value:75,color:"indigo"}:::
-
-## ATURAN PENTING
-- Data di bawah SUDAH AKURAT dari database — jangan mengarang angka.
-- "Omzet"/"pemasukan" hari ini, kemarin, bulan ini, bulan lalu: pakai angka pada baris DATA KEUANGAN yang sesuai (jangan menjumlah ulang daftar transaksi terakhir).
-- Pertanyaan tentang data (diawali berapa/apa/kapan/siapa atau diakhiri tanda tanya) DIJAWAB, bukan dibuatkan blok transaction.
-- JANGAN mengarang route/URL selain yang valid.
-- JANGAN pernah mengarang info produk.
-- Transaksi dari chat AI disimpan ke sistem akuntansi, BUKAN ke POS.
-
-## 💡 INPUT TRANSAKSI NATURAL LANGUAGE
-Jika pesan user MEMERINTAHKAN mencatat transaksi keuangan baru (bukan bertanya), ekstrak datanya dalam blok code \`\`\`transaction\`\`\`. 
-\`\`\`transaction
-[
-  {
-    "kategori": "Keluar", // Masuk atau Keluar
-    "nominal": 10000,
-    "keterangan": "Beli sesuatu",
-    "tanggal": "${fmtDate(nowWIBDate).split(' ')[0]}",
-    "metode": "Tunai"
-  }
-]
-\`\`\`
-
----
-## KONTEKS BISNIS AKTIF
-Tanggal: ${bulanNames[thisMonth]} ${thisYear} (${thisMonthStart} s/d sekarang)
-Unit Bisnis: ${hasActiveUnit ? `${activeUnit.nama_unit} [slug: ${slug}]` : 'Belum dipilih'}
-Semua Unit: ${units.map(u => u.nama_unit).join(', ')}${memoryPromptSection}
-
-${financeSummary ? `## DATA KEUANGAN\n${financeSummary}\n` : ''}${trenText ? `## TREN 6 BULAN TERAKHIR\n${trenText}\n` : ''}${trxSnippet ? `## 8 TRANSAKSI TERAKHIR\n  ${trxSnippet}\n` : ''}${prodSnippet ? `## PRODUK & STOK\n  ${prodSnippet}\n` : ''}${dynamicContext}
-${navInstructions}`;
-		}
-
-		// Batasi history max 6 pesan (3 turn) untuk efisiensi token & kecepatan
-		const cleanHistory = history
-			.slice(-6)
-			.map(h => {
-				let text = String(h.content || '').trim();
-				// Pangkas widget panjang di histori lama agar tidak memboroskan token input
-				if (h.role !== 'user' && text.length > 300) {
-					text = text.replace(/:::[a-z]+[\s\S]*?:::/g, '').trim().slice(0, 250);
-				}
-				return {
-					role: h.role === 'user' ? 'user' : 'assistant',
-					content: text
-				};
-			})
-			.filter(h => h.content.length > 0);
-
-		// 9. Panggil Groq
-		const groqResp = await groqChatCompletion({
-			model: 'llama-3.3-70b-versatile',
-			messages: [
-				{ role: 'system', content: systemPrompt },
-				...cleanHistory,
-				{ role: 'user', content: message }
-			],
+		const res = await panggilDanCatat(umum ? 'sapaan' : hanyaBantuan ? 'bantuan' : 'analitis')({
+			// Sapaan & panduan cukup model kecil (batas token per menit dihitung per model → beban terbagi)
+			model: umum || hanyaBantuan ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile',
+			messages: [{ role: 'system', content: sistem }, ...(umum ? riwayat.slice(-2) : riwayat), { role: 'user', content: pesan }],
 			temperature: 0.3,
-			max_tokens: 650
+			max_tokens: umum ? 200 : 600
 		});
 
-		let aiReply = groqResp.choices?.[0]?.message?.content
-			?? 'Maaf kak, AI sedang sibuk. Coba lagi sebentar ya! 😊';
+		let reply = String(res?.choices?.[0]?.message?.content || '').trim() || 'Maaf kak, AI sedang sibuk. Coba lagi sebentar ya! 😊';
 
-		// 10. Ekstrak chart JSON jika ada
+		// Grafik opsional dari model
+		/** @type {any} */
 		let chartData = null;
-		const chartMatch = aiReply.match(/```chart\s*(\{[\s\S]*?\})\s*```/);
-		if (chartMatch) {
+		const grafik = reply.match(/```chart\s*(\{[\s\S]*?\})\s*```/);
+		if (grafik) {
 			try {
-				chartData = JSON.parse(chartMatch[1]);
-				aiReply = aiReply.replace(/```chart[\s\S]*?```/, '').trim();
-			} catch { /* biarkan teks apa adanya */ }
+				chartData = JSON.parse(grafik[1]);
+			} catch {
+				/* abaikan */
+			}
+			reply = reply.replace(/```chart[\s\S]*?```/, '').trim();
 		}
+		// Blok transaksi tidak boleh muncul dari jawaban analitis (pencatatan lewat jalur perintah di atas)
+		reply = reply.replace(/```transaction[\s\S]*?```/g, '').trim();
+		reply = saringTautan(reply, unit?.slug ?? null);
 
-		// 11. Ekstrak transaction JSON (Fallback jika parseTransactionNL regex gagal)
-		let transactionPreviews = null;
-		const trxMatch = aiReply.match(/```transaction\s*([\[\{][\s\S]*?[\]\}])\s*```/);
-		if (trxMatch) {
-			try {
-				const parsed = JSON.parse(trxMatch[1]);
-				transactionPreviews = Array.isArray(parsed) ? parsed : [parsed];
-				aiReply = aiReply.replace(/```transaction[\s\S]*?```/, '').trim();
-			} catch { /* ignore */ }
-		}
-
-		return json({
-			reply: aiReply,
-			suggestions: dynamicSuggestions,
+		return balas({
+			reply,
+			suggestions: saran.length ? saran : saranBawaan(topik),
 			chartData,
-			transactionPreviews,
-			intent // untuk debugging di dev
+			transactionPreviews: null,
+			intent: umum ? 'sapaan' : topik.join(',') || 'umum'
 		});
-
 	} catch (err) {
 		log.ai.error({ err }, '[Chat API]');
 		if (err instanceof GroqError) {
-			// Layanan AI penuh/bermasalah: balas dengan pesan yang bisa ditampilkan aplikasi, bukan galat 500
-			return json({ reply: `${pesanGalatAI(err)} 🙏`, suggestions: [], aiError: true, retryAfter: err.retryAfter || 60 });
+			return balas({ reply: `${pesanGalatAI(err)} 🙏`, suggestions: [], aiError: true, retryAfter: err.retryAfter || 60 });
 		}
-		return json({ reply: 'Terjadi kesalahan server. Silakan coba lagi ya kak.' }, { status: 500 });
+		return balas({ reply: 'Terjadi kesalahan server. Silakan coba lagi ya kak.' }, { status: 500 });
 	}
 }
-
