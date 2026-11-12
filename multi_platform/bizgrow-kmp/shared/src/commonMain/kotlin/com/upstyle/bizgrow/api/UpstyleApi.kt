@@ -134,6 +134,20 @@ class UpstyleApi(private val client: HttpClient) {
             parameter("limit", 50)
         }.body()
 
+    /** Foto nota/struk/bukti transfer/catatan kas → dibaca AI menjadi kartu transaksi (POST /api/chat/foto). */
+    suspend fun kirimFotoChat(bytes: ByteArray, unitId: Int?, pesan: String?): ChatResponse =
+        client.submitFormWithBinaryData(
+            url = "api/chat/foto",
+            formData = io.ktor.client.request.forms.formData {
+                append("file", bytes, io.ktor.http.Headers.build {
+                    append(io.ktor.http.HttpHeaders.ContentType, "image/jpeg")
+                    append(io.ktor.http.HttpHeaders.ContentDisposition, "filename=\"foto.jpg\"")
+                })
+                if (unitId != null && unitId > 0) append("unitId", unitId.toString())
+                if (!pesan.isNullOrBlank()) append("pesan", pesan)
+            }
+        ).body()
+
     /** Unggah foto produk (multipart) → URL publik, atau null bila gagal. */
     suspend fun uploadFotoProduk(bytes: ByteArray, namaFile: String = "produk.jpg"): String? {
         val res: JsonObject = client.submitFormWithBinaryData(

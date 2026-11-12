@@ -241,7 +241,9 @@ data class TransactionBody(
     /** Akun pendapatan/beban (COA). Kosong → server pakai akun default unit. */
     val coaId: Int? = null,
     /** Akun kas/bank. Kosong → server pilih dari metodeBayar (KAS / BANK / QRIS ...). */
-    val kasCoaId: Int? = null
+    val kasCoaId: Int? = null,
+    /** Tanggal transaksi YYYY-MM-DD (mis. tanggal nota); kosong = hari ini. */
+    val tanggal: String? = null
 )
 
 /** Balasan POST api/app/finance */

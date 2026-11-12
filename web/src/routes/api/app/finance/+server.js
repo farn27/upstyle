@@ -28,6 +28,7 @@ const createTransactionSchema = z.object({
         hppTotal: z.coerce.number().min(0).optional().default(0), // diabaikan: HPP dihitung server dari harga beli
         coaId: z.coerce.number().int().positive().optional(),     // akun pendapatan/beban (opsional)
         kasCoaId: z.coerce.number().int().positive().optional(),  // akun kas/bank (opsional)
+        tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), // mis. tanggal nota (opsional)
     })
 });
 
@@ -325,7 +326,8 @@ export async function POST({ request, cookies }) {
                 kasCoaId: Number(akun.kasCoaId),
                 productId: productId || null,
                 qty,
-                abcCategoryId: abcCategoryId ?? null
+                abcCategoryId: abcCategoryId ?? null,
+                tanggal: parsed.data.transaction.tanggal ?? null
             });
         });
 

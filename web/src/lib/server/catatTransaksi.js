@@ -13,10 +13,11 @@ import {
 	chartOfAccounts,
 	journalEntries,
 	journalEntryLines,
-	riwayatAksi
+	riwayatAksi,
+	closingPeriods
 } from '$lib/server/schema';
 import { normalizeKategoriTrx } from '$lib/server/kategoriTrx';
-import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
+import { nowWIB, nowSqlWIB, todayStrWIB } from '$lib/server/dateUtils';
 
 /** Error yang aman ditampilkan ke pengguna (status HTTP ikut dibawa) */
 export class TransaksiError extends Error {
@@ -113,8 +114,9 @@ export async function pilihAkunDefault(tx, unitId, kategori, metodeBayar) {
  * @param {any} tx  transaksi Drizzle
  * @param {{
  *   unitId: number, userId: number, kategori: string, nominal: number, keterangan: string,
- *   coaId: number | null, kasCoaId: number | null, productId?: string | null, qty?: number, abcCategoryId?: number | null
- * }} input
+ *   coaId: number | null, kasCoaId: number | null, productId?: string | null, qty?: number, abcCategoryId?: number | null,
+ *   tanggal?: string | null
+ * }} input  tanggal: YYYY-MM-DD (opsional, mis. tanggal nota); kosong = hari ini
  * @returns {Promise<{ trxId: number, journalId: number, hppTotal: number, kategori: 'MASUK' | 'KELUAR' }>}
  */
 export async function catatTransaksi(tx, input) {
@@ -135,6 +137,23 @@ export async function catatTransaksi(tx, input) {
 	if (!keterangan) throw new TransaksiError('Keterangan wajib diisi', 422);
 	if (!coaId) throw new TransaksiError('Pilih akun COA terlebih dahulu!', 422);
 	if (!kasCoaId) throw new TransaksiError('Pilih metode bayar (akun kas/bank)!', 422);
+
+	// Tanggal transaksi (mis. dari nota yang difoto). Dulu tanggal pilihan di kartu chat diabaikan → selalu hari ini.
+	const hariIni = todayStrWIB();
+	const tglInput = String(input.tanggal || '').slice(0, 10);
+	let tanggalTrx = hariIni;
+	if (tglInput && tglInput !== hariIni) {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(tglInput) || Number.isNaN(Date.parse(tglInput))) throw new TransaksiError('Format tanggal tidak valid', 422);
+		if (tglInput > hariIni) throw new TransaksiError('Tanggal transaksi tidak boleh di masa depan', 422);
+		if ((Date.parse(hariIni) - Date.parse(tglInput)) / 86_400_000 > 366) throw new TransaksiError('Tanggal transaksi terlalu lama (maksimal 1 tahun ke belakang)', 422);
+		const [kunci] = await tx
+			.select({ a: closingPeriods.periodStart, b: closingPeriods.periodEnd })
+			.from(closingPeriods)
+			.where(and(eq(closingPeriods.unitId, unitId), eq(closingPeriods.status, 'CLOSED'), sql`${closingPeriods.periodStart} <= ${tglInput}`, sql`${closingPeriods.periodEnd} >= ${tglInput}`))
+			.limit(1);
+		if (kunci) throw new TransaksiError(`Periode ${String(kunci.a).slice(0, 10)} s/d ${String(kunci.b).slice(0, 10)} sudah ditutup buku.`, 409);
+		tanggalTrx = tglInput;
+	}
 
 	// 1. Akun COA & kas harus milik unit ini
 	/** @type {{ id: number }[]} */
@@ -166,7 +185,7 @@ export async function catatTransaksi(tx, input) {
 	}
 
 	// 3. Jurnal double-entry
-	const tanggalJurnal = todayStrWIB(); // dulu tanggal UTC: transaksi 00:00–06:59 WIB masuk hari sebelumnya
+	const tanggalJurnal = tanggalTrx; // dulu tanggal UTC: transaksi 00:00–06:59 WIB masuk hari sebelumnya
 	const [jurnal] = await tx.insert(journalEntries).values({
 		unitId,
 		userId,
@@ -185,7 +204,7 @@ export async function catatTransaksi(tx, input) {
 	const [trx] = await tx.insert(transaksi).values({
 		userId,
 		unitId,
-		tanggal: nowWIB(),
+		tanggal: tanggalTrx === hariIni ? nowWIB() : `${tanggalTrx} ${nowSqlWIB().slice(11)}`,
 		keterangan,
 		nominal: String(nominal),
 		totalHarga: String(nominal),

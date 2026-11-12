@@ -96,10 +96,13 @@ export function validasiSilang(y, asal = 3) {
 			const latih = y.slice(0, potong);
 			const aktual = y.slice(potong, potong + M);
 			const r = m.fn(latih, M).map((v) => Math.max(0, v));
+			// galat relatif terhadap max(ramalan, rata-rata data latih) agar ramalan ≈ 0 tidak meledakkan rasio;
+			// dibatasi [-100%, +200%] supaya kisaran tetap masuk akal
+			const skala = Math.max(1, rata(latih.slice(-28)));
 			aktual.forEach((a, i) => {
 				absErr += Math.abs(a - r[i]);
 				total += a;
-				galat[i].push(r[i] > 0 ? (a - r[i]) / r[i] : 0);
+				galat[i].push(Math.max(-1, Math.min(2, (a - r[i]) / Math.max(r[i], skala))));
 			});
 		}
 		if (cukup && total > 0) hasil.push({ kunci: m.kunci, nama: m.nama, wape: absErr / total, galat });
@@ -136,13 +139,15 @@ export function ramalkanCerdas(y, horizon) {
 	};
 	const galatGabung = Array.from({ length: M }, (_, i) => peserta.flatMap((p) => p.galat[i]));
 	const semuaGalat = galatGabung.flat();
+	// kisaran absolut: galat relatif × max(ramalan, rata-rata 4 minggu) (konsisten dengan cara galat dihitung)
+	const skalaRamal = Math.max(1, rata(y.slice(-28)));
 	const bawah = ramalan.map((v, h) => {
 		const g = galatGabung[h % M].length >= 3 ? galatGabung[h % M] : semuaGalat;
-		return Math.max(0, v * (1 + Math.min(0, kuantil(g, 0.1))));
+		return Math.max(0, v + Math.min(0, kuantil(g, 0.1)) * Math.max(v, skalaRamal));
 	});
 	const atas = ramalan.map((v, h) => {
 		const g = galatGabung[h % M].length >= 3 ? galatGabung[h % M] : semuaGalat;
-		return v * (1 + Math.max(0, kuantil(g, 0.9)));
+		return v + Math.max(0, kuantil(g, 0.9)) * Math.max(v, skalaRamal);
 	});
 	const wapeGabung = peserta.length > 1 ? jumlah(peserta.map((p, i) => p.wape * bobot[i])) / totalBobot : terbaik.wape;
 	return {

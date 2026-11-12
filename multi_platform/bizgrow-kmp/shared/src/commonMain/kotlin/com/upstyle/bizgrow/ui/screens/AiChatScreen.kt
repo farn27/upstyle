@@ -150,6 +150,18 @@ fun AiChatScreen(viewModel: AppViewModel) {
 
     var tab by remember { mutableStateOf(AiTab.CHAT) }
     var input by remember { mutableStateOf("") }
+    // Foto nota/struk → AI (gambar dikecilkan ±1280 px sebelum dikirim)
+    val bacaGambar = rememberPembacaGambar()
+    val cakupanFoto = rememberCoroutineScope()
+    val pilihFoto = rememberImagePickerLauncher { uri ->
+        if (uri != null) cakupanFoto.launch {
+            val bytes = bacaGambar(uri)
+            if (bytes == null) viewModel.showError("Foto tidak bisa dibaca") else {
+                ai.kirimFoto(bytes, input.trim())
+                input = ""
+            }
+        }
+    }
     var sheetRiwayat by remember { mutableStateOf(false) }
     var sheetUnit by remember { mutableStateOf(false) }
     var sheetAksi by remember { mutableStateOf(false) }
@@ -266,7 +278,8 @@ fun AiChatScreen(viewModel: AppViewModel) {
                     }
                     InputBarAi(
                         nilai = input, onUbah = { input = it }, memuat = memuat,
-                        onAksi = { sheetAksi = true }, onKirim = { kirim(input) }
+                        onAksi = { sheetAksi = true }, onKirim = { kirim(input) },
+                        onFoto = pilihFoto
                     )
                 }
             }
@@ -736,7 +749,7 @@ private fun PilihAkun(label: String, daftar: List<ChartOfAccount>, dipilih: Int?
 // ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun InputBarAi(nilai: String, onUbah: (String) -> Unit, memuat: Boolean, onAksi: () -> Unit, onKirim: () -> Unit) {
+private fun InputBarAi(nilai: String, onUbah: (String) -> Unit, memuat: Boolean, onAksi: () -> Unit, onKirim: () -> Unit, onFoto: () -> Unit) {
     val bisaKirim = nilai.isNotBlank() && !memuat
     val skala by animateFloatAsState(if (bisaKirim) 1f else 0.9f, tween(150), label = "kirim")
     Row(
@@ -751,7 +764,12 @@ private fun InputBarAi(nilai: String, onUbah: (String) -> Unit, memuat: Boolean,
         OutlinedTextField(
             value = nilai, onValueChange = onUbah,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Tanya apa saja… atau catat transaksi", style = MaterialTheme.typography.bodyMedium) },
+            placeholder = { Text("Tanya, catat, atau foto nota…", style = MaterialTheme.typography.bodyMedium) },
+            trailingIcon = {
+                IconButton(onClick = onFoto, enabled = !memuat) {
+                    Icon(Icons.Rounded.PhotoCamera, "Foto nota / struk", tint = BizgrowColors.Primary)
+                }
+            },
             shape = RoundedCornerShape(24.dp),
             maxLines = 4,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
