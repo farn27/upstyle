@@ -930,6 +930,27 @@ class AppViewModel(
     fun submitFaqFeedback(id: String, helpful: Boolean) = viewModelScope.launch {
         try { api.sendHelpFeedback(id, helpful) } catch (_: Exception) {}
     }
+    /** Analisis Cerdas (mesin statistik server) untuk unit aktif. */
+    private val _analitik = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.Analitik?>(null)
+    val analitik: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.Analitik?> = _analitik.asStateFlow()
+    private var analitikUnit = 0
+
+    fun loadAnalitik() = viewModelScope.launch {
+        val unitId = _activeUnitId.value
+        if (unitId == 0) return@launch
+        if (analitikUnit != unitId) _analitik.value = null
+        try {
+            val res = api.getAnalitik(unitId)
+            if (res.success && unitId == _activeUnitId.value) {
+                _analitik.value = res.data
+                analitikUnit = unitId
+            }
+        } catch (e: Exception) {
+            // analisis bersifat pelengkap: kegagalan tidak mengganggu dasbor
+            io.github.aakira.napier.Napier.w("Analisis gagal dimuat: ${e.message}")
+        }
+    }
+
     private val _financeData = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
     val financeData: kotlinx.coroutines.flow.StateFlow<com.upstyle.bizgrow.data.FinanceData?> = _financeData.asStateFlow()
     private val _riwayat = kotlinx.coroutines.flow.MutableStateFlow<com.upstyle.bizgrow.data.FinanceData?>(null)
@@ -2093,6 +2114,8 @@ class AppViewModel(
                 _dashboardState.update { it.copy(isLoading = false, financeData = res.data) }
                 // Also update the separate financeData flow used by DashboardScreen
                 _financeData.value = res.data
+                // Analisis dihitung ulang di server hanya bila data berubah (cache per sidik data)
+                loadAnalitik()
             } else {
                 _dashboardState.update { it.copy(isLoading = false, error = res.error) }
             }

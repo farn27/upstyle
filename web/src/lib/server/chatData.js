@@ -68,7 +68,7 @@ const KELUAR = sql`${transaksi.kategoriTrx} = 'KELUAR'`;
 /**
  * Kumpulkan blok data untuk prompt.
  * @param {KonteksData} k
- * @returns {Promise<{ data: string, saran: string[] }>}
+ * @returns {Promise<{ data: string, saran: string[], grafik: any }>}
  */
 export async function kumpulkanData(k) {
 	const t = k.pesan.toLowerCase();
@@ -81,6 +81,8 @@ export async function kumpulkanData(k) {
 	const saran = [];
 
 	const tugas = [];
+	/** @type {any} grafik Chart.js yang dibuat server (tanpa token) */
+	let grafik = null;
 
 	// ── Ringkasan keuangan: hari ini, kemarin, bulan ini, bulan lalu + periode yang ditanya ──
 	// Pertanyaan produk/karyawan dengan periode ("mie goreng laku berapa bulan ini") tidak butuh ringkasan keuangan
@@ -102,12 +104,22 @@ export async function kumpulkanData(k) {
 	if (mintaRincian && (ada('keuangan') || ada('riwayat'))) {
 		const p = k.periode[0] || { label: `bulan ini (${kal.awalBulan} s/d ${kal.hariIni})`, mulai: kal.awalBulan, akhir: kal.besok };
 		const jenis = /\b(pemasukan|pendapatan|omzet|omset|penghasilan)\b/.test(t) && !/\b(pengeluaran|biaya|beban|boros)\b/.test(t) ? 'MASUK' : 'KELUAR';
-		tugas.push(rincianPerKeterangan(kondisiTrx, p, jenis).then((b) => blok.push(b)));
+		tugas.push(
+			rincianPerKeterangan(kondisiTrx, p, jenis).then((r) => {
+				blok.push(r.teks);
+				if (r.grafik && !grafik) grafik = r.grafik;
+			})
+		);
 	}
 
 	// ── Tren bulanan ──
 	if (ada('tren') || /\bbulan\s+(ke\s+)?bulan\b/.test(t)) {
-		tugas.push(trenBulanan(kondisiTrx, kal).then((b) => blok.push(b)));
+		tugas.push(
+			trenBulanan(kondisiTrx, kal).then((r) => {
+				blok.push(r.teks);
+				if (r.grafik) grafik = r.grafik;
+			})
+		);
 	}
 
 	// ── Transaksi terakhir ──
@@ -145,28 +157,23 @@ export async function kumpulkanData(k) {
 	const hasil = await Promise.allSettled(tugas);
 	for (const h of hasil) if (h.status === 'rejected') log.ai.error({ err: String(h.reason?.message || h.reason) }, '[Chat] Gagal memuat data');
 
-	return { data: blok.filter(Boolean).join('\n'), saran: [...new Set(saran)].slice(0, 3) };
+	return { data: blok.filter(Boolean).join('\n'), saran: [...new Set(saran)].slice(0, 3), grafik };
 }
 
 // ─── Keuangan ───────────────────────────────────────────────────────────────
 
+/** @typedef {{ label: string, mulai: string, akhir: string }} Jendela */
+/** @typedef {Jendela & { masuk: number, keluar: number, n: number }} AngkaJendela */
+
 /**
- * Satu kueri untuk semua jendela waktu (pakai string tanggal WIB; kolom tanggal disimpan dalam WIB).
+ * Pemasukan, pengeluaran, dan jumlah transaksi untuk beberapa jendela waktu dalam SATU kueri
+ * (string tanggal WIB; kolom tanggal disimpan dalam WIB).
  * @param {any} kondisi
- * @param {ReturnType<typeof kalender>} kal
- * @param {import('$lib/server/chatKonteks').Periode[]} periode
+ * @param {Jendela[]} jendela
+ * @returns {Promise<AngkaJendela[]>}
  */
-async function ringkasanKeuangan(kondisi, kal, periode) {
-	const blnLaluMulai = new Date(Date.UTC(kal.y, kal.m0 - 1, 1)).toISOString().slice(0, 10);
-	const jendela = [
-		{ label: `Hari ini (${kal.hariIni})`, mulai: kal.hariIni, akhir: kal.besok },
-		{ label: `Kemarin (${kal.kemarin})`, mulai: kal.kemarin, akhir: kal.hariIni },
-		{ label: `Bulan ini (${kal.awalBulan} s/d ${kal.hariIni})`, mulai: kal.awalBulan, akhir: kal.besok },
-		{ label: `Bulan lalu (${blnLaluMulai.slice(0, 7)})`, mulai: blnLaluMulai, akhir: kal.awalBulan }
-	];
-	for (const p of periode) {
-		if (!jendela.some((j) => j.mulai === p.mulai && j.akhir === p.akhir)) jendela.push({ label: p.label.charAt(0).toUpperCase() + p.label.slice(1), mulai: p.mulai, akhir: p.akhir });
-	}
+export async function angkaJendela(kondisi, jendela) {
+	if (!jendela.length) return [];
 	/** @type {Record<string, any>} */
 	const kolom = {};
 	jendela.forEach((j, i) => {
@@ -177,16 +184,67 @@ async function ringkasanKeuangan(kondisi, kal, periode) {
 	});
 	const awal = jendela.map((j) => j.mulai).sort()[0];
 	const [r] = await db.select(kolom).from(transaksi).where(and(kondisi, gte(transaksi.tanggal, awal + ' 00:00:00')));
-	const baris = jendela.map((j, i) => {
-		const m = Number(r?.[`m${i}`] || 0);
-		const kk = Number(r?.[`k${i}`] || 0);
-		return `- ${j.label}: masuk ${rp(m)} | keluar ${rp(kk)} | selisih ${rp(m - kk)} | ${Number(r?.[`n${i}`] || 0)} trx`;
-	});
+	return jendela.map((j, i) => ({ ...j, masuk: Number(r?.[`m${i}`] || 0), keluar: Number(r?.[`k${i}`] || 0), n: Number(r?.[`n${i}`] || 0) }));
+}
+
+/** Jumlah hari dalam bulan berjalan (kalender WIB). */
+const hariDalamBulan = (/** @type {ReturnType<typeof kalender>} */ kal) => new Date(Date.UTC(kal.y, kal.m0 + 1, 0)).getUTCDate();
+
+/**
+ * Proyeksi akhir bulan dari laju harian bulan berjalan (sama dengan cara dasbor).
+ * @param {{ masuk: number, keluar: number }} bulanIni
+ * @param {ReturnType<typeof kalender>} kal
+ */
+export function proyeksiBulan(bulanIni, kal) {
+	const total = hariDalamBulan(kal);
+	const faktor = total / Math.max(1, kal.d);
+	// dibulatkan ke ribuan: proyeksi hanya perkiraan
+	return { masuk: Math.round((bulanIni.masuk * faktor) / 1000) * 1000, keluar: Math.round((bulanIni.keluar * faktor) / 1000) * 1000, hariBerjalan: kal.d, totalHari: total };
+}
+
+/**
+ * @param {any} kondisi
+ * @param {ReturnType<typeof kalender>} kal
+ * @param {import('$lib/server/chatKonteks').Periode[]} periode
+ */
+async function ringkasanKeuangan(kondisi, kal, periode) {
+	const blnLaluMulai = new Date(Date.UTC(kal.y, kal.m0 - 1, 1)).toISOString().slice(0, 10);
+	/** @type {Jendela[]} */
+	const jendela = [
+		{ label: `Hari ini (${kal.hariIni})`, mulai: kal.hariIni, akhir: kal.besok },
+		{ label: `Kemarin (${kal.kemarin})`, mulai: kal.kemarin, akhir: kal.hariIni },
+		{ label: `Bulan ini (${kal.awalBulan} s/d ${kal.hariIni})`, mulai: kal.awalBulan, akhir: kal.besok },
+		{ label: `Bulan lalu (${blnLaluMulai.slice(0, 7)})`, mulai: blnLaluMulai, akhir: kal.awalBulan }
+	];
+	for (const p of periode) {
+		if (!jendela.some((j) => j.mulai === p.mulai && j.akhir === p.akhir)) jendela.push({ label: p.label.charAt(0).toUpperCase() + p.label.slice(1), mulai: p.mulai, akhir: p.akhir });
+	}
+	const angka = await angkaJendela(kondisi, jendela);
+	const baris = angka.map((j) => `- ${j.label}: masuk ${rp(j.masuk)} | keluar ${rp(j.keluar)} | selisih ${rp(j.masuk - j.keluar)} | ${j.n} trx`);
+	const pr = proyeksiBulan(angka[2], kal);
+	if (kal.d < pr.totalHari && angka[2].n > 0) baris.push(`- Proyeksi akhir bulan (laju ${pr.hariBerjalan}/${pr.totalHari} hari): masuk ±${rp(pr.masuk)} | keluar ±${rp(pr.keluar)}`);
 	return `RINGKASAN KEUANGAN (dari basis data; masuk = pemasukan/omzet, keluar = pengeluaran):\n${baris.join('\n')}`;
 }
 
-/** Saldo kas sama dengan kartu "Saldo Kas" di dasbor: modal awal + semua pemasukan − semua pengeluaran. */
-async function saldoKas(/** @type {NonNullable<KonteksData['unit']>} */ unit) {
+/**
+ * Saldo kas sama dengan kartu "Saldo Kas" di dasbor: modal awal + semua pemasukan − semua pengeluaran.
+ * @param {NonNullable<KonteksData['unit']>} unit
+ */
+export async function angkaSaldoKas(unit) {
+	const [r] = await db
+		.select({
+			masuk: sql`COALESCE(SUM(CASE WHEN ${MASUK} THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+			keluar: sql`COALESCE(SUM(CASE WHEN ${KELUAR} THEN ${transaksi.nominal} ELSE 0 END), 0)`
+		})
+		.from(transaksi)
+		.where(eq(transaksi.unitId, unit.id));
+	const masuk = Number(r?.masuk || 0);
+	const keluar = Number(r?.keluar || 0);
+	return { saldo: hitungSaldoKas({ modalAwal: /** @type {any} */ (unit.modal_awal), totalMasuk: masuk, totalKeluar: keluar }), modal: Number(unit.modal_awal || 0), masuk, keluar };
+}
+
+/** @param {NonNullable<KonteksData['unit']>} unit */
+async function saldoKas(unit) {
 	const [r] = await db
 		.select({
 			masuk: sql`COALESCE(SUM(CASE WHEN ${MASUK} THEN ${transaksi.nominal} ELSE 0 END), 0)`,
@@ -204,6 +262,23 @@ async function saldoKas(/** @type {NonNullable<KonteksData['unit']>} */ unit) {
  * @param {'MASUK' | 'KELUAR'} jenis
  */
 async function rincianPerKeterangan(kondisi, p, jenis) {
+	const rows = await rincianAngka(kondisi, p, jenis, 6);
+	const nama = jenis === 'MASUK' ? 'PEMASUKAN' : 'PENGELUARAN';
+	if (!rows.length) return { teks: `${nama} TERBESAR ${p.label}: tidak ada data`, grafik: null };
+	return {
+		teks: `${nama} TERBESAR ${p.label} (per keterangan):\n${rows.map((r, i) => `${i + 1}. ${r.ket.slice(0, 50)}: ${rp(r.total)} (${r.n}x)`).join('\n')}`,
+		grafik: grafikDonat(`${jenis === 'MASUK' ? 'Pemasukan' : 'Pengeluaran'} terbesar`, rows.map((r) => [r.ket.slice(0, 24), r.total]))
+	};
+}
+
+/**
+ * Total per keterangan (dikelompokkan, huruf besar).
+ * @param {any} kondisi
+ * @param {{ mulai: string, akhir: string }} p
+ * @param {'MASUK' | 'KELUAR'} jenis
+ * @param {number} batas
+ */
+export async function rincianAngka(kondisi, p, jenis, batas) {
 	const ket = sql`UPPER(TRIM(COALESCE(${transaksi.keterangan}, '-')))`;
 	const rows = await db
 		.select({ ket, total: sql`SUM(${transaksi.nominal})`, n: sql`COUNT(*)` })
@@ -211,13 +286,42 @@ async function rincianPerKeterangan(kondisi, p, jenis) {
 		.where(and(kondisi, eq(transaksi.kategoriTrx, jenis), gte(transaksi.tanggal, p.mulai + ' 00:00:00'), lt(transaksi.tanggal, p.akhir + ' 00:00:00')))
 		.groupBy(ket)
 		.orderBy(desc(sql`SUM(${transaksi.nominal})`))
-		.limit(6);
-	const nama = jenis === 'MASUK' ? 'PEMASUKAN' : 'PENGELUARAN';
-	if (!rows.length) return `${nama} TERBESAR ${p.label}: tidak ada data`;
-	return `${nama} TERBESAR ${p.label} (per keterangan):\n${rows.map((r, i) => `${i + 1}. ${String(r.ket).slice(0, 50)}: ${rp(r.total)} (${r.n}x)`).join('\n')}`;
+		.limit(batas);
+	return rows.map((r) => ({ ket: String(r.ket), total: Number(r.total || 0), n: Number(r.n || 0) }));
 }
 
-/** Tren 6 bulan terakhir. */
+// ─── Grafik (format Chart.js — dirender web & Android, tanpa token) ─────────
+
+const WARNA = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#0ea5e9', '#8b5cf6', '#14b8a6', '#ec4899'];
+
+/**
+ * @param {string} judul
+ * @param {[string, number][]} pasangan
+ */
+export function grafikDonat(judul, pasangan) {
+	return {
+		type: 'doughnut',
+		data: { labels: pasangan.map((x) => x[0]), datasets: [{ label: judul, data: pasangan.map((x) => Math.round(x[1])), backgroundColor: pasangan.map((_, i) => WARNA[i % WARNA.length]) }] },
+		options: { plugins: { legend: { position: 'bottom' } } }
+	};
+}
+
+/**
+ * @param {string[]} label
+ * @param {{ label: string, data: number[], warna?: string }[]} seri
+ * @param {'bar' | 'line'} [tipe]
+ */
+export function grafikBatang(label, seri, tipe = 'bar') {
+	return {
+		type: tipe,
+		data: { labels: label, datasets: seri.map((x, i) => ({ label: x.label, data: x.data.map((v) => Math.round(v)), backgroundColor: x.warna || WARNA[i], borderColor: x.warna || WARNA[i] })) },
+		options: { scales: { x: {}, y: { beginAtZero: true } } }
+	};
+}
+
+const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+/** Tren 6 bulan terakhir + grafik batang masuk vs keluar. */
 async function trenBulanan(/** @type {any} */ kondisi, /** @type {ReturnType<typeof kalender>} */ kal) {
 	const mulai = new Date(Date.UTC(kal.y, kal.m0 - 5, 1)).toISOString().slice(0, 10);
 	const bln = sql`DATE_FORMAT(${transaksi.tanggal}, '%Y-%m')`;
@@ -231,8 +335,15 @@ async function trenBulanan(/** @type {any} */ kondisi, /** @type {ReturnType<typ
 		.where(and(kondisi, gte(transaksi.tanggal, mulai + ' 00:00:00')))
 		.groupBy(bln)
 		.orderBy(asc(bln));
-	if (!rows.length) return 'TREN 6 BULAN: belum ada data';
-	return `TREN 6 BULAN (bulan berjalan belum penuh):\n${rows.map((r) => `- ${r.bln}: pemasukan ${rp(r.masuk)}, pengeluaran ${rp(r.keluar)}`).join('\n')}`;
+	if (!rows.length) return { teks: 'TREN 6 BULAN: belum ada data', grafik: null };
+	const label = rows.map((r) => `${BLN[Number(String(r.bln).slice(5, 7)) - 1]} ${String(r.bln).slice(2, 4)}`);
+	return {
+		teks: `TREN 6 BULAN (bulan berjalan belum penuh):\n${rows.map((r) => `- ${r.bln}: pemasukan ${rp(r.masuk)}, pengeluaran ${rp(r.keluar)}`).join('\n')}`,
+		grafik: grafikBatang(label, [
+			{ label: 'Pemasukan', data: rows.map((r) => Number(r.masuk)), warna: '#10b981' },
+			{ label: 'Pengeluaran', data: rows.map((r) => Number(r.keluar)), warna: '#f43f5e' }
+		])
+	};
 }
 
 async function transaksiTerakhir(/** @type {any} */ kondisi) {
@@ -304,14 +415,45 @@ async function dataProduk(kondisiTrx, kondisiProduk, t, periode, kal) {
 	}
 
 	const menipis = daftar.filter((d) => Number(d.stok) <= Number(d.minStok || 0)).sort((a, b) => Number(a.stok) - Number(b.stok));
-	if (/\b(stok|stock|habis|menipis|sisa|persediaan|restock|kurang)\b/.test(t) || menipis.length) {
+	if (/\b(stok|stock|habis|menipis|sisa|persediaan|restock|kurang|kapan)\b/.test(t) || menipis.length) {
 		out.push(menipis.length ? `STOK MENIPIS (stok ≤ minimum): ${menipis.slice(0, 10).map((d) => `${d.nama} ${d.stok}/${d.minStok}`).join(', ')}` : 'STOK MENIPIS: tidak ada');
+		const prediksi = await prediksiHabis(kondisiTrx, daftar, kal);
+		const segera = prediksi.filter((x) => x.hari !== null && x.hari <= 7);
+		if (segera.length) out.push(`PERKIRAAN HABIS ≤ 7 hari (laju jual 14 hari terakhir): ${segera.slice(0, 8).map((x) => `${x.nama} ~${x.hari} hari (stok ${x.stok}, ${x.laju}/hari, saran restock ${x.restock})`).join('; ')}`);
 		if (/\b(stok|stock|sisa|persediaan)\b/.test(t) && !disebut.length) {
 			const rendah = [...daftar].sort((a, b) => Number(a.stok) - Number(b.stok)).slice(0, 8);
 			out.push(`STOK TERENDAH: ${rendah.map((d) => `${d.nama} ${d.stok}`).join(', ')}`);
 		}
 	}
 	return out.join('\n');
+}
+
+/**
+ * Prediksi kapan stok habis dari laju penjualan 14 hari terakhir (tanpa AI).
+ * @param {any} kondisiTrx
+ * @param {{ id: string, nama: string, stok: number | null, minStok: number | null }[]} daftar
+ * @param {ReturnType<typeof kalender>} kal
+ * @returns {Promise<{ id: string, nama: string, stok: number, minStok: number, laju: number, hari: number | null, restock: number }[]>}
+ */
+export async function prediksiHabis(kondisiTrx, daftar, kal) {
+	const HARI = 14;
+	const mulai = new Date(Date.UTC(kal.y, kal.m0, kal.d - (HARI - 1))).toISOString().slice(0, 10);
+	const jual = await db
+		.select({ id: transaksi.productId, qty: sql`SUM(COALESCE(${transaksi.qty}, 1))` })
+		.from(transaksi)
+		.where(and(kondisiTrx, MASUK, sql`${transaksi.productId} IS NOT NULL`, gte(transaksi.tanggal, mulai + ' 00:00:00')))
+		.groupBy(transaksi.productId);
+	const laju = new Map(jual.map((j) => [String(j.id), Number(j.qty || 0) / HARI]));
+	return daftar
+		.map((d) => {
+			const l = laju.get(String(d.id)) || 0;
+			const stok = Math.max(0, Number(d.stok || 0));
+			const hari = l > 0 ? Math.floor(stok / l) : stok === 0 ? 0 : null;
+			// cukup untuk 14 hari ke depan + stok minimum
+			const restock = l > 0 ? Math.max(0, Math.ceil(l * HARI + Number(d.minStok || 0) - stok)) : Math.max(0, Number(d.minStok || 0) - stok);
+			return { id: String(d.id), nama: String(d.nama), stok, minStok: Number(d.minStok || 0), laju: Math.round(l * 10) / 10, hari, restock };
+		})
+		.sort((a, b) => (a.hari ?? 9999) - (b.hari ?? 9999));
 }
 
 // ─── Kasir ──────────────────────────────────────────────────────────────────

@@ -179,7 +179,9 @@ export const actions = {
 				coaId,
 				kasCoaId,
 				productId,
-				qty
+				qty,
+				// tanggal dari kartu chat / nota foto (opsional)
+				tanggal: formData.get('tglTrx') ? String(formData.get('tglTrx')) : null
 			}));
 			savedTrxId = hasil.trxId;
 

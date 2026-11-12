@@ -66,6 +66,8 @@ export function urutanModel(utama) {
  * @param {number} [options.max_tokens]
  * @param {{ type: string }} [options.response_format]
  * @param {boolean} [options.bolehKosong]  true = jangan anggap jawaban kosong sebagai kegagalan
+ * @param {string[]} [options.cadangan]  daftar model cadangan khusus (mis. untuk gambar: hanya model visi);
+ *   bila diisi, GROQ_MODEL tidak menimpa model utama
  * @param {typeof fetch} [options.fetchFn]  untuk pengujian
  */
 export async function groqChatCompletion({
@@ -75,6 +77,7 @@ export async function groqChatCompletion({
 	max_tokens = 1024,
 	response_format,
 	bolehKosong = false,
+	cadangan,
 	fetchFn = fetch
 }) {
 	const apiKey = env.GROQ_API_KEY;
@@ -82,12 +85,12 @@ export async function groqChatCompletion({
 		throw new GroqError('GROQ_API_KEY is not configured', -1);
 	}
 
-	const utama = env.GROQ_MODEL || MODEL_MAP[/** @type {keyof typeof MODEL_MAP} */ (model)] || model;
-	const kandidat = urutanModel(utama);
+	const utama = cadangan ? model : env.GROQ_MODEL || MODEL_MAP[/** @type {keyof typeof MODEL_MAP} */ (model)] || model;
+	const kandidat = cadangan ? [utama, ...cadangan.filter((m) => m !== utama)] : urutanModel(utama);
 
 	/**
 	 * @param {string} m
-	 * @param {{ tanpaEffort?: boolean, tokenLebih?: boolean }} [o]
+	 * @param {{ tanpaEffort?: boolean, tokenLebih?: boolean, tanpaFormat?: boolean }} [o]
 	 */
 	const panggil = async (m, o = {}) => {
 		const penalaran = modelPenalaran(m);
@@ -96,7 +99,7 @@ export async function groqChatCompletion({
 		if (o.tokenLebih) batas = Math.min(batas * 2, 4096);
 		/** @type {Record<string, unknown>} */
 		const body = { model: m, messages, temperature, max_tokens: batas };
-		if (response_format) body.response_format = response_format;
+		if (response_format && !o.tanpaFormat) body.response_format = response_format;
 		if (penalaran && !o.tanpaEffort) body.reasoning_effort = 'low';
 
 		const ac = new AbortController();
@@ -129,6 +132,9 @@ export async function groqChatCompletion({
 				const teks = await response.text();
 				if (/reasoning_effort/i.test(teks)) {
 					response = await panggil(m, { tanpaEffort: true });
+				} else if (response_format && /response_format|json/i.test(teks)) {
+					// sebagian model (mis. visi) tidak mendukung mode JSON → ulangi tanpa; JSON tetap diminta lewat prompt
+					response = await panggil(m, { tanpaFormat: true });
 				} else {
 					// Permintaan memang salah (mis. konteks terlalu panjang): model lain mungkin masih bisa
 					galatTerakhir = new GroqError(`Groq API error: 400 ${teks.slice(0, 300)}`, 400);

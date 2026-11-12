@@ -34,7 +34,7 @@ class AiChatController(
         private const val MAKS_SESI = 40
         // Sama persis dengan web (ChatAI.svelte) supaya perilakunya konsisten
         private val BISNIS = Regex(
-            "omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales",
+            "kesehatan\\s+usaha|omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales",
             RegexOption.IGNORE_CASE
         )
         private val UMUM = Regex(
@@ -226,6 +226,45 @@ class AiChatController(
         proses(terakhir.content)
     }
 
+    /**
+     * Kirim foto (sudah dikecilkan) ke AI: nota/struk/bukti transfer/catatan kas → kartu transaksi.
+     * @param catatan teks opsional dari kolom input (mis. "ini nota belanja kemarin")
+     */
+    fun kirimFoto(bytes: ByteArray, catatan: String = "") {
+        if (_memuat.value) return
+        val unit = unitKonteks()
+        val user = AiMessage(
+            id = baruId(), role = "user", ts = System.currentTimeMillis(),
+            content = if (catatan.isBlank()) "📷 Foto dikirim" else "📷 $catatan", unitName = unit?.name
+        )
+        _pesan.update { it + user }
+        _saran.value = emptyList()
+        _memuat.value = true
+        simpanSesiAktif()
+        scope.launch {
+            try {
+                val res = api().kirimFotoChat(bytes, unit?.id, catatan.ifBlank { null })
+                val previews = res.transactionPreviews.orEmpty()
+                val jawab = AiMessage(
+                    id = baruId(), role = "assistant",
+                    content = res.reply.ifBlank { "Foto gagal diproses." },
+                    ts = System.currentTimeMillis(), previews = previews
+                )
+                _pesan.update { (it + jawab).takeLast(MAKS_PESAN) }
+                _saran.value = res.suggestions
+                if (previews.isNotEmpty() && unit != null) muatCoa(unit.id)
+            } catch (e: Exception) {
+                Napier.e("Foto AI gagal", e)
+                _pesan.update {
+                    it + AiMessage(id = baruId(), role = "assistant", ts = System.currentTimeMillis(), content = "Foto gagal dikirim. Periksa koneksi lalu coba lagi ya kak 🙏", isError = true)
+                }
+            } finally {
+                _memuat.value = false
+                simpanSesiAktif()
+            }
+        }
+    }
+
     private fun proses(pesan: String) {
         val unit = unitKonteks()
         val butuhUnit = BISNIS.containsMatchIn(pesan) && !UMUM.containsMatchIn(pesan)
@@ -312,7 +351,8 @@ class AiChatController(
                         productId = p.productId,
                         qty = p.qty.coerceAtLeast(1),
                         coaId = coaId,
-                        kasCoaId = kasCoaId
+                        kasCoaId = kasCoaId,
+                        tanggal = p.tanggal
                     )
                 )
                 val res = api().createTransaction(req)

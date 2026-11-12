@@ -14,8 +14,11 @@ import {
 	topikSusulan,
 	saringTautan,
 	halamanRelevan,
-	kalender
+	kalender,
+	periodeSebelumnya,
+	hariPenuh
 } from '$lib/server/chatKonteks';
+import { kunciCache, ambilCache, simpanCache, kosongkanCacheLokal } from '$lib/server/aiCache';
 
 // Kamis, 12 November 2026 19:45 WIB
 const SEKARANG = new Date('2026-11-12T12:45:00Z');
@@ -152,5 +155,44 @@ describe('tautan', () => {
 		const h = halamanRelevan('kopi', ['produk']).map((x) => x.path);
 		expect(h).toContain('/finance/kopi/produk');
 		expect(h).not.toContain('/finance/kopi/hr');
+	});
+});
+
+describe('periodeSebelumnya (pembanding jawaban instan)', () => {
+	const kal = kalender(SEKARANG);
+	it('bulan berjalan dibanding tanggal yang sama bulan lalu', () => {
+		expect(periodeSebelumnya({ mulai: '2026-11-01', akhir: '2026-11-13' }, kal)).toMatchObject({ mulai: '2026-10-01', akhir: '2026-10-13' });
+	});
+	it('bulan penuh dibanding bulan sebelumnya (panjang bulan berbeda)', () => {
+		expect(periodeSebelumnya({ mulai: '2026-10-01', akhir: '2026-11-01' }, kal)).toMatchObject({ mulai: '2026-09-01', akhir: '2026-10-01' });
+		expect(periodeSebelumnya({ mulai: '2026-03-01', akhir: '2026-04-01' }, kal)).toMatchObject({ mulai: '2026-02-01', akhir: '2026-03-01' });
+	});
+	it('minggu berjalan dibanding hari yang sama minggu lalu', () => {
+		expect(periodeSebelumnya({ mulai: '2026-11-09', akhir: '2026-11-12' }, kal)).toMatchObject({ mulai: '2026-11-02', akhir: '2026-11-05' });
+	});
+	it('periode berjalan dipotong s/d kemarin untuk perbandingan', () => {
+		expect(hariPenuh({ label: 'bulan ini', mulai: '2026-11-01', akhir: '2026-11-13' }, kal)).toMatchObject({ mulai: '2026-11-01', akhir: '2026-11-12' });
+		expect(hariPenuh({ label: 'hari ini', mulai: '2026-11-12', akhir: '2026-11-13' }, kal)).toBeNull();
+		expect(hariPenuh({ label: 'Oktober', mulai: '2026-10-01', akhir: '2026-11-01' }, kal)).toMatchObject({ akhir: '2026-11-01' });
+	});
+	it('kemarin dibanding hari sebelumnya; hari ini tidak dibandingkan', () => {
+		expect(periodeSebelumnya({ mulai: '2026-11-11', akhir: '2026-11-12' }, kal)).toMatchObject({ mulai: '2026-11-10', akhir: '2026-11-11' });
+		expect(periodeSebelumnya({ mulai: '2026-11-12', akhir: '2026-11-13' }, kal)).toBeNull();
+	});
+});
+
+describe('cache jawaban AI', () => {
+	it('kunci berubah bila isi prompt (data) berubah', () => {
+		expect(kunciCache({ a: 1 })).toBe(kunciCache({ a: 1 }));
+		expect(kunciCache({ a: 1 })).not.toBe(kunciCache({ a: 2 }));
+	});
+	it('simpan, ambil, dan kedaluwarsa', async () => {
+		kosongkanCacheLokal();
+		const k = kunciCache({ uji: Date.now() });
+		expect(await ambilCache(k)).toBeNull();
+		await simpanCache(k, 'jawaban', 60);
+		expect(await ambilCache(k)).toBe('jawaban');
+		await simpanCache(k + 'x', 'lama', -1);
+		expect(await ambilCache(k + 'x')).toBeNull();
 	});
 });

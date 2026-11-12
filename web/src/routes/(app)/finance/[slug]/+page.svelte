@@ -7,6 +7,7 @@
   import { financeUpdate } from '$lib/realtimeStore';
   import PageLayout from '$lib/components/PageLayout.svelte';
   import StockAlertBanner from '$lib/components/StockAlertBanner.svelte';
+  import AnalisisCerdas from '$lib/components/AnalisisCerdas.svelte';
   import { PRESETS, rentangPreset, presetDariRentang, proyeksiArusKasBulanIni } from '$lib/financeDashboard';
   import {
     Coins,
@@ -27,8 +28,13 @@
 
   // --- 1. STATE UI ---
   // Bug 3.1: Removed unused showKasDetail and showLabaRugiDetail (popup never implemented)
-  let teksAnalisisAI = "";    
   let healthScore = 0;   
+  /** @type {any} hasil mesin analisis statistik (/api/analitik) */
+  let analisis = null;
+  // skor dari mesin analisis menggantikan skor sederhana bila sudah dimuat
+  $: skorTampil = analisis?.kesehatan?.skor ?? healthScore;
+  // versi data: berubah saat ringkasan/transaksi berubah → analisis dimuat ulang
+  $: versiData = `${summary?.saldoKas}|${transactions?.length}|${transactions?.[0]?.id ?? ''}`;
   let forecastLaba = 0;
   let operationalVelocity = "MODERATE";
   let modeGrafik = "arusKas"; 
@@ -103,10 +109,6 @@
     healthScore = points;
     operationalVelocity = omzet > (modalAwal * 0.3) ? "HIGH" : "STABLE";
 
-    if (omzet === 0) teksAnalisisAI = `Menunggu data operasional periode ${activePreset} untuk kalkulasi.`;
-    else if (selisih < 0) teksAnalisisAI = `DEFISIT ARUS KAS: pengeluaran melebihi pemasukan ${formatIDR(Math.abs(selisih))} pada periode ${activePreset}. Pangkas pengeluaran operasional (OPEX) untuk menjaga likuiditas.`;
-    else if (opex > totalHpp && totalHpp > 0) teksAnalisisAI = `EFISIENSI BURUK: Biaya Operasional lebih tinggi dari HPP barang terjual. Evaluasi pengeluaran bulanan.`;
-    else teksAnalisisAI = `OPTIMAL: Performa efisien dengan Health Score ${healthScore}/100. Struktur biaya unit terpantau sangat sehat.`;
   }
 
   // --- 6. CHART ENGINE ---
@@ -296,27 +298,16 @@
 
     </div>
 
+    <!-- ANALISIS CERDAS (mesin statistik, tanpa token) -->
+    <div class="mb-6">
+        <AnalisisCerdas {slug} versi={versiData} bind:analisis />
+    </div>
+
     <!-- MIDDLE ROW: CHARTS & INTELLIGENCE -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 mb-6">
         
         <!-- LEFT PANEL: CHART & AI -->
         <div class="lg:col-span-8 flex flex-col gap-4 sm:gap-5">
-            <!-- AI Intelligence Bar (Premium styled block, no loud full pink background) -->
-            <div class="px-4 sm:px-5 py-3.5 sm:py-4.5 rounded-xl sm:rounded-2xl border transition-all duration-500 {selisih < 0 ? 'bg-rose-50/50 dark:bg-rose-955/20 border-rose-200/60 dark:border-rose-900/40' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm'}">
-                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 sm:gap-3">
-                    <div class="space-y-1 sm:space-y-1.5">
-                        <div class="flex items-center gap-1.5 sm:gap-2">
-                            <span class="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 bg-gradient-to-r from-violet-650 to-indigo-650 text-white rounded-md text-[7px] sm:text-[8px] font-black uppercase tracking-widest shadow-sm">
-                                <Sparkles class="w-2 sm:w-2.5 h-2 sm:h-2.5" />
-                                Analisis Bisnis
-                            </span>
-                            <span class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Kombinasi Finansial</span>
-                        </div>
-                        <h2 class="text-[10px] sm:text-xs font-bold leading-relaxed {selisih < 0 ? 'text-rose-900 dark:text-rose-200' : 'text-slate-700 dark:text-slate-350'}">"{teksAnalisisAI}"</h2>
-                    </div>
-                </div>
-            </div>
-
             <!-- Chart Engine -->
             <div class="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden flex-1">
                 <div class="px-4 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-100 dark:border-slate-850 flex items-center justify-between">
@@ -375,7 +366,7 @@
                         <div>
                             <p class="text-[7px] sm:text-[8px] font-black text-slate-500 uppercase tracking-wider">Health Score</p>
                             <div class="flex items-end gap-1 mt-1">
-                                <span class="text-xl sm:text-2xl font-black {healthScore > 70 ? 'text-emerald-400' : 'text-rose-455'}">{healthScore}</span>
+                                <span class="text-xl sm:text-2xl font-black {skorTampil > 70 ? 'text-emerald-400' : skorTampil >= 45 ? 'text-amber-400' : 'text-rose-455'}">{skorTampil}</span>
                                 <span class="text-[8px] sm:text-[9px] font-bold text-slate-500 mb-1">/ 100</span>
                             </div>
                         </div>

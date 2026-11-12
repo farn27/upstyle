@@ -10,7 +10,7 @@
 	/** @type {string} — reserved for future role-based feature gating */
 	export const role = '';
 
-	const BUSINESS_PATTERN = /omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|restock|saldo|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales/i;
+	const BUSINESS_PATTERN = /kesehatan\s+usaha|omzet|laba|rugi|kas|saldo|piutang|hutang|stok|produk|barang|karyawan|gaji|absen|pelanggan|deal|invoice|jurnal|kasir|penjualan|transaksi|supplier|aset|pajak|anggaran|gudang|coa|akun|opname|payroll|cuti|shift|crm|pos|restock|profit|pengeluaran|pemasukan|tutup.?buku|closing|cash.?flow|laporan|neraca|arus.?kas|buku.?besar|keuangan|bisnis|analisis|ringkasan|rekap|dead.?stock|follow.?up|pipeline|penyusutan|kontrak|kpi|slip|tunjangan|potongan|bpjs|absensi|purchase.?order|nilai.?aset|tarif|over.?budget|restock|saldo|modal|revenue|tagihan|total|voucher|kampanye|iklan|leads?|tiket|ticket|keluhan|toko.?online|marketplace|sales.?order|quotation|komisi|target.?sales/i;
 	const GENERAL_PATTERN = /cara|bagaimana|di mana|dimana|apa itu|jelaskan|tutorial|bantuan|help|setting|setup|fitur|menu|aplikasi|export|import|cetak|print|download|integrasi|password|login|tips|strategi|rekomendasi|perbedaan|pengertian|definisi|apa perbedaan|double.?entry|chart of account|onboarding|panduan|petunjuk|langkah/i;
 
 	// ─── Session & History Types ────────────────────────────────────────────────
@@ -271,6 +271,7 @@
 	/** @type {Array<Session>} all sessions */
 	let allSessions = [];
 
+	/** @type {any[]} */
 	let userUnits = [];
 	let currentSuggestions = [];
 	let instantResponse = false;
@@ -708,6 +709,87 @@
 		fileInput?.click();
 	}
 
+	// ─── Foto ke AI (nota, struk, bukti transfer, catatan kas) ────────────────
+	/** @type {HTMLInputElement | undefined} */
+	let fotoInput;
+	let mengirimFoto = false;
+
+	/**
+	 * Kecilkan foto di browser (maks 1600 px, JPEG 0,85) agar unggahan ringan & di bawah batas server.
+	 * @param {File} file
+	 * @param {number} [maks]
+	 * @param {number} [mutu]
+	 * @returns {Promise<Blob>}
+	 */
+	function kecilkanFoto(file, maks = 1600, mutu = 0.85) {
+		return new Promise((resolve, reject) => {
+			const url = URL.createObjectURL(file);
+			const img = new Image();
+			img.onload = () => {
+				const skala = Math.min(1, maks / Math.max(img.width, img.height));
+				const c = document.createElement('canvas');
+				c.width = Math.round(img.width * skala);
+				c.height = Math.round(img.height * skala);
+				c.getContext('2d')?.drawImage(img, 0, 0, c.width, c.height);
+				URL.revokeObjectURL(url);
+				c.toBlob((b) => (b ? resolve(b) : reject(new Error('Gagal memproses foto'))), 'image/jpeg', mutu);
+			};
+			img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('File bukan gambar')); };
+			img.src = url;
+		});
+	}
+
+	/** @param {Blob} blob @returns {Promise<string>} */
+	const keDataUrl = (blob) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result)); fr.readAsDataURL(blob); });
+
+	/** @param {Event} e */
+	function pilihFoto(e) {
+		const el = /** @type {HTMLInputElement} */ (e.target);
+		const file = el.files?.[0];
+		el.value = '';
+		if (file) kirimFoto(file);
+	}
+
+	/**
+	 * Kirim foto ke /api/chat/foto → balasan + kartu transaksi.
+	 * @param {File} file
+	 */
+	async function kirimFoto(file) {
+		if (mengirimFoto || isLoading) return;
+		const unitSaya = /** @type {any[]} */ (userUnits);
+		if (!selectedUnitSlug && unitSaya.length === 1) {
+			selectedUnitSlug = unitSaya[0].slug;
+			selectedUnitName = unitSaya[0].nama_unit;
+		}
+		mengirimFoto = true;
+		isLoading = true;
+		try {
+			const kecil = await kecilkanFoto(file);
+			// thumbnail kecil untuk riwayat chat (disimpan lokal, bukan dikirim ulang)
+			const thumb = await keDataUrl(await kecilkanFoto(file, 220, 0.6));
+			const catatan = query.trim();
+			query = '';
+			chatHistory = [...chatHistory, { role: 'user', content: catatan ? `📷 ${catatan}` : '📷 Foto dikirim', gambar: thumb, ts: Date.now(), unitName: selectedUnitName || null }];
+			await scrollToBottom();
+			const fd = new FormData();
+			fd.append('file', kecil, 'foto.jpg');
+			if (selectedUnitSlug) fd.append('unit', selectedUnitSlug);
+			if (catatan) fd.append('pesan', catatan);
+			const res = await fetch('/api/chat/foto', { method: 'POST', body: fd });
+			const data = await res.json().catch(() => ({ reply: 'Foto gagal diproses.' }));
+			const fp = data.reply || 'Foto gagal diproses.';
+			chatHistory = [...chatHistory, { role: 'assistant', content: fp, fullReply: fp, transactionPreviews: data.transactionPreviews || null, ts: Date.now() }];
+			currentSuggestions = data.suggestions || [];
+			if (isComplexReply(fp) && !isExpanded) isExpanded = true;
+		} catch (err) {
+			chatHistory = [...chatHistory, { role: 'assistant', content: `❌ ${err instanceof Error ? err.message : 'Foto gagal diproses'}. Coba lagi ya kak.`, ts: Date.now() }];
+		} finally {
+			mengirimFoto = false;
+			isLoading = false;
+			await scrollToBottom();
+		}
+	}
+
 	function handleFileSelect(e) {
 		const file = e.target.files?.[0];
 		if (file) openFileUpload(file);
@@ -732,6 +814,13 @@
 
 	async function processUploadedFile() {
 		if (!uploadedFile || isUploadingFile) return;
+		// Gambar dibaca AI (nota/struk/bukti transfer/catatan kas) lewat alur foto
+		if (uploadedFile.type?.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(uploadedFile.name)) {
+			const f = uploadedFile;
+			closeFileUpload();
+			await kirimFoto(f);
+			return;
+		}
 		isUploadingFile = true;
 		uploadError = '';
 
@@ -1388,7 +1477,7 @@
 
         {#if welcomeTab === 'bisnis'}
         <div class="wsec"><p class="wlbl">💰 Keuangan & Akuntansi</p><div class="wchips">
-          {#each ['Omzet hari ini?','Analisis cash flow','Cek piutang overdue','Cek hutang jatuh tempo','Laba rugi bulan ini','Status tutup buku','Saldo kas & bank'] as p}
+          {#each ['Cek kesehatan usaha','Omzet hari ini?','Apa saja yang perlu di-restock?','Analisis cash flow','Cek piutang overdue','Cek hutang jatuh tempo','Laba rugi bulan ini','Status tutup buku','Saldo kas & bank'] as p}
             <button on:click={() => sendSuggestion(p)} class="chip c-blue">{p}</button>{/each}
         </div></div>
         <div class="wsec"><p class="wlbl">🛒 Kasir & POS</p><div class="wchips">
@@ -1525,6 +1614,7 @@
             : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/80 rounded-bl-none px-3 py-2.5'}">
 
           {#if chat.role==='user'}
+            {#if chat.gambar}<img src={chat.gambar} alt="Foto yang dikirim" class="max-w-[160px] max-h-[200px] rounded-lg mb-1.5 border border-white/30 object-cover">{/if}
             <span class="whitespace-pre-wrap">{chat.content}</span>
           {:else}
             <!-- Badge "Panduan" jika response navigasi tanpa unit -->
@@ -1907,6 +1997,21 @@
           <span class="hidden sm:inline">Upload File</span>
           <span class="sm:hidden">File</span>
         </button>
+
+        <!-- Foto nota / struk → AI -->
+        <button on:click={() => fotoInput?.click()} disabled={mengirimFoto}
+          title="Foto nota, struk, bukti transfer, atau catatan kas — AI membacanya jadi transaksi"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-colors shrink-0
+                 text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10
+                 border border-indigo-200 dark:border-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50">
+          <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span>{mengirimFoto ? 'Membaca…' : 'Foto Nota'}</span>
+        </button>
+        <!-- capture: di ponsel langsung membuka kamera (tetap bisa pilih dari galeri) -->
+        <input bind:this={fotoInput} type="file" accept="image/*" capture="environment" class="hidden" on:change={pilihFoto}>
 
         <!-- Hidden file input -->
         <input

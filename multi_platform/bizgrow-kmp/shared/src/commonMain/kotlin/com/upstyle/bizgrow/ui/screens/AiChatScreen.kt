@@ -74,7 +74,7 @@ fun AiAvatar(size: androidx.compose.ui.unit.Dp = 40.dp, modifier: Modifier = Mod
 private data class GrupPrompt(val judul: String, val warna: Color, val prompt: List<String>)
 
 private val promptBisnis = listOf(
-    GrupPrompt("💰 Keuangan & Akuntansi", Color(0xFF0EA5E9), listOf("Omzet hari ini?", "Analisis cash flow", "Cek piutang overdue", "Cek hutang jatuh tempo", "Laba rugi bulan ini", "Status tutup buku", "Saldo kas & bank")),
+    GrupPrompt("💰 Keuangan & Akuntansi", Color(0xFF0EA5E9), listOf("Cek kesehatan usaha", "Omzet hari ini?", "Apa saja yang perlu di-restock?", "Analisis cash flow", "Cek piutang overdue", "Cek hutang jatuh tempo", "Laba rugi bulan ini", "Status tutup buku", "Saldo kas & bank")),
     GrupPrompt("🛒 Kasir & POS", Color(0xFF8B5CF6), listOf("Total penjualan kasir hari ini", "Jam transaksi paling ramai", "Metode bayar terpopuler", "Order kasir terakhir")),
     GrupPrompt("📦 Stok & Inventori", Color(0xFF10B981), listOf("Produk stok menipis", "Analisis dead stock", "Barang yang harus direstock", "Status PO pending", "Riwayat opname gudang")),
     GrupPrompt("👥 HR & Payroll", Color(0xFFF43F5E), listOf("Siapa yang absen hari ini?", "Cuti pending approval", "KPI karyawan terbaik", "Karyawan kontrak mau habis", "Rincian komponen gaji")),
@@ -150,6 +150,18 @@ fun AiChatScreen(viewModel: AppViewModel) {
 
     var tab by remember { mutableStateOf(AiTab.CHAT) }
     var input by remember { mutableStateOf("") }
+    // Foto nota/struk → AI (gambar dikecilkan ±1280 px sebelum dikirim)
+    val bacaGambar = rememberPembacaGambar()
+    val cakupanFoto = rememberCoroutineScope()
+    val pilihFoto = rememberImagePickerLauncher { uri ->
+        if (uri != null) cakupanFoto.launch {
+            val bytes = bacaGambar(uri)
+            if (bytes == null) viewModel.showError("Foto tidak bisa dibaca") else {
+                ai.kirimFoto(bytes, input.trim())
+                input = ""
+            }
+        }
+    }
     var sheetRiwayat by remember { mutableStateOf(false) }
     var sheetUnit by remember { mutableStateOf(false) }
     var sheetAksi by remember { mutableStateOf(false) }
@@ -266,7 +278,8 @@ fun AiChatScreen(viewModel: AppViewModel) {
                     }
                     InputBarAi(
                         nilai = input, onUbah = { input = it }, memuat = memuat,
-                        onAksi = { sheetAksi = true }, onKirim = { kirim(input) }
+                        onAksi = { sheetAksi = true }, onKirim = { kirim(input) },
+                        onFoto = pilihFoto
                     )
                 }
             }
@@ -736,7 +749,7 @@ private fun PilihAkun(label: String, daftar: List<ChartOfAccount>, dipilih: Int?
 // ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun InputBarAi(nilai: String, onUbah: (String) -> Unit, memuat: Boolean, onAksi: () -> Unit, onKirim: () -> Unit) {
+private fun InputBarAi(nilai: String, onUbah: (String) -> Unit, memuat: Boolean, onAksi: () -> Unit, onKirim: () -> Unit, onFoto: () -> Unit) {
     val bisaKirim = nilai.isNotBlank() && !memuat
     val skala by animateFloatAsState(if (bisaKirim) 1f else 0.9f, tween(150), label = "kirim")
     Row(
@@ -751,7 +764,12 @@ private fun InputBarAi(nilai: String, onUbah: (String) -> Unit, memuat: Boolean,
         OutlinedTextField(
             value = nilai, onValueChange = onUbah,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Tanya apa saja… atau catat transaksi", style = MaterialTheme.typography.bodyMedium) },
+            placeholder = { Text("Tanya, catat, atau foto nota…", style = MaterialTheme.typography.bodyMedium) },
+            trailingIcon = {
+                IconButton(onClick = onFoto, enabled = !memuat) {
+                    Icon(Icons.Rounded.PhotoCamera, "Foto nota / struk", tint = BizgrowColors.Primary)
+                }
+            },
             shape = RoundedCornerShape(24.dp),
             maxLines = 4,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -805,7 +823,7 @@ private fun BarisSesi(s: AiSession, aktif: Boolean, onBuka: () -> Unit, onHapus:
 
 @Composable
 fun KartuAiBeranda(viewModel: AppViewModel, modifier: Modifier = Modifier) {
-    val saranCepat = listOf("Omzet hari ini?", "Produk stok menipis", "Cek piutang overdue", "Laba rugi bulan ini", "Cara input transaksi?", "Siapa yang absen hari ini?")
+    val saranCepat = listOf("Cek kesehatan usaha", "Omzet hari ini?", "Apa saja yang perlu di-restock?", "Cek piutang overdue", "Laba rugi bulan ini", "Cara input transaksi?", "Siapa yang absen hari ini?")
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(GradAi))
