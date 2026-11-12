@@ -97,7 +97,7 @@ export async function jawabInstan(m) {
 	const lain = m.topik.filter((x) => !['keuangan', 'riwayat', 'kasir'].includes(x));
 	if ((mintaMasuk || mintaKeluar || mintaSelisih) && !lain.length && !/\b(produk|menu|item|per\s+hari|rata|terbesar|terbanyak|apa\s+saja|untuk\s+apa|dari\s+mana)\b/.test(t)) {
 		const p = m.periode[0] || { label: `hari ini`, mulai: kal.hariIni, akhir: kal.besok };
-		return angkaPeriode(kondisiTrx, p, kal, { mintaMasuk, mintaKeluar, mintaSelisih }, m.unit?.slug ?? null);
+		return angkaPeriode(kondisiTrx, p, kal, { mintaMasuk, mintaKeluar, mintaSelisih }, m.unit ?? null);
 	}
 	return null;
 }
@@ -119,10 +119,11 @@ async function daftarProduk(/** @type {any} */ kondisiProduk) {
  * @param {{ label: string, mulai: string, akhir: string }} p
  * @param {ReturnType<typeof kalender>} kal
  * @param {{ mintaMasuk: boolean, mintaKeluar: boolean, mintaSelisih: boolean }} minta
- * @param {string | null} slug
+ * @param {MasukanInstan['unit']} unit
  * @returns {Promise<JawabanInstan>}
  */
-async function angkaPeriode(kondisiTrx, p, kal, minta, slug) {
+async function angkaPeriode(kondisiTrx, p, kal, minta, unit) {
+	const slug = unit?.slug ?? null;
 	// Pembanding adil: periode berjalan dipotong s/d kemarin, lalu dibanding periode yang sama sebelumnya
 	const penuh = hariPenuh(p, kal);
 	const pembanding = penuh ? periodeSebelumnya(penuh, kal) : null;
@@ -162,8 +163,22 @@ async function angkaPeriode(kondisiTrx, p, kal, minta, slug) {
 	}
 	if (rata && p.mulai === kal.hariIni) tambahan.push(`Rata-rata harian 7 hari sebelumnya: pemasukan ${rp(rata.masuk / 7)}, pengeluaran ${rp(rata.keluar / 7)}.`);
 	if (p.mulai === kal.awalBulan && p.akhir === kal.besok && kini.n > 0) {
-		const pr = proyeksiBulan(kini, kal);
-		tambahan.push(`Proyeksi akhir bulan dengan laju sekarang: pemasukan ±${rp(pr.masuk)}, pengeluaran ±${rp(pr.keluar)}.`);
+		// Perkiraan dari mesin analisis (ensemble, pola hari) — sama dengan dasbor; cadangan: laju linier
+		/** @type {any} */
+		let mesin = null;
+		if (unit) {
+			try {
+				mesin = await analisisUnit(unit);
+			} catch {
+				/* cadangan di bawah */
+			}
+		}
+		const ab = mesin?.prediksi?.akhirBulan;
+		if (ab && ab.nilai > 0) tambahan.push(`Perkiraan akhir bulan (${mesin.prediksi.metode}): pemasukan ±${rp(ab.nilai)} (kisaran ${rp(ab.bawah)} – ${rp(ab.atas)}), pengeluaran ±${rp(mesin.prediksi.pengeluaranAkhirBulan)}.`);
+		else {
+			const pr = proyeksiBulan(kini, kal);
+			tambahan.push(`Proyeksi akhir bulan dengan laju sekarang: pemasukan ±${rp(pr.masuk)}, pengeluaran ±${rp(pr.keluar)}.`);
+		}
 	}
 	if (minta.mintaSelisih) tambahan.push(`Selisih ini arus kas, belum laba bersih — laba rugi lengkap ada di Laporan Keuangan.`);
 	const tautan = slug ? `\n\n[Riwayat Transaksi](/finance/${slug}/history)` : '';

@@ -23,6 +23,7 @@ import {
 } from '$lib/server/chatKonteks';
 import { kumpulkanData } from '$lib/server/chatData';
 import { jawabInstan } from '$lib/server/chatInstan';
+import { analisisUnit } from '$lib/server/analitik';
 import { kunciCache, ambilCache, simpanCache } from '$lib/server/aiCache';
 import { unitBisnis, chartOfAccounts } from '$lib/server/schema';
 
@@ -302,13 +303,26 @@ export async function POST({ request, cookies }) {
 			getAiMemories(unitId, userId)
 		]);
 
+		// Pertanyaan "kenapa / saran / strategi": sertakan temuan mesin analisis statistik (sudah dihitung,
+		// cache per sidik data) supaya jawaban AI berdasar penyebab nyata — tambahan token kecil (±150)
+		let temuan = '';
+		if (unit && !umum && !hanyaBantuan && /\b(kenapa|mengapa|knp|penyebab|saran|sarankan|strategi|tips|rekomendasi|evaluasi|analisis|analisa|tingkatkan|naikkan|meningkatkan|perbaiki|harus\s+apa|lakukan\s+apa|prioritas)\b/i.test(susulan ? `${riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || ''} ${pesan}` : pesan)) {
+			try {
+				const a = await analisisUnit(unit);
+				temuan = `\nTEMUAN ANALISIS STATISTIK (sudah dihitung; boleh dikutip):\n- ${a.ringkasan}\n${a.wawasan.slice(0, 6).map((/** @type {any} */ w) => `- ${w.judul}: ${w.isi}${w.aksi ? ` Saran: ${w.aksi}` : ''}`).join('\n')}`;
+			} catch {
+				/* pelengkap */
+			}
+		}
+
 		const panduan = hanyaBantuan
 			? '\nPANDUAN: Catat transaksi → halaman Catat Transaksi (tombol "Tambah Transaksi" di Dasbor) atau ketik di chat, mis. "catat beli gula 50rb". Jualan → halaman Kasir. Tambah produk → halaman Tambah Produk. Karyawan → halaman SDM. Tambah unit usaha → menu Operasional, tombol "Unit Baru". Laporan laba rugi → Laporan Keuangan.'
 			: '';
 		const sistem = promptSistem({
 			waktu: `${namaHari(kal.hariKe)}, ${kal.hariIni} ${kal.jam}`,
 			unit: unit ? `${unit.nama_unit}${unit.kategori ? ` (${unit.kategori})` : ''}` : `belum dipilih — data gabungan ${semuaUnit.length} unit: ${semuaUnit.map((u) => u.nama_unit).join(', ')}`,
-			data: data + panduan,
+			// satu sumber proyeksi: bila temuan mesin disertakan, buang proyeksi linier sederhana
+			data: (temuan ? data.replace(/\n- Proyeksi akhir bulan \(laju[^\n]*/, '') : data) + temuan + panduan,
 			halaman: umum ? [] : halamanRelevan(unit?.slug ?? null, topik),
 			memori: teksMemori(memori),
 			umum

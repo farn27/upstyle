@@ -117,7 +117,7 @@ fun AnalisisCerdasCard(a: Analitik?, sembunyi: Boolean, modifier: Modifier = Mod
             )
         }
         Text(
-            "${p.metode} · ${p.galatUji?.let { "galat uji 7 hari ±$it%" } ?: "data belum cukup untuk uji akurasi"}",
+            "${p.metode} · ${p.galatUji?.let { "galat validasi ±$it%" } ?: "data belum cukup untuk uji akurasi"}",
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (p.riwayat.isNotEmpty()) {

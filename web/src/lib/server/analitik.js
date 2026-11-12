@@ -5,12 +5,13 @@
  */
 import { db } from '$lib/server/drizzle';
 import { and, eq, gte, inArray, isNull, lt, sql, desc } from 'drizzle-orm';
-import { transaksi, products, receivables } from '$lib/server/schema';
+import { transaksi, products, receivables, posOrders, posOrderItems } from '$lib/server/schema';
 import { kalender, geserHari } from '$lib/server/chatKonteks';
 import { angkaSaldoKas, prediksiHabis, rp } from '$lib/server/chatData';
 import { kunciCache, ambilCache, simpanCache } from '$lib/server/aiCache';
 import { targetBulananOtomatis } from '$lib/financeDashboard';
-import { ramalkan, ujiBalik, deteksiAnomali, polaHari, analisisABC, skorKesehatan, regresiLinier, rata, simpanganBaku, jumlah, perubahan } from '$lib/analitik/statistik';
+import { ramalkanCerdas, titikPerubahan, hilangkanEfekHari, efekGajian, aturanAsosiasi, biayaBerulang, penggerakPerubahan, jamRamai } from '$lib/analitik/lanjutan';
+import { deteksiAnomali, polaHari, analisisABC, skorKesehatan, regresiLinier, rata, simpanganBaku, jumlah, perubahan } from '$lib/analitik/statistik';
 
 const HARI_RIWAYAT = 120;
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -36,7 +37,7 @@ export async function analisisUnit(unitMasuk, opsi = {}) {
 		.from(transaksi)
 		.where(eq(transaksi.unitId, unit.id));
 	const [sidikStok] = await db.select({ n: sql`COUNT(*)`, stok: sql`COALESCE(SUM(${products.stok}), 0)` }).from(products).where(and(eq(products.unitId, unit.id), isNull(products.deletedAt)));
-	const kunci = kunciCache({ jenis: 'analitik-v2', unit: unit.id, hari: kal.hariIni, jam: kal.jam.slice(0, 2), sidik, sidikStok, modal: String(unit.modal_awal) });
+	const kunci = kunciCache({ jenis: 'analitik-v3', unit: unit.id, hari: kal.hariIni, jam: kal.jam.slice(0, 2), sidik, sidikStok, modal: String(unit.modal_awal) });
 	if (opsi.pakaiCache !== false) {
 		const ada = await ambilCache(kunci);
 		if (ada) return { ...JSON.parse(ada), dariCache: true };
@@ -58,10 +59,12 @@ async function hitung(unit, kal) {
 	const d30 = geserHari(kal.hariIni, -30);
 	const d60 = geserHari(kal.hariIni, -60);
 	const d90 = geserHari(kal.hariIni, -90);
+	const d56 = geserHari(kal.hariIni, -56);
 	const hariExpr = sql`DATE(${transaksi.tanggal})`;
 	const antara = (/** @type {string} */ a, /** @type {string} */ b) => sql`${transaksi.tanggal} >= ${a + ' 00:00:00'} AND ${transaksi.tanggal} < ${b + ' 00:00:00'}`;
 
-	const [harian, daftarProduk, jualProduk, saldo, piutang] = await Promise.all([
+	const jamExpr = sql`HOUR(${posOrders.createdAt})`;
+	const [harian, daftarProduk, jualProduk, saldo, piutang, keluarRinci, perJamRows, keranjangRows] = await Promise.all([
 		db
 			.select({
 				hari: hariExpr,
@@ -83,6 +86,9 @@ async function hitung(unit, kal) {
 				q14: sql`COALESCE(SUM(CASE WHEN ${antara(d14, kal.besok)} THEN COALESCE(${transaksi.qty}, 1) ELSE 0 END), 0)`,
 				q14lalu: sql`COALESCE(SUM(CASE WHEN ${antara(d28, d14)} THEN COALESCE(${transaksi.qty}, 1) ELSE 0 END), 0)`,
 				q30: sql`COALESCE(SUM(CASE WHEN ${antara(d30, kal.besok)} THEN COALESCE(${transaksi.qty}, 1) ELSE 0 END), 0)`,
+				q90: sql`COALESCE(SUM(COALESCE(${transaksi.qty}, 1)), 0)`,
+				rp28: sql`COALESCE(SUM(CASE WHEN ${antara(d28, kal.hariIni)} THEN ${transaksi.nominal} ELSE 0 END), 0)`,
+				rp28lalu: sql`COALESCE(SUM(CASE WHEN ${antara(d56, d28)} THEN ${transaksi.nominal} ELSE 0 END), 0)`,
 				rp90: sql`COALESCE(SUM(${transaksi.nominal}), 0)`
 			})
 			.from(transaksi)
@@ -96,7 +102,26 @@ async function hitung(unit, kal) {
 				nLewat: sql`COALESCE(SUM(CASE WHEN ${receivables.jatuhTempo} < ${kal.hariIni} AND ${receivables.status} IN ('BELUM_BAYAR','SEBAGIAN') THEN 1 ELSE 0 END), 0)`
 			})
 			.from(receivables)
-			.where(eq(receivables.unitId, unit.id))
+			.where(eq(receivables.unitId, unit.id)),
+		// pengeluaran rinci 120 hari (deteksi biaya tetap berulang)
+		db
+			.select({ ket: transaksi.keterangan, tanggal: transaksi.tanggal, nominal: transaksi.nominal })
+			.from(transaksi)
+			.where(and(kondisi, eq(transaksi.kategoriTrx, 'KELUAR'), gte(transaksi.tanggal, mulai + ' 00:00:00')))
+			.limit(5000),
+		// order kasir per jam 30 hari (jam ramai)
+		db
+			.select({ jam: jamExpr, n: sql`COUNT(*)` })
+			.from(posOrders)
+			.where(and(eq(posOrders.unitId, unit.id), eq(posOrders.status, 'PAID'), gte(posOrders.createdAt, d30 + ' 00:00:00')))
+			.groupBy(jamExpr),
+		// isi keranjang kasir 60 hari (produk yang sering dibeli bersama)
+		db
+			.select({ order: posOrderItems.orderId, nama: posOrderItems.productName })
+			.from(posOrderItems)
+			.innerJoin(posOrders, eq(posOrders.id, posOrderItems.orderId))
+			.where(and(eq(posOrders.unitId, unit.id), eq(posOrders.status, 'PAID'), gte(posOrders.createdAt, geserHari(kal.hariIni, -60) + ' 00:00:00')))
+			.limit(40000)
 	]);
 
 	// ── Deret harian lengkap (hari tanpa transaksi = 0) sampai KEMARIN (hari penuh) ──
@@ -114,16 +139,17 @@ async function hitung(unit, kal) {
 
 	// ── Peramalan omzet ──
 	const sisaBulan = new Date(Date.UTC(kal.y, kal.m0 + 1, 0)).getUTCDate() - kal.d + 1; // termasuk hari ini
-	const horizon = Math.max(7, sisaBulan);
-	const prediksi = ramalkan(masuk, horizon);
-	const uji = ujiBalik(masuk, 7);
+	const horizon = Math.max(31, sisaBulan);
+	// Kompetisi model + ensemble (validasi silang bergulir), kisaran empiris
+	const prediksi = ramalkanCerdas(masuk, horizon);
+	const uji = { wape: prediksi.wape };
 	const awalBulanIdx = tanggal.indexOf(kal.awalBulan);
 	const aktualBulanIni = awalBulanIdx >= 0 ? jumlah(masuk.slice(awalBulanIdx)) : 0; // s/d kemarin
 	const keHari = (/** @type {number} */ h) => geserHari(kal.hariIni, h);
 	const sisa = prediksi.ramalan.slice(0, sisaBulan);
-	const sigmaH = prediksi.ramalan.slice(0, sisaBulan).map((_, h) => (prediksi.atas[h] - prediksi.bawah[h]) / 2 / 1.28);
-	// Kisaran statistik (residu) diperlebar bila uji balik menunjukkan galat lebih besar — supaya jujur
-	const setengahStat = 1.28 * Math.sqrt(jumlah(sigmaH.map((s) => s * s)));
+	const sigmaH = prediksi.ramalan.slice(0, sisaBulan).map((_, h) => (prediksi.atas[h] - prediksi.bawah[h]) / 2);
+	// Kisaran dari galat validasi; diperlebar bila galat rata-rata lebih besar — supaya jujur
+	const setengahStat = Math.sqrt(jumlah(sigmaH.map((s) => s * s)));
 	const setengah = Math.max(setengahStat, (uji.wape || 0) * jumlah(sisa) * 0.6);
 	// hari ini: pakai yang lebih besar antara ramalan dan yang sudah tercatat
 	const ramalHariIni = Math.max(sisa[0] || 0, masukHariIni);
@@ -187,7 +213,7 @@ async function hitung(unit, kal) {
 	const jualPeta = new Map(jualProduk.map((j) => [String(j.id), j]));
 	const produk = daftarProduk.map((p) => {
 		const j = jualPeta.get(String(p.id));
-		return { id: String(p.id), nama: String(p.nama), stok: Number(p.stok || 0), minStok: Number(p.minStok || 0), hargaJual: Number(p.hargaJual || 0), hargaBeli: Number(p.hargaBeli || 0), q14: Number(j?.q14 || 0), q14lalu: Number(j?.q14lalu || 0), q30: Number(j?.q30 || 0), pendapatan: Number(j?.rp90 || 0) };
+		return { id: String(p.id), nama: String(p.nama), stok: Number(p.stok || 0), minStok: Number(p.minStok || 0), hargaJual: Number(p.hargaJual || 0), hargaBeli: Number(p.hargaBeli || 0), q14: Number(j?.q14 || 0), q14lalu: Number(j?.q14lalu || 0), q30: Number(j?.q30 || 0), q90: Number(j?.q90 || 0), rp28: Number(j?.rp28 || 0), rp28lalu: Number(j?.rp28lalu || 0), pendapatan: Number(j?.rp90 || 0) };
 	});
 	const abc = analisisABC(produk);
 	const kelasA = abc.filter((p) => p.kelas === 'A');
@@ -207,6 +233,95 @@ async function hitung(unit, kal) {
 	// ── Kas ──
 	const net30 = (jumlah(masuk.slice(-30)) - keluar30) / 30;
 	const runwayHari = net30 < 0 && saldo.saldo > 0 ? Math.floor(saldo.saldo / Math.abs(net30)) : null;
+
+	// ── Biaya tetap (berulang), titik impas, proyeksi saldo 30 hari ──
+	const rinci = keluarRinci.map((k) => ({ ket: String(k.ket || ''), tanggal: String(k.tanggal).slice(0, 10), nominal: Number(k.nominal || 0) }));
+	const berulang = biayaBerulang(rinci);
+	const normKet = (/** @type {string} */ x) => x.trim().toUpperCase().replace(/\d+/g, '#').replace(/\s+/g, ' ');
+	const setBerulang = new Set(berulang.map((b) => b.ket));
+	const tetap30 = jumlah(rinci.filter((r) => r.tanggal >= d30 && setBerulang.has(normKet(r.ket))).map((r) => r.nominal));
+	const biayaTetapBulanan = jumlah(berulang.map((b) => b.perBulan));
+	const masuk30Kas = jumlah(masuk.slice(-30));
+	// rasio biaya variabel: pengeluaran tidak berulang dibanding pemasukan (30 hari)
+	const rasioVariabel = masuk30Kas > 0 ? Math.min(0.95, Math.max(0, (keluar30 - tetap30) / masuk30Kas)) : 0;
+	const titikImpas = biayaTetapBulanan > 0 && rasioVariabel < 0.95 ? biayaTetapBulanan / (1 - rasioVariabel) : null;
+	// Jadwal biaya tetap 30 hari ke depan dari tanggal jatuh tempo berikutnya
+	/** @type {Map<string, number>} */
+	const jadwalTetap = new Map();
+	const batasJadwal = geserHari(kal.hariIni, 30);
+	for (const bt of berulang) {
+		let d = bt.berikutnya;
+		for (let i = 0; i < 6 && d <= batasJadwal; i++) {
+			if (d > kal.hariIni) jadwalTetap.set(d, (jadwalTetap.get(d) || 0) + bt.nominal);
+			if (bt.periode === 'mingguan') d = geserHari(d, 7);
+			else {
+				const [y, m, dd] = d.split('-').map(Number);
+				d = new Date(Date.UTC(y, m, Math.min(dd, new Date(Date.UTC(y, m + 1, 0)).getUTCDate()))).toISOString().slice(0, 10);
+			}
+		}
+	}
+	/** @type {{ tanggal: string, saldo: number }[]} */
+	const proyeksiKas = [];
+	let saldoJalan = saldo.saldo;
+	for (let h = 1; h <= 30; h++) {
+		const d = geserHari(kal.hariIni, h);
+		const masukF = prediksi.ramalan[h] ?? prediksi.ramalan[prediksi.ramalan.length - 1] ?? 0;
+		saldoJalan += masukF * (1 - rasioVariabel) - (jadwalTetap.get(d) || 0);
+		proyeksiKas.push({ tanggal: d, saldo: Math.round(saldoJalan) });
+	}
+	const saldoTerendah = proyeksiKas.length ? proyeksiKas.reduce((a, b) => (b.saldo < a.saldo ? b : a)) : null;
+
+	// ── Penggerak perubahan omzet (28 hari vs 28 hari sebelumnya) ──
+	const masuk28 = jumlah(masuk.slice(-28));
+	const masuk28lalu = jumlah(masuk.slice(-56, -28));
+	const produkRp28 = jumlah(produk.map((p) => p.rp28));
+	const produkRp28lalu = jumlah(produk.map((p) => p.rp28lalu));
+	const penggerak = penggerakPerubahan([
+		...produk.map((p) => ({ nama: p.nama, kini: p.rp28, dulu: p.rp28lalu })),
+		{ nama: 'Pemasukan non-produk', kini: Math.max(0, masuk28 - produkRp28), dulu: Math.max(0, masuk28lalu - produkRp28lalu) }
+	]);
+
+	// ── Margin & kontribusi laba produk (90 hari) ──
+	const margin = produk
+		.filter((p) => p.hargaJual > 0 && p.hargaBeli > 0 && p.q90 > 0)
+		.map((p) => ({ nama: p.nama, marginPersen: (p.hargaJual - p.hargaBeli) / p.hargaJual, laba: p.q90 * (p.hargaJual - p.hargaBeli), pendapatan: p.pendapatan }))
+		.sort((a, b) => b.laba - a.laba);
+	const pendapatanUrut = [...margin].sort((a, b) => b.pendapatan - a.pendapatan);
+	const medianMargin = margin.length ? [...margin.map((m) => m.marginPersen)].sort((a, b) => a - b)[Math.floor(margin.length / 2)] : 0;
+	const larisTipis = pendapatanUrut.slice(0, 3).filter((m) => m.marginPersen < Math.min(0.4, medianMargin - 0.1))[0] || null;
+
+	// ── Produk sering dibeli bersama (market basket) ──
+	/** @type {Map<number, string[]>} */
+	const petaKeranjang = new Map();
+	for (const r of keranjangRows) {
+		const k = petaKeranjang.get(Number(r.order)) || [];
+		k.push(String(r.nama));
+		petaKeranjang.set(Number(r.order), k);
+	}
+	const asosiasi = aturanAsosiasi([...petaKeranjang.values()], { minimalBersama: 8, minimalLift: 1.2 });
+	// satu aturan per pasangan
+	/** @type {typeof asosiasi} */
+	const asosiasiUnik = [];
+	// Arah yang bisa ditindaklanjuti: dari produk utama (lebih sering dibeli) ke produk tambahan (cross-sell)
+	for (const a of asosiasi) {
+		const pasangan = [a.jika, a.maka].sort().join();
+		if (asosiasiUnik.some((x) => [x.jika, x.maka].sort().join() === pasangan)) continue;
+		const kebalikan = asosiasi.find((x) => x.jika === a.maka && x.maka === a.jika);
+		const frek = (/** @type {typeof a} */ r) => r.bersama / Math.max(r.confidence, 1e-9);
+		asosiasiUnik.push(kebalikan && frek(kebalikan) > frek(a) ? kebalikan : a);
+	}
+	asosiasiUnik.sort((x, z) => z.lift * z.bersama - x.lift * x.bersama);
+
+	// ── Jam ramai ──
+	const perJam = Array(24).fill(0);
+	for (const r of perJamRows) perJam[Number(r.jam)] += Number(r.n || 0);
+	const ramai = jamRamai(perJam);
+
+	// ── Titik perubahan & efek gajian ──
+	const deret60 = masuk.slice(-60);
+	const perubahanLevel = kepadatan >= 0.6 && deret60.length >= 30 ? titikPerubahan(hilangkanEfekHari(deret60)) : null;
+	const tanggalPerubahan = perubahanLevel ? tanggal[tanggal.length - deret60.length + perubahanLevel.indeks] : null;
+	const gajian = kepadatan >= 0.6 ? efekGajian(masuk.slice(-112), tanggal.slice(-112)) : null;
 
 	// ── Skor kesehatan ──
 	const masuk30 = jumlah(masuk.slice(-30));
@@ -234,11 +349,14 @@ async function hitung(unit, kal) {
 	} else {
 		if (kal.d > 1 || masukHariIni > 0) {
 			const capai = target > 0 ? akhirBulan / target : 0;
-			const vsLalu = bulanLalu > 0 ? (akhirBulan - bulanLalu) / bulanLalu : null;
+			// dibanding rata-rata harian bulan lalu (jumlah hari tiap bulan berbeda)
+			const hariBulanIni = new Date(Date.UTC(kal.y, kal.m0 + 1, 0)).getUTCDate();
+			const hariBulanLalu = new Date(Date.UTC(kal.y, kal.m0, 0)).getUTCDate();
+			const vsLalu = bulanLalu > 0 ? akhirBulan / hariBulanIni / (bulanLalu / hariBulanLalu) - 1 : null;
 			w.push({
 				tipe: vsLalu !== null && vsLalu < -0.1 ? 'peringatan' : vsLalu !== null && vsLalu > 0.05 ? 'baik' : 'info',
 				judul: `Perkiraan omzet ${BULAN[kal.m0]}: ${rp(akhirBulan)}`,
-				isi: `Kisaran ${rp(ribu(Math.max(aktualBulanIni, akhirBulan - setengah)))} – ${rp(ribu(akhirBulan + setengah))} (keyakinan 80%${uji.wape !== null && uji.wape > 0.5 ? ', data belum teratur sehingga kisaran lebar' : ''}). ${vsLalu !== null ? `${vsLalu >= 0 ? 'Naik' : 'Turun'} ${Math.abs(Math.round(vsLalu * 100))}% dari bulan lalu (${rp(bulanLalu)}). ` : ''}${capai >= 1 ? `Melampaui target estimasi ${rp(target)}.` : `Sekitar ${Math.round(capai * 100)}% dari target ${rp(target)}.`}`,
+				isi: `Kisaran ${rp(ribu(Math.max(aktualBulanIni, akhirBulan - setengah)))} – ${rp(ribu(akhirBulan + setengah))} (keyakinan 80%${uji.wape !== null && uji.wape > 0.5 ? ', data belum teratur sehingga kisaran lebar' : ''}). ${vsLalu !== null ? `Rata-rata harian ${vsLalu >= 0 ? 'naik' : 'turun'} ${Math.abs(Math.round(vsLalu * 100))}% dari bulan lalu (${rp(bulanLalu)}). ` : ''}${capai >= 1 ? `Melampaui target estimasi ${rp(target)}.` : `Sekitar ${Math.round(capai * 100)}% dari target ${rp(target)}.`}`,
 				aksi: capai < 0.9 ? `Butuh tambahan ±${rp(ribu(Math.max(0, target - akhirBulan) / Math.max(1, sisaBulan)))} per hari untuk mengejar target.` : undefined,
 				prioritas: vsLalu !== null && vsLalu < -0.1 ? 70 : 40
 			});
@@ -285,6 +403,51 @@ async function hitung(unit, kal) {
 			w.push({ tipe: 'peringatan', judul: `Pengeluaran naik ${Math.round(naikKeluar * 100)}%`, isi: `${rp(keluar30)} dalam 30 hari terakhir vs ${rp(keluarSebelum30)} sebelumnya.`, aksi: 'Tanya di chat AI: "pengeluaran terbesar bulan ini" untuk rinciannya.', prioritas: 62 });
 		}
 	}
+	if (adaData) {
+		if (saldoTerendah && saldoTerendah.saldo < 0) {
+			w.push({ tipe: 'bahaya', judul: `Kas diperkirakan minus pada ${tgl(saldoTerendah.tanggal)}`, isi: `Proyeksi 30 hari (perkiraan omzet − biaya variabel ${Math.round(rasioVariabel * 100)}% − biaya tetap) menyentuh ${rp(saldoTerendah.saldo)}.`, aksi: 'Siapkan dana atau tunda belanja besar sebelum tanggal itu.', prioritas: 96 });
+		}
+		if (titikImpas && akhirBulan > 0) {
+			const aman = (akhirBulan - titikImpas) / akhirBulan;
+			w.push({
+				tipe: aman < 0 ? 'bahaya' : aman < 0.15 ? 'peringatan' : 'baik',
+				judul: aman < 0 ? `Omzet bulan ini di bawah titik impas` : `Aman ${Math.round(aman * 100)}% di atas titik impas`,
+				isi: `Titik impas ±${rp(ribu(titikImpas))}/bulan (±${rp(ribu(titikImpas / 30))}/hari) dari biaya tetap ${rp(ribu(biayaTetapBulanan))} (${berulang.slice(0, 3).map((b) => b.ket.toLowerCase()).join(', ')}) dan biaya variabel ${Math.round(rasioVariabel * 100)}% dari omzet.`,
+				aksi: aman < 0.15 ? 'Naikkan omzet harian atau tekan biaya bahan agar margin aman.' : undefined,
+				prioritas: aman < 0 ? 88 : aman < 0.15 ? 66 : 32
+			});
+		}
+		if (masuk28lalu > 0 && Math.abs(masuk28 - masuk28lalu) / masuk28lalu >= 0.08 && penggerak.penggerak.length) {
+			const turunNaik = masuk28 < masuk28lalu ? 'turun' : 'naik';
+			const utama = penggerak.penggerak.filter((p) => Math.sign(p.selisih) === Math.sign(masuk28 - masuk28lalu)).slice(0, 2);
+			if (utama.length) {
+				w.push({
+					tipe: turunNaik === 'turun' ? 'peringatan' : 'baik',
+					judul: `Kenapa omzet ${turunNaik} ${Math.abs(Math.round(((masuk28 - masuk28lalu) / masuk28lalu) * 100))}%?`,
+					isi: `4 minggu terakhir ${rp(masuk28)} vs ${rp(masuk28lalu)}. Penyebab terbesar: ${utama.map((u) => `${u.nama} ${u.selisih > 0 ? '+' : '−'}${rp(Math.abs(u.selisih))} (${Math.round(Math.abs(u.porsi) * 100)}%)`).join(', ')}.`,
+					aksi: turunNaik === 'turun' ? `Fokus pulihkan ${utama[0].nama}: cek stok, harga, dan kualitas.` : `Pertahankan momentum ${utama[0].nama}.`,
+					prioritas: turunNaik === 'turun' ? 72 : 42
+				});
+			}
+		}
+		if (asosiasiUnik.length) {
+			const a = asosiasiUnik[0];
+			w.push({ tipe: 'info', judul: `Pembeli ${a.jika} sering menambah ${a.maka}`, isi: `${Math.round(a.confidence * 100)}% order berisi ${a.jika} juga membeli ${a.maka} (${a.lift.toFixed(1)}× lebih sering dari kebetulan, ${a.bersama} order dalam 60 hari).`, aksi: `Buat paket "${a.jika} + ${a.maka}" atau tawarkan ${a.maka} saat pembeli memesan ${a.jika}.`, prioritas: 36 });
+		}
+		if (ramai && ramai.porsi >= 0.2) {
+			const jam = (/** @type {number} */ j) => `${String(j).padStart(2, '0')}.00`;
+			w.push({ tipe: 'info', judul: `Jam ramai ${jam(ramai.mulai)}–${jam(ramai.akhir)}`, isi: `${Math.round(ramai.porsi * 100)}% order kasir 30 hari terakhir terjadi di 2 jam ini; paling sepi sekitar pukul ${jam(ramai.sepi)}.`, aksi: 'Siapkan stok & tenaga ekstra sebelum jam ramai; pakai jam sepi untuk persiapan atau promo.', prioritas: 28 });
+		}
+		if (larisTipis) {
+			w.push({ tipe: 'peringatan', judul: `${larisTipis.nama} laris tapi untungnya tipis`, isi: `Margin ${Math.round(larisTipis.marginPersen * 100)}% (median produk lain ${Math.round(medianMargin * 100)}%), padahal termasuk 3 pendapatan terbesar.`, aksi: `Tinjau harga jual atau harga beli ${larisTipis.nama}; naik Rp1.000 saja berdampak besar.`, prioritas: 52 });
+		}
+		if (perubahanLevel && tanggalPerubahan && tanggalPerubahan >= geserHari(kal.hariIni, -45)) {
+			w.push({ tipe: perubahanLevel.ubah < 0 ? 'peringatan' : 'baik', judul: `Sejak ${tgl(tanggalPerubahan)} omzet ${perubahanLevel.ubah < 0 ? 'turun' : 'naik'} ${Math.abs(Math.round(perubahanLevel.ubah * 100))}%`, isi: `Rata-rata harian (setelah memperhitungkan pola hari) berubah dari ${rp(ribu(perubahanLevel.sebelum))} menjadi ${rp(ribu(perubahanLevel.sesudah))}.`, aksi: perubahanLevel.ubah < 0 ? 'Ingat apa yang berubah sekitar tanggal itu (harga, menu, pesaing, jam buka).' : 'Catat apa yang berubah sekitar tanggal itu supaya bisa dipertahankan.', prioritas: perubahanLevel.ubah < 0 ? 74 : 40 });
+		}
+		if (gajian && Math.abs(gajian.ubah) >= 0.1 && Math.abs(gajian.t) >= 2.5) {
+			w.push({ tipe: 'info', judul: `Omzet ${gajian.ubah > 0 ? 'naik' : 'turun'} ${Math.abs(Math.round(gajian.ubah * 100))}% saat gajian`, isi: 'Rata-rata omzet tanggal 25–5 dibanding tanggal lain (pola hari sudah diperhitungkan).', aksi: gajian.ubah > 0 ? 'Tambah stok & promo menu premium di akhir/awal bulan; promo hemat di pertengahan bulan.' : undefined, prioritas: 30 });
+		}
+	}
 	if (adaData && kepadatan < 0.6) {
 		w.push({ tipe: 'info', judul: 'Catat transaksi setiap hari', isi: `Hanya ${Math.round(kepadatan * 56)} dari 56 hari terakhir yang punya pemasukan tercatat. Prediksi dan deteksi kejanggalan jadi kurang akurat.`, aksi: 'Pakai Kasir atau ketik di chat ("jual 2 kopi") setiap ada penjualan.', prioritas: 55 });
 	}
@@ -304,7 +467,7 @@ async function hitung(unit, kal) {
 		kesehatan,
 		prediksi: {
 			metode: prediksi.metode,
-			parameter: prediksi.parameter,
+			model: prediksi.model,
 			akurasi: uji.wape === null ? null : Math.max(0, Math.round((1 - uji.wape) * 100)),
 			galatUji: uji.wape === null ? null : Math.round(uji.wape * 100),
 			hariData: tanggal.length,
@@ -328,7 +491,15 @@ async function hitung(unit, kal) {
 			tidakLaku: tidakLaku.slice(0, 6).map((t) => ({ nama: t.nama, stok: t.stok, nilai: Math.round(t.nilai) })),
 			segeraHabis: habis.slice(0, 6).map((x) => ({ nama: x.nama, stok: x.stok, hari: x.hari, restock: x.restock }))
 		},
-		kas: { saldo: Math.round(saldo.saldo), netHarian30: Math.round(net30), runwayHari },
-		wawasan: w.slice(0, 8)
+		kas: { saldo: Math.round(saldo.saldo), netHarian30: Math.round(net30), runwayHari, proyeksi: proyeksiKas, terendah: saldoTerendah, rasioVariabel: Math.round(rasioVariabel * 100) },
+		biayaTetap: { perBulan: ribu(biayaTetapBulanan), daftar: berulang.slice(0, 6).map((b) => ({ ket: b.ket, nominal: Math.round(b.nominal), periode: b.periode, berikutnya: b.berikutnya })) },
+		titikImpas: titikImpas ? { bulanan: ribu(titikImpas), harian: ribu(titikImpas / 30), aman: akhirBulan > 0 ? Math.round(((akhirBulan - titikImpas) / akhirBulan) * 100) : null } : null,
+		penggerak: { masuk28: Math.round(masuk28), masuk28lalu: Math.round(masuk28lalu), daftar: penggerak.penggerak.slice(0, 6).map((p) => ({ nama: p.nama, selisih: Math.round(p.selisih), porsi: Math.round(p.porsi * 100) })) },
+		margin: margin.slice(0, 6).map((m) => ({ nama: m.nama, marginPersen: Math.round(m.marginPersen * 100), laba: Math.round(m.laba) })),
+		bersamaan: asosiasiUnik.slice(0, 4).map((a) => ({ jika: a.jika, maka: a.maka, persen: Math.round(a.confidence * 100), lift: Math.round(a.lift * 10) / 10, order: a.bersama })),
+		jamRamai: ramai ? { ...ramai, porsi: Math.round(ramai.porsi * 100), perJam } : null,
+		perubahan: perubahanLevel && tanggalPerubahan ? { tanggal: tanggalPerubahan, ubah: Math.round(perubahanLevel.ubah * 100) } : null,
+		gajian: gajian ? { ubah: Math.round(gajian.ubah * 100), t: Math.round(gajian.t * 10) / 10 } : null,
+		wawasan: w.slice(0, 12)
 	};
 }
