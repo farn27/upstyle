@@ -50,6 +50,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var sembunyi by remember { mutableStateOf(false) }
     val periode by viewModel.periodeDashboard.collectAsState()
     val metrik = remember(financeData, periode) { MetrikKinerja(financeData, periode == "Bulan Ini") }
+    val analitik by viewModel.analitik.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.refreshAll() }
     // Pengganti realtime web: perbarui angka dashboard tiap menit selama layar terbuka
@@ -90,7 +91,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
                 item { PeriodeDashboard(viewModel, Modifier.padding(top = 16.dp, bottom = 12.dp)) }
                 item { RingkasanKinerja(metrik, sembunyi, Modifier.padding(horizontal = 20.dp), onTambah = { viewModel.navigate(Screen.TransactionEntry) }) }
-                item { BannerAnalisis(metrik, periode, Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
+                // Analisis Cerdas (mesin statistik server) menggantikan banner aturan sederhana
+                item { AnalisisCerdasCard(analitik, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) }
                 item {
                     GrafikAnalisis(financeData, periode, sembunyi, Modifier.padding(horizontal = 20.dp, vertical = 8.dp).enterAnimation(3))
                 }

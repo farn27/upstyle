@@ -8,6 +8,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { transaksi, products, receivables } from '$lib/server/schema';
 import { kalender, kalimatTanya, periodeSebelumnya, hariPenuh, geserHari, selisihHari } from '$lib/server/chatKonteks';
 import { angkaJendela, angkaSaldoKas, proyeksiBulan, prediksiHabis, rincianAngka, grafikBatang, rp } from '$lib/server/chatData';
+import { analisisUnit } from '$lib/server/analitik';
 
 /** Kata yang menandakan pertanyaan butuh penalaran model, bukan sekadar angka. */
 const BUTUH_AI = /\b(kenapa|mengapa|knp|analisa|analisis|analisi|saran|sarankan|rekomendasi|strategi|tips|ide|bandingkan|banding|dibanding(kan)?|perbandingan|tren|grafik|naik|turun|cara|gimana\s+cara|bagaimana\s+cara|prediksi|target|evaluasi|jelaskan|penyebab|solusi|kok|apakah\s+bagus|sehat\s+gak|wajar)\b/i;
@@ -303,10 +304,25 @@ async function cekKesehatan(unit, kal) {
 		'line'
 	);
 
+	// Skor & perkiraan dari mesin analisis yang sama dengan dasbor (cache per sidik data)
+	/** @type {any} */
+	let mesin = null;
+	try {
+		mesin = await analisisUnit(unit);
+	} catch {
+		/* pelengkap; abaikan bila gagal */
+	}
+	const ab = mesin?.prediksi?.akhirBulan;
+	// Status mengikuti skor mesin analisis (sama dengan dasbor); temuan di bawah tetap ditampilkan
+	const nilaiMesin = mesin?.kesehatan?.komponen?.length ? mesin.kesehatan.nilai : null;
+	const statusAkhir = nilaiMesin ? ({ A: '🟢 Sehat', B: '🟢 Cukup sehat', C: '🟡 Perlu dicek', D: '🔴 Perlu perhatian' }[/** @type {'A'|'B'|'C'|'D'} */ (nilaiMesin)] || status) : status;
 	const reply = [
-		`**Kesehatan ${unit.nama_unit}: ${status}**`,
+		`**Kesehatan ${unit.nama_unit}: ${statusAkhir}${mesin?.kesehatan ? ` · skor ${mesin.kesehatan.skor}/100 (${mesin.kesehatan.nilai})` : ''}**`,
 		metrikBaris.join('\n'),
-		kal.d < pr.totalHari && bIni.n > 0 ? `📈 Proyeksi akhir bulan: pemasukan ±${rp(pr.masuk)}, pengeluaran ±${rp(pr.keluar)}, selisih ±${rp(pr.masuk - pr.keluar)}.` : '',
+		ab && ab.nilai > 0
+			? `📈 Perkiraan omzet akhir bulan (${mesin.prediksi.metode}): ±${rp(ab.nilai)} (kisaran ${rp(ab.bawah)} – ${rp(ab.atas)}).`
+			: kal.d < pr.totalHari && bIni.n > 0 ? `📈 Proyeksi akhir bulan: pemasukan ±${rp(pr.masuk)}, pengeluaran ±${rp(pr.keluar)}, selisih ±${rp(pr.masuk - pr.keluar)}.` : '',
+		mesin?.kesehatan?.komponen?.filter((/** @type {any} */ c) => c.skor < 50).map((/** @type {any} */ c) => `• ${c.nama}: ${c.alasan}`).join('\n') || '',
 		masalah.length ? masalah.join('\n') : '',
 		bagus.length ? `✅ ${bagus.join(' ')}` : '',
 		`[Dasbor](/finance/${unit.slug}) [Laporan Keuangan](/finance/${unit.slug}/laporan)`

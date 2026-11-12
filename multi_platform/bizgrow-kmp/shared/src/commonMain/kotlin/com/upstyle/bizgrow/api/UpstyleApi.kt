@@ -497,6 +497,12 @@ class UpstyleApi(private val client: HttpClient) {
 
     // ─── Chart of Accounts ────────────────────────────────────────────────────
 
+    /** Analisis Cerdas dasbor (statistik di server, tanpa token AI) — GET /api/analitik */
+    suspend fun getAnalitik(unitId: Int): ApiResponse<com.upstyle.bizgrow.data.Analitik> =
+        client.get("api/analitik") {
+            parameter("unitId", unitId)
+        }.body()
+
     suspend fun getChartOfAccounts(unitId: Int): ApiResponse<List<ChartOfAccount>> =
         client.get("api/app/finance/coa") {
             parameter("unitId", unitId)
