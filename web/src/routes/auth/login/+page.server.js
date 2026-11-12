@@ -84,10 +84,10 @@ export const actions = {
 			// Generate session token, simpan di Redis
 			const { createSession } = await import('$lib/server/session');
 			const sessionToken = await createSession(user.id);
-			cookies.set('session_id', sessionToken, {
-				...secureCookieOptions(60 * 60 * 24),
-				sameSite: 'strict'
-			});
+			// SameSite=Lax (sama dengan login Google): dengan Strict, sesi tidak terkirim saat pengguna
+			// datang dari tautan luar (WhatsApp, email, aplikasi desktop) sehingga tampak belum login.
+			// Form POST tetap terlindungi pemeriksaan Origin bawaan SvelteKit.
+			cookies.set('session_id', sessionToken, secureCookieOptions(60 * 60 * 24));
 		} catch (err) {
 			log.auth.error({ err }, '[Login] Error');
 			return fail(500, { error: 'Terjadi kesalahan sistem. Coba lagi nanti.' });

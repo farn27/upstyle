@@ -1,91 +1,47 @@
 /**
- * Tauri integration helpers untuk SvelteKit.
- * Safe dipanggil di web biasa — semua fungsi ada fallback-nya.
+ * Integrasi aplikasi desktop (Tauri) untuk halaman web.
+ * Aman dipanggil di browser biasa — setiap fungsi punya cadangan.
+ *
+ * Perintah yang tersedia di aplikasi desktop (desktop/src-tauri/src/lib.rs):
+ *   server_url, app_version, open_external, show_notification
  */
 
-/** Cek apakah app berjalan di dalam Tauri desktop */
+/** Apakah halaman sedang berjalan di dalam aplikasi desktop Bizgrow? */
 export const isTauri = () =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 /**
- * Invoke Tauri command — bypass Vite static analysis dengan dynamic string.
  * @param {string} cmd
  * @param {Record<string, any>} [args]
  */
-async function tauriInvoke(cmd, args) {
-  // Pakai string concat agar Vite tidak resolve sebagai static import
-  const pkg = '@tauri-apps' + '/api/core';
-  const { invoke } = await import(/* @vite-ignore */ pkg);
-  return invoke(cmd, args);
+function invoke(cmd, args) {
+  // @ts-ignore — disuntikkan oleh Tauri; tanpa paket @tauri-apps/api agar bundle web tetap ringan
+  return window.__TAURI_INTERNALS__.invoke(cmd, args);
 }
 
 /**
- * Import dari Tauri API — bypass Vite static analysis.
- * @param {string} mod - module path setelah '@tauri-apps/api/'
- */
-async function tauriImport(mod) {
-  const pkg = '@tauri-apps' + '/api/' + mod;
-  return import(/* @vite-ignore */ pkg);
-}
-
-/**
- * Kirim native desktop notification.
- * Fallback ke browser Notification API kalau bukan Tauri.
+ * Notifikasi sistem. Di browser: Notification API (minta izin bila perlu).
+ * @param {string} title
+ * @param {string} body
  */
 export async function sendNotification(title, body) {
-  if (isTauri()) {
-    return tauriInvoke('show_notification', { title, body });
-  }
-  if ('Notification' in window) {
-    if (Notification.permission === 'granted') {
-      new Notification(title, { body });
-    } else if (Notification.permission !== 'denied') {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') new Notification(title, { body });
-    }
-  }
+  if (isTauri()) return invoke('show_notification', { title, body });
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'granted') new Notification(title, { body });
+  else if (Notification.permission !== 'denied' && (await Notification.requestPermission()) === 'granted') new Notification(title, { body });
 }
 
 /**
- * Buka URL di browser default sistem.
- * Di web biasa: buka tab baru.
+ * Buka tautan di browser/aplikasi bawaan (desktop) atau tab baru (browser).
+ * @param {string} url
  */
 export async function openInBrowser(url) {
-  if (isTauri()) {
-    return tauriInvoke('open_in_browser', { url });
-  }
+  if (isTauri()) return invoke('open_external', { url });
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-/**
- * Ambil versi aplikasi.
- * Di web biasa: kembalikan string kosong.
- */
+/** Versi aplikasi desktop; string kosong di browser. */
 export async function getAppVersion() {
-  if (isTauri()) {
-    return tauriInvoke('get_app_version');
-  }
-  return '';
-}
-
-/**
- * Ambil port server yang dipakai (production desktop).
- */
-export async function getServerPort() {
-  if (isTauri()) {
-    return tauriInvoke('get_server_port');
-  }
-  return 5173;
-}
-
-/**
- * Listen ke event dari Tauri backend.
- * @param {string} event
- * @param {(payload: any) => void} handler
- * @returns {Promise<() => void>} unlisten function
- */
-export async function listenTauriEvent(event, handler) {
-  if (!isTauri()) return () => {};
-  const { listen } = await tauriImport('event');
-  return listen(event, (e) => handler(e.payload));
+  if (!isTauri()) return '';
+  try { return await invoke('app_version'); } catch { return ''; }
 }

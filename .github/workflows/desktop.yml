@@ -1,0 +1,72 @@
+name: Desktop Build (Windows, macOS, Linux)
+
+# Membangun installer aplikasi desktop Bizgrow (Tauri) untuk ketiga sistem operasi.
+# Hasilnya bisa diunduh dari tab Actions → run terakhir → bagian "Artifacts".
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "desktop/**", ".github/workflows/desktop.yml" ]
+  pull_request:
+    branches: [ "main" ]
+    paths: [ "desktop/**", ".github/workflows/desktop.yml" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Installer ${{ matrix.nama }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nama: Windows
+            os: windows-latest
+            args: ""
+          - nama: macOS (Apple Silicon & Intel)
+            os: macos-latest
+            args: "--target universal-apple-darwin"
+          - nama: Linux
+            os: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependensi sistem (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Pasang Tauri CLI
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build installer
+        working-directory: desktop
+        run: npx tauri build ${{ matrix.args }}
+
+      - name: Unggah installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bizgrow-${{ runner.os }}
+          path: |
+            desktop/src-tauri/target/**/release/bundle/msi/*.msi
+            desktop/src-tauri/target/**/release/bundle/nsis/*.exe
+            desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/**/release/bundle/deb/*.deb
+            desktop/src-tauri/target/**/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/**/release/bundle/rpm/*.rpm
+          if-no-files-found: error

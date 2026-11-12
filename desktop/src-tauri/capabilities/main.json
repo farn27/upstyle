@@ -1,14 +1,13 @@
 {
+  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Main window capabilities for Upstyle desktop app",
+  "description": "Izin jendela utama: layar pembuka lokal & server Bizgrow (notifikasi, buka tautan luar).",
   "windows": ["main"],
+  "remote": {
+    "urls": ["https://bizgrows-ten.vercel.app/*", "http://localhost:5173/*", "http://127.0.0.1:5173/*"]
+  },
   "permissions": [
     "core:default",
-    "notification:default",
-    "dialog:default",
-    "fs:default",
-    "process:default",
-    "http:default",
-    "updater:default"
+    "notification:default"
   ]
 }

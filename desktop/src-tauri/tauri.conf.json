@@ -1,38 +1,18 @@
 {
-  "productName": "Upstyle",
-  "version": "0.1.0",
-  "identifier": "com.upstyle.desktop",
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bizgrow",
+  "version": "0.2.0",
+  "identifier": "id.bizgrow.desktop",
   "build": {
     "beforeDevCommand": "",
-    "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "",
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Upstyle - Business Management Platform",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 1024,
-        "minHeight": 640,
-        "resizable": true,
-        "fullscreen": false,
-        "center": true,
-        "decorations": true,
-        "transparent": false,
-        "visible": false
-      }
-    ],
+    "withGlobalTauri": false,
+    "windows": [],
     "security": {
-      "csp": null,
-      "dangerousDisableAssetCspModification": false
-    },
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
-      "menuOnLeftClick": false,
-      "title": "Upstyle"
+      "csp": null
     }
   },
   "bundle": {
@@ -45,25 +25,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [],
-    "externalBin": [],
-    "copyright": "2024 Upstyle",
+    "copyright": "© 2026 Bizgrow",
     "category": "Business",
-    "shortDescription": "Platform manajemen bisnis all-in-one untuk UMKM Indonesia",
-    "longDescription": "Upstyle menggabungkan keuangan, inventory, POS, HR/payroll, CRM, dan AI assistant dalam satu aplikasi desktop.",
-    "windows": {
-      "digestAlgorithm": "sha256",
-      "certificateThumbprint": null,
-      "timestampUrl": ""
-    }
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "",
-      "endpoints": []
-    },
-    "shell": {
-      "open": true
-    }
+    "shortDescription": "Kasir, keuangan & ERP untuk UMKM Indonesia",
+    "longDescription": "Bizgrow menyatukan kasir, pembukuan otomatis, stok, karyawan, dan pelanggan dalam satu aplikasi — dibantu asisten AI. Aplikasi desktop ini membuka server Bizgrow yang sama dengan web dan Android."
   }
 }
