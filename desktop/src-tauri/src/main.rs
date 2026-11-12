@@ -1,6 +1,6 @@
-// Prevents additional console window on Windows in release
+// Jangan munculkan jendela konsol tambahan di Windows (rilis)
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    upstyle_desktop_lib::run();
+    bizgrow_desktop_lib::run();
 }

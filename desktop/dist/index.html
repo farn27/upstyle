@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bizgrow</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    color: #1d1d1f; background: radial-gradient(60% 60% at 25% 20%, #e0e7ff 0%, transparent 70%),
+      radial-gradient(50% 50% at 80% 30%, #fce7f3 0%, transparent 70%), #fbfbfd;
+    -webkit-font-smoothing: antialiased; user-select: none;
+  }
+  .kotak { text-align: center; max-width: 420px; padding: 24px; }
+  .logo {
+    width: 88px; height: 88px; margin: 0 auto 26px; border-radius: 24px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #6366f1, #c026d3); color: #fff; font-size: 44px; font-weight: 800;
+    box-shadow: 0 24px 50px -16px rgba(147, 51, 234, .55); animation: napas 2.4s ease-in-out infinite;
+  }
+  @keyframes napas { 50% { transform: scale(1.05); box-shadow: 0 30px 60px -16px rgba(147, 51, 234, .7); } }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  p { margin-top: 10px; font-size: 15px; line-height: 1.5; color: #6e6e73; }
+  .bar { width: 160px; height: 4px; margin: 26px auto 0; border-radius: 4px; background: #e5e5ea; overflow: hidden; }
+  .bar i { display: block; width: 40%; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #6366f1, #db2777); animation: jalan 1.1s ease-in-out infinite; }
+  @keyframes jalan { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+  button {
+    margin-top: 26px; border: 0; cursor: pointer; font: inherit; font-size: 15px; font-weight: 600; color: #fff;
+    background: #0071e3; padding: 11px 24px; border-radius: 999px; transition: transform .2s, background .2s;
+  }
+  button:hover { background: #0077ed; transform: scale(1.03); }
+  .kecil { margin-top: 14px; font-size: 12px; color: #a1a1a6; }
+  .sembunyi { display: none; }
+  @media (prefers-reduced-motion: reduce) { .logo, .bar i { animation: none; } }
+</style>
+</head>
+<body>
+  <div class="kotak">
+    <div class="logo">B</div>
+    <div id="memuat">
+      <h1>Bizgrow</h1>
+      <p>Menghubungkan ke server…</p>
+      <div class="bar"><i></i></div>
+    </div>
+    <div id="offline" class="sembunyi">
+      <h1>Tidak dapat terhubung</h1>
+      <p id="pesan">Periksa koneksi internet Anda. Bizgrow akan mencoba lagi otomatis.</p>
+      <button id="coba" type="button">Coba lagi</button>
+      <p class="kecil" id="info"></p>
+    </div>
+  </div>
+<script>
+  // Layar pembuka: cek server dulu agar pengguna tidak melihat halaman error WebView saat offline.
+  const panggil = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+  const el = (id) => document.getElementById(id);
+  let server = '';
+  let timer = null;
+  let hitung = 10;
+
+  async function terhubung(url) {
+    const kendali = new AbortController();
+    const batas = setTimeout(() => kendali.abort(), 8000);
+    try {
+      // no-cors: cukup tahu server bisa dijangkau
+      await fetch(url.replace(/\/$/, '') + '/api/health', { mode: 'no-cors', cache: 'no-store', signal: kendali.signal });
+      return true;
+    } catch { return false; } finally { clearTimeout(batas); }
+  }
+
+  async function mulai() {
+    clearInterval(timer); clearTimeout(timer);
+    el('offline').classList.add('sembunyi');
+    el('memuat').classList.remove('sembunyi');
+    try { server = server || await panggil('server_url'); } catch { server = 'https://bizgrows-ten.vercel.app/'; }
+    if (await terhubung(server)) {
+      location.replace(server);
+      // bila halaman tidak kunjung terbuka (proxy/sertifikat/jaringan lambat), jangan berputar selamanya
+      timer = setTimeout(() => gagal('Server lambat merespons atau koneksi diblokir jaringan. Coba lagi, atau periksa proxy/firewall kantor.'), 20000);
+      return;
+    }
+    gagal('Periksa koneksi internet Anda. Bizgrow akan mencoba lagi otomatis.');
+  }
+
+  function gagal(pesan) {
+    clearTimeout(timer); clearInterval(timer);
+    el('pesan').textContent = pesan;
+    el('memuat').classList.add('sembunyi');
+    el('offline').classList.remove('sembunyi');
+    hitung = 10;
+    el('info').textContent = `Mencoba lagi dalam ${hitung} detik · ${new URL(server).host}`;
+    timer = setInterval(() => {
+      hitung -= 1;
+      if (hitung <= 0) { mulai(); return; }
+      el('info').textContent = `Mencoba lagi dalam ${hitung} detik · ${new URL(server).host}`;
+    }, 1000);
+  }
+
+  el('coba').addEventListener('click', mulai);
+  window.addEventListener('online', mulai);
+  mulai();
+</script>
+</body>
+</html>

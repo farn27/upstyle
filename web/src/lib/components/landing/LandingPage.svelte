@@ -253,7 +253,7 @@
 			<div class="lp-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 			<div class="lp-grid-bg" aria-hidden="true"></div>
 
-			<div class="lp-wrap relative text-center pt-20 md:pt-28" style="transform: translateY({heroScroll * 60}px); opacity: {1 - heroScroll * 0.9}">
+			<div class="lp-wrap relative z-10 text-center pt-20 md:pt-28" style="transform: translateY({heroScroll * 60}px); opacity: {1 - heroScroll * 0.9}">
 				<a href="#ai" class="lp-pil lp-hero-in" style="--d:0ms">
 					<span class="lp-pil-baru">Baru</span> Catat transaksi cukup dengan chat ke AI <span aria-hidden="true">›</span>
 				</a>
@@ -273,7 +273,7 @@
 			</div>
 
 			<!-- panggung perangkat -->
-			<div class="lp-wrap relative mt-16 md:mt-20 pb-16" id="tur">
+			<div class="lp-wrap relative z-0 mt-16 md:mt-20 pb-16" id="tur">
 				<div class="lp-panggung lp-hero-in" style="--d:820ms">
 					<div class="lp-perangkat" style="transform: perspective(1600px) rotateX({rx - heroScroll * 10}deg) rotateY({ry}deg) scale({0.94 + heroScroll * 0.06})">
 						<div class="lp-cahaya" aria-hidden="true"></div>
@@ -702,9 +702,9 @@
 	.lp-pil-baru { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: linear-gradient(90deg, #6366f1, #d946ef); color: #fff; }
 
 	.lp-panggung { position: relative; }
-	.lp-perangkat { position: relative; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
+	.lp-perangkat { position: relative; z-index: 0; transform-origin: 50% 0; transition: transform .6s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
 	.lp-cahaya { position: absolute; inset: 10% 6% -6%; background: radial-gradient(ellipse at 50% 60%, rgba(129, 140, 248, .45), rgba(236, 72, 153, .18) 45%, transparent 70%); filter: blur(60px); z-index: -1; }
-	.lp-laptop { position: relative; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .07), 0 50px 100px -30px rgba(30, 27, 75, .35), 0 20px 40px -20px rgba(0, 0, 0, .15); }
+	.lp-laptop { position: relative; z-index: 1; border-radius: 16px; overflow: hidden; isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .07), 0 50px 100px -30px rgba(30, 27, 75, .35), 0 20px 40px -20px rgba(0, 0, 0, .15); }
 	.lp-laptop-bar { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; background: #f2f2f4; border-bottom: 1px solid #e5e5ea; }
 	.lp-laptop-bar i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
 	.lp-laptop-bar i:nth-child(2) { background: #febc2e; }
@@ -715,14 +715,14 @@
 	.lp-hp { width: 100%; max-width: 250px; border-radius: 42px; padding: 9px; background: linear-gradient(145deg, #2c2c2e, #0d0d0f); box-shadow: 0 0 0 1px rgba(0, 0, 0, .2), 0 40px 70px -25px rgba(30, 27, 75, .45); }
 	.lp-hp-layar { position: relative; aspect-ratio: 1179 / 2556; border-radius: 34px; overflow: hidden; background: #f5f5f7; }
 	.lp-hp-layar img, .lp-hp-layar video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
-	.lp-hp--hero { position: absolute; right: -3%; bottom: -8%; width: 23%; min-width: 118px; max-width: 250px; transform: translateZ(60px); }
+	.lp-hp--hero { position: absolute; z-index: 2; right: -3%; bottom: -8%; width: 23%; min-width: 118px; max-width: 250px; }
 	@media (max-width: 640px) {
 		.lp-hp--hero { right: -6px; width: 31%; border-radius: 22px; padding: 5px; }
 		.lp-hp--hero .lp-hp-layar { border-radius: 18px; }
 	}
 
 	/* kartu notifikasi melayang */
-	.lp-notif { position: absolute; display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 10px; border-radius: 16px; background: rgba(255, 255, 255, .82); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06), 0 20px 40px -14px rgba(30, 27, 75, .35); color: var(--teks); font-size: 13px; line-height: 1.25; animation: lp-naik 1s cubic-bezier(.2, .8, .2, 1) both, lp-apung 6s ease-in-out infinite; white-space: nowrap; opacity: 0; transform: translateY(20px); }
+	.lp-notif { position: absolute; display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 10px; border-radius: 16px; background: rgba(255, 255, 255, .82); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06), 0 20px 40px -14px rgba(30, 27, 75, .35); color: var(--teks); font-size: 13px; line-height: 1.25; z-index: 3; animation: lp-naik 1s cubic-bezier(.2, .8, .2, 1) both, lp-apung 6s ease-in-out infinite; white-space: nowrap; opacity: 0; transform: translateY(20px); }
 	.lp-notif b { display: block; font-weight: 600; }
 	.lp-notif small { display: block; font-size: 11.5px; color: #6e6e73; margin-top: 2px; }
 	.lp-notif-ik { flex-shrink: 0; width: 30px; height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
