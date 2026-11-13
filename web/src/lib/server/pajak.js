@@ -105,3 +105,40 @@ export async function ringkasPpn(db, unitId, dari, sampai) {
 	const masukan = bulat(m.debit - m.kredit);  // pembelian menambah debit; retur pembelian mengurangi
 	return { keluaran, masukan, kurangBayar: keluaran - masukan };
 }
+
+/**
+ * Akun milik unit yang namanya cocok pola & bertipe tertentu; dibuat otomatis kalau belum ada.
+ * Dipakai untuk service charge (pendapatan) dan pajak restoran PB1 (liabilitas) di kasir.
+ * @param {any} tx @param {number} unitId
+ * @param {{ pola: RegExp, tipe: string, kode: string, nama: string, saldo: 'DEBIT' | 'KREDIT', deskripsi: string }} a
+ * @returns {Promise<number>}
+ */
+async function pastikanAkun(tx, unitId, a) {
+	/** @type {any[]} */
+	const akun = await tx
+		.select({ id: chartOfAccounts.id, kodeAkun: chartOfAccounts.kodeAkun, namaAkun: chartOfAccounts.namaAkun, tipeAkun: chartOfAccounts.tipeAkun })
+		.from(chartOfAccounts)
+		.where(and(eq(chartOfAccounts.unitId, unitId), eq(chartOfAccounts.isActive, 1)));
+	const ada = akun.find((x) => x.tipeAkun === a.tipe && a.pola.test(x.namaAkun));
+	if (ada) return ada.id;
+	const [hasil] = await tx.insert(chartOfAccounts).values({
+		unitId, kodeAkun: kodeKosong(akun, a.kode), namaAkun: a.nama, tipeAkun: a.tipe, normalBalance: a.saldo, deskripsi: a.deskripsi, isActive: 1
+	});
+	return hasil.insertId;
+}
+
+/** Akun pendapatan service charge. @param {any} tx @param {number} unitId */
+export function pastikanAkunServis(tx, unitId) {
+	return pastikanAkun(tx, unitId, {
+		pola: /service charge|servis|biaya layanan/i, tipe: 'PENDAPATAN', kode: '4-10090', nama: 'Pendapatan Service Charge', saldo: 'KREDIT',
+		deskripsi: 'Service charge dari pesanan kasir'
+	});
+}
+
+/** Akun utang pajak restoran (PB1 / PBJT makanan-minuman). @param {any} tx @param {number} unitId */
+export function pastikanAkunPajakResto(tx, unitId) {
+	return pastikanAkun(tx, unitId, {
+		pola: /pb1|pajak restoran|pbjt/i, tipe: 'LIABILITAS_LANCAR', kode: '2-10007', nama: 'Utang Pajak Restoran (PB1)', saldo: 'KREDIT',
+		deskripsi: 'Pajak restoran yang dipungut dari tamu, disetor ke pemerintah daerah'
+	});
+}

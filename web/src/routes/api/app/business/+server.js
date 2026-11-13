@@ -6,6 +6,7 @@ import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
 import { buatUnit, slugUnik, UnitError } from '$lib/server/unitBaru';
+import { aiDenganKuota } from '$lib/server/posProfil';
 import { parsePagination, applyPagination, paginatedResponse } from '$lib/server/pagination';
 import { log } from '$lib/server/logger';
 import { z } from 'zod';
@@ -84,7 +85,8 @@ export async function POST({ request, cookies }) {
         alamat: z.string().max(500).nullable().optional(),
         telepon: z.string().max(20).nullable().optional(),
         email: z.string().email('Format email tidak valid').max(100).nullable().optional().or(z.literal('')),
-        modal_awal: z.coerce.number().min(0).nullable().optional()
+        modal_awal: z.coerce.number().min(0).nullable().optional(),
+        deskripsi: z.string().max(600).nullable().optional()
     });
     const parsed = businessPostSchema.safeParse(body);
     if (!parsed.success) {
@@ -99,7 +101,8 @@ export async function POST({ request, cookies }) {
     try {
         const unit = await buatUnit(db, userId, {
             nama: d.name, kategori: d.type, alamat: d.alamat, telepon: d.telepon, email: d.email || null,
-            modalAwal: d.modal_awal ?? 0, isCabang: d.is_cabang, cabangDari: d.cabang_dari
+            modalAwal: d.modal_awal ?? 0, isCabang: d.is_cabang, cabangDari: d.cabang_dari,
+            deskripsi: d.deskripsi || null, panggilAi: d.deskripsi ? aiDenganKuota(userId) : null
         });
 
         await db.insert(riwayatAksi).values({

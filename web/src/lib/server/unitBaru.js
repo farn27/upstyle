@@ -1,5 +1,6 @@
 import { and, eq, like, sql } from 'drizzle-orm';
 import { unitBisnis, kategoriProduk } from '$lib/server/schema';
+import { ambilProfilPos, simpanProfilPos, profilPosUnitBaru } from '$lib/server/posProfil';
 
 /** Slug dasar dari nama unit (huruf kecil, angka, strip). */
 export function slugDasar(nama) {
@@ -53,11 +54,13 @@ export class UnitError extends Error {
 }
 
 /**
- * Buat unit bisnis (pusat atau cabang) lengkap dengan kategori produk awal.
- * Cabang wajib punya induk milik user yang sama dan mewarisi kategori induk.
+ * Buat unit bisnis (pusat atau cabang) lengkap dengan kategori produk awal dan profil kasir (POS).
+ * Cabang wajib punya induk milik user yang sama dan mewarisi kategori induk (dan profil kasir induk, bila ada).
+ * Profil kasir unit pusat disusun otomatis: aturan dari kategori/nama, disempurnakan AI bila ada uraian usaha.
  * @param {any} db
  * @param {number} userId
- * @param {{ nama: string, kategori?: string|null, alamat?: string|null, telepon?: string|null, email?: string|null, modalAwal?: number, isCabang?: boolean, cabangDari?: number|null }} d
+ * @param {{ nama: string, kategori?: string|null, alamat?: string|null, telepon?: string|null, email?: string|null, modalAwal?: number, isCabang?: boolean, cabangDari?: number|null,
+ *   deskripsi?: string|null, panggilAi?: ((sistem: string, pengguna: string) => Promise<string>) | null }} d
  */
 export async function buatUnit(db, userId, d) {
 	const nama = String(d.nama || '').trim();
@@ -88,7 +91,16 @@ export async function buatUnit(db, userId, d) {
 			.values(kategoriProdukAwal(kategori).map((c) => ({ unitId: id, namaKategori: c })))
 			.onDuplicateKeyUpdate({ set: { id: sql`id` } });
 	}
-	return { id, slug, kategori, cabangDari };
+	// Profil kasir: tidak pernah menggagalkan pembuatan unit
+	/** @type {any} */
+	let profilPos = null;
+	if (cabangDari) {
+		const induk = await ambilProfilPos(db, cabangDari);
+		if (induk) profilPos = await simpanProfilPos(db, id, { profil: induk.profil, pengaturan: induk.pengaturan, sumber: /** @type {any} */ (induk.sumber) }).catch(() => null);
+	} else {
+		profilPos = await profilPosUnitBaru(db, id, { kategori, nama, deskripsi: d.deskripsi }, { panggilAi: d.panggilAi });
+	}
+	return { id, slug, kategori, cabangDari, profilPos };
 }
 
 /**

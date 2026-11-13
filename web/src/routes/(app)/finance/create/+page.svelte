@@ -301,6 +301,22 @@
                                     </div>
                                 {/if}
                             </div>
+                            <div class="md:col-span-2">
+                                <label for="deskripsi-usaha" class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">
+                                    Ceritakan usahamu (opsional)
+                                </label>
+                                <textarea
+                                    id="deskripsi-usaha"
+                                    name="deskripsi"
+                                    rows="3"
+                                    maxlength="600"
+                                    placeholder="Contoh: Rumah makan sunda 15 meja di dalam & 6 di saung, ada bar minuman terpisah, kena service 5% dan PB1."
+                                    class="w-full border border-slate-200 dark:border-slate-700 p-3.5 rounded-md text-sm outline-none focus:border-indigo-500 transition-all resize-none bg-white dark:bg-slate-900"
+                                ></textarea>
+                                <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                    Kasir (POS) disusun otomatis sesuai jenis usaha — jumlah meja, dapur/bar, nomor antrean, data khas pesanan. Bisa diubah kapan saja di Kelola Kasir.
+                                </p>
+                            </div>
                         {:else}
                             <input type="hidden" name="kategori" value="SAME_AS_PARENT" />
                         {/if}

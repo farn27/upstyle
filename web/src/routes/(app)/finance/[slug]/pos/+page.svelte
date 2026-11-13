@@ -8,7 +8,144 @@
     import { onMount, onDestroy } from 'svelte';
     import BarcodeScanner from '$lib/components/BarcodeScanner.svelte';
     import { getIndustryGroup } from '$lib/posFeatures';
+    import DenahMeja from '$lib/components/pos/DenahMeja.svelte';
+    import { hitungBiayaTambahan, LABEL_JENIS_PESANAN, cekIsianWajib, PROFIL_POS } from '$lib/posProfil';
     export let data;
+
+    // --- Profil kasir (unit yang memakai kustomisasi kasir). Unit tanpa profil: pp = null → kasir lama ---
+    $: profilPos = data.profilPos || null;
+    $: pp = profilPos ? profilPos.pengaturan : null;
+    $: istilahProduk = pp?.istilah?.produk || 'Produk';
+    let billTerbuka = data.billTerbuka || [];
+    /** @type {{ id: number, versi: number, kode: string, meja: string | null, nama: string } | null} */
+    let billAktif = null;
+    let showDenah = false;
+    let isianNilai = {};
+    let sibukBill = false;
+    let pesanKasir = '';
+    let jenisDiatur = false;
+    $: if (pp && !jenisDiatur) {
+        orderType = pp.jenisPesanan.includes(orderType) ? orderType : pp.jenisPesanan[0];
+        jenisDiatur = true;
+    }
+    $: if (pp?.pajakResto?.aktif && kenaiPpn) kenaiPpn = false;
+
+    function kabar(teks) {
+        pesanKasir = teks;
+        setTimeout(() => { if (pesanKasir === teks) pesanKasir = ''; }, 3500);
+    }
+
+    async function muatBill() {
+        if (!pp?.openBill) return;
+        try {
+            const r = await fetch(`/finance/${$page.params.slug}/pos/bill`);
+            if (r.ok) billTerbuka = (await r.json()).bill || [];
+        } catch { /* biarkan daftar lama */ }
+    }
+
+    function lepasBill() {
+        billAktif = null;
+        cart = [];
+        tableNumber = '';
+        customerName = '';
+        isianNilai = {};
+    }
+
+    function pilihMeja(kode) {
+        if (billAktif) lepasBill();
+        tableNumber = kode;
+        if (pp.jenisPesanan.includes('DINE_IN')) orderType = 'DINE_IN';
+        showDenah = false;
+        kabar(`Meja ${kode} dipilih — tambahkan pesanan lalu Simpan`);
+    }
+
+    function billBaru(nama) {
+        if (billAktif) lepasBill();
+        customerName = nama;
+        tableNumber = '';
+        showDenah = false;
+        kabar(`Bill untuk ${nama} — tambahkan pesanan lalu Simpan`);
+    }
+
+    function bukaBill(b) {
+        if (cart.length && !billAktif && !confirm('Keranjang sekarang akan diganti dengan pesanan bill ini. Lanjut?')) return;
+        /** @type {Map<string, any>} */
+        const gabung = new Map();
+        for (const it of b.items) {
+            const ada = gabung.get(it.productId);
+            if (ada) {
+                ada.qty += it.qty;
+                if (it.catatan) ada.catatan = [ada.catatan, it.catatan].filter(Boolean).join(' / ');
+                continue;
+            }
+            const produk = data.products.find((x) => String(x.id) === String(it.productId));
+            gabung.set(it.productId, { ...(produk || { id: it.productId, nama: it.nama, stok: 9999 }), harga_jual: Number(it.harga), qty: it.qty, catatan: it.catatan || '' });
+        }
+        cart = [...gabung.values()];
+        billAktif = { id: b.id, versi: b.versi, kode: b.kode, meja: b.meja, nama: b.nama };
+        tableNumber = b.meja || '';
+        customerName = b.nama || '';
+        orderType = b.jenisPesanan || orderType;
+        isianNilai = { ...(b.isian || {}) };
+        showDenah = false;
+    }
+
+    async function simpanBill(kirim) {
+        if (cart.length === 0) return alert('Pesanan masih kosong');
+        if (!tableNumber && !customerName.trim()) {
+            if (pp.meja.aktif) { showDenah = true; return; }
+            return alert(`Isi nama untuk ${pp.labelBill.toLowerCase()} ini`);
+        }
+        sibukBill = true;
+        try {
+            const r = await fetch(`/finance/${$page.params.slug}/pos/bill`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    aksi: kirim ? 'kirim' : 'simpan',
+                    id: billAktif?.id || null,
+                    versi: billAktif?.versi ?? null,
+                    meja: tableNumber || null,
+                    nama: customerName.trim(),
+                    jenisPesanan: orderType,
+                    items: cart.map((i) => ({ productId: i.id, qty: i.qty, catatan: i.catatan || '' })),
+                    isian: isianNilai
+                })
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                alert(j.error || 'Bill gagal disimpan');
+                if (r.status === 409) await muatBill();
+                return;
+            }
+            const label = j.bill?.meja ? `Meja ${j.bill.meja}` : (j.bill?.nama || 'Bill');
+            kabar(`${label} disimpan${j.tiket ? ` · ${j.tiket} tiket ke dapur` : ''}`);
+            billAktif = null;
+            cart = [];
+            tableNumber = '';
+            customerName = '';
+            isianNilai = {};
+            await muatBill();
+        } finally {
+            sibukBill = false;
+        }
+    }
+
+    function batalkanBillAktif() {
+        if (!billAktif) return;
+        if (!confirm(`Batalkan bill ${billAktif.meja ? 'meja ' + billAktif.meja : billAktif.nama}? Pesanan di dapur ikut dibatalkan.`)) return;
+        const id = billAktif.id;
+        openWithPinCheck(async () => {
+            const r = await fetch(`/finance/${$page.params.slug}/pos/bill`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aksi: 'batal', id })
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) return alert(j.error || 'Gagal membatalkan bill');
+            lepasBill();
+            kabar('Bill dibatalkan');
+            await muatBill();
+        });
+    }
 
     // --- Barcode Scanner ---
     let scannerActive = false;
@@ -267,7 +404,11 @@
     $: ppnAmount = kenaiPpn && tarifPpn > 0
         ? (ppnInklusif ? Math.round(dasarPpn * tarifPpn / (100 + tarifPpn)) : Math.round(dasarPpn * tarifPpn / 100))
         : 0;
-    $: total = dasarPpn + (kenaiPpn && !ppnInklusif ? ppnAmount : 0);
+    // Service charge & pajak restoran (PB1) dari profil kasir — server menghitung ulang dengan rumus yang sama
+    $: biayaTambahan = pp ? hitungBiayaTambahan(dasarPpn, pp, orderType) : null;
+    $: total = biayaTambahan && (biayaTambahan.servis || biayaTambahan.pajak)
+        ? biayaTambahan.total
+        : dasarPpn + (kenaiPpn && !ppnInklusif ? ppnAmount : 0);
     $: totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
     // HP (< md): keranjang dibuka sebagai layar penuh lewat bar ringkasan di bawah
     let keranjangHp = false;
@@ -403,13 +544,17 @@
             alert("⚠️ Wajib buka shift terlebih dahulu sebelum melakukan transaksi!");
             return;
         }
+        if (pp) {
+            const galatIsian = cekIsianWajib(pp.isian, isianNilai);
+            if (galatIsian) return alert(galatIsian);
+        }
         // Reset payments to a single full-amount payment by default
         payments = [{ id: Date.now(), method: 'TUNAI', amount: total }];
         showPaymentModal = true;
     }
 
     async function processPayment() {
-        if (!customerName.trim()) {
+        if (!customerName.trim() && !pp) {
             alert("Nama Customer wajib diisi!");
             return;
         }
@@ -441,7 +586,10 @@
                     table_number: tableNumber,
                     queue_number: queueNumber,
                     kenai_ppn: kenaiPpn && tarifPpn > 0,
-                    ppn_inklusif: ppnInklusif
+                    ppn_inklusif: ppnInklusif,
+                    bill_id: billAktif?.id || null,
+                    bill_versi: billAktif?.versi ?? null,
+                    isian: pp ? isianNilai : null
                 }),
             });
 
@@ -467,8 +615,14 @@
                     customer: customerName.toUpperCase(),
                     orderType,
                     tableNumber,
-                    queueNumber
+                    queueNumber: resData.queueNumber || queueNumber,
+                    servis: Number(resData.servis || 0),
+                    servisPersen: biayaTambahan?.servisPersen || 0,
+                    pajakResto: Number(resData.pajakResto || 0),
+                    pajakPersen: biayaTambahan?.pajakPersen || 0,
+                    isian: pp ? pp.isian.filter((f) => String(isianNilai[f.kunci] || '').trim()).map((f) => ({ label: f.label, nilai: isianNilai[f.kunci] })) : []
                 };
+                if (billAktif) { billAktif = null; muatBill(); }
                 showReceipt = true;
                 showPaymentModal = false;
                 
@@ -477,8 +631,9 @@
                     setTimeout(() => window.print(), 500);
                 }
             } else {
-                const err = await res.json();
+                const err = await res.json().catch(() => ({}));
                 alert("Error: " + (err.error || "Gagal memproses pembayaran"));
+                if (res.status === 409 && billAktif) { lepasBill(); muatBill(); }
             }
         } catch (e) {
             alert("Error: " + e.message);
@@ -489,6 +644,7 @@
         showReceipt = false;
         receipt = null;
         cart = [];
+        if (pp) { tableNumber = ''; queueNumber = ''; isianNilai = {}; billAktif = null; }
         amountPaid = 0;
         discount = 0;
         customerName = "";
@@ -531,9 +687,21 @@
                 <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Pesanan Ditunda</span>
             </button>
 
+            <!-- Denah meja / bill terbuka (profil kasir dengan open bill) -->
+            {#if pp?.openBill}
+                <button on:click={() => showDenah = true} data-testid="tombol-denah"
+                        class="relative p-2.5 lg:p-3 rounded-xl transition-all text-slate-500 dark:text-slate-400 hover:text-white hover:bg-white dark:hover:bg-slate-700/5 group">
+                    <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v4H4zM14 15h6v4h-6z"/></svg>
+                    {#if billTerbuka.length > 0}
+                        <span class="absolute top-1 right-1 lg:top-2 lg:right-2 min-w-[14px] h-3.5 lg:h-4 px-1 bg-amber-500 text-[7px] lg:text-[8px] text-white flex items-center justify-center rounded-full border-2 border-slate-900 font-black">{billTerbuka.length}</span>
+                    {/if}
+                    <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">{pp.meja.aktif ? 'Denah Meja' : `${pp.labelBill} Terbuka`}</span>
+                </button>
+            {/if}
+
             <!-- Active Orders / Kitchen -->
             {#if showKitchenDisplay}
-                <a href={`/finance/${$page.params.slug}/pos/antrean`}
+                <a href={pp?.dapur?.aktif ? `/finance/${$page.params.slug}/pos/dapur` : `/finance/${$page.params.slug}/pos/antrean`}
                    class="relative p-2.5 lg:p-3 rounded-xl transition-all group {$page.url.pathname.includes('/antrean') ? 'text-blue-400 bg-blue-500/15' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-white hover:bg-white dark:hover:bg-slate-700/5'}">
                     <svg class="w-5 h-5 lg:w-6 lg:h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <span class="hidden md:block absolute left-16 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl">Daftar Antrean / Dapur</span>
@@ -597,7 +765,8 @@
             <div class="hidden sm:flex items-center gap-4 lg:gap-6 min-w-0">
                 <div>
                     <h1 class="text-xs lg:text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter leading-none">
-                        {#if isFNB}POS Restoran
+                        {#if pp}{PROFIL_POS[profilPos.profil]?.label || 'Kasir'}
+                        {:else if isFNB}POS Restoran
                         {:else if isRetail}POS Retail
                         {:else if isServices}POS Layanan
                         {:else if isTechnical}POS Bengkel
@@ -640,7 +809,7 @@
             <div class="flex items-center gap-2 flex-1 sm:flex-none min-w-0 justify-end">
                 <!-- Industry-specific quick actions -->
                 {#if isFNB}
-                    <button title="Meja"
+                    <button title="Meja" on:click={() => { if (pp?.openBill) showDenah = true; }}
                             class="p-2 lg:p-2.5 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl transition-all">
                         <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
                     </button>
@@ -784,6 +953,17 @@
                     </button>
                     <span class="text-xs font-bold text-slate-500">Keranjang • {totalItems} item</span>
                 </div>
+                {#if pp && (billAktif || tableNumber)}
+                    <div class="px-4 lg:px-5 py-2.5 flex items-center justify-between gap-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/50" data-testid="banner-bill">
+                        <span class="text-[11px] font-black text-amber-800 dark:text-amber-200 truncate">
+                            {billAktif ? 'Bill' : 'Pesanan baru'} · {tableNumber ? `Meja ${tableNumber}` : (customerName || billAktif?.kode)}
+                        </span>
+                        <span class="flex gap-2 shrink-0">
+                            {#if billAktif}<button type="button" on:click={batalkanBillAktif} class="text-[10px] font-bold text-red-500">Batalkan bill</button>{/if}
+                            <button type="button" on:click={lepasBill} class="text-[10px] font-bold text-slate-500">Lepas</button>
+                        </span>
+                    </div>
+                {/if}
                 <!-- Customer Input -->
                 <div class="px-4 lg:px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-white">
                     <div class="flex items-center justify-between mb-2">
@@ -833,7 +1013,10 @@
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <h4 class="text-[10px] lg:text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase truncate leading-tight">{item.nama}</h4>
-                                    {#if isFNB}
+                                    {#if pp?.catatanItem}
+                                        <input type="text" bind:value={item.catatan} maxlength="120" placeholder="+ catatan (mis. tidak pedas)" aria-label={`Catatan ${item.nama}`}
+                                               class="w-full text-[10px] text-amber-700 dark:text-amber-300 mt-0.5 bg-transparent border-b border-dashed border-slate-200 dark:border-slate-600 focus:border-amber-500 outline-none placeholder:text-slate-300" />
+                                    {:else if isFNB}
                                         <p class="text-[8px] text-slate-400 mt-0.5">{item.catatan || ''}</p>
                                     {/if}
                                     {#if isTechnical}
@@ -871,7 +1054,7 @@
                         </div>
 
                         <!-- Industry-specific additional info -->
-                        {#if isFNB}
+                        {#if isFNB && !pp}
                             <div class="flex justify-between items-center text-[9px] font-bold text-amber-600">
                                 <span>Order Type</span>
                                 <span class="uppercase">{orderType}</span>
@@ -919,7 +1102,20 @@
                             {/if}
                         </div>
 
-                        {#if tarifPpn > 0}
+                        {#if biayaTambahan && biayaTambahan.servis > 0}
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                <span>Service {biayaTambahan.servisPersen}%</span>
+                                <span class="font-mono">+{formatRupiah(biayaTambahan.servis)}</span>
+                            </div>
+                        {/if}
+                        {#if biayaTambahan && biayaTambahan.pajak > 0}
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                <span>PB1 {biayaTambahan.pajakPersen}%{biayaTambahan.pajakInklusif ? ' (termasuk)' : ''}</span>
+                                <span class="font-mono">{biayaTambahan.pajakInklusif ? '' : '+'}{formatRupiah(biayaTambahan.pajak)}</span>
+                            </div>
+                        {/if}
+
+                        {#if tarifPpn > 0 && !pp?.pajakResto?.aktif}
                         <div class="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900 rounded-xl p-2">
                             <label class="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase cursor-pointer">
                                 <input type="checkbox" bind:checked={kenaiPpn} class="rounded" />
@@ -941,8 +1137,39 @@
                         </div>
                     </div>
 
-                    <!-- Table Management (F&B) — tampil saat fitur aktif -->
-                    {#if showTableManagement}
+                    <!-- Profil kasir: jenis pesanan, meja, antrean, isian khas -->
+                    {#if pp}
+                    {#if pp.jenisPesanan.length > 1 || pp.meja.aktif || pp.nomorAntrean || pp.isian.length}
+                    <div class="mb-3 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-700 space-y-2" data-testid="panel-pesanan">
+                        {#if pp.jenisPesanan.length > 1}
+                            <div class="grid gap-1.5" style={`grid-template-columns: repeat(${pp.jenisPesanan.length}, minmax(0, 1fr))`}>
+                                {#each pp.jenisPesanan as type}
+                                    <button type="button" on:click={() => orderType = type}
+                                        class="py-1.5 rounded-lg text-[10px] font-black transition-all {orderType === type ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}">
+                                        {LABEL_JENIS_PESANAN[type]}
+                                    </button>
+                                {/each}
+                            </div>
+                        {/if}
+                        {#if pp.meja.aktif && orderType === 'DINE_IN'}
+                            <button type="button" on:click={() => showDenah = true}
+                                class="w-full flex items-center justify-between text-[11px] font-bold rounded-lg px-3 py-2 border {tableNumber ? 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200' : 'border-dashed border-slate-300 text-slate-500'}">
+                                <span>{tableNumber ? `Meja ${tableNumber}` : 'Pilih meja'}</span><span aria-hidden="true">▦</span>
+                            </button>
+                        {/if}
+                        {#if pp.nomorAntrean && !billAktif}
+                            <p class="text-[10px] text-slate-500">Nomor antrean dibuat otomatis saat bayar.</p>
+                        {/if}
+                        {#each pp.isian as f (f.kunci)}
+                            <label class="flex items-center gap-2">
+                                <span class="text-[10px] font-bold text-slate-500 w-24 shrink-0 truncate">{f.label}{f.wajib ? ' *' : ''}</span>
+                                <input type={f.tipe === 'tanggal' ? 'date' : f.tipe === 'angka' ? 'number' : 'text'} bind:value={isianNilai[f.kunci]} maxlength="120"
+                                       class="flex-1 min-w-0 text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none focus:border-blue-400" />
+                            </label>
+                        {/each}
+                    </div>
+                    {/if}
+                    {:else if showTableManagement}
                     <div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/50 space-y-2">
                         <p class="text-[9px] font-black text-amber-700 uppercase tracking-widest">Pengaturan Order</p>
                         <div class="grid grid-cols-3 gap-1.5">
@@ -972,6 +1199,24 @@
 
                     <!-- Action Buttons — Owner dan Staff sama-sama bisa kasir -->
                     <!-- Bedanya: Staff punya Hold & Shift management, Owner langsung bisa bayar -->
+                    {#if pp?.openBill}
+                    <div class="grid {pp.dapur.aktif ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mt-2" data-testid="aksi-bill">
+                        <button on:click={() => simpanBill(false)} disabled={cart.length === 0 || sibukBill}
+                                class="py-3 rounded-xl border-2 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-black text-[11px] hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all disabled:opacity-30">
+                            {billAktif ? 'Simpan' : `Simpan ke ${pp.labelBill}`}
+                        </button>
+                        {#if pp.dapur.aktif}
+                            <button on:click={() => simpanBill(true)} disabled={cart.length === 0 || sibukBill}
+                                    class="py-3 rounded-xl bg-amber-500 text-white font-black text-[11px] hover:bg-amber-600 transition-all disabled:opacity-30">
+                                Kirim ke dapur
+                            </button>
+                        {/if}
+                        <button on:click={openPaymentModal} disabled={cart.length === 0 || sibukBill}
+                                class="py-3 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 text-white font-black text-[11px] hover:from-black transition-all disabled:opacity-30">
+                            Bayar
+                        </button>
+                    </div>
+                    {:else}
                     <div class="grid grid-cols-2 gap-2 lg:gap-3 mt-2">
                         <button on:click={holdCurrentOrder}
                                 disabled={cart.length === 0}
@@ -986,6 +1231,7 @@
                             {isB2B ? 'Buat Invoice' : isServices ? 'Booking' : isEducation ? 'Daftar' : 'Bayar'}
                         </button>
                     </div>
+                    {/if}
 
                     {#if cart.length > 0}
                         <button on:click={clearCart}
@@ -1030,7 +1276,7 @@
             </div>
 
             <!-- Order Type & Operational Fields -->
-            {#if showTableManagement || showKitchenDisplay || isFNB || isServices || isEducation || isTechnical}
+            {#if !pp && (showTableManagement || showKitchenDisplay || isFNB || isServices || isEducation || isTechnical)}
             <div class="mb-6 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl">
                 {#if isFNB}
                     <div class="flex gap-2 mb-4">
@@ -1224,6 +1470,14 @@
     </div>
 {/if}
 
+{#if showDenah && pp}
+    <DenahMeja pengaturan={pp} bill={billTerbuka} billAktifId={billAktif?.id || null}
+        onPilihMeja={pilihMeja} onBukaBill={bukaBill} onBillBaru={billBaru} onMuatUlang={muatBill} onTutup={() => showDenah = false} />
+{/if}
+{#if pesanKasir}
+    <div class="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 z-[120] px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xl" role="status" transition:fly={{ y: 16, duration: 200 }}>{pesanKasir}</div>
+{/if}
+
 <!-- ===== RECEIPT MODAL ===== -->
 {#if showReceipt && receipt}
     <div class="receipt-print-area fixed inset-0 z-[110] flex items-center justify-center bg-white/90 backdrop-blur-sm p-4 receipt-backdrop"
@@ -1239,7 +1493,15 @@
 
             <!-- Order Info -->
             <div class="flex flex-wrap items-center justify-center gap-2 mb-6">
-                {#if isFNB}
+                {#if pp}
+                    <span class="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[9px] font-bold text-slate-600 uppercase tracking-widest">{LABEL_JENIS_PESANAN[receipt.orderType] || receipt.orderType}</span>
+                    {#if receipt.queueNumber}
+                        <span class="px-3 py-1 bg-blue-600 rounded-lg text-sm font-black text-white tracking-widest" data-testid="nomor-antrean">Antrean {receipt.queueNumber}</span>
+                    {/if}
+                    {#if receipt.tableNumber}
+                        <span class="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-[9px] font-bold text-emerald-600 uppercase tracking-widest border border-emerald-100 dark:border-emerald-800">Meja: {receipt.tableNumber}</span>
+                    {/if}
+                {:else if isFNB}
                     <span class="px-2.5 py-1 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-[9px] font-bold text-amber-600 uppercase tracking-widest border border-amber-100 dark:border-amber-800">{receipt.orderType || 'TAKEAWAY'}</span>
                     {#if receipt.queueNumber}
                         <span class="px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-[9px] font-bold text-blue-600 uppercase tracking-widest border border-blue-100 dark:border-blue-800">Antrean: {receipt.queueNumber}</span>
@@ -1281,6 +1543,24 @@
                         <span class="font-mono">-{formatRupiah(receipt.discount.amount)}</span>
                     </div>
                 {/if}
+
+                {#if receipt.servis > 0}
+                    <div class="flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>Service {receipt.servisPersen}%</span>
+                        <span class="font-mono">{formatRupiah(receipt.servis)}</span>
+                    </div>
+                {/if}
+                {#if receipt.pajakResto > 0}
+                    <div class="flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>PB1 {receipt.pajakPersen}%</span>
+                        <span class="font-mono">{formatRupiah(receipt.pajakResto)}</span>
+                    </div>
+                {/if}
+                {#each receipt.isian || [] as f}
+                    <div class="flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>{f.label}</span><span>{f.nilai}</span>
+                    </div>
+                {/each}
 
                 <div class="flex justify-between text-sm lg:text-base font-black border-t-2 border-slate-200 dark:border-slate-700 pt-3 mt-2 receipt-total">
                     <span class="uppercase italic">Total</span>

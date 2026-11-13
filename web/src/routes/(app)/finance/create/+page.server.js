@@ -10,6 +10,7 @@ import { getCurrentUserId } from '$lib/server/getUser';
 import { cekBatasUnit } from '$lib/server/planLimits';
 import { nowWIB, nowSqlWIB } from '$lib/server/dateUtils';
 import { buatUnit, UnitError } from '$lib/server/unitBaru';
+import { aiDenganKuota } from '$lib/server/posProfil';
 
 export async function load({ cookies }) {
     const userId = await getCurrentUserId(cookies);
@@ -44,6 +45,8 @@ export const actions = {
         const email = formData.get('email') || null;
         const is_cabang = formData.get('is_cabang') === 'true';
         const cabang_dari = formData.get('cabang_dari') || null;
+        // Uraian usaha (opsional): AI menyusun kasir sesuai usaha (meja, dapur, isian khas)
+        const deskripsi = String(formData.get('deskripsi') || '').trim().slice(0, 600);
         
         // 1. Validasi
         if (!nama_unit?.trim()) throw error(400, 'Nama unit wajib diisi');
@@ -57,7 +60,8 @@ export const actions = {
             // 2-5. Buat unit (slug unik, induk cabang, kategori produk awal) — logika bersama dengan API app
             const unit = await buatUnit(db, userId, {
                 nama: nama_unit, kategori, alamat, telepon, email, modalAwal: modal_awal,
-                isCabang: is_cabang, cabangDari: cabang_dari ? Number(cabang_dari) : null
+                isCabang: is_cabang, cabangDari: cabang_dari ? Number(cabang_dari) : null,
+                deskripsi, panggilAi: deskripsi ? aiDenganKuota(userId) : null
             });
             const unitId = unit.id;
             const kategori_akhir = unit.kategori;

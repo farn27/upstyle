@@ -11,6 +11,8 @@ import { log } from '$lib/server/logger';
 import { JENIS_DIJUAL } from '$lib/jenisProduk';
 import { nowSqlWIB } from '$lib/server/dateUtils';
 import { tarifPpnAktif } from '$lib/server/pajak';
+import { ambilProfilPos } from '$lib/server/posProfil';
+import { daftarBillTerbuka } from '$lib/server/posResto';
 
 export async function load({ params, cookies, locals }) {
     const ownerUserId = locals.user?.id ?? await getCurrentUserId(cookies);
@@ -27,7 +29,10 @@ export async function load({ params, cookies, locals }) {
                 id: unitBisnis.id,
                 user_id: unitBisnis.userId,
                 slug: unitBisnis.slug,
-                login_slug: unitBisnis.loginSlug
+                login_slug: unitBisnis.loginSlug,
+                nama_unit: unitBisnis.namaUnit,
+                kategori: unitBisnis.kategori,
+                posFeatureOverride: unitBisnis.posFeatureOverride
             })
             .from(unitBisnis)
             .where(eq(unitBisnis.id, staffSession.unit_id))
@@ -43,7 +48,10 @@ export async function load({ params, cookies, locals }) {
                     id: unitBisnis.id,
                     user_id: unitBisnis.userId,
                     slug: unitBisnis.slug,
-                    login_slug: unitBisnis.loginSlug
+                    login_slug: unitBisnis.loginSlug,
+                    nama_unit: unitBisnis.namaUnit,
+                    kategori: unitBisnis.kategori,
+                    posFeatureOverride: unitBisnis.posFeatureOverride
                 })
                 .from(unitBisnis)
                 .where(or(eq(unitBisnis.slug, slug), eq(unitBisnis.loginSlug, slug)))
@@ -74,7 +82,10 @@ export async function load({ params, cookies, locals }) {
                     id: unitBisnis.id,
                     user_id: unitBisnis.userId,
                     slug: unitBisnis.slug,
-                    login_slug: unitBisnis.loginSlug
+                    login_slug: unitBisnis.loginSlug,
+                    nama_unit: unitBisnis.namaUnit,
+                    kategori: unitBisnis.kategori,
+                    posFeatureOverride: unitBisnis.posFeatureOverride
                 })
                 .from(unitBisnis)
                 .where(and(eq(unitBisnis.slug, slug), eq(unitBisnis.userId, ownerUserId)))
@@ -87,7 +98,10 @@ export async function load({ params, cookies, locals }) {
                     id: unitBisnis.id,
                     user_id: unitBisnis.userId,
                     slug: unitBisnis.slug,
-                    login_slug: unitBisnis.loginSlug
+                    login_slug: unitBisnis.loginSlug,
+                    nama_unit: unitBisnis.namaUnit,
+                    kategori: unitBisnis.kategori,
+                    posFeatureOverride: unitBisnis.posFeatureOverride
                 })
                 .from(unitBisnis)
                 .where(eq(unitBisnis.slug, slug))
@@ -100,7 +114,10 @@ export async function load({ params, cookies, locals }) {
                     id: unitBisnis.id,
                     user_id: unitBisnis.userId,
                     slug: unitBisnis.slug,
-                    login_slug: unitBisnis.loginSlug
+                    login_slug: unitBisnis.loginSlug,
+                    nama_unit: unitBisnis.namaUnit,
+                    kategori: unitBisnis.kategori,
+                    posFeatureOverride: unitBisnis.posFeatureOverride
                 })
                 .from(unitBisnis)
                 .where(and(eq(unitBisnis.loginSlug, slug), eq(unitBisnis.userId, ownerUserId)))
@@ -113,7 +130,10 @@ export async function load({ params, cookies, locals }) {
                     id: unitBisnis.id,
                     user_id: unitBisnis.userId,
                     slug: unitBisnis.slug,
-                    login_slug: unitBisnis.loginSlug
+                    login_slug: unitBisnis.loginSlug,
+                    nama_unit: unitBisnis.namaUnit,
+                    kategori: unitBisnis.kategori,
+                    posFeatureOverride: unitBisnis.posFeatureOverride
                 })
                 .from(unitBisnis)
                 .where(eq(unitBisnis.loginSlug, slug))
@@ -144,7 +164,11 @@ export async function load({ params, cookies, locals }) {
         }
 
         const unitId = unit.id;
-        const featureAktif = getActivePosFeatures(unit.kategori, unit.posFeatureOverride);
+        // Profil kasir (unit baru / unit yang memilih profil). Unit lama TANPA profil & tanpa pengaturan
+        // fitur tersimpan tetap memakai fitur standar seperti sebelumnya, supaya tampilan kasirnya tidak berubah.
+        const profilPos = await ambilProfilPos(db, Number(unitId));
+        const kasirLama = !profilPos && !unit.posFeatureOverride;
+        const featureAktif = kasirLama ? getActivePosFeatures(null, null) : getActivePosFeatures(unit.kategori, unit.posFeatureOverride);
 
         // Query produk berdasarkan unit_id yang valid untuk sesi staf atau pemilik
         const productsData = await db.select({
@@ -207,6 +231,9 @@ export async function load({ params, cookies, locals }) {
             staffLoginSlug: staffSession?.login_slug || null,
             staffName: staffSession?.full_name || null,
             featureAktif,
+            category: kasirLama ? null : unit.kategori,
+            profilPos,
+            billTerbuka: profilPos?.pengaturan.openBill ? await daftarBillTerbuka(db, Number(unitId)).catch(() => []) : [],
             // Tarif PPN aktif unit (0 = belum diatur); kasir web kini bisa mengenakan PPN seperti aplikasi HP
             tarifPpn: (await tarifPpnAktif(db, unitId).catch(() => null))?.persentase ?? 0
         };
