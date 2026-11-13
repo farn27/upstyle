@@ -16,6 +16,8 @@ import { checkRateLimit } from '$lib/server/rateLimit';
 import { bisaDijual } from '$lib/jenisProduk';
 import { nowSqlWIB } from '$lib/server/dateUtils';
 import { getActivePosFeatures } from '$lib/posFeatures';
+import { ambilProfilPos } from '$lib/server/posProfil';
+import { siapkanCheckoutHp } from '$lib/server/posResto';
 import { prosesCheckoutPos, siarkanCheckoutPos, PosError } from '$lib/server/posCheckout';
 
 // 1. GET: Ambil list order POS dan customer POS untuk unitId
@@ -287,17 +289,24 @@ export async function POST({ request, cookies }) {
         }
 
         if (action === 'checkout') {
-            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, voucherCode, payments, diskon, kenaiPpn, ppnInklusif } = body.order;
+            const { orderNumber, unitId, customerId, paymentMethod, items, orderType, tableNumber, queueNumber, notes, amountPaid, voucherCode, payments, diskon, kenaiPpn, ppnInklusif, biayaProfil } = body.order;
 
             // Unit dipastikan milik user oleh guardUnitApiApp (hooks); di sini diambil datanya saja
             const unitRow = await db.query.unitBisnis.findFirst({ where: and(eq(unitBisnis.id, Number(unitId)), eq(unitBisnis.userId, userId)) });
             if (!unitRow) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
             const unit = { id: unitRow.id, slug: unitRow.slug, userId: Number(unitRow.userId), kategori: unitRow.kategori, posFeatureOverride: unitRow.posFeatureOverride };
 
+            // Unit berprofil kasir: tiket dapur & nomor antrean otomatis (service/PB1 hanya bila app mengirim biayaProfil)
+            const profil = await ambilProfilPos(db, unit.id);
+            const ekstra = await siapkanCheckoutHp(db, unit.id, profil, {
+                orderNumber, queueNumber, tableNumber, biayaProfil: biayaProfil === true,
+                items: (Array.isArray(items) ? items : []).map((/** @type {any} */ i) => ({ productId: String(i.productId), catatan: i.catatan || '' }))
+            });
+
             let hasil;
             try {
                 // Logika checkout sama persis dengan kasir web (lib/server/posCheckout.js)
-                hasil = await prosesCheckoutPos(db, { unit, kasirPemilik: true, namaKasir: null }, {
+                hasil = await prosesCheckoutPos(db, { unit, kasirPemilik: true, namaKasir: null, pengaturanPos: ekstra.pengaturanPos, setelahOrder: ekstra.setelahOrder }, {
                     items: items.map((/** @type {any} */ i) => ({
                         productId: String(i.productId),
                         variantId: i.variantId ? String(i.variantId) : null,
@@ -313,7 +322,7 @@ export async function POST({ request, cookies }) {
                     amountPaid,
                     orderType,
                     tableNumber,
-                    queueNumber,
+                    queueNumber: ekstra.queueNumber,
                     notes,
                     kenaiPpn: Boolean(kenaiPpn),
                     ppnInklusif: Boolean(ppnInklusif),
@@ -336,7 +345,7 @@ export async function POST({ request, cookies }) {
                 success: true,
                 message: "Transaksi berhasil diproses",
                 id: String(hasil.orderId),
-                data: { orderNumber: hasil.orderNumber, subtotal: hasil.subtotal, discount: hasil.discount, ppn: hasil.ppn, total: hasil.total, paid: hasil.paid, change: hasil.change }
+                data: { orderNumber: hasil.orderNumber, queueNumber: ekstra.queueNumber, subtotal: hasil.subtotal, discount: hasil.discount, servis: hasil.servis, pajakResto: hasil.pajakResto, ppn: hasil.ppn, total: hasil.total, paid: hasil.paid, change: hasil.change }
             });
         }
 

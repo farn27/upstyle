@@ -4,6 +4,7 @@ import { unitBisnis, riwayatAksi } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUserId } from '$lib/server/getUser';
 import { log } from '$lib/server/logger';
+import { ambilProfilPos } from '$lib/server/posProfil';
 import { ringkasFiturPos, simpanFiturPos, resetFiturPos } from '$lib/server/posKelola';
 
 // Pengaturan fitur POS per unit — sama dengan halaman web pos/kelola/fitur.
@@ -17,7 +18,8 @@ export async function GET({ url, cookies, request }) {
 	if (!unitId) return json({ success: false, message: 'unitId wajib diisi' }, { status: 400 });
 	const unit = await db.query.unitBisnis.findFirst({ where: eq(unitBisnis.id, unitId) });
 	if (!unit) return json({ success: false, message: 'Unit tidak ditemukan' }, { status: 404 });
-	return json({ success: true, data: ringkasFiturPos(unit) });
+	// profilPos: untuk aplikasi versi berikutnya (denah meja, dapur, service/PB1). Versi lama mengabaikan kolom ini.
+	return json({ success: true, data: { ...ringkasFiturPos(unit), profilPos: await ambilProfilPos(db, unitId) } });
 }
 
 /** PUT { unitId, features: { posEnabled: true, barcodeScanner: false, ... } } */

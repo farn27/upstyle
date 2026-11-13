@@ -394,3 +394,35 @@ export async function siapkanCheckoutProfil(db, unitId, profil, masuk) {
 		bill
 	};
 }
+
+/**
+ * Checkout dari aplikasi HP untuk unit berprofil kasir.
+ * Aplikasi HP versi sekarang belum menampilkan service/PB1 dan belum punya kolom isian khas, dan uang yang
+ * diterima kasir dihitung dari total di HP. Karena itu:
+ *  - service/PB1 TIDAK ditambahkan (kalau ditambah, pembayaran dari HP — termasuk antrean offline — ditolak
+ *    "uang kurang"), kecuali aplikasi versi baru mengirim biayaProfil: true;
+ *  - isian wajib tidak memblokir penjualan;
+ *  - tiket dapur & nomor antrean otomatis tetap dibuat supaya pesanan dari HP muncul di layar dapur —
+ *    kecuali penjualan offline yang baru tersinkron (> 15 menit), karena pesanannya sudah lama disajikan.
+ * @param {any} db @param {number} unitId
+ * @param {{ profil: string, pengaturan: import('$lib/posProfil').PengaturanPos } | null} profil
+ * @param {{ orderNumber?: string | null, queueNumber?: string | null, tableNumber?: string | null, customerName?: string | null,
+ *   items: any[], biayaProfil?: boolean, sekarang?: number }} masuk
+ */
+export async function siapkanCheckoutHp(db, unitId, profil, masuk) {
+	if (!profil) return { queueNumber: masuk.queueNumber ?? null, pengaturanPos: null, setelahOrder: null, terlambat: false };
+	const m = /^ORD-(\d{13})$/.exec(String(masuk.orderNumber || ''));
+	const terlambat = Boolean(m && (masuk.sekarang ?? Date.now()) - Number(m[1]) > 15 * 60_000);
+	const e = await siapkanCheckoutProfil(db, unitId, { ...profil, pengaturan: { ...profil.pengaturan, isian: [] } }, {
+		queueNumber: masuk.queueNumber || (terlambat ? null : undefined),
+		tableNumber: masuk.tableNumber || null,
+		customerName: masuk.customerName || null,
+		items: masuk.items
+	});
+	return {
+		queueNumber: terlambat ? masuk.queueNumber ?? null : e.queueNumber ?? null,
+		pengaturanPos: masuk.biayaProfil === true ? profil.pengaturan : null,
+		setelahOrder: terlambat ? null : e.setelahOrder,
+		terlambat
+	};
+}

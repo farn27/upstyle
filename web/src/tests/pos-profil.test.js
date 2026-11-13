@@ -260,12 +260,44 @@ describe.skipIf(!TEST_DB)('profil kasir di basis data', () => {
 		expect(ok.catatanTambahan).toBe('Plat nomor: D 1234 AB');
 	});
 
+	it('checkout dari HP: tanpa service/PB1 (uang dari HP tetap cukup), tiket dapur tetap dibuat, offline lama tanpa tiket', async () => {
+		const unitId = id.resto; // profil resto dengan service 5% & PB1 10% (tes sebelumnya)
+		const profil = await prof.ambilProfilPos(db, unitId);
+		const [unit] = await db.select().from(s.unitBisnis).where(o.eq(s.unitBisnis.id, unitId));
+		const ctxUnit = { id: unitId, slug: unit.slug, userId: id.user, kategori: unit.kategori, posFeatureOverride: unit.posFeatureOverride };
+		const sebelum = (await resto.daftarTiket(db, unitId)).length;
+		const sekarang = Date.now();
+		const kirim = async (/** @type {string} */ nomor) => {
+			const e = await resto.siapkanCheckoutHp(db, unitId, profil, { orderNumber: nomor, tableNumber: '8', items: [{ productId: id.teh }] });
+			return co.prosesCheckoutPos(db, { unit: ctxUnit, kasirPemilik: true, pengaturanPos: e.pengaturanPos, setelahOrder: e.setelahOrder }, {
+				items: [{ productId: id.teh, qty: 2 }], orderNumber: nomor, tableNumber: '8', orderType: 'DINE_IN', paymentMethod: 'TUNAI', amountPaid: 10000, izinkanStokKurang: true
+			});
+		};
+		// Aplikasi HP membayar 10.000 untuk 2 es teh: tidak boleh ditolak "uang kurang"
+		const h = await kirim(`ORD-${sekarang}`);
+		expect(h).toMatchObject({ total: 10000, servis: 0, pajakResto: 0 });
+		const t1 = await resto.daftarTiket(db, unitId);
+		expect(t1.length).toBe(sebelum + 1);
+		expect(t1.at(-1)).toMatchObject({ stasiun: 'bar', label: 'Meja 8' });
+		// Penjualan offline yang baru tersinkron 1 jam kemudian: tercatat, tanpa tiket dapur
+		await kirim(`ORD-${sekarang - 3600_000}`);
+		expect((await resto.daftarTiket(db, unitId)).length).toBe(sebelum + 1);
+		// Aplikasi versi baru boleh meminta service/PB1 dihitung
+		const e = await resto.siapkanCheckoutHp(db, unitId, profil, { orderNumber: 'X', items: [], biayaProfil: true });
+		expect(e.pengaturanPos?.servis.persen).toBe(5);
+		// Bengkel: plat nomor wajib di web, tapi HP versi lama tidak diblokir
+		const bk = (await db.select().from(s.unitBisnis).where(o.like(s.unitBisnis.namaUnit, `Bengkel ${t}`)))[0];
+		const pb = await prof.ambilProfilPos(db, bk.id);
+		await expect(resto.siapkanCheckoutHp(db, bk.id, pb, { items: [] })).resolves.toMatchObject({ pengaturanPos: null });
+	});
+
 	it('unit lama tanpa profil: tidak berubah sama sekali', async () => {
 		const [a] = await db.insert(s.unitBisnis).values({ userId: id.user, namaUnit: 'Unit Lama', slug: `lama-${t}`, modalAwal: '0', kategori: 'FNB_RESTO' });
 		expect(await prof.ambilProfilPos(db, a.insertId)).toBe(null);
 		const e = await resto.siapkanCheckoutProfil(db, a.insertId, null, { items: [] });
 		expect(e).toMatchObject({ catatanTambahan: '', pengaturanPos: null, setelahOrder: null });
 		await expect(resto.siapkanCheckoutProfil(db, a.insertId, null, { billId: 5, items: [] })).rejects.toThrow(/tidak terbaca/);
+		expect(await resto.siapkanCheckoutHp(db, a.insertId, null, { queueNumber: 'Q9', items: [] })).toMatchObject({ queueNumber: 'Q9', pengaturanPos: null, setelahOrder: null });
 		const [unit] = await db.select().from(s.unitBisnis).where(o.eq(s.unitBisnis.id, a.insertId));
 		expect(unit.posFeatureOverride).toBe(null);
 	});
