@@ -30,7 +30,8 @@ import { nowWIB, todayStrWIB } from '$lib/server/dateUtils';
 import { bisaDijual } from '$lib/jenisProduk';
 import { getActivePosFeatures } from '$lib/posFeatures';
 import { pilihAkunDefault } from '$lib/server/catatTransaksi';
-import { hitungPpn, tarifPpnAktif, pastikanAkunPpnKeluaran } from '$lib/server/pajak';
+import { hitungPpn, tarifPpnAktif, pastikanAkunPpnKeluaran, pastikanAkunServis, pastikanAkunPajakResto } from '$lib/server/pajak';
+import { hitungBiayaTambahan } from '$lib/posProfil';
 import { tandaiBerubah } from '$lib/server/cacheVersi';
 import { triggerEvent } from '$lib/server/pusher';
 import { log } from '$lib/server/logger';
@@ -100,7 +101,9 @@ export function bagiNilaiBersih(bruto, total) {
  *
  * @typedef {{
  *   unit: { id: number, slug?: string | null, userId: number, kategori?: string | null, posFeatureOverride?: unknown },
- *   kasirPemilik: boolean, namaKasir?: string | null
+ *   kasirPemilik: boolean, namaKasir?: string | null,
+ *   pengaturanPos?: import('$lib/posProfil').PengaturanPos | null,
+ *   setelahOrder?: ((tx: any, o: { orderId: number, orderNumber: string, jenisOrder: string, baris: { produkId: string, nama: string, qty: number, kategoriId: number | null }[] }) => Promise<void>) | null
  * }} KonteksCheckout
  */
 
@@ -234,7 +237,16 @@ export async function prosesCheckoutPos(db, ctx, input) {
 		diskon = Math.min(diskon, subtotal);
 		let total = Math.max(0, subtotal - diskon);
 
-		// 4. PPN penjualan: tarif dari pengaturan pajak unit (bukan dari kiriman klien)
+		const jenisOrder = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'].includes(String(input.orderType || '').toUpperCase())
+			? /** @type {'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'} */ (String(input.orderType).toUpperCase())
+			: 'TAKEAWAY';
+
+		// 4a. Service charge & pajak restoran (PB1) dari profil kasir unit — tarif dari server, bukan klien
+		const tambahan = hitungBiayaTambahan(total, ctx.pengaturanPos, jenisOrder);
+		if (tambahan.pajak > 0 && input.kenaiPpn) throw new PosError('Unit ini memungut pajak restoran (PB1). PPN dan PB1 tidak dikenakan bersamaan.', 422);
+		total = tambahan.total;
+
+		// 4b. PPN penjualan: tarif dari pengaturan pajak unit (bukan dari kiriman klien)
 		let ppn = 0;
 		let ppnTarif = 0;
 		if (input.kenaiPpn) {
@@ -266,10 +278,12 @@ export async function prosesCheckoutPos(db, ctx, input) {
 		// 6. Order
 		// Masuk antrean dapur bila ada nomor meja/antrean atau unit memakai layar dapur
 		const adaAntrean = Boolean(input.queueNumber || input.tableNumber || fitur.kitchenDisplay);
-		const jenisOrder = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'].includes(String(input.orderType || '').toUpperCase())
-			? /** @type {'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'} */ (String(input.orderType).toUpperCase())
-			: 'TAKEAWAY';
-		const catatan = [input.notes, ppn > 0 ? `PPN ${ppnTarif}%${input.ppnInklusif ? ' (termasuk)' : ''}: Rp ${ppn.toLocaleString('id-ID')}` : null]
+		const catatan = [
+			input.notes,
+			tambahan.servis > 0 ? `Service ${tambahan.servisPersen}%: Rp ${tambahan.servis.toLocaleString('id-ID')}` : null,
+			tambahan.pajak > 0 ? `PB1 ${tambahan.pajakPersen}%${tambahan.pajakInklusif ? ' (termasuk)' : ''}: Rp ${tambahan.pajak.toLocaleString('id-ID')}` : null,
+			ppn > 0 ? `PPN ${ppnTarif}%${input.ppnInklusif ? ' (termasuk)' : ''}: Rp ${ppn.toLocaleString('id-ID')}` : null
+		]
 			.filter(Boolean)
 			.join(' | ')
 			.slice(0, 1000);
@@ -431,8 +445,16 @@ export async function prosesCheckoutPos(db, ctx, input) {
 				const journalId = jurnal.insertId;
 				const garis = [
 					{ journalId, coaId: akun.kasCoaId, keterangan: `Penerimaan ${metodeUtama} - ${orderNumber}`, debit: String(total), kredit: '0' },
-					{ journalId, coaId: akun.coaId, keterangan: `Pendapatan Penjualan - ${orderNumber}`, debit: '0', kredit: String(total - ppn) }
+					{ journalId, coaId: akun.coaId, keterangan: `Pendapatan Penjualan - ${orderNumber}`, debit: '0', kredit: String(total - ppn - tambahan.servis - tambahan.pajak) }
 				];
+				if (tambahan.servis > 0) {
+					const coaServis = await pastikanAkunServis(tx, unitId);
+					garis.push({ journalId, coaId: coaServis, keterangan: `Service charge ${tambahan.servisPersen}% - ${orderNumber}`, debit: '0', kredit: String(tambahan.servis) });
+				}
+				if (tambahan.pajak > 0) {
+					const coaPb1 = await pastikanAkunPajakResto(tx, unitId);
+					garis.push({ journalId, coaId: coaPb1, keterangan: `Pajak restoran (PB1) ${tambahan.pajakPersen}% - ${orderNumber}`, debit: '0', kredit: String(tambahan.pajak) });
+				}
 				if (ppn > 0) {
 					const coaPpn = await pastikanAkunPpnKeluaran(tx, unitId);
 					garis.push({ journalId, coaId: coaPpn, keterangan: `PPN Keluaran ${ppnTarif}% - ${orderNumber}`, debit: '0', kredit: String(ppn) });
@@ -441,11 +463,23 @@ export async function prosesCheckoutPos(db, ctx, input) {
 			}
 		}
 
+		// 10. Tambahan per profil kasir (tiket dapur, tutup bill) — di transaksi yang sama: gagal = batal semua
+		if (ctx.setelahOrder) {
+			await ctx.setelahOrder(tx, {
+				orderId,
+				orderNumber,
+				jenisOrder,
+				baris: baris.map((b) => ({ produkId: String(b.produk.id), nama: b.nama, qty: b.qty, kategoriId: b.produk.kategoriId ?? null }))
+			});
+		}
+
 		hasil = {
 			orderId,
 			orderNumber,
 			subtotal,
 			discount: diskon,
+			servis: tambahan.servis,
+			pajakResto: tambahan.pajak,
 			ppn,
 			total,
 			paid: dibayar,
@@ -455,7 +489,7 @@ export async function prosesCheckoutPos(db, ctx, input) {
 		};
 	});
 
-	return /** @type {{ orderId: number, orderNumber: string, subtotal: number, discount: number, ppn: number, total: number, paid: number, change: number, paymentMethod: string, customerName: string | null }} */ (hasil);
+	return /** @type {{ orderId: number, orderNumber: string, subtotal: number, discount: number, servis: number, pajakResto: number, ppn: number, total: number, paid: number, change: number, paymentMethod: string, customerName: string | null }} */ (hasil);
 }
 
 /**

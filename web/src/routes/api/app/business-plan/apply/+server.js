@@ -34,6 +34,7 @@ import {
 } from '$lib/server/businessPlanTemplates.js';
 import { DEFAULT_COAS } from '$lib/server/defaultCoa.js';
 import crypto from 'crypto';
+import { profilPosUnitBaru, aiDenganKuota } from '$lib/server/posProfil';
 import { hashEmployeePassword } from '$lib/server/employeePassword.js';
 import { encryptField } from '$lib/server/encryption.js';
 
@@ -247,9 +248,20 @@ export async function POST({ request, cookies }) {
       });
     });
 
+    /** @type {string | null} */
+    let profilKasir = null;
+    // Kasir (POS) disusun otomatis dari rencana bisnis — sama seperti COA. Hanya untuk unit BARU:
+    // unit yang sudah berjalan tidak diubah kasirnya.
+    if (seedResults.unit?.created) {
+      const uraian = [plan.deskripsi, plan.modelPendapatan, plan.aiSummary].filter(Boolean).join('. ').slice(0, 600);
+      const pos = await profilPosUnitBaru(db, Number(seedResults.unit.id), { kategori, nama: plan.namaBisnis, deskripsi: uraian }, { panggilAi: uraian ? aiDenganKuota(userId) : null });
+      if (pos) profilKasir = pos.profil;
+    }
+
     return apiSuccess({
       unitId: existingUnitId || seedResults.unit?.id,
       seedResults,
+      profilKasir,
       totalRecords: Object.values(seedResults).reduce((a, b) => a + (Number(b) || 0), 0),
     }, `Business Plan berhasil di-apply! Semua modul telah disiapkan.`);
 
