@@ -11,13 +11,40 @@
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { env } from '$env/dynamic/private';
-import { groqChatCompletion, bacaJsonAI } from '$lib/server/groq';
+import { groqChatCompletion, bacaJsonAI, daftarModel, GroqError } from '$lib/server/groq';
 import { metodeDariTeks, pilihAkunKas, akunLawanDefault } from '$lib/server/aiTransaksi';
 import { ambilCache, simpanCache } from '$lib/server/aiCache';
 import { log } from '$lib/server/logger';
 
-export const MODEL_VISI = () => env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
-const CADANGAN_VISI = ['meta-llama/llama-4-maverick-17b-128e-instruct'];
+/** Pola nama model yang biasanya menerima gambar (urut preferensi). */
+const POLA_VISI = [/vision/i, /scout/i, /maverick/i, /[-_.]vl\b|\bvl[-_.]|-vl-/i, /qwen.*(omni|vl)/i, /qwen3\.\d+-\d+b/i, /llava/i, /pixtral/i, /gemma-?3/i, /kimi.*vl/i, /glm.*v\b/i];
+
+/** Galat khusus: akun ini tidak punya model visi yang bisa dipakai → klien membaca teks dengan OCR. */
+export class VisiTidakTersedia extends Error {
+	constructor() {
+		super('Model visi tidak tersedia');
+		this.name = 'VisiTidakTersedia';
+	}
+}
+
+/**
+ * Kandidat model visi: GROQ_VISION_MODEL (bila diisi) lalu model aktif di akun yang namanya cocok pola visi.
+ * Model yang pernah berhasil diingat 24 jam; "tidak ada" diingat 6 jam supaya tidak mencoba terus.
+ * @param {() => Promise<string[]>} [daftar]
+ * @returns {Promise<string[]>}
+ */
+export async function kandidatVisi(daftar = daftarModel) {
+	const ingat = await ambilCache('ai:visi:model');
+	if (ingat === '-') return [];
+	// model yang terakhir berhasil dicoba dulu; daftar /models tetap ikut (di-cache) bila model itu dipensiunkan
+	const ids = await daftar().catch(() => /** @type {string[]} */ ([]));
+	const cocok = ids
+		.map((id) => ({ id, skor: POLA_VISI.findIndex((p) => p.test(id)) }))
+		.filter((x) => x.skor >= 0)
+		.sort((a, b) => a.skor - b.skor)
+		.map((x) => x.id);
+	return [...new Set([ingat, env.GROQ_VISION_MODEL, ...cocok].filter((x) => typeof x === 'string' && x.length > 0))].map(String).slice(0, 4);
+}
 const MAKS_BYTE = 8 * 1024 * 1024;
 
 export const JENIS = /** @type {const} */ (['nota_belanja', 'struk_penjualan', 'bukti_transfer', 'catatan_kas', 'daftar_harga', 'lainnya']);
@@ -176,42 +203,99 @@ export function susunBalasan(h, kartu) {
 	return bagian.join('\n\n');
 }
 
-/**
- * Baca foto dengan model visi (atau dari cache bila foto yang sama pernah dibaca).
- * @param {Buffer} gambar  sudah melalui siapkanGambar()
- * @param {{ pertanyaan?: string, panggil?: typeof groqChatCompletion }} [opsi]
- * @returns {Promise<{ hasil: ReturnType<typeof normalkan>, dariCache: boolean }>}
- */
-export async function bacaFoto(gambar, opsi = {}) {
-	const pertanyaan = String(opsi.pertanyaan || '').trim().slice(0, 300);
-	const sidik = createHash('sha256').update(gambar).digest('hex');
-	const kunci = `ai:foto:${sidik.slice(0, 40)}:${createHash('sha256').update(pertanyaan).digest('hex').slice(0, 8)}`;
-	const ada = await ambilCache(kunci);
-	if (ada) return { hasil: normalkan(JSON.parse(ada)), dariCache: true };
+/** Prompt untuk teks hasil OCR (tanpa gambar) — skema JSON sama. */
+const SISTEM_OCR = SISTEM.replace('Kamu membaca FOTO dokumen usaha UMKM Indonesia.', 'Kamu membaca TEKS hasil OCR dari foto dokumen usaha UMKM Indonesia. Teks bisa berantakan: perbaiki salah baca yang jelas (O→0, l→1, S→5 pada angka) tetapi jangan mengarang angka.');
 
+/**
+ * Rapikan teks hasil OCR di perangkat menjadi JSON (model teks kecil — jauh lebih murah daripada gambar).
+ * @param {string} teks
+ * @param {{ pertanyaan?: string, panggil?: typeof groqChatCompletion }} [opsi]
+ */
+export async function bacaTeksOcr(teks, opsi = {}) {
+	const bersih = String(teks || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
+	if (bersih.length < 4) throw new Error('Teks pada foto tidak terbaca. Coba foto ulang lebih dekat dan terang.');
+	const pertanyaan = String(opsi.pertanyaan || '').trim().slice(0, 300);
+	const kunci = `ai:ocr:${createHash('sha256').update(bersih + '|' + pertanyaan).digest('hex').slice(0, 40)}`;
+	const ada = await ambilCache(kunci);
+	if (ada) return { hasil: normalkan(JSON.parse(ada)), dariCache: true, sumber: 'ocr' };
 	const panggil = opsi.panggil || groqChatCompletion;
-	const mulai = Date.now();
 	const res = await panggil({
-		model: MODEL_VISI(),
-		cadangan: CADANGAN_VISI,
+		model: 'openai/gpt-oss-20b',
 		messages: [
-			{ role: 'system', content: SISTEM },
-			{
-				role: 'user',
-				content: /** @type {any} */ ([
-					{ type: 'text', text: pertanyaan ? `Baca foto ini. Pertanyaan pengguna: ${pertanyaan}` : 'Baca foto ini.' },
-					{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${gambar.toString('base64')}` } }
-				])
-			}
+			{ role: 'system', content: SISTEM_OCR },
+			{ role: 'user', content: `${pertanyaan ? `Pertanyaan pengguna: ${pertanyaan}\n` : ''}TEKS OCR:\n${bersih}` }
 		],
 		temperature: 0,
 		max_tokens: 1200,
 		response_format: { type: 'json_object' }
 	});
 	const u = res?.usage || {};
+	log.ai.info({ jenis: 'foto-ocr', model: res?.model, prompt: u.prompt_tokens, completion: u.completion_tokens, total: u.total_tokens, karakter: bersih.length }, '[Foto] Pemakaian token (OCR)');
+	const json = bacaJsonAI(res?.choices?.[0]?.message?.content);
+	if (!json || typeof json !== 'object') throw new Error('Foto tidak bisa dibaca. Coba foto ulang dengan lebih jelas.');
+	await simpanCache(kunci, JSON.stringify(json), 24 * 3600);
+	return { hasil: normalkan(json), dariCache: false, sumber: 'ocr' };
+}
+
+/**
+ * Baca foto dengan model visi (atau dari cache bila foto yang sama pernah dibaca).
+ * @param {Buffer} gambar  sudah melalui siapkanGambar()
+ * @param {{ pertanyaan?: string, panggil?: typeof groqChatCompletion, kandidat?: string[] }} [opsi]
+ * @returns {Promise<{ hasil: HasilFoto, dariCache: boolean, sumber: string }>}
+ */
+export async function bacaFoto(gambar, opsi = {}) {
+	const pertanyaan = String(opsi.pertanyaan || '').trim().slice(0, 300);
+	const sidik = createHash('sha256').update(gambar).digest('hex');
+	const kunci = `ai:foto:${sidik.slice(0, 40)}:${createHash('sha256').update(pertanyaan).digest('hex').slice(0, 8)}`;
+	const ada = await ambilCache(kunci);
+	if (ada) return { hasil: normalkan(JSON.parse(ada)), dariCache: true, sumber: 'visi' };
+
+	const panggil = opsi.panggil || groqChatCompletion;
+	const kandidat = opsi.kandidat ?? (await kandidatVisi());
+	if (!kandidat.length) throw new VisiTidakTersedia();
+	const mulai = Date.now();
+	/** @type {any} */
+	let res = null;
+	for (const model of kandidat) {
+		try {
+			res = await panggil(permintaanVisi(model, gambar, pertanyaan));
+			await simpanCache('ai:visi:model', model, 24 * 3600);
+			break;
+		} catch (e) {
+			// model tidak ada / tidak menerima gambar → coba kandidat berikutnya; galat lain (429, 5xx) diteruskan
+			const tidakCocok = e instanceof GroqError && (e.status === 404 || (e.status === 400 && /image|vision|multimodal|content|model/i.test(e.message)));
+			if (!tidakCocok) throw e;
+			log.ai.warn({ model, status: /** @type {any} */ (e).status }, '[Foto] Model visi tidak bisa dipakai, coba berikutnya');
+		}
+	}
+	if (!res) {
+		await simpanCache('ai:visi:model', '-', 6 * 3600);
+		throw new VisiTidakTersedia();
+	}
+	/** @param {string} model @param {Buffer} g @param {string} q */
+	function permintaanVisi(model, g, q) {
+		return {
+		model,
+		cadangan: /** @type {string[]} */ ([]),
+		messages: [
+			{ role: 'system', content: SISTEM },
+			{
+				role: 'user',
+				content: /** @type {any} */ ([
+					{ type: 'text', text: q ? `Baca foto ini. Pertanyaan pengguna: ${q}` : 'Baca foto ini.' },
+					{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${g.toString('base64')}` } }
+				])
+			}
+		],
+		temperature: 0,
+		max_tokens: 1200,
+		response_format: { type: /** @type {const} */ ('json_object') }
+		};
+	}
+	const u = res?.usage || {};
 	log.ai.info({ jenis: 'foto', model: res?.model, prompt: u.prompt_tokens, completion: u.completion_tokens, total: u.total_tokens, ms: Date.now() - mulai, kb: Math.round(gambar.length / 1024) }, '[Foto] Pemakaian token');
 	const json = bacaJsonAI(res?.choices?.[0]?.message?.content);
 	if (!json || typeof json !== 'object') throw new Error('Foto tidak bisa dibaca. Coba foto ulang dengan lebih jelas.');
 	await simpanCache(kunci, JSON.stringify(json), 24 * 3600);
-	return { hasil: normalkan(json), dariCache: false };
+	return { hasil: normalkan(json), dariCache: false, sumber: 'visi' };
 }

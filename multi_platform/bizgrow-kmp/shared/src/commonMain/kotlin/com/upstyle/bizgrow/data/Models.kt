@@ -1104,7 +1104,9 @@ data class ChatResponse(
     /** Konfigurasi Chart.js dari server (type + data.labels + data.datasets). */
     val chartData: kotlinx.serialization.json.JsonElement? = null,
     /** Transaksi hasil deteksi bahasa natural — perlu dilengkapi akun kas & COA sebelum disimpan. */
-    val transactionPreviews: List<TrxPreview>? = null
+    val transactionPreviews: List<TrxPreview>? = null,
+    /** Server tidak punya model visi → baca teks foto di perangkat (OCR) lalu kirim ulang sebagai teks. */
+    val perluOcr: Boolean = false
 )
 
 @Serializable
