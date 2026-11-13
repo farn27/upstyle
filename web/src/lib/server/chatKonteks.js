@@ -80,7 +80,7 @@ export function kalimatTanya(teks) {
 	return POLA_TANYA.test(String(teks || '').trim());
 }
 
-const KATA_TRANSAKSI = /\b(catat|catatkan|input|masukkan|tambah(kan)?\s+transaksi|beli|membeli|bayar|bayarin|belanja|jual|menjual|jualan|terjual|laku|dapat|dapet|terima|menerima|diterima|keluar|masuk|setor|tarik|transfer|kirim|borong|restock|kulakan|sewa|gaji|gajian|upah|ongkir|ongkos|cicil|lunas|pelunasan|dp)\b/i;
+const KATA_TRANSAKSI = /\b(catat|catatkan|input|masukkan|tambah(kan)?\s+transaksi|pendapatan|pemasukan|pengeluaran|penjualan|omzet|omset|biaya|setoran|beli|membeli|bayar|bayarin|belanja|jual|menjual|jualan|terjual|laku|dapat|dapet|terima|menerima|diterima|keluar|masuk|setor|tarik|transfer|kirim|borong|restock|kulakan|sewa|gaji|gajian|upah|ongkir|ongkos|cicil|lunas|pelunasan|dp)\b/i;
 const ADA_UANG = /(rp\.?\s*\d|\d[\d.,]*\s*(rb|ribu|k|jt|juta|rban|ribuan)\b|\b\d{4,}\b|\b\d{1,3}(\.\d{3})+\b)/i;
 const JUAL_BARANG = /\b(jual|terjual|laku)\s+\d+\s+\S+/i;
 
@@ -93,7 +93,25 @@ export function perintahTransaksi(teks) {
 	const t = String(teks || '').trim();
 	if (!t || kalimatTanya(t)) return false;
 	if (!KATA_TRANSAKSI.test(t)) return false;
-	return ADA_UANG.test(t) || JUAL_BARANG.test(t);
+	const bersih = hapusTanggal(t);
+	return ADA_UANG.test(bersih) || JUAL_BARANG.test(bersih);
+}
+
+const ARAH_MASUK = /\b(pendapatan|pemasukan|penjualan|omzet|omset|penghasilan|terjual|laku|jual|jualan|menjual|diterima|uang\s+masuk)\b/i;
+const ARAH_KELUAR = /\b(pengeluaran|biaya|beban|beli|membeli|belanja|belanjaan|gaji|gajian|upah|sewa|ongkir|ongkos|kulakan|restock|uang\s+keluar)\b/i;
+
+/**
+ * Arah transaksi yang tegas dari kata kunci ("pendapatan" → Masuk, "beli" → Keluar); null bila ragu
+ * atau kalimat memuat keduanya (dibiarkan diputuskan model).
+ * @param {string} teks
+ * @returns {'Masuk' | 'Keluar' | null}
+ */
+export function arahDariTeks(teks) {
+	const t = String(teks || '');
+	const masuk = ARAH_MASUK.test(t);
+	const keluar = ARAH_KELUAR.test(t);
+	if (masuk === keluar) return null;
+	return masuk ? 'Masuk' : 'Keluar';
 }
 
 /**
@@ -101,7 +119,7 @@ export function perintahTransaksi(teks) {
  * @param {string} teks
  */
 export function jumlahNominal(teks) {
-	const cocok = String(teks || '').match(/(rp\.?\s*\d[\d.,]*|\d[\d.,]*\s*(rb|ribu|k|jt|juta)\b|\b\d{1,3}(\.\d{3})+\b|\b\d{4,}\b)/gi);
+	const cocok = hapusTanggal(String(teks || '')).match(/(rp\.?\s*\d[\d.,]*|\d[\d.,]*\s*(rb|ribu|k|jt|juta)\b|\b\d{1,3}(\.\d{3})+\b|\b\d{4,}\b)/gi);
 	return cocok ? cocok.length : 0;
 }
 
@@ -128,6 +146,96 @@ const LABEL_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Se
 /** @param {number} y @param {number} m0 @param {number} d */
 const tgl = (y, m0, d) => new Date(Date.UTC(y, m0, d)).toISOString().slice(0, 10);
 
+const POLA_NAMA_BULAN = [...NAMA_BULAN, ...SINGKAT_BULAN].join('|');
+
+/**
+ * Tanggal tunggal yang disebut di kalimat: "tanggal 11", "11 november 2026", "11 nov", "11/11/2026",
+ * "2026-11-11", "3 hari lalu". Tanpa tahun → tahun berjalan (mundur setahun bila jatuh di masa depan);
+ * "tanggal 11" saja → bulan berjalan (mundur sebulan bila tanggalnya belum lewat).
+ * @param {string} teks
+ * @param {Date} [sekarang]
+ * @returns {{ pos: number, panjang: number, tanggal: string }[]}
+ */
+export function tanggalTerdeteksi(teks, sekarang = new Date()) {
+	const t = String(teks || '').toLowerCase();
+	const k = kalender(sekarang);
+	/** @type {{ pos: number, panjang: number, tanggal: string }[]} */
+	const hasil = [];
+	const terpakai = (/** @type {number} */ a, /** @type {number} */ b) => hasil.some((h) => a < h.pos + h.panjang && b > h.pos);
+	/** @param {number} y @param {number} m0 @param {number} d @param {boolean} tahunTegas */
+	const sah = (y, m0, d, tahunTegas) => {
+		if (m0 < 0 || m0 > 11 || d < 1 || d > 31) return null;
+		let hasilTgl = tgl(y, m0, d);
+		if (Number(hasilTgl.slice(8)) !== d) return null; // 31 Feb dsb.
+		if (!tahunTegas && hasilTgl > k.hariIni) hasilTgl = tgl(y - 1, m0, d);
+		return hasilTgl;
+	};
+	/** @param {RegExp} pola @param {(m: RegExpExecArray) => string | null} buat */
+	const cari = (pola, buat) => {
+		const re = new RegExp(pola.source, 'gi');
+		let m;
+		while ((m = re.exec(t))) {
+			if (terpakai(m.index, m.index + m[0].length)) continue;
+			const d = buat(m);
+			if (d) hasil.push({ pos: m.index, panjang: m[0].length, tanggal: d });
+		}
+	};
+	const bulanKe = (/** @type {string} */ x) => {
+		const i = NAMA_BULAN.indexOf(x);
+		return i >= 0 ? i : SINGKAT_BULAN.indexOf(x);
+	};
+	// 2026-11-11
+	cari(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/, (m) => sah(Number(m[1]), Number(m[2]) - 1, Number(m[3]), true));
+	// (tanggal) 11 november (2026)
+	cari(new RegExp(`(?:\\b(?:tanggal|tgl\\.?)\\s*)?\\b(\\d{1,2})\\s+(${POLA_NAMA_BULAN})\\b(?:\\s+(20\\d{2}))?`), (m) =>
+		sah(m[3] ? Number(m[3]) : k.y, bulanKe(m[2]), Number(m[1]), Boolean(m[3]))
+	);
+	// 11/11/2026, 11-11-26, (tgl) 11/11 — tanpa tahun wajib dua digit atau diawali "tanggal" (hindari "1/2 kg")
+	cari(/(?:\b(tanggal|tgl\.?)\s*)?\b(\d{1,2})[/-](\d{1,2})(?:[/-](20\d{2}|\d{2}))?\b/, (m) => {
+		if (!m[4] && !m[1] && (m[2].length < 2 || m[3].length < 2)) return null;
+		const y = m[4] ? (m[4].length === 2 ? 2000 + Number(m[4]) : Number(m[4])) : k.y;
+		return sah(y, Number(m[3]) - 1, Number(m[2]), Boolean(m[4]));
+	});
+	// tanggal 11 (bulan berjalan)
+	cari(/\b(?:tanggal|tgl\.?)\s*(\d{1,2})\b(?!\s*(?:hari|bulan|jam|x|kali))/, (m) => {
+		const d = Number(m[1]);
+		if (d < 1 || d > 31) return null;
+		let hasilTgl = tgl(k.y, k.m0, d);
+		if (d > k.d) hasilTgl = tgl(k.y, k.m0 - 1, d);
+		return Number(hasilTgl.slice(8)) === d ? hasilTgl : null;
+	});
+	// 3 hari lalu / 2 hari yang lalu / kemarin lusa
+	cari(/\b(\d{1,2})\s*hari\s*(?:yang\s*)?(?:lalu|kemarin|sebelumnya)\b/, (m) => tgl(k.y, k.m0, k.d - Number(m[1])));
+	cari(/\bkemarin\s+lusa\b/, () => tgl(k.y, k.m0, k.d - 2));
+	return hasil.sort((a, b) => a.pos - b.pos);
+}
+
+/**
+ * Tanggal pertama yang disebut (untuk tanggal transaksi), atau null.
+ * @param {string} teks
+ * @param {Date} [sekarang]
+ */
+export function tanggalDariTeks(teks, sekarang = new Date()) {
+	return tanggalTerdeteksi(teks, sekarang)[0]?.tanggal ?? null;
+}
+
+/**
+ * Buang ungkapan tanggal (dan "november 2026", "tahun 2026") supaya angka tanggal/tahun tidak terbaca
+ * sebagai nominal uang atau jumlah barang.
+ * @param {string} teks
+ */
+export function hapusTanggal(teks) {
+	let t = String(teks || '');
+	const posisi = tanggalTerdeteksi(t);
+	for (const p of [...posisi].reverse()) t = t.slice(0, p.pos) + ' ' + t.slice(p.pos + p.panjang);
+	return t
+		.replace(new RegExp(`\\b(${POLA_NAMA_BULAN})\\s+20\\d{2}\\b`, 'gi'), ' ')
+		.replace(/\b(tahun|thn)\s+20\d{2}\b/gi, ' ')
+		.replace(/\b(tanggal|tgl\.?)\b/gi, ' ')
+		.replace(/\s{2,}/g, ' ')
+		.trim();
+}
+
 /**
  * Kalender WIB dari sebuah waktu.
  * @param {Date} [sekarang]
@@ -153,10 +261,18 @@ export function kalender(sekarang = new Date()) {
  * @returns {Periode[]}
  */
 export function periodeDariTeks(teks, sekarang = new Date()) {
-	const t = String(teks || '').toLowerCase();
+	const asli = String(teks || '').toLowerCase();
 	const k = kalender(sekarang);
 	/** @type {{ pos: number, p: Periode }[]} */
 	const ketemu = [];
+	// Tanggal tunggal ("tanggal 11", "11 november 2026") → periode satu hari; teksnya ditutup supaya
+	// "november 2026" di dalamnya tidak ikut terbaca sebagai periode sebulan penuh.
+	let t = asli;
+	for (const d of tanggalTerdeteksi(asli, sekarang)) {
+		const [y, mo, dd] = d.tanggal.split('-').map(Number);
+		ketemu.push({ pos: d.pos, p: { label: `tanggal ${dd} ${LABEL_BULAN[mo - 1]} ${y}`, mulai: d.tanggal, akhir: tgl(y, mo - 1, dd + 1) } });
+		t = t.slice(0, d.pos) + ' '.repeat(d.panjang) + t.slice(d.pos + d.panjang);
+	}
 	/** @param {RegExp} pola @param {(m: RegExpExecArray) => Periode | null} buat */
 	const cari = (pola, buat) => {
 		const re = new RegExp(pola.source, 'gi');

@@ -13,6 +13,9 @@ import {
 	topikSusulan,
 	periodeDariTeks,
 	perintahTransaksi,
+	tanggalDariTeks,
+	hapusTanggal,
+	arahDariTeks,
 	perintahIngat,
 	jumlahNominal,
 	rapikanRiwayat,
@@ -85,19 +88,35 @@ function saranBawaan(/** @type {string[]} */ topik) {
  * @param {string} tanggal  YYYY-MM-DD
  */
 async function pratinjauTransaksi(unitId, pesan, tanggal) {
-	if (jumlahNominal(pesan) <= 1) {
-		const u = await uraikanTransaksi(db, unitId, pesan, { panggilAI: panggilDanCatat('transaksi') });
+	// Ungkapan tanggal dibuang dulu: "11 november 2026" bukan nominal atau jumlah barang
+	const bersih = hapusTanggal(pesan);
+	if (jumlahNominal(bersih) <= 1) {
+		const u = await uraikanTransaksi(db, unitId, bersih, { panggilAI: panggilDanCatat('transaksi') });
 		if (!(u.nominal > 0)) return [];
+		// Rincian barang ("cup besar 75, cup sedang 18, cup kecil 50") -> satu transaksi dengan rincian di
+		// keterangan; tidak ditebak sebagai satu produk (stoknya tidak dipotong sembarangan)
+		const rinci = rincianBarang(bersih);
+		// Kata kunci yang tegas ("pendapatan", "beli") mengalahkan tebakan model; akun lawan ikut disesuaikan
+		const arah = arahDariTeks(bersih);
+		if (arah && arah !== u.kategori) {
+			const coaUnit = await db
+				.select({ id: chartOfAccounts.id, kodeAkun: chartOfAccounts.kodeAkun, namaAkun: chartOfAccounts.namaAkun, tipeAkun: chartOfAccounts.tipeAkun, deskripsi: chartOfAccounts.deskripsi })
+				.from(chartOfAccounts)
+				.where(and(eq(chartOfAccounts.unitId, unitId), eq(chartOfAccounts.isActive, 1)));
+			u.kategori = arah;
+			u.coa_id = akunLawanDefault(/** @type {any} */ (coaUnit), arah, bersih);
+			if (arah === 'Keluar') u.product_id = null;
+		}
 		return [{
 			kategori: u.kategori,
 			nominal: u.nominal,
-			keterangan: u.catatan,
+			keterangan: rinci ? keteranganRincian(bersih, u.kategori) : u.catatan,
 			tanggal,
 			metode: LABEL_METODE[/** @type {keyof typeof LABEL_METODE} */ (u.metode)] || 'Tunai',
 			coa_id: u.coa_id,
 			kas_coa_id: u.kas_coa_id,
-			product_id: u.product_id,
-			qty: u.qty
+			product_id: rinci ? null : u.product_id,
+			qty: rinci ? 1 : u.qty
 		}];
 	}
 
@@ -114,7 +133,7 @@ async function pratinjauTransaksi(unitId, pesan, tanggal) {
 			messages: [
 				{
 					role: 'system',
-					content: 'Pecah kalimat menjadi daftar transaksi UMKM. Balas HANYA JSON: {"transaksi":[{"kategori":"Masuk|Keluar","nominal":50000,"keterangan":"maks 40 karakter","metode":"tunai|transfer|qris"}]}. Masuk = penjualan/uang diterima; Keluar = pembelian/biaya. 15k=15000, 50rb=50000, 1,5jt=1500000.'
+					content: `Pecah kalimat menjadi daftar transaksi UMKM. Hari ini ${tanggal}. Balas HANYA JSON: {"transaksi":[{"kategori":"Masuk|Keluar","nominal":50000,"keterangan":"maks 60 karakter","metode":"tunai|transfer|qris","tanggal":"YYYY-MM-DD atau null"}]}. Masuk = penjualan/pendapatan/uang diterima; Keluar = pembelian/biaya. 15k=15000, 50rb=50000, 1,5jt=1500000, 400.000=400000. Isi "tanggal" hanya bila kalimat menyebut tanggal untuk transaksi itu (mis. "tgl 11", "12 nov"); angka tanggal/tahun BUKAN nominal. Rincian jumlah barang (mis. "cup besar 75") masukkan ke keterangan.`
 				},
 				{ role: 'user', content: pesan }
 			],
@@ -130,15 +149,19 @@ async function pratinjauTransaksi(unitId, pesan, tanggal) {
 	return daftar
 		.slice(0, 10)
 		.map((x) => {
-			const kategori = /^keluar$/i.test(String(x?.kategori || '').trim()) ? 'Keluar' : 'Masuk';
-			const ket = String(x?.keterangan || '').trim().slice(0, 60) || (kategori === 'Masuk' ? 'Pemasukan' : 'Pengeluaran');
+			const ketModel = String(x?.keterangan || '').trim().slice(0, 60);
+			const kategori = arahDariTeks(ketModel) || (/^keluar$/i.test(String(x?.kategori || '').trim()) ? 'Keluar' : 'Masuk');
+			const ket = ketModel || (kategori === 'Masuk' ? 'Pemasukan' : 'Pengeluaran');
 			const metode = metodeDariTeks(`${x?.metode || ''} ${pesan}`);
 			const nominal = Math.round(Number(x?.nominal) || nominalDariTeks(ket));
+			// Tanggal per transaksi dari model: hanya diterima bila valid dan tidak di masa depan
+			const tglModel = String(x?.tanggal || '');
+			const tgl = /^\d{4}-\d{2}-\d{2}$/.test(tglModel) && !Number.isNaN(Date.parse(tglModel)) && tglModel <= tanggalHariIni() ? tglModel : tanggal;
 			return {
 				kategori,
 				nominal,
 				keterangan: ket,
-				tanggal,
+				tanggal: tgl,
 				metode: LABEL_METODE[/** @type {keyof typeof LABEL_METODE} */ (metode || 'TUNAI')] || 'Tunai',
 				coa_id: akunLawanDefault(/** @type {any} */ (coa), kategori, ket),
 				kas_coa_id: pilihAkunKas(/** @type {any} */ (coa), metode),
@@ -148,6 +171,31 @@ async function pratinjauTransaksi(unitId, pesan, tanggal) {
 		})
 		.filter((x) => x.nominal > 0);
 }
+
+// ─── Rincian barang dalam satu transaksi ────────────────────────────────────
+
+const POLA_UANG = /(rp\.?\s*\d[\d.,]*|\d[\d.,]*\s*(rb|ribu|k|jt|juta)\b|\b\d{1,3}(\.\d{3})+\b|\b\d{4,}\b)/gi;
+
+/**
+ * Kalimat berisi >=2 jumlah barang tanpa satuan uang ("cup besar 75 cup sedang 18 cup kecil 50").
+ * @param {string} teks  sudah tanpa ungkapan tanggal
+ */
+function rincianBarang(teks) {
+	return (teks.replace(POLA_UANG, ' ').match(/\b\d{1,3}\b/g) || []).length >= 2;
+}
+
+/** @param {string} teks @param {string} kategori */
+function keteranganRincian(teks, kategori) {
+	const isi = teks
+		.replace(/^(tolong\s+)?(catat(kan)?|input|masukkan)\s+/i, '')
+		.replace(POLA_UANG, ' ')
+		.replace(/\s{2,}/g, ' ')
+		.trim();
+	const kata = isi || (kategori === 'Masuk' ? 'Pemasukan' : 'Pengeluaran');
+	return (kata.charAt(0).toUpperCase() + kata.slice(1)).slice(0, 120);
+}
+
+const tanggalHariIni = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
 
 // ─── Pemanggilan model + pencatatan token ───────────────────────────────────
 
@@ -234,7 +282,8 @@ export async function POST({ request, cookies }) {
 			}
 			const tolak = await cekKuota();
 			if (tolak) return tolak;
-			const tanggal = /\b(kemarin|kmrn|kemaren)\b/i.test(pesan) ? kal.kemarin : kal.hariIni;
+			const disebut = tanggalDariTeks(pesan);
+			const tanggal = disebut && disebut <= kal.hariIni ? disebut : /\b(kemarin|kmrn|kemaren)\b/i.test(pesan) ? kal.kemarin : kal.hariIni;
 			const previews = await pratinjauTransaksi(unitId, pesan, tanggal);
 			if (!previews.length) {
 				return balas({ reply: 'Nominalnya berapa kak? Contoh: *"catat beli gula 50rb"* atau *"jual 2 kopi susu"*.', suggestions: ['Catat beli gula 50rb'] });

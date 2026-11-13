@@ -140,7 +140,8 @@ async function angkaPeriode(kondisiTrx, p, kal, minta, unit) {
 	const semua = !minta.mintaMasuk && !minta.mintaKeluar && minta.mintaSelisih;
 	const selisih = kini.masuk - kini.keluar;
 	const label = p.label.replace(/\s*\(.*\)$/, '');
-	const rentang = selisihHari(p.mulai, p.akhir) > 1 ? ` (${tanggalId(p.mulai)} – ${tanggalId(geserHari(p.akhir, -1))})` : ` (${tanggalId(p.mulai)})`;
+	// Label yang sudah memuat tanggal ("tanggal 11 Nov 2026") tidak perlu rentang lagi
+	const rentang = /\b20\d{2}\b/.test(label) && selisihHari(p.mulai, p.akhir) === 1 ? '' : selisihHari(p.mulai, p.akhir) > 1 ? ` (${tanggalId(p.mulai)} – ${tanggalId(geserHari(p.akhir, -1))})` : ` (${tanggalId(p.mulai)})`;
 
 	/** @type {string[]} */
 	const kalimat = [];
