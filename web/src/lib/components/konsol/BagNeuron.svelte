@@ -162,8 +162,8 @@
 		position: relative;
 		padding: 14px;
 		border-radius: 14px;
-		background: linear-gradient(160deg, rgba(20, 28, 54, 0.75), rgba(10, 14, 30, 0.6));
-		border: 1px solid rgba(140, 170, 255, 0.12);
+		background: var(--kartu-bg);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.12);
 		display: grid;
 		gap: 4px;
 		overflow: hidden;
@@ -182,15 +182,15 @@
 		font-size: 10.5px;
 		letter-spacing: 1.4px;
 		text-transform: uppercase;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.nilai {
 		font: 700 24px/1.1 var(--f-mono, monospace);
-		color: #fff;
+		color: var(--kuat);
 	}
 	.sub {
 		font-size: 11px;
-		color: #9aa6c8;
+		color: var(--teks-2);
 	}
 	.kisi-3 {
 		display: grid;
@@ -208,9 +208,9 @@
 		gap: 10px;
 		padding: 10px 14px;
 		border-radius: 10px;
-		border: 1px solid rgba(62, 240, 208, 0.3);
-		background: linear-gradient(90deg, rgba(62, 240, 208, 0.08), rgba(155, 140, 255, 0.06));
-		color: #e6ecff;
+		border: 1px solid rgb(var(--aksen-rgb) / 0.3);
+		background: linear-gradient(90deg, rgb(var(--aksen-rgb) / 0.08), rgb(var(--ungu-rgb) / 0.06));
+		color: var(--teks);
 		font: 600 13px var(--f-tampil, sans-serif);
 		cursor: pointer;
 		text-align: left;
@@ -220,7 +220,7 @@
 	}
 	.tombol:hover:not(:disabled) {
 		transform: translateX(3px);
-		border-color: #3ef0d0;
+		border-color: var(--aksen);
 	}
 	.tombol:disabled {
 		opacity: 0.55;
@@ -230,7 +230,7 @@
 		width: 10px;
 		height: 10px;
 		border-radius: 50%;
-		border: 2px solid #3ef0d0;
+		border: 2px solid var(--aksen);
 	}
 	.titik-tombol.putar {
 		border-right-color: transparent;
@@ -238,7 +238,7 @@
 	}
 	.catatan {
 		font-size: 11.5px;
-		color: #8a96b8;
+		color: var(--redup);
 		margin: 12px 0 0;
 		line-height: 1.5;
 	}
@@ -252,12 +252,12 @@
 		font: 10.5px var(--f-mono, monospace);
 		padding: 2px 8px;
 		border-radius: 99px;
-		background: rgba(140, 170, 255, 0.08);
-		color: #b9c3e3;
+		background: rgb(var(--kisi-rgb) / 0.08);
+		color: var(--teks-2);
 	}
 	.chip.visi {
-		background: rgba(255, 198, 92, 0.16);
-		color: #ffc65c;
+		background: rgb(var(--amber-rgb) / 0.16);
+		color: var(--amber);
 	}
 	.tabel-gulir {
 		overflow-x: auto;
@@ -273,35 +273,35 @@
 		font-size: 10.5px;
 		letter-spacing: 1.2px;
 		text-transform: uppercase;
-		color: #6f7ba0;
+		color: var(--redup-2);
 		font-weight: 600;
 		padding: 6px 8px;
-		border-bottom: 1px solid rgba(140, 170, 255, 0.12);
+		border-bottom: 1px solid rgb(var(--kisi-rgb) / 0.12);
 	}
 	td {
 		padding: 9px 8px;
-		border-bottom: 1px solid rgba(140, 170, 255, 0.06);
+		border-bottom: 1px solid rgb(var(--kisi-rgb) / 0.06);
 		vertical-align: middle;
 	}
 	td b {
 		display: block;
-		color: #fff;
+		color: var(--kuat);
 	}
 	td small {
-		color: #6f7ba0;
+		color: var(--redup-2);
 		font-size: 11px;
 	}
 	tr:hover td {
-		background: rgba(62, 240, 208, 0.03);
+		background: rgb(var(--aksen-rgb) / 0.03);
 	}
 	.mono {
 		font-family: var(--f-mono, monospace);
 	}
 	.merah {
-		color: #ff6b8a;
+		color: var(--mawar);
 	}
 	.redup {
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.kuota {
 		display: grid;
@@ -311,7 +311,7 @@
 	.bar {
 		height: 6px;
 		border-radius: 99px;
-		background: rgba(140, 170, 255, 0.1);
+		background: rgb(var(--kisi-rgb) / 0.1);
 		overflow: hidden;
 	}
 	.bar span {
@@ -329,24 +329,24 @@
 		width: 74px;
 		padding: 5px 8px;
 		border-radius: 8px;
-		border: 1px solid rgba(140, 170, 255, 0.2);
-		background: rgba(5, 7, 15, 0.6);
-		color: #fff;
+		border: 1px solid rgb(var(--kisi-rgb) / 0.2);
+		background: var(--kolom-bg);
+		color: var(--kuat);
 		font: 12px var(--f-mono, monospace);
 	}
 	.mini {
 		padding: 5px 10px;
 		border-radius: 8px;
 		border: 0;
-		background: #3ef0d0;
+		background: var(--aksen);
 		color: #05070f;
 		font: 600 11.5px var(--f-tampil, sans-serif);
 		cursor: pointer;
 	}
 	.mini.hantu {
 		background: transparent;
-		color: #b9c3e3;
-		border: 1px solid rgba(140, 170, 255, 0.25);
+		color: var(--teks-2);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.25);
 	}
 	.mini:disabled {
 		opacity: 0.4;

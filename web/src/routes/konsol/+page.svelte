@@ -38,6 +38,17 @@
 	/** @type {Record<string, string>} */
 	let diperbarui = $state({});
 	let langsung = $state(true);
+	/** Tema tampilan: terang (bawaan) atau gelap; diingat di perangkat ini. */
+	/** @type {'terang' | 'gelap'} */
+	let tema = $state('terang');
+	function gantiTema() {
+		tema = tema === 'terang' ? 'gelap' : 'terang';
+		try {
+			localStorage.setItem('konsol-tema', tema);
+		} catch {
+			/* penyimpanan diblokir — tema tetap berlaku sampai halaman ditutup */
+		}
+	}
 	let jam = $state(jamWIB());
 	/** @type {any} */
 	let unitTerpilih = $state(null);
@@ -80,6 +91,11 @@
 	}
 
 	onMount(() => {
+		try {
+			if (localStorage.getItem('konsol-tema') === 'gelap') tema = 'gelap';
+		} catch {
+			/* abaikan */
+		}
 		const h = /** @type {IdStasiun} */ (location.hash.slice(1));
 		if (STASIUN.some((s) => s.id === h)) aktif = h;
 		muat(aktif);
@@ -158,14 +174,14 @@
 <svelte:head>
 	<title>Ruang Kendali · Bizgrow</title>
 	<meta name="robots" content="noindex, nofollow" />
-	<meta name="theme-color" content="#05070f" />
+	<meta name="theme-color" content={tema === 'gelap' ? '#05070f' : '#f3f5fb'} />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </svelte:head>
 
-<div class="ruang">
-	<Bintang />
+<div class="ruang" data-tema={tema}>
+	<Bintang terang={tema === 'terang'} />
 	<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 	<div class="kisi-latar" aria-hidden="true"></div>
 
@@ -202,6 +218,18 @@
 				<span class="rel"><span></span></span>
 				Langsung
 			</label>
+			<button class="tema" onclick={gantiTema} aria-label={tema === 'terang' ? 'Ganti ke mode gelap' : 'Ganti ke mode terang'} title={tema === 'terang' ? 'Mode gelap' : 'Mode terang'}>
+				{#key tema}
+					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" class="ikon-tema">
+						{#if tema === 'terang'}
+							<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+						{:else}
+							<circle cx="12" cy="12" r="4.2" />
+							<path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" />
+						{/if}
+					</svg>
+				{/key}
+			</button>
 			<span class="jam">{jam}<small>WIB</small></span>
 			<a class="keluar" href="/finance">← Aplikasi</a>
 		</div>
@@ -271,7 +299,87 @@
 
 <style>
 	:global(body:has(.ruang)) {
+		background: #f3f5fb;
+	}
+	:global(body:has(.ruang[data-tema='gelap'])) {
 		background: #05070f;
+	}
+	/* ── tema terang (bawaan) ── */
+	.ruang {
+		--bg: #f3f5fb;
+		--latar: radial-gradient(1200px 700px at 80% -10%, #dde5ff 0%, transparent 60%), radial-gradient(900px 600px at -10% 110%, #d3f3ec 0%, transparent 60%), #f3f5fb;
+		--panel-bg: linear-gradient(170deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 255, 0.88));
+		--kartu-bg: linear-gradient(160deg, #ffffff, #f4f7fe);
+		--tip-bg: rgba(255, 255, 255, 0.97);
+		--kolom-bg: #ffffff;
+		--pita-bg: rgba(255, 255, 255, 0.82);
+		--simpul-bg: #ffffff;
+		--th-bg: #eef2fb;
+		--laci-bg: linear-gradient(180deg, #ffffff, #f3f6fd);
+		--tirai: rgba(25, 35, 70, 0.28);
+		--teks: #1d2440;
+		--teks-2: #414c6e;
+		--kuat: #0b1020;
+		--redup: #5c6788;
+		--redup-2: #78829f;
+		--redup-3: #9ba4be;
+		--kisi-rgb: 60 80 150;
+		--kontras-rgb: 20 30 60;
+		--aksen: #0ea591;
+		--aksen-rgb: 14 165 145;
+		--aksen-teks: #0a7d6e;
+		--ungu: #6a58f0;
+		--ungu-rgb: 106 88 240;
+		--ungu-teks: #4f3fcf;
+		--amber: #d98a00;
+		--amber-rgb: 217 138 0;
+		--mawar: #e03b63;
+		--mawar-rgb: 224 59 99;
+		--mawar-teks: #bd2349;
+		--biru: #2f7ff0;
+		--hijau: #19a463;
+		--judul: linear-gradient(100deg, #0b1530 10%, #0e7c70 55%, #5444d6 92%);
+		--lambang: linear-gradient(90deg, #0b1530, #0e7c70);
+		--aurora: 0.32;
+		color-scheme: light;
+	}
+	/* ── tema gelap ── */
+	.ruang[data-tema='gelap'] {
+		--bg: #05070f;
+		--latar: radial-gradient(1200px 700px at 80% -10%, #121a44 0%, transparent 60%), radial-gradient(900px 600px at -10% 110%, #0b2a35 0%, transparent 60%), #05070f;
+		--panel-bg: linear-gradient(170deg, rgba(16, 23, 46, 0.78), rgba(8, 12, 26, 0.68));
+		--kartu-bg: linear-gradient(160deg, rgba(20, 28, 54, 0.75), rgba(10, 14, 30, 0.6));
+		--tip-bg: rgba(8, 12, 26, 0.94);
+		--kolom-bg: rgba(10, 14, 30, 0.7);
+		--pita-bg: rgba(5, 7, 15, 0.78);
+		--simpul-bg: #0b1226;
+		--th-bg: #0c1430;
+		--laci-bg: linear-gradient(180deg, #0b1226, #070b18);
+		--tirai: rgba(2, 4, 10, 0.55);
+		--teks: #e6ecff;
+		--teks-2: #b9c3e3;
+		--kuat: #ffffff;
+		--redup: #8a96b8;
+		--redup-2: #6f7ba0;
+		--redup-3: #4b5578;
+		--kisi-rgb: 140 170 255;
+		--kontras-rgb: 255 255 255;
+		--aksen: #3ef0d0;
+		--aksen-rgb: 62 240 208;
+		--aksen-teks: #9ff8ea;
+		--ungu: #9b8cff;
+		--ungu-rgb: 155 140 255;
+		--ungu-teks: #c9c0ff;
+		--amber: #ffc65c;
+		--amber-rgb: 255 198 92;
+		--mawar: #ff6b8a;
+		--mawar-rgb: 255 107 138;
+		--mawar-teks: #ff9fb3;
+		--biru: #5aa8ff;
+		--hijau: #7dffa1;
+		--judul: linear-gradient(100deg, #ffffff 10%, #b8fff2 45%, #c9c0ff 80%);
+		--lambang: linear-gradient(90deg, #ffffff, #9ff8ea);
+		--aurora: 0.5;
 		color-scheme: dark;
 	}
 	.ruang {
@@ -279,8 +387,9 @@
 		--f-mono: 'JetBrains Mono', ui-monospace, monospace;
 		position: relative;
 		min-height: 100vh;
-		background: radial-gradient(1200px 700px at 80% -10%, #121a44 0%, transparent 60%), radial-gradient(900px 600px at -10% 110%, #0b2a35 0%, transparent 60%), #05070f;
-		color: #e6ecff;
+		background: var(--latar);
+		transition: background-color 0.4s;
+		color: var(--teks);
 		font-family: var(--f-tampil);
 		display: grid;
 		grid-template-columns: 96px minmax(0, 1fr);
@@ -293,7 +402,7 @@
 		pointer-events: none;
 		z-index: 0;
 		filter: blur(70px);
-		opacity: 0.5;
+		opacity: var(--aurora);
 	}
 	.aurora i {
 		position: absolute;
@@ -305,14 +414,14 @@
 		height: 30vw;
 		left: 30%;
 		top: -12vw;
-		background: radial-gradient(circle, rgba(62, 240, 208, 0.35), transparent 65%);
+		background: radial-gradient(circle, rgb(var(--aksen-rgb) / 0.35), transparent 65%);
 	}
 	.aurora i:nth-child(2) {
 		width: 40vw;
 		height: 34vw;
 		right: -10vw;
 		top: 30%;
-		background: radial-gradient(circle, rgba(155, 140, 255, 0.35), transparent 65%);
+		background: radial-gradient(circle, rgb(var(--ungu-rgb) / 0.35), transparent 65%);
 		animation-duration: 28s;
 	}
 	.aurora i:nth-child(3) {
@@ -320,7 +429,7 @@
 		height: 26vw;
 		left: -8vw;
 		bottom: -10vw;
-		background: radial-gradient(circle, rgba(255, 107, 138, 0.2), transparent 65%);
+		background: radial-gradient(circle, rgb(var(--mawar-rgb) / 0.2), transparent 65%);
 		animation-duration: 34s;
 	}
 	.kisi-latar {
@@ -328,7 +437,7 @@
 		inset: 0;
 		pointer-events: none;
 		z-index: 0;
-		background-image: linear-gradient(rgba(140, 170, 255, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(140, 170, 255, 0.035) 1px, transparent 1px);
+		background-image: linear-gradient(rgb(var(--kisi-rgb) / 0.035) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--kisi-rgb) / 0.035) 1px, transparent 1px);
 		background-size: 48px 48px;
 		mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 80%);
 	}
@@ -344,9 +453,9 @@
 		gap: 18px;
 		align-items: center;
 		padding: 10px 18px;
-		background: rgba(5, 7, 15, 0.72);
+		background: var(--pita-bg);
 		backdrop-filter: blur(14px);
-		border-bottom: 1px solid rgba(140, 170, 255, 0.1);
+		border-bottom: 1px solid rgb(var(--kisi-rgb) / 0.1);
 	}
 	.lambang {
 		display: flex;
@@ -359,7 +468,7 @@
 		display: block;
 		font: 700 14px var(--f-tampil);
 		letter-spacing: 3px;
-		background: linear-gradient(90deg, #fff, #9ff8ea);
+		background: var(--lambang);
 		-webkit-background-clip: text;
 		background-clip: text;
 		color: transparent;
@@ -367,7 +476,7 @@
 	.lambang small {
 		font: 9.5px var(--f-mono);
 		letter-spacing: 2px;
-		color: #6f7ba0;
+		color: var(--redup-2);
 		text-transform: uppercase;
 	}
 	.lb-cincin {
@@ -400,25 +509,25 @@
 		align-items: center;
 		gap: 7px;
 		font: 11.5px var(--f-mono);
-		color: #b9c3e3;
+		color: var(--teks-2);
 		white-space: nowrap;
 	}
 	.tk i {
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
-		background: #5aa8ff;
+		background: var(--biru);
 	}
 	.tk.ok i {
-		background: #3ef0d0;
-		box-shadow: 0 0 6px #3ef0d0;
+		background: var(--aksen);
+		box-shadow: 0 0 6px var(--aksen);
 	}
 	.tk.galat {
-		color: #ff9fb3;
+		color: var(--mawar-teks);
 	}
 	.tk.galat i {
-		background: #ff6b8a;
-		box-shadow: 0 0 6px #ff6b8a;
+		background: var(--mawar);
+		box-shadow: 0 0 6px var(--mawar);
 	}
 	.kanan {
 		display: flex;
@@ -430,28 +539,28 @@
 		align-items: center;
 		gap: 7px;
 		font-size: 11.5px;
-		color: #9ff8ea;
+		color: var(--aksen-teks);
 		white-space: nowrap;
 	}
 	.sehat i {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
-		background: #3ef0d0;
+		background: var(--aksen);
 		animation: nadi 2s infinite;
 	}
 	.sehat.buruk {
-		color: #ff9fb3;
+		color: var(--mawar-teks);
 	}
 	.sehat.buruk i {
-		background: #ff6b8a;
+		background: var(--mawar);
 	}
 	.saklar {
 		display: inline-flex;
 		align-items: center;
 		gap: 7px;
 		font-size: 11.5px;
-		color: #b9c3e3;
+		color: var(--teks-2);
 		cursor: pointer;
 	}
 	.saklar input {
@@ -463,7 +572,7 @@
 		width: 30px;
 		height: 17px;
 		border-radius: 99px;
-		background: rgba(140, 170, 255, 0.2);
+		background: rgb(var(--kisi-rgb) / 0.2);
 		position: relative;
 		transition: background 0.2s;
 	}
@@ -478,36 +587,72 @@
 		transition: transform 0.2s;
 	}
 	.saklar input:checked + .rel {
-		background: #3ef0d0;
+		background: var(--aksen);
 	}
 	.saklar input:checked + .rel span {
 		transform: translateX(13px);
 	}
 	.saklar input:focus-visible + .rel {
-		outline: 2px solid #9b8cff;
+		outline: 2px solid var(--ungu);
 		outline-offset: 2px;
+	}
+	.tema {
+		width: 34px;
+		height: 34px;
+		display: grid;
+		place-items: center;
+		border-radius: 10px;
+		border: 1px solid rgb(var(--kisi-rgb) / 0.22);
+		background: var(--kolom-bg);
+		color: var(--teks);
+		cursor: pointer;
+		transition:
+			border-color 0.2s,
+			transform 0.2s;
+	}
+	.tema:hover {
+		border-color: var(--aksen);
+		transform: rotate(-12deg);
+	}
+	.tema:focus-visible {
+		outline: 2px solid var(--ungu);
+		outline-offset: 2px;
+	}
+	.ikon-tema {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		animation: muncul-tema 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+	}
+	@keyframes muncul-tema {
+		from {
+			transform: rotate(-90deg) scale(0.4);
+			opacity: 0;
+		}
 	}
 	.jam {
 		font: 600 15px var(--f-mono);
-		color: #fff;
+		color: var(--kuat);
 		font-variant-numeric: tabular-nums;
 	}
 	.jam small {
 		font-size: 9px;
-		color: #6f7ba0;
+		color: var(--redup-2);
 		margin-left: 4px;
 	}
 	.keluar {
 		font-size: 12px;
-		color: #8a96b8;
+		color: var(--redup);
 		text-decoration: none;
 		padding: 6px 10px;
 		border-radius: 8px;
-		border: 1px solid rgba(140, 170, 255, 0.18);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.18);
 	}
 	.keluar:hover {
-		color: #fff;
-		border-color: #3ef0d0;
+		color: var(--kuat);
+		border-color: var(--aksen);
 	}
 
 	/* ── rel stasiun ── */
@@ -529,7 +674,7 @@
 		border-radius: 16px;
 		border: 1px solid transparent;
 		background: none;
-		color: #6f7ba0;
+		color: var(--redup-2);
 		cursor: pointer;
 		transition:
 			color 0.2s,
@@ -538,17 +683,17 @@
 			transform 0.2s;
 	}
 	.stasiun:hover {
-		color: #e6ecff;
+		color: var(--teks);
 		transform: translateX(2px);
 	}
 	.stasiun.aktif {
-		color: #3ef0d0;
-		background: linear-gradient(160deg, rgba(62, 240, 208, 0.12), rgba(155, 140, 255, 0.06));
-		border-color: rgba(62, 240, 208, 0.28);
-		box-shadow: 0 0 24px rgba(62, 240, 208, 0.12) inset;
+		color: var(--aksen);
+		background: linear-gradient(160deg, rgb(var(--aksen-rgb) / 0.12), rgb(var(--ungu-rgb) / 0.06));
+		border-color: rgb(var(--aksen-rgb) / 0.28);
+		box-shadow: 0 0 24px rgb(var(--aksen-rgb) / 0.12) inset;
 	}
 	.stasiun:focus-visible {
-		outline: 2px solid #9b8cff;
+		outline: 2px solid var(--ungu);
 		outline-offset: 2px;
 	}
 	.no {
@@ -566,21 +711,21 @@
 		bottom: 22%;
 		width: 3px;
 		border-radius: 0 3px 3px 0;
-		background: #3ef0d0;
-		box-shadow: 0 0 12px #3ef0d0;
+		background: var(--aksen);
+		box-shadow: 0 0 12px var(--aksen);
 	}
 	.petunjuk {
 		margin-top: 14px;
 		font: 9.5px/1.6 var(--f-mono);
-		color: #4b5578;
+		color: var(--redup-3);
 		text-align: center;
 	}
 	kbd {
 		font: inherit;
 		padding: 0 4px;
 		border-radius: 4px;
-		border: 1px solid #2c3556;
-		color: #8a96b8;
+		border: 1px solid var(--redup-3);
+		color: var(--redup);
 	}
 
 	/* ── panggung ── */
@@ -600,13 +745,13 @@
 	.kode {
 		font: 10.5px var(--f-mono);
 		letter-spacing: 2.5px;
-		color: #3ef0d0;
+		color: var(--aksen);
 	}
 	h1 {
 		margin: 6px 0 6px;
 		font: 700 clamp(28px, 4.2vw, 46px) / 1.05 var(--f-tampil);
 		letter-spacing: -0.5px;
-		background: linear-gradient(100deg, #ffffff 10%, #b8fff2 45%, #c9c0ff 80%);
+		background: var(--judul);
 		-webkit-background-clip: text;
 		background-clip: text;
 		color: transparent;
@@ -614,7 +759,7 @@
 	.judul p {
 		margin: 0;
 		max-width: 640px;
-		color: #8a96b8;
+		color: var(--redup);
 		font-size: 14px;
 		line-height: 1.5;
 	}
@@ -624,9 +769,9 @@
 		gap: 8px;
 		padding: 8px 12px;
 		border-radius: 10px;
-		border: 1px solid rgba(140, 170, 255, 0.2);
-		background: rgba(10, 14, 30, 0.6);
-		color: #b9c3e3;
+		border: 1px solid rgb(var(--kisi-rgb) / 0.2);
+		background: var(--kolom-bg);
+		color: var(--teks-2);
 		font: 11.5px var(--f-mono);
 		cursor: pointer;
 		white-space: nowrap;
@@ -641,8 +786,8 @@
 		animation: putar 0.8s linear infinite;
 	}
 	.segar:hover:not(:disabled) {
-		border-color: #3ef0d0;
-		color: #fff;
+		border-color: var(--aksen);
+		color: var(--kuat);
 	}
 
 	/* panel bersama untuk semua stasiun */
@@ -651,8 +796,8 @@
 		padding: 18px 18px 16px;
 		margin-bottom: 18px;
 		border-radius: 18px;
-		background: linear-gradient(170deg, rgba(16, 23, 46, 0.78), rgba(8, 12, 26, 0.68));
-		border: 1px solid rgba(140, 170, 255, 0.11);
+		background: var(--panel-bg);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.11);
 		backdrop-filter: blur(6px);
 		min-width: 0;
 	}
@@ -662,7 +807,7 @@
 		position: absolute;
 		width: 14px;
 		height: 14px;
-		border: 1.5px solid rgba(62, 240, 208, 0.45);
+		border: 1.5px solid rgb(var(--aksen-rgb) / 0.45);
 		pointer-events: none;
 	}
 	.ruang :global(.panel)::before {
@@ -689,11 +834,11 @@
 	}
 	.ruang :global(.judul-panel span) {
 		font: 600 15px var(--f-tampil);
-		color: #fff;
+		color: var(--kuat);
 	}
 	.ruang :global(.judul-panel small) {
 		font: 10.5px var(--f-mono);
-		color: #6f7ba0;
+		color: var(--redup-2);
 	}
 	.ruang :global(.kisi-2) {
 		display: grid;
@@ -703,11 +848,11 @@
 	.kaki {
 		margin-top: 26px;
 		font: 10.5px var(--f-mono);
-		color: #4b5578;
+		color: var(--redup-3);
 		text-align: center;
 	}
 	.kaki b {
-		color: #8a96b8;
+		color: var(--redup);
 	}
 
 	/* toast */
@@ -723,14 +868,14 @@
 		padding: 11px 16px;
 		border-radius: 12px;
 		font-size: 13px;
-		background: rgba(8, 12, 26, 0.95);
-		border: 1px solid rgba(62, 240, 208, 0.45);
+		background: var(--tip-bg);
+		border: 1px solid rgb(var(--aksen-rgb) / 0.45);
 		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 		max-width: 360px;
 	}
 	.toast.galat {
-		border-color: rgba(255, 107, 138, 0.6);
-		color: #ffc1ce;
+		border-color: rgb(var(--mawar-rgb) / 0.6);
+		color: var(--mawar-teks);
 	}
 
 	@keyframes putar {
@@ -750,10 +895,10 @@
 	}
 	@keyframes nadi {
 		0% {
-			box-shadow: 0 0 0 0 rgba(62, 240, 208, 0.6);
+			box-shadow: 0 0 0 0 rgb(var(--aksen-rgb) / 0.6);
 		}
 		70% {
-			box-shadow: 0 0 0 8px rgba(62, 240, 208, 0);
+			box-shadow: 0 0 0 8px rgb(var(--aksen-rgb) / 0);
 		}
 	}
 
@@ -768,11 +913,26 @@
 	}
 	@media (max-width: 860px) {
 		.ruang {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 		}
 		.pita {
-			grid-template-columns: 1fr auto;
+			grid-template-columns: minmax(0, 1fr) auto;
+			gap: 10px;
 			padding: 10px 16px;
+		}
+		.lambang {
+			min-width: 0;
+		}
+		.lambang span {
+			min-width: 0;
+			overflow: hidden;
+		}
+		.kanan {
+			gap: 8px;
+		}
+		.saklar {
+			font-size: 0;
+			gap: 0;
 		}
 		.ticker {
 			grid-column: 1 / -1;
@@ -798,9 +958,9 @@
 			gap: 2px;
 			padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
 			overflow-x: auto;
-			background: rgba(5, 7, 15, 0.9);
+			background: var(--pita-bg);
 			backdrop-filter: blur(14px);
-			border-top: 1px solid rgba(140, 170, 255, 0.12);
+			border-top: 1px solid rgb(var(--kisi-rgb) / 0.12);
 		}
 		.stasiun {
 			flex: 1 0 60px;

@@ -98,12 +98,12 @@
 		flex: 1 1 240px;
 		padding: 9px 12px;
 		border-radius: 12px;
-		background: rgba(10, 14, 30, 0.7);
-		border: 1px solid rgba(140, 170, 255, 0.16);
+		background: var(--kolom-bg);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.16);
 	}
 	.cari svg {
 		fill: none;
-		stroke: #8a96b8;
+		stroke: var(--redup);
 		stroke-width: 2;
 	}
 	.cari input {
@@ -111,7 +111,7 @@
 		background: none;
 		border: 0;
 		outline: none;
-		color: #fff;
+		color: var(--kuat);
 		font: inherit;
 	}
 	.urut {
@@ -119,25 +119,25 @@
 		gap: 4px;
 		padding: 3px;
 		border-radius: 12px;
-		background: rgba(10, 14, 30, 0.7);
-		border: 1px solid rgba(140, 170, 255, 0.12);
+		background: var(--kolom-bg);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.12);
 	}
 	.urut button {
 		border: 0;
 		background: none;
-		color: #8a96b8;
+		color: var(--redup);
 		padding: 6px 12px;
 		border-radius: 9px;
 		font: 600 12px var(--f-tampil, sans-serif);
 		cursor: pointer;
 	}
 	.urut button.aktif {
-		background: rgba(62, 240, 208, 0.15);
-		color: #3ef0d0;
+		background: rgb(var(--aksen-rgb) / 0.15);
+		color: var(--aksen);
 	}
 	.hitung {
 		font: 11.5px var(--f-mono, monospace);
-		color: #6f7ba0;
+		color: var(--redup-2);
 	}
 	.rasi {
 		display: grid;
@@ -147,8 +147,8 @@
 	.kartu {
 		padding: 16px;
 		border-radius: 16px;
-		background: linear-gradient(170deg, rgba(18, 26, 52, 0.8), rgba(8, 12, 26, 0.7));
-		border: 1px solid rgba(140, 170, 255, 0.12);
+		background: var(--kartu-bg);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.12);
 		animation: naik 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both;
 	}
 	header {
@@ -173,16 +173,16 @@
 	}
 	.identitas b {
 		display: block;
-		color: #fff;
+		color: var(--kuat);
 		font-size: 14.5px;
 	}
 	.identitas small {
-		color: #6f7ba0;
+		color: var(--redup-2);
 		font-size: 11px;
 	}
 	.status {
 		font-size: 11px;
-		color: #8a96b8;
+		color: var(--redup);
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -192,11 +192,11 @@
 		width: 7px;
 		height: 7px;
 		border-radius: 50%;
-		background: #5b6688;
+		background: var(--redup-2);
 	}
 	.status.hidup i {
-		background: #3ef0d0;
-		box-shadow: 0 0 8px #3ef0d0;
+		background: var(--aksen);
+		box-shadow: 0 0 8px var(--aksen);
 	}
 	.metrik {
 		display: flex;
@@ -204,10 +204,10 @@
 		flex-wrap: wrap;
 		margin: 12px 0 10px;
 		font-size: 11.5px;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.metrik b {
-		color: #e6ecff;
+		color: var(--teks);
 		font-family: var(--f-mono, monospace);
 	}
 	.unit {
@@ -226,7 +226,7 @@
 		padding: 8px 10px;
 		border-radius: 10px;
 		border: 1px solid transparent;
-		background: rgba(140, 170, 255, 0.04);
+		background: rgb(var(--kisi-rgb) / 0.04);
 		color: inherit;
 		text-align: left;
 		cursor: pointer;
@@ -236,8 +236,8 @@
 			background 0.15s;
 	}
 	.unit button:hover {
-		border-color: rgba(62, 240, 208, 0.35);
-		background: rgba(62, 240, 208, 0.06);
+		border-color: rgb(var(--aksen-rgb) / 0.35);
+		background: rgb(var(--aksen-rgb) / 0.06);
 	}
 	.dot {
 		width: 9px;
@@ -245,7 +245,7 @@
 		border-radius: 50%;
 	}
 	.dot.nyala {
-		box-shadow: 0 0 0 3px rgba(62, 240, 208, 0.18);
+		box-shadow: 0 0 0 3px rgb(var(--aksen-rgb) / 0.18);
 	}
 	.nm {
 		min-width: 0;
@@ -253,14 +253,14 @@
 	.nm b {
 		display: block;
 		font-size: 13px;
-		color: #fff;
+		color: var(--kuat);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.nm small {
 		font-size: 10.5px;
-		color: #6f7ba0;
+		color: var(--redup-2);
 	}
 	.angka {
 		text-align: right;
@@ -268,14 +268,14 @@
 	}
 	.angka b {
 		font: 700 13px var(--f-mono, monospace);
-		color: #fff;
+		color: var(--kuat);
 	}
 	.angka small {
 		font-size: 10.5px;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.kosong {
-		color: #6f7ba0;
+		color: var(--redup-2);
 		font-size: 12px;
 		margin: 6px 0 0;
 	}

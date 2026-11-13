@@ -23,7 +23,7 @@
 			<rect x="126" y="58" width="44" height="22" rx="3" fill="url(#sat-panel)" opacity="0.85" />
 			<path d="M137 58v22M148 58v22M159 58v22" stroke="#0b1226" stroke-width="1.5" />
 			<path d="M74 69h16M110 69h16" stroke="#8a96b8" stroke-width="2" />
-			<rect x="88" y="54" width="24" height="30" rx="6" fill="#10183a" stroke="#3ef0d0" stroke-width="1.5" />
+			<rect x="88" y="54" width="24" height="30" rx="6" style="fill: var(--simpul-bg); stroke: var(--aksen)" stroke-width="1.5" />
 			<circle cx="100" cy="64" r="4" fill="#3ef0d0" class="led" />
 			<path d="M100 54 v-10" stroke="#8a96b8" stroke-width="1.5" />
 			<circle cx="100" cy="42" r="3" fill="#ffc65c" />
@@ -38,7 +38,7 @@
 		justify-items: center;
 		gap: 6px;
 		padding: 28px 0;
-		color: #8a96b8;
+		color: var(--redup);
 		font-size: 13px;
 	}
 	.satelit.kecil {
@@ -56,7 +56,7 @@
 	}
 	.gelombang path {
 		fill: none;
-		stroke: #3ef0d0;
+		stroke: var(--aksen);
 		stroke-width: 1.5;
 		stroke-linecap: round;
 		opacity: 0;

@@ -65,10 +65,10 @@
 		top: 6px;
 		bottom: 6px;
 		width: 1px;
-		background: linear-gradient(#3ef0d0, rgba(62, 240, 208, 0.05));
+		background: linear-gradient(var(--aksen), rgb(var(--aksen-rgb) / 0.05));
 	}
 	.garis-waktu.ungu::before {
-		background: linear-gradient(#9b8cff, rgba(155, 140, 255, 0.05));
+		background: linear-gradient(var(--ungu), rgb(var(--ungu-rgb) / 0.05));
 	}
 	li {
 		display: grid;
@@ -82,39 +82,39 @@
 		height: 9px;
 		margin-top: 4px;
 		border-radius: 50%;
-		background: #05070f;
-		border: 2px solid #3ef0d0;
-		box-shadow: 0 0 8px rgba(62, 240, 208, 0.6);
+		background: var(--bg);
+		border: 2px solid var(--aksen);
+		box-shadow: 0 0 8px rgb(var(--aksen-rgb) / 0.6);
 		position: relative;
 		z-index: 1;
 	}
 	.ungu .simpul {
-		border-color: #9b8cff;
-		box-shadow: 0 0 8px rgba(155, 140, 255, 0.6);
+		border-color: var(--ungu);
+		box-shadow: 0 0 8px rgb(var(--ungu-rgb) / 0.6);
 	}
 	li.error .simpul {
-		border-color: #ff6b8a;
+		border-color: var(--mawar);
 	}
 	li.info .simpul {
-		border-color: #5aa8ff;
+		border-color: var(--biru);
 	}
 	b {
 		display: block;
 		font-size: 12.5px;
 		font-weight: 500;
-		color: #e6ecff;
+		color: var(--teks);
 		line-height: 1.4;
 	}
 	small {
 		font-size: 11px;
-		color: #6f7ba0;
+		color: var(--redup-2);
 	}
 	.tag {
 		font: 10px var(--f-mono, monospace);
 		padding: 1px 6px;
 		border-radius: 5px;
-		background: rgba(62, 240, 208, 0.1);
-		color: #9ff8ea;
+		background: rgb(var(--aksen-rgb) / 0.1);
+		color: var(--aksen-teks);
 	}
 	@keyframes geser {
 		from {

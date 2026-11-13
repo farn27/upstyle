@@ -68,8 +68,8 @@
 		position: relative;
 		padding: 14px 14px 12px;
 		border-radius: 14px;
-		background: linear-gradient(160deg, rgba(20, 28, 54, 0.75), rgba(10, 14, 30, 0.6));
-		border: 1px solid rgba(140, 170, 255, 0.12);
+		background: var(--kartu-bg);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.12);
 		overflow: hidden;
 		display: grid;
 		gap: 4px;
@@ -97,15 +97,15 @@
 		font-size: 10.5px;
 		letter-spacing: 1.4px;
 		text-transform: uppercase;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.nilai {
 		font: 700 28px/1.1 var(--f-mono, monospace);
-		color: #fff;
+		color: var(--kuat);
 	}
 	.sub {
 		font-size: 11px;
-		color: #9aa6c8;
+		color: var(--teks-2);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

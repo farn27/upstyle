@@ -72,30 +72,30 @@
 		font-size: 12.5px;
 	}
 	dt {
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	dd {
 		margin: 0;
-		color: #e6ecff;
+		color: var(--teks);
 		font-family: var(--f-mono, monospace);
 		font-size: 12px;
 		overflow-wrap: anywhere;
 	}
 	.redup {
-		color: #9aa6c8;
+		color: var(--teks-2);
 	}
 	.lencana {
 		padding: 1px 8px;
 		border-radius: 99px;
-		background: rgba(62, 240, 208, 0.12);
-		color: #3ef0d0;
+		background: rgb(var(--aksen-rgb) / 0.12);
+		color: var(--aksen);
 	}
 	.sub-judul {
 		margin: 18px 0 8px;
 		font-size: 10.5px;
 		letter-spacing: 1.6px;
 		text-transform: uppercase;
-		color: #8a96b8;
+		color: var(--redup);
 		font-weight: 600;
 	}
 	.env {
@@ -110,21 +110,21 @@
 		padding: 4px 10px;
 		border-radius: 99px;
 		font-size: 11.5px;
-		border: 1px solid rgba(255, 107, 138, 0.3);
-		color: #ffb3c2;
+		border: 1px solid rgb(var(--mawar-rgb) / 0.3);
+		color: var(--mawar-teks);
 	}
 	.env-item i {
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
-		background: #ff6b8a;
+		background: var(--mawar);
 	}
 	.env-item.ada {
-		border-color: rgba(62, 240, 208, 0.3);
-		color: #b8fff2;
+		border-color: rgb(var(--aksen-rgb) / 0.3);
+		color: var(--aksen-teks);
 	}
 	.env-item.ada i {
-		background: #3ef0d0;
+		background: var(--aksen);
 	}
 	.batang-galat {
 		display: grid;
@@ -140,7 +140,7 @@
 		flex-direction: column;
 		justify-content: flex-end;
 		position: relative;
-		background: rgba(140, 170, 255, 0.04);
+		background: rgb(var(--kisi-rgb) / 0.04);
 		border-radius: 4px;
 		padding-bottom: 14px;
 	}
@@ -151,11 +151,11 @@
 		animation: tumbuh 0.7s cubic-bezier(0.3, 1.3, 0.5, 1) both;
 	}
 	.kolom .e {
-		background: linear-gradient(#ff6b8a, #b03b5c);
-		box-shadow: 0 0 10px rgba(255, 107, 138, 0.5);
+		background: linear-gradient(var(--mawar), #b03b5c);
+		box-shadow: 0 0 10px rgb(var(--mawar-rgb) / 0.5);
 	}
 	.kolom .w {
-		background: linear-gradient(#ffc65c, #b88a2c);
+		background: linear-gradient(var(--amber), #b88a2c);
 	}
 	.kolom small {
 		position: absolute;
@@ -164,7 +164,7 @@
 		right: 0;
 		text-align: center;
 		font: 9px var(--f-mono, monospace);
-		color: #5b6688;
+		color: var(--redup-2);
 	}
 	@keyframes tumbuh {
 		from {

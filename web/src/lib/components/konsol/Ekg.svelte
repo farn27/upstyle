@@ -41,13 +41,13 @@
 	<svg viewBox={`0 0 ${W} ${H}`} onpointermove={gerak} onpointerleave={() => (hover = -1)} role="img" aria-label="Denyut aktivitas 48 jam terakhir">
 		<defs>
 			<linearGradient id="ekg-isi" x1="0" y1="0" x2="0" y2="1">
-				<stop offset="0%" stop-color="rgba(62,240,208,0.28)" />
-				<stop offset="100%" stop-color="rgba(62,240,208,0)" />
+				<stop offset="0%" style="stop-color: rgb(var(--aksen-rgb) / 0.28)" />
+				<stop offset="100%" style="stop-color: rgb(var(--aksen-rgb) / 0)" />
 			</linearGradient>
 			<linearGradient id="ekg-garis" x1="0" y1="0" x2="1" y2="0">
-				<stop offset="0%" stop-color="#9b8cff" />
-				<stop offset="60%" stop-color="#3ef0d0" />
-				<stop offset="100%" stop-color="#b8fff2" />
+				<stop offset="0%" style="stop-color: var(--ungu)" />
+				<stop offset="60%" style="stop-color: var(--aksen)" />
+				<stop offset="100%" style="stop-color: var(--aksen-teks)" />
 			</linearGradient>
 			<filter id="ekg-pendar" x="-10%" y="-50%" width="120%" height="200%">
 				<feGaussianBlur stdDeviation="3.5" result="b" />
@@ -74,7 +74,7 @@
 		{/each}
 
 		<path d={geo.isi} fill="url(#ekg-isi)" />
-		{#key geo.garis}
+		{#key data}
 			<path d={geo.garis} class="garis" stroke="url(#ekg-garis)" filter="url(#ekg-pendar)" pathLength="1" />
 			{#if geo.garis}
 				<circle r="4.5" class="pindai">
@@ -118,12 +118,12 @@
 		touch-action: pan-y;
 	}
 	.kisi {
-		stroke: rgba(255, 107, 138, 0.06);
+		stroke: rgb(var(--mawar-rgb) / 0.06);
 		stroke-width: 1;
 		vector-effect: non-scaling-stroke;
 	}
 	.kisi.tebal {
-		stroke: rgba(255, 107, 138, 0.14);
+		stroke: rgb(var(--mawar-rgb) / 0.14);
 	}
 	.garis {
 		fill: none;
@@ -133,44 +133,44 @@
 		animation: tarik 2.2s cubic-bezier(0.6, 0, 0.2, 1) forwards;
 	}
 	.pindai {
-		fill: #fff;
-		filter: drop-shadow(0 0 6px #3ef0d0) drop-shadow(0 0 14px #3ef0d0);
+		fill: var(--kuat);
+		filter: drop-shadow(0 0 6px var(--aksen)) drop-shadow(0 0 14px var(--aksen));
 	}
 	.b-trx {
-		fill: rgba(62, 240, 208, 0.22);
+		fill: rgb(var(--aksen-rgb) / 0.22);
 	}
 	.b-pos {
-		fill: rgba(155, 140, 255, 0.28);
+		fill: rgb(var(--ungu-rgb) / 0.28);
 	}
 	.b-aksi {
-		fill: rgba(255, 198, 92, 0.22);
+		fill: rgb(var(--amber-rgb) / 0.22);
 	}
 	.silang {
-		stroke: rgba(255, 255, 255, 0.35);
+		stroke: rgb(var(--kontras-rgb) / 0.35);
 		stroke-dasharray: 3 3;
 		vector-effect: non-scaling-stroke;
 	}
 	.titik-hover {
-		fill: #05070f;
-		stroke: #3ef0d0;
+		fill: var(--bg);
+		stroke: var(--aksen);
 		stroke-width: 2;
 		vector-effect: non-scaling-stroke;
 	}
 	.sumbu {
-		fill: #8a96b8;
+		fill: var(--redup);
 		font: 10px var(--f-mono, monospace);
 		text-anchor: middle;
 	}
 	.sumbu.redup {
-		fill: #5b6688;
+		fill: var(--redup-2);
 		font-size: 8.5px;
 	}
 	.info {
 		position: absolute;
 		top: 0;
 		transform: translateX(-50%);
-		background: rgba(8, 12, 26, 0.92);
-		border: 1px solid rgba(62, 240, 208, 0.3);
+		background: var(--tip-bg);
+		border: 1px solid rgb(var(--aksen-rgb) / 0.3);
 		border-radius: 8px;
 		padding: 6px 10px;
 		font-size: 11px;
@@ -184,7 +184,7 @@
 		gap: 16px;
 		justify-content: flex-end;
 		font-size: 11px;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	i {
 		display: inline-block;
@@ -194,13 +194,13 @@
 		margin-right: 6px;
 	}
 	.t-trx {
-		background: #3ef0d0;
+		background: var(--aksen);
 	}
 	.t-pos {
-		background: #9b8cff;
+		background: var(--ungu);
 	}
 	.t-aksi {
-		background: #ffc65c;
+		background: var(--amber);
 	}
 	@keyframes tarik {
 		to {

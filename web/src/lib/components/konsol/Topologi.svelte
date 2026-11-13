@@ -106,7 +106,7 @@
 	}
 	.radar-cincin {
 		fill: none;
-		stroke: rgba(62, 240, 208, 0.1);
+		stroke: rgb(var(--aksen-rgb) / 0.1);
 		stroke-dasharray: 2 5;
 	}
 	.sapu {
@@ -116,93 +116,93 @@
 	.kabel {
 		fill: none;
 		stroke-width: 6;
-		stroke: rgba(62, 240, 208, 0.12);
+		stroke: rgb(var(--aksen-rgb) / 0.12);
 	}
 	.kabel.mati {
-		stroke: rgba(255, 107, 138, 0.15);
+		stroke: rgb(var(--mawar-rgb) / 0.15);
 	}
 	.aliran {
 		fill: none;
 		stroke-width: 1.6;
-		stroke: #3ef0d0;
+		stroke: var(--aksen);
 		stroke-dasharray: 6 10;
 		animation: alir 1.4s linear infinite;
 	}
 	.aliran.lambat {
-		stroke: #ffc65c;
+		stroke: var(--amber);
 	}
 	.aliran.mati {
-		stroke: #ff6b8a;
+		stroke: var(--mawar);
 		stroke-dasharray: 2 8;
 		animation: none;
 		opacity: 0.6;
 	}
 	.partikel {
-		fill: #e9fffb;
-		filter: drop-shadow(0 0 4px #3ef0d0);
+		fill: var(--aksen);
+		filter: drop-shadow(0 0 4px var(--aksen));
 	}
 	.partikel.lambat {
-		filter: drop-shadow(0 0 4px #ffc65c);
+		filter: drop-shadow(0 0 4px var(--amber));
 	}
 	.lat {
-		fill: #b9c3e3;
+		fill: var(--teks-2);
 		font: 10px var(--f-mono, monospace);
 		text-anchor: middle;
 	}
 	.cincin-luar {
 		fill: none;
-		stroke: rgba(62, 240, 208, 0.35);
+		stroke: rgb(var(--aksen-rgb) / 0.35);
 		stroke-dasharray: 4 4;
 		animation: putar 14s linear infinite;
 		transform-box: fill-box;
 		transform-origin: center;
 	}
 	.badan {
-		fill: #0b1226;
-		stroke: #3ef0d0;
+		fill: var(--simpul-bg);
+		stroke: var(--aksen);
 		stroke-width: 1.5;
 	}
 	.simpul.lambat .badan,
 	.simpul.lambat .cincin-luar {
-		stroke: #ffc65c;
+		stroke: var(--amber);
 	}
 	.simpul.mati .badan,
 	.simpul.mati .cincin-luar {
-		stroke: #ff6b8a;
+		stroke: var(--mawar);
 	}
 	.simpul.mati .badan {
 		animation: kedip 1.2s ease-in-out infinite;
 	}
 	.ikon {
 		fill: none;
-		stroke: #e6ecff;
+		stroke: var(--teks);
 		stroke-width: 1.6;
 		stroke-linecap: round;
 		stroke-linejoin: round;
 	}
 	.nama {
-		fill: #e6ecff;
+		fill: var(--teks);
 		font: 600 12px var(--f-tampil, sans-serif);
 		text-anchor: middle;
 	}
 	.sub {
-		fill: #6f7ba0;
+		fill: var(--redup-2);
 		font: 9.5px var(--f-mono, monospace);
 		text-anchor: middle;
 	}
 	.inti-badan {
-		fill: #10183a;
-		stroke: #9b8cff;
+		fill: var(--simpul-bg);
+		stroke: var(--ungu);
 		stroke-width: 1.5;
-		filter: drop-shadow(0 0 16px rgba(155, 140, 255, 0.45));
+		filter: drop-shadow(0 0 16px rgb(var(--ungu-rgb) / 0.45));
 	}
 	.inti-garis {
-		stroke: rgba(230, 236, 255, 0.55);
+		stroke: rgb(var(--kontras-rgb) / 0.55);
 		stroke-width: 2;
 		stroke-linecap: round;
 	}
 	.led {
-		fill: #7dffa1;
+		fill: var(--hijau);
 		animation: kedip 1.6s ease-in-out infinite;
 	}
 	.status {
@@ -217,25 +217,25 @@
 		grid-template-columns: 10px auto 1fr;
 		gap: 8px;
 		align-items: center;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.st i {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
-		background: #3ef0d0;
-		box-shadow: 0 0 8px #3ef0d0;
+		background: var(--aksen);
+		box-shadow: 0 0 8px var(--aksen);
 	}
 	.st.lambat i {
-		background: #ffc65c;
-		box-shadow: 0 0 8px #ffc65c;
+		background: var(--amber);
+		box-shadow: 0 0 8px var(--amber);
 	}
 	.st.mati i {
-		background: #ff6b8a;
-		box-shadow: 0 0 8px #ff6b8a;
+		background: var(--mawar);
+		box-shadow: 0 0 8px var(--mawar);
 	}
 	.st b {
-		color: #e6ecff;
+		color: var(--teks);
 		font-weight: 600;
 	}
 	.st span {

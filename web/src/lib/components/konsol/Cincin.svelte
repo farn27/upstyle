@@ -45,7 +45,7 @@
 					stroke-width={tebal}
 					stroke-dasharray={`${b.panjang} ${K}`}
 					stroke-dashoffset={-b.awal}
-					style={`--k:${K}; animation-delay:${i * 90}ms`}
+					style={`--k:${K}; color:${b.warna}; animation-delay:${i * 90}ms`}
 				/>
 			{/each}
 		</g>
@@ -73,7 +73,7 @@
 	}
 	.jalur {
 		fill: none;
-		stroke: rgba(140, 170, 255, 0.09);
+		stroke: rgb(var(--kisi-rgb) / 0.09);
 		stroke-linecap: round;
 	}
 	.busur {
@@ -91,13 +91,13 @@
 	}
 	.tengah b {
 		font: 700 22px var(--f-mono, monospace);
-		color: #fff;
+		color: var(--kuat);
 	}
 	.tengah span {
 		font-size: 10px;
 		letter-spacing: 1.5px;
 		text-transform: uppercase;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.legenda {
 		list-style: none;
@@ -112,7 +112,7 @@
 		grid-template-columns: 12px 1fr auto;
 		align-items: center;
 		gap: 6px;
-		color: #b9c3e3;
+		color: var(--teks-2);
 	}
 	.legenda i {
 		width: 8px;
@@ -126,7 +126,7 @@
 	}
 	.pct {
 		font-family: var(--f-mono, monospace);
-		color: #fff;
+		color: var(--kuat);
 	}
 	@keyframes tumbuh {
 		from {

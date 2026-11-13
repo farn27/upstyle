@@ -48,16 +48,16 @@
 		stroke-width: 2;
 	}
 	.nama {
-		fill: #fff;
+		fill: var(--kuat);
 		font: 600 12px var(--f-mono, monospace);
 	}
 	.ukur {
-		fill: rgba(255, 255, 255, 0.65);
+		fill: rgb(var(--kontras-rgb) / 0.65);
 		font: 10.5px var(--f-mono, monospace);
 	}
 	.ket {
 		font-size: 11.5px;
-		color: #8a96b8;
+		color: var(--redup);
 		margin: 8px 0 0;
 	}
 	@keyframes tumbuh {

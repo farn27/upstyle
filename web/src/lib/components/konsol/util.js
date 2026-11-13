@@ -1,14 +1,15 @@
 /** Utilitas tampilan Ruang Kendali. */
 
+/** Warna data: nada tengah supaya terbaca di tema terang maupun gelap. */
 export const WARNA = {
-	aqua: '#3ef0d0',
-	ungu: '#9b8cff',
-	amber: '#ffc65c',
-	mawar: '#ff6b8a',
-	biru: '#5aa8ff',
-	hijau: '#7dffa1',
-	jingga: '#ff9a62',
-	merah_muda: '#f79bff'
+	aqua: '#14c4ad',
+	ungu: '#8270ff',
+	amber: '#f2a01c',
+	mawar: '#f04f78',
+	biru: '#3c8cff',
+	hijau: '#22b862',
+	jingga: '#f77b3d',
+	merah_muda: '#cf5ce3'
 };
 
 /** Palet berurutan untuk seri data. */

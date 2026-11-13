@@ -115,7 +115,7 @@
 		touch-action: pan-y;
 	}
 	.kisi {
-		stroke: rgba(140, 170, 255, 0.08);
+		stroke: rgb(var(--kisi-rgb) / 0.08);
 		stroke-dasharray: 2 6;
 		vector-effect: non-scaling-stroke;
 	}
@@ -131,12 +131,12 @@
 		animation: tarik 1.6s cubic-bezier(0.6, 0, 0.2, 1) forwards;
 	}
 	.silang {
-		stroke: rgba(255, 255, 255, 0.35);
+		stroke: rgb(var(--kontras-rgb) / 0.35);
 		stroke-dasharray: 3 3;
 		vector-effect: non-scaling-stroke;
 	}
 	.sumbu {
-		fill: #8a96b8;
+		fill: var(--redup);
 		font: 10px var(--f-mono, monospace);
 		text-anchor: middle;
 	}
@@ -145,15 +145,15 @@
 		left: 4px;
 		transform: translateY(-120%);
 		font: 10px var(--f-mono, monospace);
-		color: #5b6688;
+		color: var(--redup-2);
 		pointer-events: none;
 	}
 	.info {
 		position: absolute;
 		top: 0;
 		transform: translateX(-50%);
-		background: rgba(8, 12, 26, 0.94);
-		border: 1px solid rgba(155, 140, 255, 0.35);
+		background: var(--tip-bg);
+		border: 1px solid rgb(var(--ungu-rgb) / 0.35);
 		border-radius: 8px;
 		padding: 6px 10px;
 		font-size: 11px;
@@ -168,7 +168,7 @@
 		flex-wrap: wrap;
 		gap: 4px 14px;
 		font-size: 11px;
-		color: #8a96b8;
+		color: var(--redup);
 		margin-top: 4px;
 	}
 	i {

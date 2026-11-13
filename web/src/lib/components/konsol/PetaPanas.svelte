@@ -54,12 +54,12 @@
 	}
 	.kepala {
 		font: 9px var(--f-mono, monospace);
-		color: #5b6688;
+		color: var(--redup-2);
 		text-align: left;
 	}
 	.hari {
 		font-size: 10px;
-		color: #8a96b8;
+		color: var(--redup);
 		align-self: center;
 	}
 	.sel {
@@ -72,12 +72,12 @@
 	}
 	.sel:hover,
 	.sel:focus-visible {
-		outline: 1.5px solid #fff;
+		outline: 1.5px solid var(--kuat);
 		outline-offset: 1px;
 	}
 	.ket {
 		font-size: 11.5px;
-		color: #8a96b8;
+		color: var(--redup);
 		margin: 8px 0 0;
 		min-height: 1.4em;
 	}

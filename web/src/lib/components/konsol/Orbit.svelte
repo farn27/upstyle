@@ -162,14 +162,14 @@
 	}
 	.kisi {
 		fill: none;
-		stroke: rgba(140, 170, 255, 0.07);
+		stroke: rgb(var(--kisi-rgb) / 0.07);
 	}
 	.sinar {
-		stroke: rgba(140, 170, 255, 0.05);
+		stroke: rgb(var(--kisi-rgb) / 0.05);
 	}
 	.lintas {
 		fill: none;
-		stroke: rgba(155, 140, 255, 0.28);
+		stroke: rgb(var(--ungu-rgb) / 0.28);
 		stroke-dasharray: 2 6;
 	}
 	.putar {
@@ -198,7 +198,7 @@
 	}
 	.cabang {
 		fill: none;
-		stroke: rgba(255, 255, 255, 0.5);
+		stroke: rgb(var(--kontras-rgb) / 0.5);
 		stroke-dasharray: 2 3;
 	}
 	.cincin-inti {
@@ -208,11 +208,11 @@
 	}
 	.putus {
 		fill: none;
-		stroke: rgba(62, 240, 208, 0.55);
+		stroke: rgb(var(--aksen-rgb) / 0.55);
 		stroke-dasharray: 14 10;
 	}
 	.putus.tipis {
-		stroke: rgba(155, 140, 255, 0.4);
+		stroke: rgb(var(--ungu-rgb) / 0.4);
 		stroke-dasharray: 3 7;
 	}
 	.jantung {
@@ -226,7 +226,7 @@
 		text-anchor: middle;
 	}
 	.sub-inti {
-		fill: rgba(255, 255, 255, 0.75);
+		fill: rgba(255, 255, 255, 0.8);
 		font: 600 8px var(--f-mono, monospace);
 		letter-spacing: 3px;
 		text-anchor: middle;
@@ -239,11 +239,11 @@
 		gap: 2px;
 		min-width: 190px;
 		padding: 10px 12px;
-		background: rgba(8, 12, 26, 0.92);
-		border: 1px solid rgba(62, 240, 208, 0.35);
+		background: var(--tip-bg);
+		border: 1px solid rgb(var(--aksen-rgb) / 0.35);
 		border-radius: 10px;
 		font-size: 12px;
-		color: #dfe7ff;
+		color: var(--teks);
 		backdrop-filter: blur(6px);
 		z-index: 5;
 		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -252,7 +252,7 @@
 		font-size: 13px;
 	}
 	.redup {
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.legenda {
 		display: flex;
@@ -260,7 +260,7 @@
 		gap: 6px 14px;
 		justify-content: center;
 		font-size: 11px;
-		color: #9aa6c8;
+		color: var(--teks-2);
 		margin-top: 4px;
 	}
 	.titik {
@@ -272,8 +272,8 @@
 		vertical-align: middle;
 	}
 	.titik.nyala {
-		background: #3ef0d0;
-		box-shadow: 0 0 0 0 rgba(62, 240, 208, 0.7);
+		background: var(--aksen);
+		box-shadow: 0 0 0 0 rgb(var(--aksen-rgb) / 0.7);
 		animation: denyut-titik 2s infinite;
 	}
 	@keyframes putar {
@@ -302,10 +302,10 @@
 	}
 	@keyframes denyut-titik {
 		70% {
-			box-shadow: 0 0 0 8px rgba(62, 240, 208, 0);
+			box-shadow: 0 0 0 8px rgb(var(--aksen-rgb) / 0);
 		}
 		100% {
-			box-shadow: 0 0 0 0 rgba(62, 240, 208, 0);
+			box-shadow: 0 0 0 0 rgb(var(--aksen-rgb) / 0);
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

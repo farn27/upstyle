@@ -99,7 +99,7 @@
 	.tirai {
 		position: fixed;
 		inset: 0;
-		background: rgba(2, 4, 10, 0.55);
+		background: var(--tirai);
 		backdrop-filter: blur(3px);
 		z-index: 40;
 	}
@@ -112,8 +112,8 @@
 		overflow-y: auto;
 		z-index: 41;
 		padding: 22px 20px 40px;
-		background: linear-gradient(180deg, #0b1226, #070b18);
-		border-left: 1px solid rgba(62, 240, 208, 0.25);
+		background: var(--laci-bg);
+		border-left: 1px solid rgb(var(--aksen-rgb) / 0.25);
 		box-shadow: -30px 0 60px rgba(0, 0, 0, 0.5);
 	}
 	header {
@@ -133,19 +133,19 @@
 	h3 {
 		margin: 2px 0;
 		font: 700 20px var(--f-tampil, sans-serif);
-		color: #fff;
+		color: var(--kuat);
 	}
 	header small {
-		color: #8a96b8;
+		color: var(--redup);
 		font-size: 11px;
 	}
 	.tutup {
 		width: 34px;
 		height: 34px;
 		border-radius: 10px;
-		border: 1px solid rgba(140, 170, 255, 0.25);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.25);
 		background: none;
-		color: #fff;
+		color: var(--kuat);
 		cursor: pointer;
 	}
 	.ringkas {
@@ -159,20 +159,20 @@
 		gap: 2px;
 		padding: 10px;
 		border-radius: 12px;
-		background: rgba(140, 170, 255, 0.05);
+		background: rgb(var(--kisi-rgb) / 0.05);
 		font-size: 10.5px;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	.ringkas b {
 		font: 700 15px var(--f-mono, monospace);
-		color: #fff;
+		color: var(--kuat);
 	}
 	h4 {
 		margin: 22px 0 10px;
 		font-size: 10.5px;
 		letter-spacing: 1.6px;
 		text-transform: uppercase;
-		color: #8a96b8;
+		color: var(--redup);
 		font-weight: 600;
 	}
 	.dua {
@@ -193,7 +193,7 @@
 		grid-template-columns: 74px 1fr 30px;
 		gap: 8px;
 		align-items: center;
-		color: #b9c3e3;
+		color: var(--teks-2);
 	}
 	.modul li span:first-child {
 		overflow: hidden;
@@ -203,7 +203,7 @@
 	.modul .bar {
 		height: 6px;
 		border-radius: 99px;
-		background: rgba(140, 170, 255, 0.08);
+		background: rgb(var(--kisi-rgb) / 0.08);
 		overflow: hidden;
 	}
 	.modul .bar i {
@@ -216,7 +216,7 @@
 	.modul b {
 		font-family: var(--f-mono, monospace);
 		text-align: right;
-		color: #fff;
+		color: var(--kuat);
 	}
 	.aksi {
 		list-style: none;
@@ -225,31 +225,31 @@
 		display: grid;
 		gap: 6px;
 		font-size: 12px;
-		color: #d5ddf7;
+		color: var(--teks);
 	}
 	.aksi li {
 		padding: 8px 10px;
 		border-radius: 10px;
-		background: rgba(140, 170, 255, 0.04);
-		border-left: 2px solid #3ef0d0;
+		background: rgb(var(--kisi-rgb) / 0.04);
+		border-left: 2px solid var(--aksen);
 	}
 	.aksi li.error {
-		border-left-color: #ff6b8a;
+		border-left-color: var(--mawar);
 	}
 	.aksi li.info {
-		border-left-color: #5aa8ff;
+		border-left-color: var(--biru);
 	}
 	.aksi li span {
 		display: block;
 		font: 10px var(--f-mono, monospace);
-		color: #6f7ba0;
+		color: var(--redup-2);
 	}
 	.redup {
-		color: #6f7ba0;
+		color: var(--redup-2);
 		font-size: 12px;
 	}
 	.galat {
-		color: #ff6b8a;
+		color: var(--mawar);
 	}
 	@keyframes napas {
 		50% {

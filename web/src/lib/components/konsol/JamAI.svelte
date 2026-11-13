@@ -86,21 +86,21 @@
 	}
 	.tepi {
 		fill: none;
-		stroke: rgba(140, 170, 255, 0.12);
+		stroke: rgb(var(--kisi-rgb) / 0.12);
 	}
 	.tepi.dalam {
 		stroke-dasharray: 2 4;
 	}
 	.tik {
-		stroke: rgba(140, 170, 255, 0.35);
+		stroke: rgb(var(--kisi-rgb) / 0.35);
 	}
 	.angka-jam {
-		fill: #8a96b8;
+		fill: var(--redup);
 		font: 10px var(--f-mono, monospace);
 		text-anchor: middle;
 	}
 	.batang {
-		stroke: #6fd9ff;
+		stroke: var(--biru);
 		stroke-width: 7;
 		stroke-linecap: round;
 		opacity: 0.85;
@@ -109,14 +109,14 @@
 		animation: mekar 0.9s cubic-bezier(0.3, 1.4, 0.5, 1) both;
 	}
 	.batang:hover {
-		stroke: #fff;
+		stroke: var(--kuat);
 	}
 	.batang.kini {
-		stroke: #ffc65c;
-		filter: drop-shadow(0 0 6px #ffc65c);
+		stroke: var(--amber);
+		filter: drop-shadow(0 0 6px var(--amber));
 	}
 	.jarum {
-		stroke: #ffc65c;
+		stroke: var(--amber);
 		stroke-width: 2;
 		stroke-linecap: round;
 	}
@@ -129,11 +129,11 @@
 	}
 	.ket span {
 		font-size: 12px;
-		color: #b9c3e3;
+		color: var(--teks-2);
 	}
 	.ket small {
 		font-size: 10px;
-		color: #5b6688;
+		color: var(--redup-2);
 		text-transform: uppercase;
 		letter-spacing: 1.5px;
 	}

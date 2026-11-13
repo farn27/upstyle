@@ -168,15 +168,15 @@
 		font-size: 10.5px;
 		letter-spacing: 1.3px;
 		text-transform: uppercase;
-		color: #8a96b8;
+		color: var(--redup);
 	}
 	select,
 	input {
 		padding: 9px 11px;
 		border-radius: 10px;
-		border: 1px solid rgba(140, 170, 255, 0.2);
-		background: rgba(5, 7, 15, 0.7);
-		color: #fff;
+		border: 1px solid rgb(var(--kisi-rgb) / 0.2);
+		background: var(--kolom-bg);
+		color: var(--kuat);
 		font: 13px var(--f-tampil, sans-serif);
 		color-scheme: dark;
 	}
@@ -184,14 +184,14 @@
 		padding: 10px 18px;
 		border-radius: 10px;
 		border: 0;
-		background: linear-gradient(90deg, #3ef0d0, #9b8cff);
+		background: linear-gradient(90deg, var(--aksen), var(--ungu));
 		color: #05070f;
 		font: 700 13px var(--f-tampil, sans-serif);
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		box-shadow: 0 6px 22px rgba(62, 240, 208, 0.25);
+		box-shadow: 0 6px 22px rgb(var(--aksen-rgb) / 0.25);
 	}
 	.jalan:disabled {
 		opacity: 0.6;
@@ -216,25 +216,25 @@
 	.aksi button {
 		padding: 5px 11px;
 		border-radius: 8px;
-		border: 1px solid rgba(140, 170, 255, 0.22);
+		border: 1px solid rgb(var(--kisi-rgb) / 0.22);
 		background: none;
-		color: #b9c3e3;
+		color: var(--teks-2);
 		font: 600 11.5px var(--f-tampil, sans-serif);
 		cursor: pointer;
 	}
 	.preset button:hover,
 	.aksi button:hover:not(:disabled) {
-		border-color: #3ef0d0;
-		color: #3ef0d0;
+		border-color: var(--aksen);
+		color: var(--aksen);
 	}
 	.preset .unduh {
 		margin-left: auto;
-		border-color: rgba(255, 198, 92, 0.45);
-		color: #ffc65c;
+		border-color: rgb(var(--amber-rgb) / 0.45);
+		color: var(--amber);
 	}
 	.catatan {
 		font-size: 11.5px;
-		color: #6f7ba0;
+		color: var(--redup-2);
 		margin: 10px 0 0;
 	}
 	.hasil {
@@ -258,17 +258,17 @@
 		font: 700 13px var(--f-mono, monospace);
 		padding: 6px 9px;
 		border-radius: 9px;
-		background: rgba(155, 140, 255, 0.16);
-		color: #c9c0ff;
+		background: rgb(var(--ungu-rgb) / 0.16);
+		color: var(--ungu-teks);
 	}
 	.kartu b {
 		display: block;
 		font-size: 13.5px;
-		color: #fff;
+		color: var(--kuat);
 	}
 	.kartu small {
 		font-size: 11px;
-		color: #6f7ba0;
+		color: var(--redup-2);
 	}
 	.aksi {
 		display: flex;
@@ -281,7 +281,7 @@
 		margin: 0 0 10px;
 		padding: 10px 12px;
 		border-radius: 10px;
-		background: rgba(3, 6, 14, 0.85);
+		background: rgba(3, 6, 14, 0.9);
 		color: #9ff8ea;
 		font: 11px/1.5 var(--f-mono, monospace);
 		white-space: pre-wrap;
@@ -298,20 +298,20 @@
 	th {
 		position: sticky;
 		top: 0;
-		background: #0c1430;
+		background: var(--th-bg);
 		text-align: left;
-		color: #8a96b8;
+		color: var(--redup);
 		font-weight: 600;
 		padding: 6px 8px;
 	}
 	td {
 		padding: 6px 8px;
-		border-top: 1px solid rgba(140, 170, 255, 0.07);
-		color: #e6ecff;
+		border-top: 1px solid rgb(var(--kisi-rgb) / 0.07);
+		color: var(--teks);
 		white-space: nowrap;
 	}
 	.galat {
-		color: #ff6b8a;
+		color: var(--mawar);
 		font-size: 12px;
 	}
 	@keyframes putar {
