@@ -97,8 +97,8 @@ export function perintahTransaksi(teks) {
 	return ADA_UANG.test(bersih) || JUAL_BARANG.test(bersih);
 }
 
-const ARAH_MASUK = /\b(pendapatan|pemasukan|penjualan|omzet|omset|penghasilan|terjual|laku|jual|jualan|menjual|diterima|uang\s+masuk)\b/i;
-const ARAH_KELUAR = /\b(pengeluaran|biaya|beban|beli|membeli|belanja|belanjaan|gaji|gajian|upah|sewa|ongkir|ongkos|kulakan|restock|uang\s+keluar)\b/i;
+const ARAH_MASUK = /\b(pendapatan|pemasukan|penjualan|omzet|omset|penghasilan|terjual|laku|jual|jualan|menjual|terima|menerima|diterima|dibayar|uang\s+masuk|dari\s+(pelanggan|pembeli|customer|konsumen))\b/i;
+const ARAH_KELUAR = /\b(pengeluaran|biaya|beban|beli|membeli|belanja|belanjaan|bayar|bayarin|membayar|gaji|gajian|upah|sewa|ongkir|ongkos|kulakan|restock|uang\s+keluar|ke\s+(supplier|pemasok|vendor))\b/i;
 
 /**
  * Arah transaksi yang tegas dari kata kunci ("pendapatan" → Masuk, "beli" → Keluar); null bila ragu

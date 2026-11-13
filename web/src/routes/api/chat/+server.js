@@ -16,6 +16,7 @@ import {
 	tanggalDariTeks,
 	hapusTanggal,
 	arahDariTeks,
+	kalimatTanya,
 	perintahIngat,
 	jumlahNominal,
 	rapikanRiwayat,
@@ -28,6 +29,7 @@ import { kumpulkanData } from '$lib/server/chatData';
 import { jawabInstan } from '$lib/server/chatInstan';
 import { analisisUnit } from '$lib/server/analitik';
 import { kunciCache, ambilCache, simpanCache } from '$lib/server/aiCache';
+import { normalisasi, tebakMaksud, tidakDikenali, ambilPilihan } from '$lib/server/chatNormal';
 import { unitBisnis, chartOfAccounts } from '$lib/server/schema';
 
 const MAKS_PESAN = 1000;
@@ -58,6 +60,7 @@ ATURAN:
 4. Bila relevan beri 1 saran tindakan yang konkret dan masuk akal untuk usaha kecil.
 5. Tautan hanya dari HALAMAN, format [Label](/path), maksimal 2, di akhir jawaban.
 6. Kamu tidak bisa mengubah data. Untuk mencatat transaksi, minta pengguna mengetik perintah seperti "catat beli gula 50rb".
+7. Pesan pengguna sering salah ketik, disingkat, atau tanpa tanda baca — tafsirkan maksud yang paling mungkin. Bila tetap ragu (mis. periode atau unit tidak jelas), jangan menebak: ajukan 1 pertanyaan singkat, lalu tulis baris terakhir persis "PILIHAN: opsi 1 | opsi 2 | opsi 3" (2–4 opsi berupa kalimat lengkap yang bisa langsung dikirim).
 Widget opsional (maks 3): :::metric{label:"Omzet",value:"Rp1.250.000",trend:"+8%",color:"green"}::: :::alert{type:"warning",title:"Judul",msg:"Isi"}:::`;
 	const hal = p.halaman.length ? `\nHALAMAN: ${p.halaman.map((h) => `${h.label}=${h.path}`).join('; ')}` : '';
 	const data = p.umum ? '' : `\nDATA:\n${p.data || '(tidak ada data relevan untuk pertanyaan ini)'}`;
@@ -231,6 +234,10 @@ export async function POST({ request, cookies }) {
 		const pesan = String(body?.message || '').trim().slice(0, MAKS_PESAN);
 		if (!pesan) return balas({ reply: 'Pesan tidak boleh kosong.' }, { status: 400 });
 		const slugAktif = typeof body?.activeUnitSlug === 'string' && body.activeUnitSlug ? body.activeUnitSlug : null;
+		// Rapikan salah ketik/singkatan/angka dalam kata untuk aturan (periode, catat, topik, jawaban instan)
+		const { teks: pesanN, koreksi } = normalisasi(pesan);
+		const kataDikoreksi = koreksi.filter((k) => k.dari !== 'angka dalam kata' && !['yang', 'untuk', 'dari', 'sama', 'tidak', 'sudah', 'belum', 'lagi', 'juga', 'aja', 'dengan'].includes(k.ke));
+		const dibaca = kataDikoreksi.length ? `\n\n*✏️ Saya baca: "${pesanN}"*` : '';
 
 		// Kuota AI hanya dipotong saat model benar-benar dipanggil (perintah memori & jawaban instan gratis)
 		const cekKuota = async () => {
@@ -276,27 +283,58 @@ export async function POST({ request, cookies }) {
 		}
 
 		// ── 2. Perintah mencatat transaksi → kartu pratinjau ──
-		if (perintahTransaksi(pesan)) {
+		if (perintahTransaksi(pesanN)) {
 			if (!unitId) {
 				return balas({ reply: 'Transaksi ini mau dicatat ke unit bisnis yang mana kak? Pilih unitnya dulu di atas kolom chat, lalu kirim ulang perintahnya ya.', suggestions: [], needsUnit: true });
 			}
 			const tolak = await cekKuota();
 			if (tolak) return tolak;
-			const disebut = tanggalDariTeks(pesan);
-			const tanggal = disebut && disebut <= kal.hariIni ? disebut : /\b(kemarin|kmrn|kemaren)\b/i.test(pesan) ? kal.kemarin : kal.hariIni;
-			const previews = await pratinjauTransaksi(unitId, pesan, tanggal);
+			const disebut = tanggalDariTeks(pesanN);
+			const tanggal = disebut && disebut <= kal.hariIni ? disebut : /\b(kemarin|kmrn|kemaren)\b/i.test(pesanN) ? kal.kemarin : kal.hariIni;
+			// Arah uang tidak jelas ("transfer 100rb", "setor 500rb") → tanya balik dengan dua pilihan
+			const inti = hapusTanggal(pesanN).replace(/^(tolong\s+)?(catat(kan)?|input|masukkan)\s+/i, '').trim();
+			if (!arahDariTeks(inti) && /\b(transfer|tf|trf|setor|setoran|tarik|kirim|dp|titip)\b/i.test(inti) && jumlahNominal(inti) <= 1) {
+				const akhiran = disebut ? ` ${disebut.slice(8, 10)}/${disebut.slice(5, 7)}/${disebut.slice(0, 4)}` : '';
+				return balas({
+					reply: `Ini **uang masuk** atau **uang keluar** kak? 🤔\n\n1. **Masuk** — misalnya transfer dari pembeli\n2. **Keluar** — misalnya transfer ke supplier\n\nKetuk salah satu pilihan di bawah ya.${dibaca}`,
+					suggestions: [`Catat uang masuk: ${inti}${akhiran}`, `Catat uang keluar: ${inti}${akhiran}`],
+					intent: 'klarifikasi:arah'
+				});
+			}
+			const previews = await pratinjauTransaksi(unitId, pesanN, tanggal);
 			if (!previews.length) {
-				return balas({ reply: 'Nominalnya berapa kak? Contoh: *"catat beli gula 50rb"* atau *"jual 2 kopi susu"*.', suggestions: ['Catat beli gula 50rb'] });
+				const contoh = inti.replace(/\s+\d[\d.,]*\s*$/, '').trim() || 'beli gula';
+				return balas({
+					reply: `Nominalnya berapa kak? Saya belum menemukan jumlah uangnya.\n\nKetik ulang lengkap dengan nominal, misalnya *"${contoh} 50rb"* atau *"${contoh} 50.000"*. Kalau maksudnya bertanya data, pilih opsi di bawah.${dibaca}`,
+					suggestions: [`${contoh} 50rb`, `${contoh} 100rb`, 'Berapa omzet hari ini?'],
+					intent: 'klarifikasi:nominal'
+				});
 			}
 			const satu = previews[0];
 			return balas({
 				reply:
 					previews.length > 1
-						? `✅ **${previews.length} transaksi** terdeteksi kak. Periksa akunnya di setiap kartu, lalu simpan ya 👇`
-						: `${satu.kategori === 'Masuk' ? '💰 **Pemasukan' : '💸 **Pengeluaran'} Rp${Number(satu.nominal).toLocaleString('id-ID')}** terdeteksi kak. Akun sudah saya pilihkan sesuai metode bayar — periksa lalu simpan ya 👇`,
+						? `✅ **${previews.length} transaksi** terdeteksi kak. Periksa akun dan tanggal di setiap kartu, lalu simpan ya 👇${dibaca}`
+						: `${satu.kategori === 'Masuk' ? '💰 **Pemasukan' : '💸 **Pengeluaran'} Rp${Number(satu.nominal).toLocaleString('id-ID')}** terdeteksi kak${satu.tanggal !== kal.hariIni ? ` (tanggal ${satu.tanggal.slice(8, 10)}/${satu.tanggal.slice(5, 7)}/${satu.tanggal.slice(0, 4)})` : ''}. Akun sudah saya pilihkan sesuai metode bayar — periksa lalu simpan ya 👇${dibaca}`,
 				transactionPreviews: previews,
 				suggestions: ['Input transaksi lain', 'Lihat riwayat transaksi'],
 				intent: 'transaksi'
+			});
+		}
+
+		// Niat mencatat tetapi tanpa nominal ("catat beli gula", "bayar listrik") → tanya nominalnya dengan pilihan
+		if (
+			/^(tolong\s+)?(catat(kan)?|input|masukkan|tambah(kan)?\s+(transaksi|pemasukan|pengeluaran)|beli|bayar|belanja)\b/i.test(pesanN) &&
+			!/^(tolong\s+)?catat(kan)?\s+(memori|preferensi|fakta|bahwa)\b/i.test(pesanN) &&
+			!perintahIngat(pesan) &&
+			!kalimatTanya(pesanN) &&
+			jumlahNominal(hapusTanggal(pesanN)) === 0
+		) {
+			const contoh = pesanN.replace(/^(tolong\s+)?(catat(kan)?|input|masukkan|tambah(kan)?)\s*/i, '').trim() || 'beli gula';
+			return balas({
+				reply: `Siap kak, mau dicatat **${contoh}** — nominalnya berapa? 💬\n\nKetik ulang lengkap dengan jumlah uangnya, misalnya *"catat ${contoh} 50rb"*, atau ketuk contoh di bawah lalu ubah angkanya.${dibaca}`,
+				suggestions: [`catat ${contoh} 50rb`, `catat ${contoh} 100rb`, `catat ${contoh} 200rb`],
+				intent: 'klarifikasi:nominal'
 			});
 		}
 
@@ -317,12 +355,12 @@ export async function POST({ request, cookies }) {
 		}
 
 		// ── 4. Pertanyaan → kumpulkan data yang relevan saja ──
-		const basaBasi = sapaan(pesan);
-		let topik = basaBasi ? [] : deteksiTopik(pesan);
-		let periode = periodeDariTeks(pesan);
+		const basaBasi = sapaan(pesan) || sapaan(pesanN);
+		let topik = basaBasi ? [] : deteksiTopik(pesanN);
+		let periode = periodeDariTeks(pesanN);
 		let susulan = false;
 		if (!basaBasi && (!topik.length || !periode.length)) {
-			const susulanTopik = topikSusulan(pesan, riwayat);
+			const susulanTopik = topikSusulan(pesanN, riwayat);
 			if (!topik.length && susulanTopik.length) {
 				topik = susulanTopik;
 				susulan = true;
@@ -334,28 +372,38 @@ export async function POST({ request, cookies }) {
 			}
 		}
 		const hanyaBantuan = topik.length === 1 && topik[0] === 'bantuan';
+
+		// Pesan tidak dikenali sama sekali (mis. "asdf qwer") → tanya balik dengan pilihan, tanpa memanggil model
+		if (!basaBasi && !susulan && !topik.length && !periode.length && tidakDikenali(pesanN)) {
+			const pilihan = tebakMaksud(pesanN);
+			return balas({
+				reply: `Maaf kak, saya belum yakin maksud *"${pesan.slice(0, 60)}"* 🙏\n\nMungkin salah satu ini?\n${pilihan.map((p, i) => `${i + 1}. ${p}`).join('\n')}\n\nKetuk pilihannya, atau ketik ulang dengan kata lain ya.`,
+				suggestions: pilihan,
+				intent: 'klarifikasi:maksud'
+			});
+		}
 		const umum = basaBasi;
 
 		// ── 5. Jawaban instan dari basis data (0 token) untuk pertanyaan fakta sederhana ──
 		if (!umum && !susulan) {
-			const instan = await jawabInstan({ pesan, unit, unitIds: semuaUnit.map((u) => u.id), topik, periode });
+			const instan = await jawabInstan({ pesan: pesanN, unit, unitIds: semuaUnit.map((u) => u.id), topik, periode });
 			if (instan) {
 				log.ai.info({ jenis: instan.intent, prompt: 0, completion: 0, total: 0 }, '[Chat] Jawaban instan tanpa model');
-				return balas({ reply: saringTautan(instan.reply, unit?.slug ?? null), suggestions: instan.suggestions, chartData: instan.chartData ?? null, transactionPreviews: null, intent: instan.intent });
+				return balas({ reply: saringTautan(instan.reply, unit?.slug ?? null) + dibaca, suggestions: instan.suggestions, chartData: instan.chartData ?? null, transactionPreviews: null, intent: instan.intent });
 			}
 		}
 
 		const [{ data, saran, grafik: grafikData }, memori] = await Promise.all([
 			umum || hanyaBantuan
 				? Promise.resolve({ data: '', saran: [], grafik: null })
-				: kumpulkanData({ unit, unitIds: semuaUnit.map((u) => u.id), userId, pesan: susulan ? `${riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || ''} ${pesan}` : pesan, topik, periode }),
+				: kumpulkanData({ unit, unitIds: semuaUnit.map((u) => u.id), userId, pesan: susulan ? `${normalisasi(riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || '').teks} ${pesanN}` : pesanN, topik, periode }),
 			getAiMemories(unitId, userId)
 		]);
 
 		// Pertanyaan "kenapa / saran / strategi": sertakan temuan mesin analisis statistik (sudah dihitung,
 		// cache per sidik data) supaya jawaban AI berdasar penyebab nyata — tambahan token kecil (±150)
 		let temuan = '';
-		if (unit && !umum && !hanyaBantuan && /\b(kenapa|mengapa|knp|penyebab|saran|sarankan|strategi|tips|rekomendasi|evaluasi|analisis|analisa|tingkatkan|naikkan|meningkatkan|perbaiki|harus\s+apa|lakukan\s+apa|prioritas)\b/i.test(susulan ? `${riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || ''} ${pesan}` : pesan)) {
+		if (unit && !umum && !hanyaBantuan && /\b(kenapa|mengapa|knp|penyebab|saran|sarankan|strategi|tips|rekomendasi|evaluasi|analisis|analisa|tingkatkan|naikkan|meningkatkan|perbaiki|harus\s+apa|lakukan\s+apa|prioritas)\b/i.test(susulan ? `${riwayat.filter((h) => h.role === 'user').slice(-1)[0]?.content || ''} ${pesanN}` : pesanN)) {
 			try {
 				const a = await analisisUnit(unit);
 				temuan = `\nTEMUAN ANALISIS STATISTIK (sudah dihitung; boleh dikutip):\n- ${a.ringkasan}\n${a.wawasan.slice(0, 6).map((/** @type {any} */ w) => `- ${w.judul}: ${w.isi}${w.aksi ? ` Saran: ${w.aksi}` : ''}`).join('\n')}`;
@@ -380,7 +428,7 @@ export async function POST({ request, cookies }) {
 		const permintaan = {
 			// Sapaan & panduan cukup model kecil (batas token per menit dihitung per model → beban terbagi)
 			model: umum || hanyaBantuan ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile',
-			messages: [{ role: 'system', content: sistem }, ...(umum ? riwayat.slice(-2) : riwayat), { role: 'user', content: pesan }],
+			messages: [{ role: 'system', content: sistem }, ...(umum ? riwayat.slice(-2) : riwayat), { role: 'user', content: kataDikoreksi.length ? `${pesan}\n(kemungkinan maksud: ${pesanN})` : pesan }],
 			temperature: 0.3,
 			max_tokens: umum ? 200 : 600
 		};
@@ -414,11 +462,13 @@ export async function POST({ request, cookies }) {
 		}
 		// Blok transaksi tidak boleh muncul dari jawaban analitis (pencatatan lewat jalur perintah di atas)
 		reply = reply.replace(/```transaction[\s\S]*?```/g, '').trim();
-		reply = saringTautan(reply, unit?.slug ?? null);
+		// Model ragu → baris "PILIHAN: a | b" menjadi tombol pilihan
+		const { teks: tanpaPilihan, pilihan } = ambilPilihan(reply);
+		reply = saringTautan(tanpaPilihan, unit?.slug ?? null);
 
 		return balas({
 			reply,
-			suggestions: saran.length ? saran : saranBawaan(topik),
+			suggestions: pilihan.length ? pilihan : saran.length ? saran : saranBawaan(topik),
 			// Grafik dibuat server dari data (tren, rincian) bila model tidak membuatnya — tanpa token
 			chartData: chartData || grafikData || null,
 			transactionPreviews: null,
