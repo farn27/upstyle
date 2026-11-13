@@ -10,7 +10,8 @@ import { daftarModel } from '$lib/server/groq';
 import { ambilCache } from '$lib/server/aiCache';
 import { kandidatVisi } from '$lib/server/aiFoto';
 import { AI_LIMIT_HARI, AI_LIMIT_MENIT, batasHarianAI, pemakaianHarianAI } from '$lib/server/rateLimit';
-import { samarkanEmail } from '$lib/server/konsol/akses';
+import { samarkanEmail, unitRisetDiizinkan } from '$lib/server/konsol/akses';
+import { samarkanTeks } from '$lib/server/telemetri';
 
 const WIB = 7 * 3600e3;
 
@@ -73,16 +74,16 @@ export async function ringkasan() {
 		baris('SELECT COUNT(*) n, SUM(created_at >= ?) baru30 FROM users', [d30]),
 		baris('SELECT id, user_id, nama_unit, kategori, is_cabang FROM unit_bisnis ORDER BY user_id, id'),
 		baris('SELECT unit_id, COUNT(*) n, MAX(tanggal) akhir FROM transaksi WHERE tanggal >= ? GROUP BY unit_id', [d30]),
-		baris("SELECT unit_id, COUNT(*) n, COALESCE(SUM(total),0) omzet, MAX(created_at) akhir FROM pos_orders WHERE status = 'PAID' AND created_at >= ? GROUP BY unit_id", [d30]),
-		baris("SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN kategori_trx='MASUK' THEN nominal ELSE 0 END),0) masuk, COALESCE(SUM(CASE WHEN kategori_trx='KELUAR' THEN nominal ELSE 0 END),0) keluar FROM transaksi WHERE tanggal >= ?", [hari]),
-		baris("SELECT COUNT(*) n, COALESCE(SUM(total),0) omzet FROM pos_orders WHERE status = 'PAID' AND created_at >= ?", [hari]),
+		baris("SELECT unit_id, COUNT(*) n, MAX(created_at) akhir FROM pos_orders WHERE status = 'PAID' AND created_at >= ? GROUP BY unit_id", [d30]),
+		baris("SELECT COUNT(*) n, SUM(kategori_trx='MASUK') masuk, SUM(kategori_trx='KELUAR') keluar FROM transaksi WHERE tanggal >= ?", [hari]),
+		baris("SELECT COUNT(*) n, COUNT(DISTINCT unit_id) unit FROM pos_orders WHERE status = 'PAID' AND created_at >= ?", [hari]),
 		baris('SELECT COUNT(*) n, COALESCE(SUM(total),0) token, SUM(ok = 0) gagal FROM pemakaian_ai WHERE waktu >= ?', [hari]).catch(() => [{ n: 0, token: 0, gagal: 0 }]),
 		baris("SELECT COUNT(*) n FROM log_sistem WHERE level IN ('error','warn') AND waktu >= ?", [waktuWIB(-24)]).catch(() => [{ n: 0 }]),
 		baris("SELECT DATE_FORMAT(tanggal, '%Y-%m-%d %H') j, COUNT(*) n FROM transaksi WHERE tanggal >= ? GROUP BY j", [j48]),
 		baris("SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H') j, COUNT(*) n FROM pos_orders WHERE status = 'PAID' AND created_at >= ? GROUP BY j", [j48]),
 		baris("SELECT DATE_FORMAT(waktu, '%Y-%m-%d %H') j, COUNT(*) n FROM riwayat_aksi WHERE waktu >= ? GROUP BY j", [j48]),
 		baris('SELECT DATE(tanggal) d, COUNT(*) n FROM transaksi WHERE tanggal >= ? GROUP BY d', [d30]),
-		baris("SELECT DATE(created_at) d, COUNT(*) n, COALESCE(SUM(total),0) omzet FROM pos_orders WHERE status = 'PAID' AND created_at >= ? GROUP BY d", [d30])
+		baris("SELECT DATE(created_at) d, COUNT(*) n FROM pos_orders WHERE status = 'PAID' AND created_at >= ? GROUP BY d", [d30])
 	]);
 	const pemilik = await baris('SELECT id, username FROM users WHERE id IN (SELECT DISTINCT user_id FROM unit_bisnis) ORDER BY id');
 
@@ -101,7 +102,6 @@ export async function ringkasan() {
 			cabang: Boolean(u.is_cabang),
 			trx30: angka(t?.n),
 			pos30: angka(p?.n),
-			omzetPos30: angka(p?.omzet),
 			akhir,
 			aktif24: Boolean(akhir && akhir >= batasAktif)
 		};
@@ -114,8 +114,8 @@ export async function ringkasan() {
 	const jA = peta(jamAksi);
 	const denyut = deretJam(48).map((j) => ({ jam: j, trx: jT.get(j) || 0, pos: jP.get(j) || 0, aksi: jA.get(j) || 0 }));
 	const hT = new Map(hariTrx.map((r) => [String(r.d).slice(0, 10), angka(r.n)]));
-	const hP = new Map(hariPos.map((r) => [String(r.d).slice(0, 10), { n: angka(r.n), omzet: angka(r.omzet) }]));
-	const tren = deretHari(30).map((d) => ({ tanggal: d, trx: hT.get(d) || 0, pos: hP.get(d)?.n || 0, omzet: hP.get(d)?.omzet || 0 }));
+	const hP = new Map(hariPos.map((r) => [String(r.d).slice(0, 10), angka(r.n)]));
+	const tren = deretHari(30).map((d) => ({ tanggal: d, trx: hT.get(d) || 0, pos: hP.get(d) || 0 }));
 
 	return {
 		waktu: waktuWIB(),
@@ -128,7 +128,7 @@ export async function ringkasan() {
 			masukHariIni: angka(trxHariIni[0]?.masuk),
 			keluarHariIni: angka(trxHariIni[0]?.keluar),
 			posHariIni: angka(posHariIni[0]?.n),
-			omzetPosHariIni: angka(posHariIni[0]?.omzet),
+			unitPosHariIni: angka(posHariIni[0]?.unit),
 			aiPermintaanHariIni: angka(aiHariIni[0]?.n),
 			aiTokenHariIni: angka(aiHariIni[0]?.token),
 			aiGagalHariIni: angka(aiHariIni[0]?.gagal),
@@ -260,7 +260,7 @@ export async function kesehatan() {
 		},
 		konfigurasi: ENV_PENTING.map(([k, label]) => ({ kunci: k, label, ada: Boolean(env[k] || process.env[k]) })),
 		tabel: tabel.ok ? (tabel.nilai || []).map((/** @type {any} */ t) => ({ nama: t.nama ?? t.TABLE_NAME, baris: angka(t.baris ?? t.TABLE_ROWS), ukuran: angka(t.ukuran) })) : [],
-		galat: galatTerakhir.map((r) => ({ id: r.id, waktu: r.waktu, level: r.level, sumber: r.sumber, pesan: r.pesan, status: r.status })),
+		galat: galatTerakhir.map((r) => ({ id: r.id, waktu: r.waktu, level: r.level, sumber: r.sumber, pesan: samarkanTeks(r.pesan), status: r.status })),
 		galatPerJam: deretJam(24).map((j) => ({ jam: j, ...(gj.get(j) || { error: 0, warn: 0 }) }))
 	};
 }
@@ -358,7 +358,7 @@ export async function tenant() {
 		baris('SELECT id, username, email, role, created_at FROM users ORDER BY id'),
 		baris('SELECT id, user_id, nama_unit, slug, kategori, is_cabang FROM unit_bisnis ORDER BY id'),
 		baris('SELECT unit_id, COUNT(*) n, MAX(tanggal) akhir FROM transaksi WHERE tanggal >= ? GROUP BY unit_id', [d30]),
-		baris("SELECT unit_id, COUNT(*) n, COALESCE(SUM(total),0) omzet, MAX(created_at) akhir FROM pos_orders WHERE status='PAID' AND created_at >= ? GROUP BY unit_id", [d30]),
+		baris("SELECT unit_id, COUNT(*) n, MAX(created_at) akhir FROM pos_orders WHERE status='PAID' AND created_at >= ? GROUP BY unit_id", [d30]),
 		baris('SELECT unit_id, DATE(tanggal) d, COUNT(*) n FROM transaksi WHERE tanggal >= ? GROUP BY unit_id, d', [d14]),
 		baris("SELECT unit_id, DATE(created_at) d, COUNT(*) n FROM pos_orders WHERE status='PAID' AND created_at >= ? GROUP BY unit_id, d", [d14]),
 		baris('SELECT user_id, COALESCE(SUM(total),0) token, COUNT(*) n FROM pemakaian_ai WHERE waktu >= ? AND user_id IS NOT NULL GROUP BY user_id', [d30]).catch(() => []),
@@ -392,7 +392,7 @@ export async function tenant() {
 					cabang: Boolean(x.is_cabang),
 					trx30: angka(t?.n),
 					pos30: angka(p?.n),
-					omzetPos30: angka(p?.omzet),
+					riset: unitRisetDiizinkan(x.id),
 					produk: angka(prM.get(x.id)?.n),
 					menipis: angka(prM.get(x.id)?.menipis),
 					akhir,
@@ -425,7 +425,7 @@ export async function detailUnit(unitId) {
 		baris("SELECT WEEKDAY(created_at) h, HOUR(created_at) j, COUNT(*) n FROM pos_orders WHERE unit_id = ? AND status='PAID' AND created_at >= ? GROUP BY h, j", [unitId, d90]),
 		baris('SELECT WEEKDAY(tanggal) h, HOUR(tanggal) j, COUNT(*) n FROM transaksi WHERE unit_id = ? AND tanggal >= ? GROUP BY h, j', [unitId, d90]),
 		baris("SELECT COALESCE(kategori, 'lainnya') kategori, COUNT(*) n FROM riwayat_aksi WHERE unit_id = ? AND waktu >= ? GROUP BY kategori ORDER BY n DESC", [unitId, d30]),
-		baris('SELECT waktu, tipe, kategori, pesan FROM riwayat_aksi WHERE unit_id = ? ORDER BY id DESC LIMIT 12', [unitId]),
+		baris('SELECT waktu, tipe, kategori FROM riwayat_aksi WHERE unit_id = ? ORDER BY id DESC LIMIT 12', [unitId]),
 		baris("SELECT payment_method m, COUNT(*) n FROM pos_orders WHERE unit_id = ? AND status='PAID' AND created_at >= ? GROUP BY m ORDER BY n DESC", [unitId, d30])
 	]);
 	if (!info.length) return null;
@@ -439,7 +439,7 @@ export async function detailUnit(unitId) {
 		panas,
 		modul: modul.map((r) => ({ kategori: r.kategori, n: angka(r.n) })),
 		metode: metode.map((r) => ({ metode: r.m || '-', n: angka(r.n) })),
-		aksi: aksi.map((r) => ({ waktu: r.waktu, tipe: r.tipe, kategori: r.kategori, pesan: String(r.pesan || '').slice(0, 160) }))
+		aksi: aksi.map((r) => ({ waktu: r.waktu, tipe: r.tipe, kategori: r.kategori || 'umum' }))
 	};
 }
 
@@ -455,6 +455,7 @@ export const tanggalSah = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.
  * @param {string} akhir  YYYY-MM-DD (eksklusif, seperti di Lembar G)
  */
 export async function riset(unitId, mulai, akhir) {
+	if (!unitRisetDiizinkan(unitId)) return null;
 	const m = `${mulai} 00:00:00`;
 	const a = `${akhir} 00:00:00`;
 	const [unit] = await baris('SELECT id, user_id, nama_unit FROM unit_bisnis WHERE id = ?', [unitId]);
@@ -493,10 +494,10 @@ export async function riset(unitId, mulai, akhir) {
 	return { unit: { id: unit.id, nama: unit.nama_unit }, mulai, akhir, hasil };
 }
 
-/** Daftar unit untuk pemilih di bagian Riset. */
+/** Daftar unit untuk Riset — HANYA unit yang pemiliknya sudah menyetujui (KONSOL_RISET_UNIT_IDS). */
 export async function daftarUnit() {
 	const r = await baris('SELECT u.id, u.nama_unit, us.username FROM unit_bisnis u JOIN users us ON us.id = u.user_id ORDER BY us.username, u.nama_unit');
-	return r.map((x) => ({ id: x.id, nama: x.nama_unit, pemilik: x.username }));
+	return r.filter((x) => unitRisetDiizinkan(x.id)).map((x) => ({ id: x.id, nama: x.nama_unit, pemilik: x.username }));
 }
 
 /* ════════════════════════════════════════════════════════════════ JEJAK (audit) */
@@ -506,12 +507,12 @@ export async function jejak() {
 	const [audit, aksi] = await Promise.all([
 		baris("SELECT l.id, l.waktu, l.pesan, l.meta, u.username FROM log_sistem l LEFT JOIN users u ON u.id = l.user_id WHERE l.level = 'audit' ORDER BY l.id DESC LIMIT 80").catch(() => []),
 		baris(
-			'SELECT r.id, r.waktu, r.tipe, r.kategori, r.pesan, ub.nama_unit, us.username FROM riwayat_aksi r JOIN unit_bisnis ub ON ub.id = r.unit_id JOIN users us ON us.id = r.user_id ORDER BY r.id DESC LIMIT 80'
+			'SELECT r.id, r.waktu, r.tipe, r.kategori, ub.nama_unit, us.username FROM riwayat_aksi r JOIN unit_bisnis ub ON ub.id = r.unit_id JOIN users us ON us.id = r.user_id ORDER BY r.id DESC LIMIT 80'
 		)
 	]);
 	return {
 		waktu: waktuWIB(),
-		audit: audit.map((r) => ({ id: r.id, waktu: r.waktu, pesan: r.pesan, oleh: r.username || '-', meta: r.meta })),
-		aksi: aksi.map((r) => ({ id: r.id, waktu: r.waktu, tipe: r.tipe, kategori: r.kategori, pesan: String(r.pesan || '').slice(0, 200), unit: r.nama_unit, oleh: r.username }))
+		audit: audit.map((r) => ({ id: r.id, waktu: r.waktu, pesan: r.pesan, oleh: r.username || '-' })),
+		aksi: aksi.map((r) => ({ id: r.id, waktu: r.waktu, tipe: r.tipe, kategori: r.kategori || 'umum', unit: r.nama_unit, oleh: r.username }))
 	};
 }

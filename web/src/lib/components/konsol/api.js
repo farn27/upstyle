@@ -7,6 +7,7 @@
 export async function ambil(bagian) {
 	const r = await fetch(`/api/konsol/${bagian}`, { headers: { accept: 'application/json' } });
 	const j = await r.json().catch(() => ({}));
+	if (r.status === 401 && j?.perluVerifikasi) location.reload();
 	if (!r.ok) throw new Error(j?.message || `Gagal memuat (${r.status})`);
 	return j;
 }
@@ -23,6 +24,7 @@ export async function kontrol(body) {
 		body: JSON.stringify(body)
 	});
 	const j = await r.json().catch(() => ({}));
+	if (r.status === 401 && j?.perluVerifikasi) location.reload();
 	if (!r.ok) throw new Error(j?.message || `Gagal (${r.status})`);
 	return j;
 }

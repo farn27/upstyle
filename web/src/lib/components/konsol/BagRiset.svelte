@@ -108,10 +108,12 @@
 		<button onclick={() => preset('lalu')}>Bulan lalu</button>
 		{#if hasil}<button class="unduh" onclick={unduhSemua}>⬇ Unduh semua (CSV)</button>{/if}
 	</div>
-	<p class="catatan">Hanya membaca data (SELECT). Sesuai Lembar G: periode memakai batas WIB, mulai inklusif dan akhir eksklusif. Disarankan satu bulan penuh setelah masa adaptasi.</p>
+	<p class="catatan">🔒 Hanya unit yang pemiliknya sudah menyetujui pemeriksaan data. Setiap kueri tercatat di Jejak. Hanya membaca data (SELECT). Sesuai Lembar G: periode memakai batas WIB, mulai inklusif dan akhir eksklusif. Disarankan satu bulan penuh setelah masa adaptasi.</p>
 </section>
 
-{#if hasil}
+{#if !units.length}
+	<Satelit teks="Belum ada unit yang menyetujui pemeriksaan data. Isi KONSOL_RISET_UNIT_IDS di env Vercel dengan ID unit (lihat #ID di stasiun Rasi) setelah pemilik menandatangani persetujuan." />
+{:else if hasil}
 	<div class="hasil">
 		{#each Object.entries(hasil.hasil) as [kode, v], i (kode)}
 			{@const x = /** @type {any} */ (v)}

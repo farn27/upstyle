@@ -84,10 +84,10 @@
 			</div>
 		</div>
 
-		<h4>Aksi Terakhir</h4>
+		<h4>Jejak Aksi Terakhir <small class="privasi">isi aksi tidak ditampilkan (privasi)</small></h4>
 		<ol class="aksi">
 			{#each detail.aksi as a, i (i)}
-				<li class={a.tipe}><span>{relatif(a.waktu)}</span>{a.pesan}</li>
+				<li class={a.tipe}><span>{relatif(a.waktu)}</span>Aksi pada modul <b>{a.kategori}</b>{a.tipe === 'error' ? ' (gagal)' : ''}</li>
 			{:else}
 				<li class="redup">Belum ada.</li>
 			{/each}
@@ -242,6 +242,13 @@
 	.aksi li span {
 		display: block;
 		font: 10px var(--f-mono, monospace);
+		color: var(--redup-2);
+	}
+	.privasi {
+		margin-left: 6px;
+		font: 400 10px var(--f-mono, monospace);
+		letter-spacing: 0;
+		text-transform: none;
 		color: var(--redup-2);
 	}
 	.redup {

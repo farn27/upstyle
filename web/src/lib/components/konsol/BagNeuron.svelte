@@ -7,8 +7,8 @@
 	import { kontrol } from './api.js';
 	import { singkat, angka, relatif, PALET, WARNA } from './util.js';
 
-	/** @type {{ data: any, denyut?: any, beritahu: (pesan: string, jenis?: string) => void, muatUlang: () => void }} */
-	let { data, denyut = null, beritahu, muatUlang } = $props();
+	/** @type {{ data: any, denyut?: any, beritahu: (pesan: string, jenis?: string) => void, muatUlang: () => void, bolehKontrol?: boolean }} */
+	let { data, denyut = null, beritahu, muatUlang, bolehKontrol = true } = $props();
 	const t = $derived(data.total);
 	const gagalPct = $derived(t.permintaan30 ? (t.gagal30 / t.permintaan30) * 100 : 0);
 	let sibuk = $state('');
@@ -17,6 +17,7 @@
 
 	/** @param {string} nama @param {Record<string, unknown>} body */
 	async function jalankan(nama, body) {
+		if (!bolehKontrol) return;
 		sibuk = nama;
 		try {
 			const r = await kontrol(body);
@@ -83,8 +84,8 @@
 		<JamAI data={data.jam} />
 	</section>
 	<section class="panel">
-		<header class="judul-panel"><span>Panel Kendali AI</span><small>tindakan tercatat di Jejak</small></header>
-		<div class="tombol-daftar">
+		<header class="judul-panel"><span>Panel Kendali AI</span><small>{bolehKontrol ? 'tindakan tercatat di Jejak' : 'peran pengamat: hanya melihat'}</small></header>
+		<div class="tombol-daftar" class:terkunci={!bolehKontrol}>
 			<button class="tombol" disabled={!!sibuk} onclick={() => jalankan('uji', { aksi: 'uji-ai' })}>
 				<span class="titik-tombol" class:putar={sibuk === 'uji'}></span>Uji koneksi AI
 			</button>
@@ -136,9 +137,9 @@
 								</div>
 							</td>
 							<td class="aksi">
-								<input type="number" min="1" placeholder={String(p.kuotaHari)} bind:value={ubahKuota[p.id]} disabled={!data.redis} aria-label={`Kuota harian ${p.nama}`} />
-								<button class="mini" disabled={!data.redis || !!sibuk} onclick={() => simpanKuota(p)}>Simpan</button>
-								<button class="mini hantu" disabled={!data.redis || !!sibuk} onclick={() => jalankan(`reset-${p.id}`, { aksi: 'reset-kuota', userId: p.id })}>Nolkan</button>
+								<input type="number" min="1" placeholder={String(p.kuotaHari)} bind:value={ubahKuota[p.id]} disabled={!data.redis || !bolehKontrol} aria-label={`Kuota harian ${p.nama}`} />
+								<button class="mini" disabled={!data.redis || !!sibuk || !bolehKontrol} onclick={() => simpanKuota(p)}>Simpan</button>
+								<button class="mini hantu" disabled={!data.redis || !!sibuk || !bolehKontrol} onclick={() => jalankan(`reset-${p.id}`, { aksi: 'reset-kuota', userId: p.id })}>Nolkan</button>
 							</td>
 						</tr>
 					{/each}
@@ -225,6 +226,11 @@
 	.tombol:disabled {
 		opacity: 0.55;
 		cursor: wait;
+	}
+	.terkunci {
+		pointer-events: none;
+		opacity: 0.45;
+		filter: grayscale(0.6);
 	}
 	.titik-tombol {
 		width: 10px;

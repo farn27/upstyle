@@ -1,7 +1,7 @@
 <script>
 	import Spark from './Spark.svelte';
 	import Satelit from './Satelit.svelte';
-	import { angka, rupiah, relatif, singkat, warnaDari } from './util.js';
+	import { angka, relatif, singkat, warnaDari } from './util.js';
 
 	/** @type {{ data: any, pilihUnit: (u: any) => void }} */
 	let { data, pilihUnit } = $props();
@@ -61,13 +61,13 @@
 								<button type="button" onclick={() => pilihUnit(u)}>
 									<span class="dot" style={`background:${warnaDari(u.kategori)}`} class:nyala={u.aktif24}></span>
 									<span class="nm">
-										<b>{u.nama}</b>
+										<b>{u.nama} <span class="id">#{u.id}</span>{#if u.riset}<span class="riset" title="Pemilik menyetujui pemeriksaan data (Riset)">riset ✓</span>{/if}</b>
 										<small>{u.kategori}{u.cabang ? ' · cabang' : ''} · {u.produk} produk{u.menipis ? ` · ${u.menipis} menipis` : ''}</small>
 									</span>
 									<Spark nilai={u.spark} warna={warnaDari(u.kategori)} lebar={96} tinggi={28} />
 									<span class="angka">
 										<b>{angka(u.trx30 + u.pos30)}</b>
-										<small>{rupiah(u.omzetPos30)}</small>
+										<small>aktivitas 30 hr</small>
 									</span>
 								</button>
 							</li>
@@ -261,6 +261,18 @@
 	.nm small {
 		font-size: 10.5px;
 		color: var(--redup-2);
+	}
+	.id {
+		font: 500 10.5px var(--f-mono, monospace);
+		color: var(--redup-2);
+	}
+	.riset {
+		margin-left: 6px;
+		font: 600 9.5px var(--f-mono, monospace);
+		padding: 1px 6px;
+		border-radius: 99px;
+		background: rgb(var(--aksen-rgb) / 0.14);
+		color: var(--aksen-teks);
 	}
 	.angka {
 		text-align: right;

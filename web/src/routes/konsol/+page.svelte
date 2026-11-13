@@ -12,6 +12,8 @@
 	import BagRiset from '$lib/components/konsol/BagRiset.svelte';
 	import BagJejak from '$lib/components/konsol/BagJejak.svelte';
 	import LaciUnit from '$lib/components/konsol/LaciUnit.svelte';
+	import Gerbang from '$lib/components/konsol/Gerbang.svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { ambil } from '$lib/components/konsol/api.js';
 	import { jamWIB, angka, singkat } from '$lib/components/konsol/util.js';
 
@@ -98,12 +100,10 @@
 		}
 		const h = /** @type {IdStasiun} */ (location.hash.slice(1));
 		if (STASIUN.some((s) => s.id === h)) aktif = h;
-		muat(aktif);
-		if (aktif !== 'denyut') muat('denyut', true);
-		if (aktif !== 'orbit') muat('orbit', true);
 
 		const detik = setInterval(() => (jam = jamWIB()), 1000);
 		const segar = setInterval(() => {
+			if (terkunci) return;
 			if (langsung && document.visibilityState === 'visible' && BERDATA.has(aktif) && aktif !== 'tenant') muat(aktif, true);
 			if (langsung && document.visibilityState === 'visible' && aktif !== 'denyut') muat('denyut', true);
 		}, 30000);
@@ -127,6 +127,31 @@
 			window.removeEventListener('hashchange', hash);
 		};
 	});
+
+	const terkunci = $derived(Boolean(data.gerbang));
+	const bolehKontrol = $derived(data.admin.peran === 'pengelola');
+	let sudahMulai = false;
+	$effect(() => {
+		if (terkunci) {
+			sudahMulai = false;
+			isi = {};
+			return;
+		}
+		if (sudahMulai) return;
+		sudahMulai = true;
+		muat(aktif);
+		if (aktif !== 'denyut') muat('denyut', true);
+		if (aktif !== 'orbit') muat('orbit', true);
+	});
+
+	async function kunci() {
+		try {
+			await fetch('/api/konsol/keluar', { method: 'POST', headers: { 'x-konsol': '1' } });
+		} finally {
+			unitTerpilih = null;
+			await invalidateAll();
+		}
+	}
 
 	/** Teks ticker berjalan. */
 	const ticker = $derived.by(() => {
@@ -185,6 +210,9 @@
 	<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 	<div class="kisi-latar" aria-hidden="true"></div>
 
+	{#if terkunci && data.gerbang}
+		<Gerbang gerbang={data.gerbang} nama={data.admin.nama} peran={data.admin.peran} />
+	{:else}
 	<header class="pita">
 		<a class="lambang" href="/konsol" aria-label="Ruang Kendali">
 			<svg viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">
@@ -231,6 +259,8 @@
 				{/key}
 			</button>
 			<span class="jam">{jam}<small>WIB</small></span>
+			<span class="lencana-peran" class:pengamat={!bolehKontrol} title={bolehKontrol ? 'Pengelola: lihat & kontrol' : 'Pengamat: hanya melihat'}>{data.admin.peran}</span>
+			<button class="keluar" onclick={kunci} title="Kunci Ruang Kendali (wajib 2FA lagi)" aria-label="Kunci Ruang Kendali">🔒<span class="teks-kunci"> Kunci</span></button>
 			<a class="keluar" href="/finance">← Aplikasi</a>
 		</div>
 	</header>
@@ -275,7 +305,7 @@
 				{:else if aktif === 'denyut'}
 					<BagDenyut data={isi.denyut} />
 				{:else if aktif === 'neuron'}
-					<BagNeuron data={isi.neuron} denyut={isi.denyut} {beritahu} muatUlang={() => muat('neuron', true)} />
+					<BagNeuron data={isi.neuron} denyut={isi.denyut} {beritahu} {bolehKontrol} muatUlang={() => muat('neuron', true)} />
 				{:else if aktif === 'tenant'}
 					<BagTenant data={isi.tenant} pilihUnit={(u) => (unitTerpilih = u)} />
 				{:else if aktif === 'jejak'}
@@ -283,8 +313,9 @@
 				{/if}
 			</div>
 		{/key}
-		<footer class="kaki">Ruang Kendali hanya terlihat oleh superadmin · semua akses tercatat di Jejak · masuk sebagai <b>{data.admin.nama}</b></footer>
+		<footer class="kaki">Ruang Kendali hanya untuk tim (2FA) · data pengguna dibatasi Kode Etik Akses Data · semua akses tercatat di Jejak · masuk sebagai <b>{data.admin.nama}</b> ({data.admin.peran})</footer>
 	</main>
+	{/if}
 
 	{#if unitTerpilih}
 		<LaciUnit unit={unitTerpilih} tutup={() => (unitTerpilih = null)} />
@@ -642,6 +673,24 @@
 		color: var(--redup-2);
 		margin-left: 4px;
 	}
+	.lencana-peran {
+		font: 600 10.5px var(--f-mono);
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		padding: 4px 9px;
+		border-radius: 99px;
+		background: rgb(var(--aksen-rgb) / 0.14);
+		color: var(--aksen-teks);
+	}
+	.lencana-peran.pengamat {
+		background: rgb(var(--amber-rgb) / 0.16);
+		color: var(--amber);
+	}
+	button.keluar {
+		background: none;
+		cursor: pointer;
+		font-family: inherit;
+	}
 	.keluar {
 		font-size: 12px;
 		color: var(--redup);
@@ -938,7 +987,8 @@
 			grid-column: 1 / -1;
 			grid-row: 2;
 		}
-		.keluar,
+		a.keluar,
+		.lencana-peran,
 		.jam small,
 		.lambang small {
 			display: none;
@@ -946,6 +996,12 @@
 		.lambang b {
 			letter-spacing: 2px;
 			white-space: nowrap;
+		}
+		button.keluar {
+			padding: 6px 9px;
+		}
+		.teks-kunci {
+			display: none;
 		}
 		nav.rel {
 			position: fixed;

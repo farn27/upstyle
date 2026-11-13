@@ -3,7 +3,7 @@
 	import Ekg from './Ekg.svelte';
 	import Area from './Area.svelte';
 	import Angka from './Angka.svelte';
-	import { singkat, rupiah, WARNA } from './util.js';
+	import { singkat, angka, WARNA } from './util.js';
 
 	/** @type {{ data: any, pilihUnit: (u: any) => void }} */
 	let { data, pilihUnit } = $props();
@@ -11,8 +11,8 @@
 	const bacaan = $derived([
 		{ label: 'Pengguna', nilai: a.pengguna, sub: `+${a.penggunaBaru30} dalam 30 hari`, warna: WARNA.aqua },
 		{ label: 'Unit aktif · 24 jam', nilai: a.unitAktif24, sub: `dari ${a.unit} unit bisnis`, warna: WARNA.hijau },
-		{ label: 'Transaksi hari ini', nilai: a.trxHariIni, sub: `masuk ${rupiah(a.masukHariIni)} · keluar ${rupiah(a.keluarHariIni)}`, warna: WARNA.ungu },
-		{ label: 'Order POS hari ini', nilai: a.posHariIni, sub: `omzet ${rupiah(a.omzetPosHariIni)}`, warna: WARNA.biru },
+		{ label: 'Transaksi hari ini', nilai: a.trxHariIni, sub: `${angka(a.masukHariIni)} pemasukan · ${angka(a.keluarHariIni)} pengeluaran`, warna: WARNA.ungu },
+		{ label: 'Order POS hari ini', nilai: a.posHariIni, sub: `dari ${angka(a.unitPosHariIni)} unit dengan kasir aktif`, warna: WARNA.biru },
 		{ label: 'Token AI hari ini', nilai: a.aiTokenHariIni, sub: `${a.aiPermintaanHariIni} permintaan · ${a.aiGagalHariIni} gagal`, warna: WARNA.amber, singkat: true },
 		{ label: 'Galat · 24 jam', nilai: a.galat24, sub: a.galat24 ? 'lihat stasiun Denyut' : 'tenang', warna: a.galat24 ? WARNA.mawar : WARNA.hijau }
 	]);

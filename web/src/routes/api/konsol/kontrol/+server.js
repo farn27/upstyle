@@ -16,8 +16,8 @@ import { groqChatCompletion, lupakanDaftarModel, daftarModel } from '$lib/server
 import { catatLog, pastikanTabel } from '$lib/server/telemetri';
 import { tglWIB } from '$lib/server/konsol/data';
 
-export async function POST({ request, locals }) {
-	const { tolak, u } = await cekApiSuperadmin(locals);
+export async function POST({ request, locals, cookies }) {
+	const { tolak, u } = await cekApiSuperadmin(locals, cookies, { pengelola: true });
 	if (tolak) return tolak;
 	// Lapisan tambahan anti-CSRF: hanya fetch dari halaman konsol yang mengirim header ini
 	if (request.headers.get('x-konsol') !== '1') return json({ message: 'Permintaan tidak sah' }, { status: 400 });

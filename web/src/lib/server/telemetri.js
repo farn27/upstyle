@@ -89,6 +89,23 @@ async function mungkinBersihkan(/** @type {any} */ p) {
 const pendek = (v, n) => (v == null ? null : String(v).slice(0, n));
 
 /**
+ * Samarkan data pribadi & rahasia di teks log (Kode Etik Akses Data): email, nomor telepon,
+ * token/kunci, kata sandi, dan deret angka panjang (rekening, NIK, kartu).
+ * @param {unknown} teks
+ * @returns {string}
+ */
+export function samarkanTeks(teks) {
+	return String(teks ?? '')
+		.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '[email]')
+		.replace(/\b(bearer|token|apikey|api_key|authorization)[\s:=]+[\w.\-~+/]{8,}/gi, '$1 [rahasia]')
+		.replace(/\b(password|kata ?sandi|pin|secret)[\s:=]+\S+/gi, '$1 [rahasia]')
+		.replace(/\b(gsk|sk|pk|re|rk)_[A-Za-z0-9_-]{12,}/g, '[rahasia]')
+		.replace(/(\+62|\b62|\b0)8[\d\s-]{7,13}\d/g, '[telepon]')
+		.replace(/\b\d{10,}\b/g, '[angka]')
+		.replace(/\b[A-Fa-f0-9]{32,}\b/g, '[rahasia]');
+}
+
+/**
  * Catat satu panggilan model AI.
  * @param {{ jenis?: string|null, model?: string|null, prompt?: number, completion?: number, total?: number, ms?: number, ok?: boolean, status?: number|null }} d
  */
@@ -131,7 +148,7 @@ export function catatLog(d) {
 		let meta = null;
 		if (d.meta !== undefined) {
 			try {
-				meta = JSON.stringify(d.meta).slice(0, 4000);
+				meta = samarkanTeks(JSON.stringify(d.meta)).slice(0, 4000);
 			} catch {
 				meta = null;
 			}
@@ -140,7 +157,7 @@ export function catatLog(d) {
 			nowSqlWIB(),
 			d.level || 'error',
 			pendek(d.sumber, 40),
-			pendek(d.pesan, 500) || '-',
+			pendek(samarkanTeks(d.pesan), 500) || '-',
 			d.status ?? null,
 			d.userId ?? k.userId ?? null,
 			meta

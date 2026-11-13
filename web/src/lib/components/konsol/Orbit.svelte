@@ -3,7 +3,7 @@
 	 * Sistem orbit tenant: inti = Bizgrow, setiap pemilik punya lintasan, setiap unit bisnis = planet.
 	 * Ukuran planet ∝ √aktivitas 30 hari, warna = kategori usaha, halo berdenyut = aktif 24 jam terakhir.
 	 */
-	import { warnaDari, angka, relatif, rupiah } from './util.js';
+	import { warnaDari, angka, relatif } from './util.js';
 
 	/** @type {{ units: any[], pemilik: { id: number, nama: string }[], pilih?: (u: any) => void }} */
 	let { units = [], pemilik = [], pilih } = $props();
@@ -134,7 +134,6 @@
 			<b style={`color:${sorot.warna}`}>{sorot.nama}</b>
 			<span>{sorot.kategori}{sorot.cabang ? ' · cabang' : ''}</span>
 			<span>{angka(sorot.trx30)} transaksi · {angka(sorot.pos30)} order POS</span>
-			<span>omzet POS {rupiah(sorot.omzetPos30)} / 30 hr</span>
 			<span class="redup">aktivitas terakhir {relatif(sorot.akhir)}</span>
 		</div>
 	{/if}
