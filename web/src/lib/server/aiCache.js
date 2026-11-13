@@ -56,6 +56,17 @@ export async function simpanCache(kunci, nilai, detik) {
 	}
 }
 
+/** Hapus satu kunci cache (lokal + Redis). @param {string} kunci */
+export async function hapusCache(kunci) {
+	lokal.delete(kunci);
+	if (!redis) return;
+	try {
+		await redis.del(kunci);
+	} catch {
+		/* abaikan */
+	}
+}
+
 /** Untuk pengujian. */
 export function kosongkanCacheLokal() {
 	lokal.clear();

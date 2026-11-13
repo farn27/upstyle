@@ -159,7 +159,7 @@ async function pratinjauTransaksi(unitId, pesan, tanggal) {
 function panggilDanCatat(jenis) {
 	return async (opsi) => {
 		const mulai = Date.now();
-		const res = await groqChatCompletion(opsi);
+		const res = await groqChatCompletion({ ...opsi, jenis: `chat-${jenis}` });
 		const u = res?.usage || {};
 		log.ai.info({ jenis, model: res?.model || opsi.model, prompt: u.prompt_tokens, completion: u.completion_tokens, total: u.total_tokens, ms: Date.now() - mulai }, '[Chat] Pemakaian token');
 		return res;

@@ -123,13 +123,71 @@ export const AI_LIMIT_HARI = { limit: 300, windowSec: 60 * 60 * 24 };
  * @returns {Promise<{ allowed: boolean, retryAfter: number, pesan: string }>}
  */
 export async function cekKuotaAI(userId) {
+	const batasHari = await batasHarianAI(userId);
 	const menit = await checkRateLimit({ key: String(userId), prefix: 'rl:ai:menit', ...AI_LIMIT_MENIT });
 	if (!menit.allowed) {
 		return { allowed: false, retryAfter: menit.retryAfter, pesan: 'Terlalu banyak permintaan AI. Tunggu sebentar lalu coba lagi.' };
 	}
-	const hari = await checkRateLimit({ key: String(userId), prefix: 'rl:ai:hari', ...AI_LIMIT_HARI });
+	const hari = await checkRateLimit({ key: String(userId), prefix: 'rl:ai:hari', limit: batasHari, windowSec: AI_LIMIT_HARI.windowSec });
 	if (!hari.allowed) {
 		return { allowed: false, retryAfter: hari.retryAfter, pesan: 'Kuota AI harian sudah habis. Coba lagi besok.' };
 	}
 	return { allowed: true, retryAfter: 0, pesan: '' };
+}
+
+// ─── Kuota AI per pengguna (diatur dari Ruang Kendali) ─────────────────────────
+
+/** @param {number | string} userId */
+const kunciBatasAI = (userId) => `ai:kuota:hari:${userId}`;
+
+/**
+ * Batas permintaan AI harian untuk pengguna ini: nilai khusus dari Ruang Kendali, atau bawaan.
+ * @param {number | string} userId
+ * @returns {Promise<number>}
+ */
+export async function batasHarianAI(userId) {
+	if (!redis) return AI_LIMIT_HARI.limit;
+	try {
+		const v = Number(await redis.get(kunciBatasAI(userId)));
+		return Number.isFinite(v) && v > 0 ? Math.floor(v) : AI_LIMIT_HARI.limit;
+	} catch {
+		return AI_LIMIT_HARI.limit;
+	}
+}
+
+/**
+ * Atur batas harian khusus (null = kembali ke bawaan).
+ * @param {number | string} userId
+ * @param {number | null} batas
+ */
+export async function aturBatasHarianAI(userId, batas) {
+	if (!redis) throw new Error('Redis tidak tersedia: kuota khusus tidak bisa disimpan');
+	if (batas == null) await redis.del(kunciBatasAI(userId));
+	else await redis.set(kunciBatasAI(userId), Math.max(1, Math.min(100000, Math.floor(batas))));
+}
+
+/**
+ * Jumlah permintaan AI pengguna dalam 24 jam terakhir (dari penghitung kuota).
+ * @param {number | string} userId
+ * @returns {Promise<number | null>}
+ */
+export async function pemakaianHarianAI(userId) {
+	if (!redis) return null;
+	try {
+		const kunci = `rl:ai:hari:${userId}`;
+		const sekarang = Math.floor(Date.now() / 1000);
+		await redis.zremrangebyscore(kunci, 0, sekarang - AI_LIMIT_HARI.windowSec);
+		return Number(await redis.zcard(kunci)) || 0;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Nolkan penghitung kuota AI pengguna (menit & hari).
+ * @param {number | string} userId
+ */
+export async function resetKuotaAI(userId) {
+	if (!redis) return;
+	await redis.del(`rl:ai:hari:${userId}`, `rl:ai:menit:${userId}`);
 }

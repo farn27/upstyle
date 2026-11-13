@@ -221,6 +221,7 @@ export async function bacaTeksOcr(teks, opsi = {}) {
 	const panggil = opsi.panggil || groqChatCompletion;
 	const res = await panggil({
 		model: 'openai/gpt-oss-20b',
+		jenis: 'foto-ocr',
 		messages: [
 			{ role: 'system', content: SISTEM_OCR },
 			{ role: 'user', content: `${pertanyaan ? `Pertanyaan pengguna: ${pertanyaan}\n` : ''}TEKS OCR:\n${bersih}` }
@@ -276,6 +277,7 @@ export async function bacaFoto(gambar, opsi = {}) {
 	function permintaanVisi(model, g, q) {
 		return {
 		model,
+		jenis: 'foto-visi',
 		cadangan: /** @type {string[]} */ ([]),
 		messages: [
 			{ role: 'system', content: SISTEM },

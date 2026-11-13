@@ -12,6 +12,7 @@ import { log } from '$lib/server/logger';
 import { peranDiizinkan } from '$lib/server/rbac';
 import { slugUnitDariPath, pemilikUnitDariSlug, putuskanAksesUnit } from '$lib/server/unitSlugGuard';
 import { tandaiBerubah } from '$lib/server/cacheVersi';
+import { konteksPermintaan, catatLog } from '$lib/server/telemetri';
 
 const PROTECTED_PATHS = [
 	'/finance',
@@ -288,7 +289,14 @@ export async function handle({ event, resolve }) {
 		}
 	}
 
-	const response = await resolve(event);
+	// Konteks permintaan untuk telemetri Ruang Kendali (siapa & rute mana yang memakai AI / memicu galat)
+	const response = await konteksPermintaan.run(
+		{ userId: event.locals.user?.id ?? staffSession?.owner_id ?? null, jalur: pathname, rute: event.route?.id ?? null },
+		() => resolve(event)
+	);
+	if (response.status >= 500) {
+		catatLog({ sumber: 'http', pesan: `${event.request.method} ${event.route?.id || pathname}`, status: response.status, userId: event.locals.user?.id ?? null });
+	}
 
 	if (idemKey && event.locals.user) await selesaiIdempoten(redis, event.locals.user.id, idemKey, response);
 
@@ -310,4 +318,23 @@ export async function handle({ event, resolve }) {
 	response.headers.set('Access-Control-Allow-Headers', ALLOWED_HEADERS.join(', '));
 
 	return response;
+}
+
+/**
+ * Galat tak terduga: catat ke log_sistem (Ruang Kendali) tanpa membocorkan detail ke pengguna.
+ * @type {import('@sveltejs/kit').HandleServerError}
+ */
+export async function handleError({ error: galat, event, status, message }) {
+	if (status !== 404) {
+		const e = /** @type {any} */ (galat);
+		log.api.error({ err: galat, rute: event.route?.id }, '[Hooks] Galat tak terduga');
+		await catatLog({
+			sumber: 'exception',
+			pesan: `${event.route?.id || event.url.pathname}: ${String(e?.message || galat).slice(0, 300)}`,
+			status,
+			meta: { metode: event.request.method, stack: String(e?.stack || '').split('\n').slice(0, 6).join('\n') },
+			userId: event.locals.user?.id ?? null
+		});
+	}
+	return { message };
 }
