@@ -208,3 +208,28 @@ export function bacaJsonAI(isi) {
 		return null;
 	}
 }
+
+/** @type {{ waktu: number, ids: string[] } | null} */
+let cacheModel = null;
+
+/**
+ * Daftar model yang aktif di akun Groq ini (cache 6 jam). Dipakai untuk menemukan model visi yang
+ * benar-benar tersedia — nama model berubah/dipensiunkan dari waktu ke waktu.
+ * @param {typeof fetch} [fetchFn]
+ * @returns {Promise<string[]>}
+ */
+export async function daftarModel(fetchFn = fetch) {
+	if (cacheModel && Date.now() - cacheModel.waktu < 6 * 3600_000) return cacheModel.ids;
+	const apiKey = env.GROQ_API_KEY;
+	if (!apiKey) return [];
+	try {
+		const res = await fetchFn(`${(env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '')}/models`, { headers: { Authorization: `Bearer ${apiKey}` } });
+		if (!res.ok) return cacheModel?.ids ?? [];
+		const j = await res.json();
+		const ids = (Array.isArray(j?.data) ? j.data : []).filter((/** @type {any} */ m) => m?.active !== false).map((/** @type {any} */ m) => String(m.id));
+		cacheModel = { waktu: Date.now(), ids };
+		return ids;
+	} catch {
+		return cacheModel?.ids ?? [];
+	}
+}

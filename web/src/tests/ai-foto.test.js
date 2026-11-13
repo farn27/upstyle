@@ -3,7 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 import sharp from 'sharp';
 
 vi.mock('$env/dynamic/private', () => ({ env: { ...process.env, GROQ_API_KEY: 'uji' } }));
-const { angka, tanggalValid, normalkan, keTransaksi, susunBalasan, siapkanGambar, bacaFoto } = await import('$lib/server/aiFoto');
+const { angka, tanggalValid, normalkan, keTransaksi, susunBalasan, siapkanGambar, bacaFoto, bacaTeksOcr, kandidatVisi, VisiTidakTersedia } = await import('$lib/server/aiFoto');
+const { GroqError } = await import('$lib/server/groq');
+const { kosongkanCacheLokal, ambilCache } = await import('$lib/server/aiCache');
+const SCOUT = ['meta-llama/llama-4-scout-17b-16e-instruct'];
 
 const COA = [
 	{ id: 1, kodeAkun: '1-1001', namaAkun: 'Kas Kasir', tipeAkun: 'ASET_LANCAR', deskripsi: 'Uang tunai' },
@@ -77,8 +80,8 @@ describe('gambar & cache', () => {
 	it('foto yang sama dibaca dari cache (model hanya dipanggil sekali)', async () => {
 		const gambar = await siapkanGambar(await sharp({ create: { width: 400, height: 300, channels: 3, background: '#f0f0f0' } }).png().toBuffer());
 		const panggil = vi.fn(async () => ({ choices: [{ message: { content: '{"jenis":"nota_belanja","total":"12.000","items":[]}' } }], usage: { prompt_tokens: 900 } }));
-		const a = await bacaFoto(gambar, { panggil: /** @type {any} */ (panggil) });
-		const b = await bacaFoto(gambar, { panggil: /** @type {any} */ (panggil) });
+		const a = await bacaFoto(gambar, { panggil: /** @type {any} */ (panggil), kandidat: SCOUT });
+		const b = await bacaFoto(gambar, { panggil: /** @type {any} */ (panggil), kandidat: SCOUT });
 		expect(a).toMatchObject({ dariCache: false, hasil: { total: 12000 } });
 		expect(b.dariCache).toBe(true);
 		expect(panggil).toHaveBeenCalledTimes(1);
@@ -90,6 +93,58 @@ describe('gambar & cache', () => {
 	it('keluaran model bukan JSON → pesan ramah', async () => {
 		const gambar = await siapkanGambar(await sharp({ create: { width: 50, height: 50, channels: 3, background: '#000' } }).png().toBuffer());
 		const panggil = vi.fn(async () => ({ choices: [{ message: { content: 'maaf saya tidak bisa' } }] }));
-		await expect(bacaFoto(gambar, { panggil: /** @type {any} */ (panggil) })).rejects.toThrow(/Foto tidak bisa dibaca/);
+		await expect(bacaFoto(gambar, { panggil: /** @type {any} */ (panggil), kandidat: SCOUT })).rejects.toThrow(/Foto tidak bisa dibaca/);
+	});
+});
+
+describe('pemilihan model visi & cadangan OCR', () => {
+	const gambarUji = async (/** @type {string} */ warna) => siapkanGambar(await sharp({ create: { width: 60, height: 40, channels: 3, background: warna } }).png().toBuffer());
+
+	it('kandidat diambil dari daftar model aktif yang namanya cocok pola visi', async () => {
+		kosongkanCacheLokal();
+		const k = await kandidatVisi(async () => ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'meta-llama/llama-4-scout-17b-16e-instruct', 'whisper-large-v3']);
+		expect(k).toEqual(['meta-llama/llama-4-scout-17b-16e-instruct']);
+		expect(await kandidatVisi(async () => ['openai/gpt-oss-20b', 'llama-3.1-8b-instant'])).toEqual([]);
+	});
+
+	it('model 404 dilewati, model berikutnya dipakai dan diingat', async () => {
+		kosongkanCacheLokal();
+		const panggil = vi.fn(async (/** @type {any} */ arg) => {
+			if (arg.model === 'mati') throw new GroqError('model_not_found', 404);
+			return { choices: [{ message: { content: '{"jenis":"nota_belanja","total":5000,"items":[]}' } }] };
+		});
+		const r = await bacaFoto(await gambarUji('#123456'), { panggil: /** @type {any} */ (panggil), kandidat: ['mati', 'hidup'] });
+		expect(r.hasil.total).toBe(5000);
+		expect(r.sumber).toBe('visi');
+		expect(panggil).toHaveBeenCalledTimes(2);
+		expect(await ambilCache('ai:visi:model')).toBe('hidup');
+		// kandidat berikutnya: model yang diingat dicoba lebih dulu
+		expect((await kandidatVisi(async () => ['x-vision']))[0]).toBe('hidup');
+	});
+
+	it('tidak ada model visi → VisiTidakTersedia (klien lanjut OCR), galat lain diteruskan', async () => {
+		kosongkanCacheLokal();
+		const gagal404 = vi.fn(async () => { throw new GroqError('model_not_found', 404); });
+		await expect(bacaFoto(await gambarUji('#222222'), { panggil: /** @type {any} */ (gagal404), kandidat: SCOUT })).rejects.toBeInstanceOf(VisiTidakTersedia);
+		expect(await ambilCache('ai:visi:model')).toBe('-');
+		expect(await kandidatVisi(async () => SCOUT)).toEqual([]);
+		await expect(bacaFoto(await gambarUji('#333333'), { kandidat: [] })).rejects.toBeInstanceOf(VisiTidakTersedia);
+		const sibuk = vi.fn(async () => { throw new GroqError('rate limit', 429); });
+		await expect(bacaFoto(await gambarUji('#444444'), { panggil: /** @type {any} */ (sibuk), kandidat: SCOUT })).rejects.toThrow(/rate limit/);
+	});
+
+	it('teks OCR dirapikan model teks kecil (JSON), hasil di-cache', async () => {
+		kosongkanCacheLokal();
+		const panggil = vi.fn(async () => ({ choices: [{ message: { content: '{"jenis":"nota_belanja","toko":"TB Maju","total":"45.500","items":[{"nama":"Semen","qty":1,"harga":45500,"subtotal":45500}]}' } }] }));
+		const teks = 'TB MAJU\nSemen 1 x 45.5OO\nTOTAL 45.5OO';
+		const a = await bacaTeksOcr(teks, { panggil: /** @type {any} */ (panggil) });
+		const b = await bacaTeksOcr(teks, { panggil: /** @type {any} */ (panggil) });
+		expect(a).toMatchObject({ sumber: 'ocr', dariCache: false, hasil: { toko: 'TB Maju', total: 45500 } });
+		expect(b.dariCache).toBe(true);
+		expect(panggil).toHaveBeenCalledTimes(1);
+		const arg = /** @type {any} */ (panggil.mock.calls[0])[0];
+		expect(arg.model).toBe('openai/gpt-oss-20b');
+		expect(arg.messages[1].content).toContain('TEKS OCR');
+		await expect(bacaTeksOcr('  ', { panggil: /** @type {any} */ (panggil) })).rejects.toThrow(/tidak terbaca/);
 	});
 });

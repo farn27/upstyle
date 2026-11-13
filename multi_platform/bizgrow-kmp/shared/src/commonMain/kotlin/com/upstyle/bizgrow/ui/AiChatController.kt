@@ -2,6 +2,7 @@ package com.upstyle.bizgrow.ui
 
 import com.upstyle.bizgrow.api.UpstyleApi
 import com.upstyle.bizgrow.data.*
+import com.upstyle.bizgrow.ui.screens.bacaTeksGambar
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -243,7 +244,19 @@ class AiChatController(
         simpanSesiAktif()
         scope.launch {
             try {
-                val res = api().kirimFotoChat(bytes, unit?.id, catatan.ifBlank { null })
+                var res = api().kirimFotoChat(bytes, unit?.id, catatan.ifBlank { null })
+                if (res.perluOcr) {
+                    // Akun AI tanpa model visi → baca teks di HP (ML Kit, gratis) lalu kirim teksnya saja
+                    val sementara = AiMessage(id = baruId(), role = "assistant", ts = System.currentTimeMillis(), content = "🔍 Membaca teks foto di perangkat…")
+                    _pesan.update { it + sementara }
+                    val teks = bacaTeksGambar(bytes)
+                    _pesan.update { daftar -> daftar.filterNot { it.id == sementara.id } }
+                    res = if (teks.isNullOrBlank() || teks.count { !it.isWhitespace() } < 4) {
+                        ChatResponse(reply = "Teks pada foto tidak terbaca. Foto ulang lebih dekat, terang, dan tidak miring ya kak 📷")
+                    } else {
+                        api().kirimFotoChat(null, unit?.id, catatan.ifBlank { null }, teks)
+                    }
+                }
                 val previews = res.transactionPreviews.orEmpty()
                 val jawab = AiMessage(
                     id = baruId(), role = "assistant",

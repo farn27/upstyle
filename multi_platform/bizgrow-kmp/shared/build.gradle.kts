@@ -90,6 +90,8 @@ kotlin {
             implementation("androidx.camera:camera-lifecycle:1.3.4")
             implementation("androidx.camera:camera-view:1.3.4")
             implementation("com.google.mlkit:barcode-scanning:17.3.0")
+            // OCR nota di perangkat (model Latin tergabung) — cadangan bila akun AI tanpa model visi
+            implementation("com.google.mlkit:text-recognition:16.0.1")
             implementation("com.google.android.gms:play-services-location:21.3.0")
             
             // Socket.io — Android only (no iOS equivalent in shared)

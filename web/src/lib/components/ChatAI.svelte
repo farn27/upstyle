@@ -751,7 +751,30 @@
 	}
 
 	/**
+	 * OCR di perangkat (Tesseract, WebAssembly) — dipakai bila akun Groq tidak punya model visi.
+	 * Gratis & tanpa token; hanya teksnya yang dikirim ke server.
+	 * @param {Blob} gambar
+	 * @param {(persen: number) => void} [progres]
+	 * @returns {Promise<string>}
+	 */
+	async function bacaTeksDiPerangkat(gambar, progres) {
+		const { createWorker } = await import('tesseract.js');
+		const worker = await createWorker(['ind', 'eng'], 1, {
+			logger: (/** @type {{ status: string, progress: number }} */ m) => {
+				if (m.status === 'recognizing text') progres?.(Math.round(m.progress * 100));
+			}
+		});
+		try {
+			const { data } = await worker.recognize(gambar);
+			return data.text || '';
+		} finally {
+			await worker.terminate();
+		}
+	}
+
+	/**
 	 * Kirim foto ke /api/chat/foto → balasan + kartu transaksi.
+	 * Bila server membalas perluOcr (tidak ada model visi), teks dibaca di perangkat lalu dikirim ulang.
 	 * @param {File} file
 	 */
 	async function kirimFoto(file) {
@@ -776,7 +799,26 @@
 			if (selectedUnitSlug) fd.append('unit', selectedUnitSlug);
 			if (catatan) fd.append('pesan', catatan);
 			const res = await fetch('/api/chat/foto', { method: 'POST', body: fd });
-			const data = await res.json().catch(() => ({ reply: 'Foto gagal diproses.' }));
+			let data = await res.json().catch(() => ({ reply: 'Foto gagal diproses.' }));
+			if (data.perluOcr) {
+				// pesan sementara yang diperbarui selama OCR berjalan
+				const idx = chatHistory.length;
+				const tulis = (/** @type {string} */ t) => {
+					chatHistory[idx] = { role: 'assistant', content: t, ts: Date.now() };
+					chatHistory = chatHistory;
+				};
+				tulis('🔍 Membaca teks foto di perangkat…');
+				await scrollToBottom();
+				const teks = await bacaTeksDiPerangkat(kecil, (p) => tulis(`🔍 Membaca teks foto di perangkat… ${p}%`));
+				chatHistory = chatHistory.slice(0, idx);
+				if (teks.replace(/\s/g, '').length < 4) throw new Error('Teks pada foto tidak terbaca. Foto ulang lebih dekat, terang, dan tidak miring');
+				const fd2 = new FormData();
+				fd2.append('teks', teks);
+				if (selectedUnitSlug) fd2.append('unit', selectedUnitSlug);
+				if (catatan) fd2.append('pesan', catatan);
+				const res2 = await fetch('/api/chat/foto', { method: 'POST', body: fd2 });
+				data = await res2.json().catch(() => ({ reply: 'Foto gagal diproses.' }));
+			}
 			const fp = data.reply || 'Foto gagal diproses.';
 			chatHistory = [...chatHistory, { role: 'assistant', content: fp, fullReply: fp, transactionPreviews: data.transactionPreviews || null, ts: Date.now() }];
 			currentSuggestions = data.suggestions || [];
