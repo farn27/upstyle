@@ -6,6 +6,9 @@ import { describe, it, expect } from 'vitest';
 import {
 	deteksiTopik,
 	periodeDariTeks,
+	tanggalDariTeks,
+	hapusTanggal,
+	arahDariTeks,
 	perintahTransaksi,
 	perintahIngat,
 	jumlahNominal,
@@ -194,5 +197,38 @@ describe('cache jawaban AI', () => {
 		expect(await ambilCache(k)).toBe('jawaban');
 		await simpanCache(k + 'x', 'lama', -1);
 		expect(await ambilCache(k + 'x')).toBeNull();
+	});
+});
+
+describe('tanggal tunggal di kalimat (temuan uji lapangan 13 Nov)', () => {
+	const KINI = new Date('2026-11-13T09:00:00Z'); // Jumat 13 Nov 2026 16.00 WIB
+	it('mengenali "tanggal 11", "11 november 2026", "11 nov", "11/11/2026", ISO, "3 hari lalu"', () => {
+		expect(tanggalDariTeks('total pendapatan tanggal11 berapa', KINI)).toBe('2026-11-11');
+		expect(tanggalDariTeks('pendapatan tanggal 11 november 2026 400.000', KINI)).toBe('2026-11-11');
+		expect(tanggalDariTeks('catat pendapatan 11 nov 400rb', KINI)).toBe('2026-11-11');
+		expect(tanggalDariTeks('omzet 11/11/2026', KINI)).toBe('2026-11-11');
+		expect(tanggalDariTeks('jual 2026-11-09 300rb', KINI)).toBe('2026-11-09');
+		expect(tanggalDariTeks('pengeluaran 3 hari lalu 50rb', KINI)).toBe('2026-11-10');
+		expect(tanggalDariTeks('omzet tanggal 25', KINI)).toBe('2026-10-25'); // belum lewat bulan ini → bulan lalu
+		expect(tanggalDariTeks('omzet 20 desember', KINI)).toBe('2025-12-20'); // tanpa tahun & di masa depan → tahun lalu
+		expect(tanggalDariTeks('beli gula 1/2 kg 8rb', KINI)).toBeNull();
+		expect(tanggalDariTeks('omzet 31 februari', KINI)).toBeNull();
+	});
+	it('periode satu hari tanpa ikut menjadi periode sebulan', () => {
+		expect(periodeDariTeks('pemasukan tanggal 11 November 2026', KINI)).toEqual([{ label: 'tanggal 11 Nov 2026', mulai: '2026-11-11', akhir: '2026-11-12' }]);
+		expect(periodeDariTeks('omzet november 2026', KINI)[0]).toMatchObject({ mulai: '2026-11-01', akhir: '2026-12-01' });
+	});
+	it('angka tanggal/tahun bukan nominal; kata pendapatan = perintah catat bila ada nominal', () => {
+		expect(hapusTanggal('pendapatan tanggal 11 november 2026 400.000 cup besar 75')).toBe('pendapatan 400.000 cup besar 75');
+		expect(jumlahNominal('pendapatan tanggal 11 november 2026 400.000 cup besar 75 cup sedang 18')).toBe(1);
+		expect(perintahTransaksi('pendapatan tanggal 11 november 2026 400.000 cup besar 75 cup sedang 18 cup kecil 50 cup')).toBe(true);
+		expect(perintahTransaksi('pemasukan tanggal 11 November 2026')).toBe(false);
+		expect(perintahTransaksi('total pendapatan tanggal 11 berapa')).toBe(false);
+	});
+	it('arah transaksi tegas dari kata kunci', () => {
+		expect(arahDariTeks('pendapatan 400.000 cup besar 75')).toBe('Masuk');
+		expect(arahDariTeks('beli gula 50rb')).toBe('Keluar');
+		expect(arahDariTeks('jual kopi 20rb lalu beli gula 10rb')).toBeNull();
+		expect(arahDariTeks('transfer 100rb')).toBeNull();
 	});
 });

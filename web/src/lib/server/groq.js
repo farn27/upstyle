@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/private';
+import { catatPemakaianAI, catatLog } from '$lib/server/telemetri';
 
 /** Nama model lama di kode → model yang benar-benar dipanggil */
 const MODEL_MAP = {
@@ -68,6 +69,7 @@ export function urutanModel(utama) {
  * @param {boolean} [options.bolehKosong]  true = jangan anggap jawaban kosong sebagai kegagalan
  * @param {string[]} [options.cadangan]  daftar model cadangan khusus (mis. untuk gambar: hanya model visi);
  *   bila diisi, GROQ_MODEL tidak menimpa model utama
+ * @param {string} [options.jenis]  nama fitur untuk catatan pemakaian (Ruang Kendali)
  * @param {typeof fetch} [options.fetchFn]  untuk pengujian
  */
 export async function groqChatCompletion({
@@ -78,6 +80,7 @@ export async function groqChatCompletion({
 	response_format,
 	bolehKosong = false,
 	cadangan,
+	jenis,
 	fetchFn = fetch
 }) {
 	const apiKey = env.GROQ_API_KEY;
@@ -149,7 +152,7 @@ export async function groqChatCompletion({
 		if (response.ok) {
 			let data = await response.json();
 			const isi = data?.choices?.[0]?.message?.content;
-			if (bolehKosong || (typeof isi === 'string' && isi.trim() !== '')) return data;
+			if (bolehKosong || (typeof isi === 'string' && isi.trim() !== '')) return tercatat(data, m);
 
 			// Jawaban kosong: biasanya token habis untuk penalaran → coba sekali lagi dengan batas lebih besar
 			try {
@@ -157,7 +160,7 @@ export async function groqChatCompletion({
 				if (ulang.ok) {
 					data = await ulang.json();
 					const isi2 = data?.choices?.[0]?.message?.content;
-					if (typeof isi2 === 'string' && isi2.trim() !== '') return data;
+					if (typeof isi2 === 'string' && isi2.trim() !== '') return tercatat(data, m);
 				}
 			} catch {
 				/* lanjut ke model berikutnya */
@@ -178,7 +181,17 @@ export async function groqChatCompletion({
 		}
 	}
 
-	throw galatTerakhir || new GroqError('Groq API error', 500);
+	const galat = galatTerakhir || new GroqError('Groq API error', 500);
+	catatPemakaianAI({ jenis, model: utama, ok: false, status: galat.status, ms: Date.now() - mulai });
+	catatLog({ level: galat.status === 429 ? 'warn' : 'error', sumber: 'ai', pesan: galat.message.slice(0, 300), status: galat.status, meta: { model: utama, jenis: jenis || null } });
+	throw galat;
+
+	/** Catat pemakaian token untuk Ruang Kendali, lalu teruskan jawaban apa adanya. */
+	function tercatat(/** @type {any} */ data, /** @type {string} */ m) {
+		const u = data?.usage || {};
+		catatPemakaianAI({ jenis, model: data?.model || m, prompt: u.prompt_tokens, completion: u.completion_tokens, total: u.total_tokens, ms: Date.now() - mulai, ok: true });
+		return data;
+	}
 }
 
 /**
@@ -232,4 +245,9 @@ export async function daftarModel(fetchFn = fetch) {
 	} catch {
 		return cacheModel?.ids ?? [];
 	}
+}
+
+/** Lupakan daftar model yang di-cache (Ruang Kendali → "segarkan daftar model"). */
+export function lupakanDaftarModel() {
+	cacheModel = null;
 }
